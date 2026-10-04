@@ -20,7 +20,8 @@
       "长期资产（新规范/新清单/新运维手册）→ docsUnified\\NN-中文名.md，NN 接着 maxDocNo 往后排，并登记 docNumbers.registerIn 三处。",
       "本轮过程文档（plan/arch/evidence/experience/...）→ stager put --kind <kind>，落进 stageDocs\\<任务>\\docs\\。",
       "状态报告 → 本轮自己的 docs\\ 目录，不进 docsUnified、不进任何 read[]。",
-      "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。"
+      "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。",
+      "stage 流（四阶段 / 阶段必读 / 机器门 / 完成动作）只放 rddharness\\stage.md，AGENTS.md 不承载 —— 2026-10-04 拆分。规则文件每多一份副本就多一次漂移（已实测丢过 182 行，TL-2026-10-04-03）。查这一条用 stager\\bin\\check-align.js 的「外层 B 版没有 stage 流残留」。"
     ]
   },
   "env": {
@@ -37,13 +38,77 @@
   },
   "tools": [
     {
-      "id": "compile.entry",
-      "name": "编译唯一入口",
-      "path": "rdd-selfcompile/scripts/run-mutation.ps1",
-      "side": "build",
+      "id": "c.codex",
+      "name": "C 层桥（把 Codex 包成 MCP）",
+      "path": "rdd-selfcompile/scripts/codex-mcp-server.mjs",
+      "side": "run",
+      "needsGame": false
+    },
+    {
+      "id": "cam.campath",
+      "name": "相机配置文件（路径刻意不变）",
+      "path": "live/config/numen_api/cam.json",
+      "side": "write",
       "needsGame": false,
-      "usage": "run-mutation.ps1 -Requirement \"<需求>\" -Module <模块> [-SkipLaunch -SkipMcp] [-MaxAttempts N]",
-      "note": "改执行层(core/common)必须 -Module core:neoforge，默认模块盖不到。禁手写 gradle / 手动拷 jar（permission deny）。"
+      "note": "⚠ target 必须写同伴【真名】ACX / DDD。写 'RDD' 会静默退回第一人称（TL-2026-10-03-01）。"
+    },
+    {
+      "id": "cam.command",
+      "name": "★ 游戏内 /cam 指令树（numencam 模块）",
+      "path": "游戏内聊天框 /cam",
+      "side": "run",
+      "needsGame": true,
+      "usage": "/cam help|status|list|bind <name>|unbind|tp|follow[on|off]|followdist <n>|mode <M>|dist|height|shoulder|bearing|pitch|hold|lock<x y z>|run<true|false>|fly<true|false>|speed<n>|rec start[fps][dedupe]|rec stop|rec status|rec maxframes|save|reload",
+      "note": "客户端 NeoForge RegisterClientCommandsEvent。cam.json 20 tick 热载。",
+      "inGameCommand": true
+    },
+    {
+      "id": "cam.fastMove",
+      "name": "自动疾跑 / 创造飞行 / 速度倍率",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/move/FastMove.java",
+      "side": "run",
+      "needsGame": true,
+      "note": "★ 飞行必须每 tick 重申（原版 LocalPlayer 一落地就强制关 flying）。Abilities 没有 setWalkSpeed，只能加速飞行。"
+    },
+    {
+      "id": "cam.mixin",
+      "name": "相机注入（抄原版 Camera.setup/move/getMaxZoom）",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/mixin/MixinCamera.java",
+      "side": "read",
+      "needsGame": false
+    },
+    {
+      "id": "cam.recorder",
+      "name": "帧序列 + ffmpeg 合成 mp4",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/rec/VideoRecorder.java",
+      "side": "write",
+      "needsGame": true,
+      "usage": "/cam rec start 10 → /cam rec stop，产物 screenshots\\numencam_<ts>\\numencam.mp4",
+      "note": "★ 验收看 ffmpeg 的 frame= 是否等于 PNG 张数，不能只看 mp4 存在（bug-6 首发就只编出 1 帧）。"
+    },
+    {
+      "id": "cam.rig",
+      "name": "相机策略层（5 模式 + 20tick 热载）",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/cam/CameraRig.java",
+      "side": "read",
+      "needsGame": false
+    },
+    {
+      "id": "cam.sendCommand",
+      "name": "★ 在游戏里敲斜杠指令（OpenClaw 驱不动聊天框）",
+      "path": "harness/bin/send-mc-command.ps1",
+      "side": "run",
+      "needsGame": true,
+      "usage": "powershell -File send-mc-command.ps1 -Text '/cam status'",
+      "note": "配方 = Focus-MinecraftWindow → Set-Clipboard → SendKeys('t') '^a' '^v' '{ENTER}'。实测 20+ 条全部送达。"
+    },
+    {
+      "id": "cam.tether",
+      "name": "绑定 + 走出加载区自动牵引",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/tether/CompanionTether.java",
+      "side": "run",
+      "needsGame": true,
+      "note": "★ 传坐标不传名字（按名字 tp 会落在它脚下正中，可能被挤进墙里）。需 hasPermissions(2)（单人游戏开作弊）。"
     },
     {
       "id": "compile.build",
@@ -55,6 +120,14 @@
       "note": "产物排除 -sources/-javadoc/-api.jar"
     },
     {
+      "id": "compile.config",
+      "name": "公共配置真源",
+      "path": "rdd-selfcompile/scripts/config.ps1",
+      "side": "read",
+      "needsGame": false,
+      "note": "改路径只改这里（DOCS_ROOT/DOCS_UNIFIED/DOCS_OUT）；node 侧对应 stages.json 的 docsRoot/docsOut"
+    },
+    {
       "id": "compile.deploy",
       "name": "jar 部署到 live mods",
       "path": "rdd-selfcompile/scripts/deploy.ps1",
@@ -64,11 +137,13 @@
       "note": "★ 一个 mutation 只放一个 jar。多模块必须开多个 mutation。"
     },
     {
-      "id": "compile.new",
-      "name": "建变异工作区",
-      "path": "rdd-selfcompile/scripts/new-mutation.ps1",
-      "side": "write",
-      "needsGame": false
+      "id": "compile.entry",
+      "name": "编译唯一入口",
+      "path": "rdd-selfcompile/scripts/run-mutation.ps1",
+      "side": "build",
+      "needsGame": false,
+      "usage": "run-mutation.ps1 -Requirement \"<需求>\" -Module <模块> [-SkipLaunch -SkipMcp] [-MaxAttempts N]",
+      "note": "改执行层(core/common)必须 -Module core:neoforge，默认模块盖不到。禁手写 gradle / 手动拷 jar（permission deny）。"
     },
     {
       "id": "compile.gencode",
@@ -76,14 +151,6 @@
       "path": "rdd-selfcompile/scripts/gen-code.ps1",
       "side": "write",
       "needsGame": false
-    },
-    {
-      "id": "compile.config",
-      "name": "公共配置真源",
-      "path": "rdd-selfcompile/scripts/config.ps1",
-      "side": "read",
-      "needsGame": false,
-      "note": "改路径只改这里（DOCS_ROOT/DOCS_UNIFIED/DOCS_OUT）；node 侧对应 stages.json 的 docsRoot/docsOut"
     },
     {
       "id": "compile.loop",
@@ -94,10 +161,10 @@
       "note": "⚠ 它的 -Instance 默认值仍是 'test'（已停用），与其它脚本的 'gpt' 不一致 —— 调用时必须显式传 -Instance gpt。"
     },
     {
-      "id": "compile.store",
-      "name": "外层版本指针 promote/rollback",
-      "path": "rdd-selfcompile/scripts/selfcompile-store.js",
-      "side": "writeMods",
+      "id": "compile.new",
+      "name": "建变异工作区",
+      "path": "rdd-selfcompile/scripts/new-mutation.ps1",
+      "side": "write",
       "needsGame": false
     },
     {
@@ -109,13 +176,107 @@
       "note": "与 compile.store 是【两套不同目录的 store】，回滚前先确认在指哪个。"
     },
     {
-      "id": "mc.start",
-      "name": "起游戏唯一入口",
-      "path": "rdd-selfcompile/scripts/mc-start.js",
+      "id": "compile.store",
+      "name": "外层版本指针 promote/rollback",
+      "path": "rdd-selfcompile/scripts/selfcompile-store.js",
+      "side": "writeMods",
+      "needsGame": false
+    },
+    {
+      "id": "eval.plan",
+      "name": "规划质量 5 指标 + A/B 回归对照",
+      "path": "rdd-selfcompile/scripts/plan-eval.js",
+      "side": "read",
+      "needsGame": false
+    },
+    {
+      "id": "eval.survival",
+      "name": "生存评测 8 指标",
+      "path": "rdd-selfcompile/scripts/survival-eval.js",
+      "side": "read",
+      "needsGame": false
+    },
+    {
+      "id": "game.capabilityList",
+      "name": "游戏内能力清单（进游戏前必读）",
+      "path": "进游戏前必读-游戏内能力清单.md",
       "side": "read",
       "needsGame": false,
-      "usage": "node mc-start.js gpt 120 | --status | --wait N",
-      "note": "★ --stop 是哑弹（见 bugs.bug-1）。在 opencode shell 里 Start-Process 拉它不存活，用 mc.launch 的姿势。"
+      "usage": "进游戏之前读一遍。10 条能力每条都带正确调用姿势 + 已验证标记 + 坑；末尾是「关游戏后写记录+写文档」清单。",
+      "note": "★ preflight 的 P13 就是这一份。2026-10-04 按用户口述建：说话 / 建伙伴 / 让内脑停 / 视觉 / 快速拍摄 / 追踪 / 相机 / openclaw 还是指令 / 切创造者模式 / 看监测台。"
+    },
+    {
+      "id": "gate.docAnchor",
+      "name": "查文档行号锚点漂移（直接给新行号）",
+      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-anchor-drift.js",
+      "side": "read",
+      "needsGame": false
+    },
+    {
+      "id": "gate.docFresh",
+      "name": "文档时效门禁（未登记/撞号/超期/核对后被改）",
+      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-freshness.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "已知旧撞号降级 WARN，新撞号 BLOCK —— 一次旧债不能把门禁永久钉死。"
+    },
+    {
+      "id": "gate.flow",
+      "name": "自编译闭环门（jar sha + phase 链）",
+      "path": "rdd-selfcompile/scripts/flow-gate.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--since <今天> --active <开工时的 store active>"
+    },
+    {
+      "id": "gate.harness",
+      "name": "★ 本 harness 的门禁执行器",
+      "path": "harness/bin/harness-gate.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node harness-gate.js preflight|postflight|selftest|registry --since <YYYY-MM-DD> [--head <sha>]",
+      "note": "两段门禁：preflight=进游戏前，postflight=出游戏后。"
+    },
+    {
+      "id": "gate.loop",
+      "name": "九步流硬门禁 20 项",
+      "path": "rdd-selfcompile/scripts/loop-gate.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--since <今天> --keyword <模块> --head <HEAD>",
+      "note": "VERDICT=NOT_DONE 只在开了 stage 时才有意义。"
+    },
+    {
+      "id": "gate.repoStatus",
+      "name": "6 个套娃仓库 HEAD/脏项/推没推",
+      "path": "stager/bin/repo-status.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ numen 的改动不进外层 git，stager/loop-gate 的 commit 判据对它【是盲的】。跨仓库对账要看它。"
+    },
+    {
+      "id": "gate.runtime",
+      "name": "查 jar 是否落后于源码",
+      "path": "rdd-selfcompile/scripts/verify-tools/check-runtime-deployment.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ 退出码 2 = 有源码领先于 jar。比的是「最后一次改 src/main/java 的提交」vs jar mtime，不是最后一次提交。"
+    },
+    {
+      "id": "gate.stager",
+      "name": "流程状态机 CLI",
+      "path": "stager/bin/stager.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "start|ctx|implement|put|next|check|close|self-check|repo-status",
+      "note": "★ stager 完全不含编译/部署能力，它对编译的认知全靠读 mutations\\*\\phase-*.json 和 jar 文件。"
+    },
+    {
+      "id": "mc.instance",
+      "name": "进程身份单一真源 Get/Test/Stop/Ensure-RddMc*",
+      "path": "rdd-selfcompile/scripts/mc-instance.ps1",
+      "side": "read",
+      "needsGame": false
     },
     {
       "id": "mc.launch",
@@ -127,6 +288,15 @@
       "note": "在 opencode shell 里报 ChildProcess.kill 属正常，命令其实已执行 —— 必须自己查 java 进程复核。"
     },
     {
+      "id": "mc.start",
+      "name": "起游戏唯一入口",
+      "path": "rdd-selfcompile/scripts/mc-start.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node mc-start.js gpt 120 | --status | --wait N",
+      "note": "★ --stop 是哑弹（见 bugs.bug-1）。在 opencode shell 里 Start-Process 拉它不存活，用 mc.launch 的姿势。"
+    },
+    {
       "id": "mc.stop",
       "name": "★ 真能关游戏的唯一解",
       "path": "rdd-selfcompile/scripts/mc-instance.ps1",
@@ -136,16 +306,16 @@
       "note": "★ 必须用带 -ExecutionPolicy Bypass 的 powershell.exe -Command；在当前 shell 里直接 . 会被 ExecutionPolicy 拦。"
     },
     {
-      "id": "mc.instance",
-      "name": "进程身份单一真源 Get/Test/Stop/Ensure-RddMc*",
-      "path": "rdd-selfcompile/scripts/mc-instance.ps1",
-      "side": "read",
-      "needsGame": false
-    },
-    {
       "id": "mc.watchdog",
       "name": "到点强杀游戏",
       "path": "rdd-selfcompile/scripts/mc-watchdog.ps1",
+      "side": "run",
+      "needsGame": true
+    },
+    {
+      "id": "mcp.b9",
+      "name": "一次性 MCP 驱动（jsonFile 绕 PS 引号）",
+      "path": "rdd-selfcompile/scripts/b9-mcp.js",
       "side": "run",
       "needsGame": true
     },
@@ -168,13 +338,6 @@
       "note": "★ 只有 status <name> 直接返回 JSON；call 返回的是人类可读文本，JSON.parse 会炸。"
     },
     {
-      "id": "mcp.b9",
-      "name": "一次性 MCP 驱动（jsonFile 绕 PS 引号）",
-      "path": "rdd-selfcompile/scripts/b9-mcp.js",
-      "side": "run",
-      "needsGame": true
-    },
-    {
       "id": "mcp.drive",
       "name": "MCP 编排（tools/list + list_companions + call）",
       "path": "rdd-selfcompile/scripts/mcp-drive.ps1",
@@ -190,148 +353,11 @@
       "note": "会改游戏状态，非只读。"
     },
     {
-      "id": "vis.screenshot",
-      "name": "外部抓 MC 窗口（CopyFromScreen）",
-      "path": "rdd-selfcompile/scripts/mc-screenshot.ps1",
-      "side": "read",
-      "needsGame": true,
-      "usage": "powershell -File mc-screenshot.ps1 -OutPath <png>",
-      "note": "⚠ 按屏幕矩形抓，会把遮挡/相邻窗口拍进来。窗口标题会变，只能按前缀 'Minecraft NeoForge*' 匹配。"
-    },
-    {
-      "id": "vis.captureWin",
-      "name": "★ VISION 链正确选择（PrintWindow+DWM）",
-      "path": "mc-openclaw-controller/scripts/capture-win.ps1",
-      "side": "read",
-      "needsGame": true,
-      "usage": "powershell -File capture-win.ps1 -TitleMatch Minecraft -Out <png>",
-      "note": "窗口被盖住也能拍，出的图只有游戏窗口。实测 698x422。"
-    },
-    {
-      "id": "vis.focus",
-      "name": "抢 MC 窗口焦点（AttachThreadInput + ALT 抬落）",
-      "path": "rdd-selfcompile/scripts/mc-focus.ps1",
+      "id": "oc.drive",
+      "name": "一次性 CLI（支持 @file 读 JSON）",
+      "path": "mc-openclaw-controller/scripts/oc-drive.js",
       "side": "run",
-      "needsGame": true,
-      "usage": ". mc-focus.ps1 ; Focus-MinecraftWindow  → 'FOCUS_OK '<title>",
-      "note": "★ 只有焦点功能，没有发键功能。要敲键盘/发指令用 harness 的 cam.sendCommand。"
-    },
-    {
-      "id": "cam.sendCommand",
-      "name": "★ 在游戏里敲斜杠指令（OpenClaw 驱不动聊天框）",
-      "path": "harness/bin/send-mc-command.ps1",
-      "side": "run",
-      "needsGame": true,
-      "usage": "powershell -File send-mc-command.ps1 -Text '/cam status'",
-      "note": "配方 = Focus-MinecraftWindow → Set-Clipboard → SendKeys('t') '^a' '^v' '{ENTER}'。实测 20+ 条全部送达。"
-    },
-    {
-      "id": "vis.watch",
-      "name": "一屏报告：同伴是否真在干活",
-      "path": "rdd-selfcompile/scripts/mc-watch.js",
-      "side": "read",
-      "needsGame": true,
-      "note": "⚠ 它内部调 watch-ai.js --from-rdd，那条路径必挂（bug-6），所以 status 字段是垃圾，但 exit 0。其余字段可用。"
-    },
-    {
-      "id": "vis.evidence",
-      "name": "采 verify 要的 5 个 evidence json",
-      "path": "rdd-selfcompile/scripts/collect-evidence.ps1",
-      "side": "read",
       "needsGame": true
-    },
-    {
-      "id": "vis.verify",
-      "name": "读 snapshot + evidence 判 VERIFIED/UNVERIFIED",
-      "path": "rdd-selfcompile/scripts/verify.ps1",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "vis.aiTalk",
-      "name": "挖同伴自述找卡住/困惑信号",
-      "path": "rdd-selfcompile/scripts/ai-talk.js",
-      "side": "read",
-      "needsGame": false
-    },
-    {
-      "id": "vis.sample",
-      "name": "采样位置数方向反转（只读）",
-      "path": "rdd-selfcompile/scripts/sample-ai.js",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "vis.dropall",
-      "name": "丢背包",
-      "path": "rdd-selfcompile/scripts/drop-all.js",
-      "side": "writeGame",
-      "needsGame": true
-    },
-    {
-      "id": "cam.command",
-      "name": "★ 游戏内 /cam 指令树（numencam 模块）",
-      "path": "游戏内聊天框 /cam",
-      "side": "run",
-      "needsGame": true,
-      "usage": "/cam help|status|list|bind <name>|unbind|tp|follow[on|off]|followdist <n>|mode <M>|dist|height|shoulder|bearing|pitch|hold|lock<x y z>|run<true|false>|fly<true|false>|speed<n>|rec start[fps][dedupe]|rec stop|rec status|rec maxframes|save|reload",
-      "note": "客户端 NeoForge RegisterClientCommandsEvent。cam.json 20 tick 热载。",
-      "inGameCommand": true
-    },
-    {
-      "id": "cam.rig",
-      "name": "相机策略层（5 模式 + 20tick 热载）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/cam/CameraRig.java",
-      "side": "read",
-      "needsGame": false
-    },
-    {
-      "id": "cam.mixin",
-      "name": "相机注入（抄原版 Camera.setup/move/getMaxZoom）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/mixin/MixinCamera.java",
-      "side": "read",
-      "needsGame": false
-    },
-    {
-      "id": "cam.tether",
-      "name": "绑定 + 走出加载区自动牵引",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/tether/CompanionTether.java",
-      "side": "run",
-      "needsGame": true,
-      "note": "★ 传坐标不传名字（按名字 tp 会落在它脚下正中，可能被挤进墙里）。需 hasPermissions(2)（单人游戏开作弊）。"
-    },
-    {
-      "id": "cam.fastMove",
-      "name": "自动疾跑 / 创造飞行 / 速度倍率",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/move/FastMove.java",
-      "side": "run",
-      "needsGame": true,
-      "note": "★ 飞行必须每 tick 重申（原版 LocalPlayer 一落地就强制关 flying）。Abilities 没有 setWalkSpeed，只能加速飞行。"
-    },
-    {
-      "id": "cam.recorder",
-      "name": "帧序列 + ffmpeg 合成 mp4",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/rec/VideoRecorder.java",
-      "side": "write",
-      "needsGame": true,
-      "usage": "/cam rec start 10 → /cam rec stop，产物 screenshots\\numencam_<ts>\\numencam.mp4",
-      "note": "★ 验收看 ffmpeg 的 frame= 是否等于 PNG 张数，不能只看 mp4 存在（bug-6 首发就只编出 1 帧）。"
-    },
-    {
-      "id": "cam.campath",
-      "name": "相机配置文件（路径刻意不变）",
-      "path": "live/config/numen_api/cam.json",
-      "side": "write",
-      "needsGame": false,
-      "note": "⚠ target 必须写同伴【真名】ACX / DDD。写 'RDD' 会静默退回第一人称（TL-2026-10-03-01）。"
-    },
-    {
-      "id": "oc.server",
-      "name": "OpenClaw WebSocket 中枢（8080）",
-      "path": "mc-openclaw-controller/scripts/server.js",
-      "side": "run",
-      "needsGame": true,
-      "note": "★ 必须先于游戏起，否则 mod 连不上。仓库虽打了 archived tag，但 mc-watch.js 还依赖它，不能删。"
     },
     {
       "id": "oc.send",
@@ -343,20 +369,12 @@
       "note": "★ 不要用通用形式 <action> '<json>'（被 PS 拆坏 → BAD_JSON）。大 JSON 用 oc.drive <action> @file。"
     },
     {
-      "id": "oc.watch",
-      "name": "★ 像人一样看同伴：飞镜头+瞄准+干净截图",
-      "path": "mc-openclaw-controller/scripts/watch-ai.js",
+      "id": "oc.server",
+      "name": "OpenClaw WebSocket 中枢（8080）",
+      "path": "mc-openclaw-controller/scripts/server.js",
       "side": "run",
       "needsGame": true,
-      "usage": "node watch-ai.js --dist 6",
-      "note": "⚠⚠ 不要带 --from-rdd（写死同伴名 'rdd' + 拿非 JSON 去 parse，必挂）。"
-    },
-    {
-      "id": "oc.drive",
-      "name": "一次性 CLI（支持 @file 读 JSON）",
-      "path": "mc-openclaw-controller/scripts/oc-drive.js",
-      "side": "run",
-      "needsGame": true
+      "note": "★ 必须先于游戏起，否则 mod 连不上。仓库虽打了 archived tag，但 mc-watch.js 还依赖它，不能删。"
     },
     {
       "id": "oc.walk",
@@ -366,126 +384,99 @@
       "needsGame": true
     },
     {
-      "id": "gate.harness",
-      "name": "★ 本 harness 的门禁执行器",
-      "path": "harness/bin/harness-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "node harness-gate.js preflight|postflight|selftest|registry --since <YYYY-MM-DD> [--head <sha>]",
-      "note": "两段门禁：preflight=进游戏前，postflight=出游戏后。"
-    },
-    {
-      "id": "gate.loop",
-      "name": "九步流硬门禁 20 项",
-      "path": "rdd-selfcompile/scripts/loop-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "--since <今天> --keyword <模块> --head <HEAD>",
-      "note": "VERDICT=NOT_DONE 只在开了 stage 时才有意义。"
-    },
-    {
-      "id": "gate.flow",
-      "name": "自编译闭环门（jar sha + phase 链）",
-      "path": "rdd-selfcompile/scripts/flow-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "--since <今天> --active <开工时的 store active>"
-    },
-    {
-      "id": "gate.stager",
-      "name": "流程状态机 CLI",
-      "path": "stager/bin/stager.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "start|ctx|implement|put|next|check|close|self-check|repo-status",
-      "note": "★ stager 完全不含编译/部署能力，它对编译的认知全靠读 mutations\\*\\phase-*.json 和 jar 文件。"
-    },
-    {
-      "id": "gate.runtime",
-      "name": "查 jar 是否落后于源码",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-runtime-deployment.js",
-      "side": "read",
-      "needsGame": false,
-      "note": "★ 退出码 2 = 有源码领先于 jar。比的是「最后一次改 src/main/java 的提交」vs jar mtime，不是最后一次提交。"
-    },
-    {
-      "id": "gate.docAnchor",
-      "name": "查文档行号锚点漂移（直接给新行号）",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-anchor-drift.js",
-      "side": "read",
-      "needsGame": false
-    },
-    {
-      "id": "gate.docFresh",
-      "name": "文档时效门禁（未登记/撞号/超期/核对后被改）",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-freshness.js",
-      "side": "read",
-      "needsGame": false,
-      "note": "已知旧撞号降级 WARN，新撞号 BLOCK —— 一次旧债不能把门禁永久钉死。"
-    },
-    {
-      "id": "gate.repoStatus",
-      "name": "6 个套娃仓库 HEAD/脏项/推没推",
-      "path": "stager/bin/repo-status.js",
-      "side": "read",
-      "needsGame": false,
-      "note": "★ numen 的改动不进外层 git，stager/loop-gate 的 commit 判据对它【是盲的】。跨仓库对账要看它。"
-    },
-    {
-      "id": "watch.efficiency",
-      "name": "效率监察：subtask 不换/资产不变/背包指纹不变",
-      "path": "rdd-selfcompile/scripts/task-efficiency-watch.js",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "watch.redline",
-      "name": "红线/assist 在线巡检",
-      "path": "rdd-selfcompile/scripts/redline-watch.js",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "watch.regression",
-      "name": "红线基础能力回归 T1-T3",
-      "path": "rdd-selfcompile/scripts/redline-regression.js",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "watch.presence",
-      "name": "AI 心跳陈旧检测",
-      "path": "rdd-selfcompile/scripts/presence-watchdog.ps1",
-      "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "watch.selfdrive",
-      "name": "自驱动（内嵌 mc-focus 逻辑）",
-      "path": "rdd-selfcompile/scripts/every-10min-drive.ps1",
+      "id": "oc.watch",
+      "name": "★ 像人一样看同伴：飞镜头+瞄准+干净截图",
+      "path": "mc-openclaw-controller/scripts/watch-ai.js",
       "side": "run",
-      "needsGame": true
+      "needsGame": true,
+      "usage": "node watch-ai.js --dist 6",
+      "note": "⚠⚠ 不要带 --from-rdd（写死同伴名 'rdd' + 拿非 JSON 去 parse，必挂）。"
     },
     {
-      "id": "watch.heartbeat",
-      "name": "stager 阶段心跳",
-      "path": "rdd-selfcompile/scripts/stage-heartbeat.js",
+      "id": "review.adversarial",
+      "name": "独立对抗审计（只送原始产物不送作者结论）",
+      "path": "rdd-selfcompile/scripts/adversarial-review.js",
       "side": "run",
       "needsGame": false
     },
     {
-      "id": "eval.survival",
-      "name": "生存评测 8 指标",
-      "path": "rdd-selfcompile/scripts/survival-eval.js",
+      "id": "stage.flow",
+      "name": "stage 流细则（只在开 stage 时读）",
+      "path": "stage.md",
+      "side": "read",
+      "needsGame": false,
+      "usage": "用户明确说了要开 stage 才读。四阶段流水线 / 四阶段必读 md / 三个机器门 / 完成动作 / 每三轮 GLM 源码审 / 改流程改 stages.json。",
+      "note": "2026-10-04 从 AGENTS.md 拆出来。改 stage 流改这份 + stager\\core\\stages.json，不要改 AGENTS.md（那是第二份副本的成因）。"
+    },
+    {
+      "id": "vis.aiTalk",
+      "name": "挖同伴自述找卡住/困惑信号",
+      "path": "rdd-selfcompile/scripts/ai-talk.js",
       "side": "read",
       "needsGame": false
     },
     {
-      "id": "eval.plan",
-      "name": "规划质量 5 指标 + A/B 回归对照",
-      "path": "rdd-selfcompile/scripts/plan-eval.js",
+      "id": "vis.captureWin",
+      "name": "★ VISION 链正确选择（PrintWindow+DWM）",
+      "path": "mc-openclaw-controller/scripts/capture-win.ps1",
       "side": "read",
-      "needsGame": false
+      "needsGame": true,
+      "usage": "powershell -File capture-win.ps1 -TitleMatch Minecraft -Out <png>",
+      "note": "窗口被盖住也能拍，出的图只有游戏窗口。实测 698x422。"
+    },
+    {
+      "id": "vis.dropall",
+      "name": "丢背包",
+      "path": "rdd-selfcompile/scripts/drop-all.js",
+      "side": "writeGame",
+      "needsGame": true
+    },
+    {
+      "id": "vis.evidence",
+      "name": "采 verify 要的 5 个 evidence json",
+      "path": "rdd-selfcompile/scripts/collect-evidence.ps1",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "vis.focus",
+      "name": "抢 MC 窗口焦点（AttachThreadInput + ALT 抬落）",
+      "path": "rdd-selfcompile/scripts/mc-focus.ps1",
+      "side": "run",
+      "needsGame": true,
+      "usage": ". mc-focus.ps1 ; Focus-MinecraftWindow  → 'FOCUS_OK '<title>",
+      "note": "★ 只有焦点功能，没有发键功能。要敲键盘/发指令用 harness 的 cam.sendCommand。"
+    },
+    {
+      "id": "vis.sample",
+      "name": "采样位置数方向反转（只读）",
+      "path": "rdd-selfcompile/scripts/sample-ai.js",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "vis.screenshot",
+      "name": "外部抓 MC 窗口（CopyFromScreen）",
+      "path": "rdd-selfcompile/scripts/mc-screenshot.ps1",
+      "side": "read",
+      "needsGame": true,
+      "usage": "powershell -File mc-screenshot.ps1 -OutPath <png>",
+      "note": "⚠ 按屏幕矩形抓，会把遮挡/相邻窗口拍进来。窗口标题会变，只能按前缀 'Minecraft NeoForge*' 匹配。"
+    },
+    {
+      "id": "vis.verify",
+      "name": "读 snapshot + evidence 判 VERIFIED/UNVERIFIED",
+      "path": "rdd-selfcompile/scripts/verify.ps1",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "vis.watch",
+      "name": "一屏报告：同伴是否真在干活",
+      "path": "rdd-selfcompile/scripts/mc-watch.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "⚠ 它内部调 watch-ai.js --from-rdd，那条路径必挂（bug-6），所以 status 字段是垃圾，但 exit 0。其余字段可用。"
     },
     {
       "id": "w.drive",
@@ -504,18 +495,46 @@
       "needsGame": false
     },
     {
-      "id": "c.codex",
-      "name": "C 层桥（把 Codex 包成 MCP）",
-      "path": "rdd-selfcompile/scripts/codex-mcp-server.mjs",
+      "id": "watch.efficiency",
+      "name": "效率监察：subtask 不换/资产不变/背包指纹不变",
+      "path": "rdd-selfcompile/scripts/task-efficiency-watch.js",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "watch.heartbeat",
+      "name": "stager 阶段心跳",
+      "path": "rdd-selfcompile/scripts/stage-heartbeat.js",
       "side": "run",
       "needsGame": false
     },
     {
-      "id": "review.adversarial",
-      "name": "独立对抗审计（只送原始产物不送作者结论）",
-      "path": "rdd-selfcompile/scripts/adversarial-review.js",
+      "id": "watch.presence",
+      "name": "AI 心跳陈旧检测",
+      "path": "rdd-selfcompile/scripts/presence-watchdog.ps1",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "watch.redline",
+      "name": "红线/assist 在线巡检",
+      "path": "rdd-selfcompile/scripts/redline-watch.js",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "watch.regression",
+      "name": "红线基础能力回归 T1-T3",
+      "path": "rdd-selfcompile/scripts/redline-regression.js",
+      "side": "read",
+      "needsGame": true
+    },
+    {
+      "id": "watch.selfdrive",
+      "name": "自驱动（内嵌 mc-focus 逻辑）",
+      "path": "rdd-selfcompile/scripts/every-10min-drive.ps1",
       "side": "run",
-      "needsGame": false
+      "needsGame": true
     }
   ],
   "standards": {
@@ -626,6 +645,15 @@
           "kind": "human",
           "level": "warn",
           "rule": "加枚举值/改签名/改 switch 穷举，必须先 grep 谁在调。不同步补 case 就编译不过 —— 但编译不过是事后才发现，代價太大。"
+        },
+        {
+          "id": "P13",
+          "name": "★ 进游戏前已过一遍游戏内能力清单",
+          "kind": "human",
+          "level": "block",
+          "rule": "★ 进游戏【之前】必须先读一遍「游戏内能力清单」，确认这一轮要用的能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 / 飞行 / 看监测台）已有一条现成工具。清单里每一条都带正确调用姿势和坑。目的是别临场手写已有工具、别用错那条必然失效的路。",
+          "verify": "人工确认：已读 E:\\新建文件夹\\rddharness\\进游戏前必读-游戏内能力清单.md（preflight 输出里会把这句打出来，读没读过是你的判断，机器查不到「读过」这件事 —— 所以它宁可误报也不静默跳过）",
+          "tool": "gate.read"
         }
       ]
     },
@@ -720,6 +748,15 @@
           "kind": "human",
           "level": "block",
           "rule": "★ git status --short 逐行确认，每一行都是你改的。rdd-docs 尤其危险（副本同步一次动 147 个文件）。"
+        },
+        {
+          "id": "Q12",
+          "name": "★ 关游戏之后：写记录 + 写文档（提示）",
+          "kind": "human",
+          "level": "warn",
+          "rule": "★ 关游戏不是结束。顺序固定：关游戏 → 写记录 → 写文档 → 门禁。两件必须真动手：(1) 写记录 = 测试日志.md 加本轮条目（带 keyword 或 HEAD 前 12 位签名）+ 09-更新日志.md 登记本轮变更；(2) 写文档 = 长期资产落 docsUnified\\NN-<中文名>.md 并同时登记 3 处（README §二目录表 / 50-按主题导航.md / 09-更新日志.md）。另需 memory_create_entities 灌记忆图谱 —— 别只写文档不进图谱。",
+          "verify": "人工确认三条都做了：① 测试日志有本轮签名条目 ② 09-更新日志有本轮登记 ③ 记忆图谱有新实体。Q2/Q3/Q5/Q9 是同一件事的机器侧对应项，这里是给人看的完整清单",
+          "tool": "gate.read"
         }
       ]
     }
@@ -904,6 +941,16 @@
         "fix": "路径取第一个空格/§/（ 之前的部分；补注留在 raw 里只用于报错文案。另加一条「读不到就报『注册表路径写错了』而不是报『没登记』」的判别 —— 两者的修法完全不同。",
         "lesson": "★ 和 P4（扫第三方 mod 噪音）/P10（旧撞号当必须 BLOCK）/P10b（缺连字符文件被永久 BLOCK）/Q7（ffmpeg frame= 取第一个匹配）同类的第 5 例：**门禁自己的缺陷长得像「门禁在正确地报债」，必须每次复跑都逐项核对是不是真债。** 一轮里抓到 5 个，说明「写完门禁立刻拿真债跑一遍」这条不能省。",
         "guard": "harness-gate.js Q9 现在会区分「读不到注册表路径」和「文件里真的没有这个名字」两种文案。"
+      },
+      {
+        "id": "bug-10",
+        "class": "隐蔽",
+        "title": "AGENTS.md 让人跑 `stager.js self-check` 验 read[] 路径，但那个命令不存在",
+        "detected": "2026-10-04",
+        "detail": "stager 的命令表（stager help）里没有 self-check；self-test 有但它验的是状态机（临时目录跑完即删），不是 read[] 路径。也就是说「改完路径必跑 self-check 验每个 read[] 真存在」这条纪律**从来没被执行过** —— 一个不存在的命令被文档反复引用，看起来是纪律，其实是空话。",
+        "fix": "2026-10-04 两份文件都改成实话：「⚠️ 以前这里写的是 self-check —— 那个命令根本不存在（真命令是 self-test，验的是状态机不是路径）。用 rg --files 一下 read[] 里的每个路径即可，别照抄不存在的命令。」",
+        "lesson": "文档里出现「跑 X 验 Y」时，要确认 X 真的存在。一次纪律被执行 0 次而不自知，比没有这条纪律更糟 —— 它让人以为「验过了」。",
+        "guard": "check-align.js 的「细则两份文件真实存在」只查那两份，不查 AGENTS.md 正文里的命令行。真要防这类，得对文档里的 `stager <cmd>` 逐个核对命令表 —— 尚未实现，记为待办。"
       }
     ]
   }
