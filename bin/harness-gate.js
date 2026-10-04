@@ -99,6 +99,13 @@ function record(id, name, level, kind, state, detail) {
   results.push({ id, name, level, kind, state, detail: detail || '' });
 }
 const BLOCK = 'BLOCK', WARN = 'WARN', PASS = 'PASS', SKIP = 'SKIP';
+// ★ ASK = 「必须由人点头，机器判不了」。它【不进 BLOCK 计数】（否则一条永远无法自动
+// 满足的项会把门禁永久钉死 —— 同 P10/P10c 的教训），但【永远打印在单独的段落里】，
+// 所以「AI 读得到这句提示」这件事本身是被保证的。
+// 用它而不是「记进 registry 就当有」：2026-10-04 首跑发现 P11/P12/P13 只写进了
+// registry.json，preflight() 里根本没 record()，于是**门禁上一轮还没接上就没人提醒**
+// —— 那正是 bug-10 那一族（纪律看起来在守，其实从没执行过）。
+const ASK = 'ASK';
 
 // ═══════════════════════════════════════════════════════════════════════════
 // preflight —— 进游戏之前
@@ -260,6 +267,52 @@ function preflight(ctx) {
       fresh ? '30-主要功能不回退清单.md 本轮动过' : '本轮没动 30-主要功能不回退清单.md（命中要保的能力时会漏）');
   }
 
+  // ── P11 / P12 / P13 ────────────────────────────────────────────────
+  // ★ 2026-10-04 首跑事故：P11/P12/P13 只写进了 registry.json，preflight() 里
+  //   **一次 record() 都没有** —— 所以「进游戏前提醒你过一遍游戏内能力清单」
+  //   这条用户明确要求的门禁，上一轮根本没接上，跑出来 12 行里根本没有 P13。
+  //   这跟 bug-10（纪律引用了一个不存在的命令）是同一族：
+  //   **声明 ≠ 接线**。修法 = 真 record() + ASK 状态永远打印（见 ASK 常量注释）。
+  {
+    // P11 规则没打架 —— 真跑那两个自检脚本，别自己另写一套判断
+    const chk = path.join(REG.roots.workspace, 'stager', 'bin');
+    const align = spawnSync(process.execPath, [path.join(chk, 'check-align.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
+    const glb = spawnSync(process.execPath, [path.join(chk, 'check-global.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
+    const bad = [align, glb].filter((r) => r.status !== 0);
+    record('P11', '规则没打架', BLOCK, 'artifact', bad.length ? BLOCK : PASS,
+      bad.length
+        ? `check-align exit=${align.status} / check-global exit=${glb.status} —— 规则文件之间有冲突或指针失效，先修那个再动游戏`
+        : `check-align 0 · check-global 0（外层 AGENTS.md / rddharness\\stage.md / 全局指针卡 三层分工一致）`);
+  }
+  {
+    // P12 改接口先查消费者 —— 机器判不了「你到底改了哪个接口」，只能问
+    const touched = git(REG.roots.workspace, ['log', '--since=' + since.toISOString().slice(0, 10) + ' 00:00',
+      '--name-only', '--format=', '--', 'minecraft-numen']).out
+      .split(/\r?\n/).filter((l) => /\.java$/i.test(l));
+    const iface = touched.filter((f) => /\/(interface|api|bridge|registry)\w*\.(java|json)$/i.test(f)
+      || /Bridge\.java$|Registry\.java$|NumenTool\.java$/.test(f));
+    record('P12', '改接口先查消费者', 'ask', 'human', ASK,
+      iface.length
+        ? `本轮动到接口/门面类 ${iface.length} 个（${iface.slice(0, 3).join(', ')}${iface.length > 3 ? ' …' : ''}）—— ★ 确认已 grep 过全部消费者并补齐 switch 分支`
+        : '本轮没动接口类（若动了，下面这行会列出来）—— 仍要自己确认新增枚举值/方法名没有漏改 switch');
+  }
+  {
+    // P13 ★ 用户 2026-10-04 明确要的那一条：进游戏之前让 AI 过一遍游戏内能力清单
+    const cl = path.join(REG.roots.harness, '进游戏前必读-游戏内能力清单.md');
+    if (!isFile(cl)) {
+      record('P13', '进游戏前过一遍游戏内能力清单', 'ask', 'human', BLOCK,
+        `★ 清单文件不在：${cl} —— 这条门禁等于没有，先把清单补上`);
+    } else {
+      const items = (readText(cl).match(/^## [1-9]\d* ·/gm) || []).length;
+      record('P13', '进游戏前过一遍游戏内能力清单', 'ask', 'human', ASK,
+        `★ 动手起游戏之前，先打开读一遍：\n` +
+        `       ${cl}\n` +
+        `       它列了 ${items} 项游戏内能力（说话/建伙伴/让内脑停/视觉/拍摄/追踪/相机/飞行/看监测台）` +
+        `各自的正确调用姿势和坑。\n` +
+        `       ★ 别临场手写已有工具 —— 「游戏内截图能力=0」这类结论已经错了不止一次。`);
+    }
+  }
+
   builtinChecks(ctx, 'preflight');
 }
 
@@ -363,8 +416,28 @@ function postflight(ctx) {
   }
 
   // Q11 人工
-  record('Q11', '提交精确、没卷别人', BLOCK, 'human', SKIP,
+  record('Q11', '提交精确、没卷别人', 'ask', 'human', ASK,
     '逐行确认 git status --short，每一行都是你改的。★ rdd-docs 尤其危险（副本同步一次动 147 个文件）');
+
+  // Q12 ★ 用户 2026-10-04 明确要的：退游戏之后必须提示「写记录 + 写文档」。
+  //   与 P13 同一族修复：原来也只写进了 registry，postflight 里没有 record()。
+  {
+    const okDocs = ['测试日志.md', '09-更新日志.md'];
+    const moved = okDocs.filter((n) => freshEnough(path.join(REG.roots.docsUnified, n), since));
+    // 只认「真·长期资产」：`NN-中文名.md`。日志/索引/台账虽然也是 NN- 开头，但不是资产，
+    // 计进去会让「本轮已写 N 份」虚高，反而掩盖「其实一篇都没写」。
+    const NOT_ASSET = /更新日志|按主题导航|时间线|README|docs-freshness/;
+    const longterm = walk(REG.roots.docsUnified, 1, (n) => /^\d{2}-.*\.md$/.test(n) && !NOT_ASSET.test(n))
+      .filter((f) => freshEnough(f, since));
+    record('Q12', '写记录 + 写文档', 'ask', 'human', ASK,
+      `关游戏之后顺序固定：关游戏 → 写记录 → 写文档 → 门禁。三件必须真动手的：\n` +
+      `       ① 写记录：${okDocs.join(' / ')} 各加本轮条目${moved.length ? `（本轮已动：${moved.join(', ')}）` : '（本轮都还没动）'}，条目要带 keyword 或 HEAD 前 12 位作签名，否则机器判不出是你写的\n` +
+      `       ② 写文档：长期资产进 ${REG.roots.docsUnified}\\NN-<中文名>.md` +
+      `${longterm.length ? `（本轮已写 ${longterm.length} 份：${longterm.slice(0, 3).map((f) => path.basename(f)).join(', ')}${longterm.length > 3 ? ' …' : ''}）` : '（本轮还没写）'}，` +
+      `编号接现有最大号往后排，并【同时登记 3 处】：README §二目录表 / 09-更新日志 / 50-按主题导航\n` +
+      `       ③ 灌记忆图谱：memory_create_entities / memory_add_observations —— 别只写文档不进图谱\n` +
+      `       ★ 机器侧的对应项是 Q2(evidence) / Q3(总结) / Q5(图谱) / Q9(编号三处)，它们绿了不等于你走过上面三步。`);
+  }
 
   builtinChecks(ctx, 'postflight');
 }
@@ -503,6 +576,23 @@ function runSelftest() {
   const chk = (name, ok, note) => { R.push(`  ${ok ? '✔' : '✘'} ${name}${note ? '  —— ' + note : ''}`); if (!ok) bad++; };
 
   // 1. 注册表结构：门禁代码里读到的每个字段都必须存在（缺字段会在跑到那一项时才炸）
+
+  // ★★★ 1a. 【声明 ≠ 接线】自检：registry 里每一条门禁项都必须在代码里被 record() 过。
+  // 这是 2026-10-04 首跑事故的直接补丁：P11/P12/P13/Q12 当时只写进了 registry.json，
+  // 代码里一次 record() 都没有 —— 于是「进游戏前提醒你过一遍游戏内能力清单」这条
+  // 用户明确要求的门禁，跑出来 12 行里根本没有它，而且**没人发现**，因为
+  // `registry` 模式只查 tools/时间锁/bugs 的完整性，从不查门禁项是否被接线。
+  // 与 bug-10 同一族：一条看起来在守的纪律，从没被执行过一次。
+  {
+    // ⚠ gates.preflight 是 `{ $comment, when, checks: [...] }`，不是数组本身。
+    //   （与 REG.timeLocks / REG.routing / REG.bugs 同一个坑，我在这上面栽过两次。）
+    const declared = [...REG.gates.preflight.checks, ...REG.gates.postflight.checks].map((c) => c.id);
+    const src = readText(__filename);
+    const wired = declared.filter((id) => src.includes("record('" + id + "'"));
+    const unwired = declared.filter((id) => !wired.includes(id));
+    chk(`声明的门禁项都已接线（${wired.length}/${declared.length}）`, unwired.length === 0,
+      unwired.length ? '★ registry 里声明了但代码从没 record() 过 —— 等于没有这一项：' + unwired.join(', ') : 'preflight + postflight 全部接上了');
+  }
   const paths = [
     ['roots.workspace', REG.roots.workspace], ['roots.docs', REG.roots.docs],
     ['roots.docsUnified', REG.roots.docsUnified], ['roots.numen', REG.roots.numen],
@@ -591,9 +681,9 @@ function printHeader(phase) {
 }
 
 function printResults() {
-  const ICON = { PASS: '✔', WARN: '!', BLOCK: '✘', SKIP: '-' };
+  const ICON = { PASS: '✔', WARN: '!', BLOCK: '✘', SKIP: '-', ASK: '☞' };
   for (const r of results) {
-    const tag = r.state === PASS ? 'PASS' : r.state === WARN ? 'WARN' : r.state === BLOCK ? 'BLOCK' : 'SKIP';
+    const tag = r.state;
     console.log(`${ICON[r.state]} ${r.id.padEnd(5)} ${r.name.padEnd(22)} [${r.kind}/${r.level}] ${tag}`);
     if (r.detail) console.log(`        ${r.detail}`);
   }
@@ -605,13 +695,25 @@ function verdict() {
   const nw = results.filter((r) => r.state === WARN).length;
   const np = results.filter((r) => r.state === PASS).length;
   const ns = results.filter((r) => r.state === SKIP).length;
+  const na = results.filter((r) => r.state === ASK).length;
   console.log('────────────────────────────────────────────────────────────');
-  console.log(` PASS=${np}  WARN=${nw}  BLOCK=${nb}  SKIP=${ns}`);
+  console.log(` PASS=${np}  WARN=${nw}  BLOCK=${nb}  SKIP=${ns}  ASK=${na}`);
   console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
   if (nb) {
     console.log('');
     console.log(' ✘ BLOCK 项必须处理完才能进/出游戏：');
     for (const r of results.filter((x) => x.state === BLOCK)) console.log(`   · ${r.id} ${r.name}`);
+  }
+  // ★ ASK 段落：机器判不了、但**必须由人点头**的项。永远打印，不参与 BLOCK 计数。
+  // 「永远打印」是这个状态存在的全部意义 —— 声明在 registry 里却没接上的检查，
+  // 表现就是这一段空着，而空着没人看（2026-10-04 首跑的真实事故）。
+  if (na) {
+    console.log('');
+    console.log(' ☞ 下面这些机器判不了，【必须你亲自过一遍并点头】，过了才动游戏：');
+    for (const r of results.filter((x) => x.state === ASK)) {
+      console.log(`   · ${r.id} ${r.name}`);
+      if (r.detail) console.log(`       ${r.detail}`);
+    }
   }
   if (nw) {
     console.log('');
