@@ -535,6 +535,20 @@
       "path": "rdd-selfcompile/scripts/every-10min-drive.ps1",
       "side": "run",
       "needsGame": true
+    },
+    {
+      "id": "os.wallpaper",
+      "name": "设/轮播桌面壁纸（PowerShell，无插件，自动读原生分辨率）",
+      "path": "rddharness/bin/set-wallpaper.ps1",
+      "side": "run",
+      "needsGame": false
+    },
+    {
+      "id": "os.wallpaper.bat",
+      "name": "双击换下一张壁纸（WALLPAPER.bat，纯 ASCII 入口）",
+      "path": "rddharness/WALLPAPER.bat",
+      "side": "run",
+      "needsGame": false
     }
   ],
   "standards": {
@@ -848,9 +862,9 @@
     "root": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版",
     "ledger": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\docs-freshness.json",
     "pattern": "^(\\d{2})-",
-    "maxDocNo": 71,
+    "maxDocNo": 73,
     "$maxDocNoNote": "2026-10-04：70 号已被 docsUnified 的「70-相机独立模块numencam与实测记录-20261004.md」占用。★ 分配新号时必须现场重扫，不要信这个缓存值 —— harness 门禁 P10 就是这么判的（它打印「别信这个缓存值」）。",
-    "nextDocNo": 72,
+    "nextDocNo": 74,
     "registerIn": [
       "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\README.md §二目录表",
       "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\09-更新日志.md",
