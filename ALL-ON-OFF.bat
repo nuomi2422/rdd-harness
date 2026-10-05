@@ -43,42 +43,49 @@ echo        done
 echo [3/6] stage heartbeat watchdog ON
 call "%D%stager-heartbeat.bat" >nul 2>&1
 echo        done
-echo [4/6] web dashboard ON (8899)
+echo [4/7] web dashboard ON (8899)
 call "%D%stager-dashboard.bat" >nul 2>&1
 echo        done
-echo [5/6] pull pet window to screen center
+echo [5/7] harness panel ON (8891)
+call "%D%app\PANEL.bat" >nul 2>&1
+echo        done
+echo [6/7] pull pet window to screen center
 powershell.exe -NoProfile -ExecutionPolicy Bypass -File "%SHOWPET%"
 echo        done
-echo [6/6] all ON
+echo [7/7] all ON
 echo.
 echo        monitoring : http://127.0.0.1:8776/
 echo        dashboard  : http://127.0.0.1:8899/
+echo        h-panel    : http://127.0.0.1:8891/
 ping -n 3 127.0.0.1 >nul
 exit /b 0
 
 :off
 echo.
-echo [1/6] stop web dashboard
+echo [1/7] stop harness panel (8891)
+for /f "tokens=5" %%q in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":8891"') do taskkill /f /pid %%q >nul 2>&1
+echo        done
+echo [2/7] stop web dashboard
 call "%D%stop-stager-web.bat" >nul 2>&1
 echo        done
-echo [2/6] stop desktop pet
+echo [3/7] stop desktop pet
 call "%D%stop-stager-pet.bat" >nul 2>&1
 %KILL% -Match "start-pet" -Quiet >nul 2>&1
 echo        done
-echo [3/6] stop stage heartbeat watchdog
-call "%D%stager-heartbeat.bat stop" >nul 2>&1
+echo [4/7] stop stage heartbeat watchdog
+call "%D%stager-heartbeat.bat" stop >nul 2>&1
 %KILL% -Match "stage-heartbeat" -Quiet >nul 2>&1
 echo        done
-echo [4/6] stop watchdogs
+echo [5/7] stop watchdogs
 %KILL% -Match "mc-watchdog" -Quiet >nul 2>&1
 %KILL% -Match "presence-watchdog" -Quiet >nul 2>&1
 %KILL% -Match "every-10min-drive" -Quiet >nul 2>&1
 echo        done
-echo [5/6] stop servers on 8776 / 8777 / 8899
+echo [6/7] stop servers on 8776 / 8777 / 8899
 for %%p in (8776 8777 8899) do (
   for /f "tokens=5" %%q in ('netstat -ano ^| findstr "LISTENING" ^| findstr ":%%p"') do taskkill /f /pid %%q >nul 2>&1
 )
 echo        done
-echo [6/6] all OFF
+echo [7/7] all OFF
 ping -n 3 127.0.0.1 >nul
 exit /b 0

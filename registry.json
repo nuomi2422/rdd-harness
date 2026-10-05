@@ -21,6 +21,7 @@
       "本轮过程文档（plan/arch/evidence/experience/...）→ stager put --kind <kind>，落进 stageDocs\\<任务>\\docs\\。",
       "状态报告 → 本轮自己的 docs\\ 目录，不进 docsUnified、不进任何 read[]。",
       "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。",
+      "工具选择的速查 → harness\\工具分类索引-20261005.md（回答「我要干 X 用哪条」）；机器真源仍是 registry.json。改 tools 必须同步改它。",
       "stage 流（四阶段 / 阶段必读 / 机器门 / 完成动作）只放 rddharness\\stage.md，AGENTS.md 不承载 —— 2026-10-04 拆分。规则文件每多一份副本就多一次漂移（已实测丢过 182 行，TL-2026-10-04-03）。查这一条用 stager\\bin\\check-align.js 的「外层 B 版没有 stage 流残留」。"
     ]
   },
@@ -197,6 +198,33 @@
       "needsGame": false
     },
     {
+      "id": "harness.app",
+      "name": "★ Harness 面板（双击打开的一屏管理台）",
+      "path": "app/PANEL.bat",
+      "side": "run",
+      "needsGame": false,
+      "usage": "双击 app\\PANEL.bat（或 ALL-ON-OFF.bat on）→ 自动开 http://127.0.0.1:8891/ 。八个页签：总览 / 决策收件箱 / AI 进度 / 工具 / 纪律 / 文件 / 额度 / 诊断。关：关最小化的窗口，或 ALL-ON-OFF.bat off。",
+      "note": "★ 2026-10-05 建。零依赖单进程（node:http/fs/net/child_process），一个进程 + 一个单页，把散在七处的真源收进一屏：registry / standards / stage.md / 能力清单 / 工具索引 / stager 进度+文档 / 决策队列 / 模型额度+实时用量 / 5 个端口活没活。\n★ 默认只读：只有白名单里的文件能写（DOCS 表），且必须 POST /api/save。写前 confirm、自动备份 .panel-bak、**写完回读校验**（verified 字段）—— 面板回执 ok 不等于写进去了。JSON 文件先验语法，写坏整个 harness 就读不了。\n★ /api/open 只允许打开 registry.roots 里登记过的路径（它会 spawn 系统程序，不能当任意执行口）。\n★ 决策逻辑**复用** stager/bin/decide.js，不在面板里重写一份（两处逻辑分叉 = 两个真相）。\n★ 端口自报在健康表里，免得「打不开」时分不清是它没起还是被别的程序挡了。\n⚠ PANEL.bat 必须**纯 ASCII**（cmd.exe 遇多字节字符会乱字节指针、吃掉下一行首字符）；改脚本别往里加中文。"
+    },
+    {
+      "id": "guide.toolIndex",
+      "name": "★ 工具分类索引（先查这个再翻注册表）",
+      "path": "工具分类索引-20261005.md",
+      "side": "read",
+      "needsGame": false,
+      "usage": "回答「我现在要干 X，用哪一条工具」。按「我要干什么」查，不是按工具名查。",
+      "note": "★ registry.json 是机器真源但**不回答「我该用哪个」** —— 65 条平铺必挑错。这份只回答选择问题，细节回注册表。\n★ 内含三条 2026-10-05 新规矩：① 内脑/驾驶模式怎么切（比 task_stop 强）② 监测台 7 组 30 页什么时候看 ③ **哪里不方便就自己写一个工具注册进来**（含五步 + 三条铁律）。\n⚠ 改 registry.json 必须同步改它；两份不一致时以 registry.json 为准，但要立刻把它修回来 —— 骗人的索引比没索引更糟。"
+    },
+    {
+      "id": "game.brainStop",
+      "name": "★ 让内脑停 = 关掉 assist（驾驶模式），不是叫停任务",
+      "path": "minecraft-numen/api/common/src/client/java/com/dwinovo/numen/mcp/server/McpMode.java",
+      "side": "read",
+      "needsGame": true,
+      "usage": "游戏内 设置 → Brain 面板 → assist 开关；或改 live\\config\\numen\\mcp_server.json 的 \"assist\"（改配置不热重载）。读状态：node rdd-selfcompile\\scripts\\numen-mcp.js status <同伴名> 看 externally_driven。",
+      "note": "★ 真源只有一处：McpMode.driving() = enabled && !assist && !(quiet_fallback && quietNow())。\n★ **开了 MCP 不等于内脑会停**：assist=true 时内脑照跑照自主执行，enqueue 被接受；assist=false（驾驶模式）时内脑停轮、enqueue 被拒返回 TO_EXTERNAL_BRAIN。\n★ 为什么这条比 task_stop 强：task_stop 只停当前任务，下次它自己又捡起来；驾驶模式是关掉内脑的执行权，结构性、不依赖内脑配合。已发出的动作还在飞 → 先切驾驶再补一次 task_stop。\n⚠ `/` 开头的斜杠命令永远不被驾驶闸门拦（NumenGateway.java:80，那是主人的动作）。"
+    },
+    {
       "id": "game.capabilityList",
       "name": "游戏内能力清单（进游戏前必读）",
       "path": "进游戏前必读-游戏内能力清单.md",
@@ -227,6 +255,15 @@
       "side": "read",
       "needsGame": false,
       "usage": "--since <今天> --active <开工时的 store active>"
+    },
+    {
+      "id": "stage.decide",
+      "name": "★ 决策收件箱 —— 只有极高架构/高风险才许问用户，机械问题自己定",
+      "path": "stager/bin/decide.js",
+      "side": "run",
+      "needsGame": false,
+      "usage": "AI：stager decide policy | why \"<问题>\" | add \"<标题>\" --risk high-arch|high-risk --why \"…不决定会怎样\" --opt \"A|标签|推荐|后果\" --opt \"B|…\"；人：stager web（8899）→ 顶上「决策收件箱」按钮 → 弹窗点选项 → 自动落盘 docs/NN-决策-<id>-<slug>.md（kind=decision）；终端代选：stager decide pick <D-1> --choice A",
+      "note": "★ 用户 2026-10-05 定的规矩：极高的架构决策 + 高风险的、必须让人知道的才许问；**简单机械的技术性问题一律自己定，不要问**。这不是建议，是 decide.js 里 die() 的硬拦。\n★ 判据两层、顺序不能反：先看 riskSignals（删/覆盖/密钥/花钱/跨仓改契约/迁移/换底座）命中就放行；没命中才看 neverEscalate（命名/格式化/调参数/超时/排查步骤/用哪条命令）。**风险信号优先是因为纯关键词会误杀「这三个模块要不要合并」「重构边界怎么划」这类用户最想拍板的题** —— 客观风险比主观措辞可靠。两层都命中 → 放行但标 ⚠ conflict，请人确认。\n★ 拦截不静默：报错会列命中哪条、还要先做完哪 5 步。--force 能硬塞，但标 forced 并在看板上显示 ⚠、文档里留痕。\n★ 只列一个选项会被拒（等于没让人选）。--why 少于 10 字会被拒（用户凭什么判断）。\n★ 选了之后：立刻写 docs/…-决策-<id>-….md + 登记 manifest(kind=decision) + docRev+1 → stager-plugin 的 chat.message 下轮就报「用户已决策 + 文档路径」，并禁止 AI 擅自改主意。\n策略真源 = stager/core/decide-policy.json（改它就改了「什么能问」的策略，不用动代码）。"
     },
     {
       "id": "gate.harness",
@@ -272,13 +309,6 @@
       "note": "★ stager 完全不含编译/部署能力，它对编译的认知全靠读 mutations\\*\\phase-*.json 和 jar 文件。"
     },
     {
-      "id": "mc.instance",
-      "name": "进程身份单一真源 Get/Test/Stop/Ensure-RddMc*",
-      "path": "rdd-selfcompile/scripts/mc-instance.ps1",
-      "side": "read",
-      "needsGame": false
-    },
-    {
       "id": "mc.launch",
       "name": "编排层起游戏（launch-mc 40 行头注释的 11 个坑都封在 mc-start.js 里）",
       "path": "rdd-selfcompile/scripts/launch-mc.ps1",
@@ -298,24 +328,17 @@
     },
     {
       "id": "mc.stop",
-      "name": "★ 真能关游戏的唯一解",
+      "name": "★ 真能关游戏的唯一解 · 进程身份单一真源（Get/Test/Stop/Ensure-RddMc*）",
       "path": "rdd-selfcompile/scripts/mc-instance.ps1",
       "side": "run",
       "needsGame": true,
       "usage": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { . '<abs>\\mc-instance.ps1'; Stop-RddMcInstance -Instance gpt }\"",
-      "note": "★ 必须用带 -ExecutionPolicy Bypass 的 powershell.exe -Command；在当前 shell 里直接 . 会被 ExecutionPolicy 拦。"
+      "note": "必须用带 -ExecutionPolicy Bypass 的 powershell.exe -Command；在当前 shell 里直接 . 会被 ExecutionPolicy 拦。\n★ 2026-10-05 合并了原 mc.instance 条目（两条登记同一个 mc-instance.ps1 = 重复登记，同 mcp.dropall/vis.dropall 那类）。别的脚本要 dot-source 它拿 Get/Test/Ensure-RddMc*。\n★ 它没有顶层 param()，`-File` 传参会变成 $args 然后直接 exit 0 —— 这就是 mc-start.js --stop 打印「✔已关」却一个进程都没杀的原因（bug-1）。"
     },
     {
       "id": "mc.watchdog",
       "name": "到点强杀游戏",
       "path": "rdd-selfcompile/scripts/mc-watchdog.ps1",
-      "side": "run",
-      "needsGame": true
-    },
-    {
-      "id": "mcp.b9",
-      "name": "一次性 MCP 驱动（jsonFile 绕 PS 引号）",
-      "path": "rdd-selfcompile/scripts/b9-mcp.js",
       "side": "run",
       "needsGame": true
     },
@@ -336,21 +359,6 @@
       "needsGame": true,
       "usage": "numen-mcp.js list | status <companion> | call <tool> <name>",
       "note": "★ 只有 status <name> 直接返回 JSON；call 返回的是人类可读文本，JSON.parse 会炸。"
-    },
-    {
-      "id": "mcp.drive",
-      "name": "MCP 编排（tools/list + list_companions + call）",
-      "path": "rdd-selfcompile/scripts/mcp-drive.ps1",
-      "side": "run",
-      "needsGame": true
-    },
-    {
-      "id": "mcp.dropall",
-      "name": "清同伴背包",
-      "path": "rdd-selfcompile/scripts/drop-all.js",
-      "side": "writeGame",
-      "needsGame": true,
-      "note": "会改游戏状态，非只读。"
     },
     {
       "id": "oc.drive",
@@ -400,6 +408,15 @@
       "needsGame": false
     },
     {
+      "id": "router.model",
+      "name": "★ AI 自己切模型（每模型每小时限额）—— 难问题外包思考，不是外包敲代码",
+      "path": "opencode-plugin/model-budget.json",
+      "side": "run",
+      "needsGame": false,
+      "usage": "工具名 model_router。action=plan（让它写可照做的方案，默认档位 auto）/ ask / status / back；可 to=free|deepseek|sol|astra。插件源 E:\\restart developing doer\\opencode-plugin\\model-router.mjs，已注册进 ~/.config/opencode/opencode.json 的 plugin 数组（改配置不热重载，要重启 opencode）。",
+      "note": "★ 分工铁律：难的从来不是「敲代码」，是「想清楚」—— 只外包思考，写代码留在免费档自己写。\n降级链 deepseek → gpt-6-sol → gpt-6-astra，每小时上限 45/25/15 分钟（+ 次数上限），本地整点桶自动清零。★ GPT-6 额度稀缺，默认不用。\n★ 换模型的实现原理：opencode 的 chat.params 钩子【改不了 model】（output 只有 temperature/topP/topK/maxOutputTokens/options）；只能自己用 SDK 发带 model 的 prompt，所以插件开**子会话**跑目标模型再把正文交回外层。\n★ 失败一律明确报错（额度用完 / 模型解析不到 / 空正文 / 超时），并记一次失败额度 —— 不假装成功。plan 模式结构性关掉 write/edit/patch/bash/task。\n★ 改额度/降级链/档位只改这个 json，不用动代码。"
+    },
+    {
       "id": "stage.flow",
       "name": "stage 流细则（只在开 stage 时读）",
       "path": "stage.md",
@@ -417,12 +434,12 @@
     },
     {
       "id": "vis.captureWin",
-      "name": "★ VISION 链正确选择（PrintWindow+DWM）",
+      "name": "★ 抓 MC 窗口的唯一正解（PrintWindow+DWM）",
       "path": "mc-openclaw-controller/scripts/capture-win.ps1",
       "side": "read",
       "needsGame": true,
       "usage": "powershell -File capture-win.ps1 -TitleMatch Minecraft -Out <png>",
-      "note": "窗口被盖住也能拍，出的图只有游戏窗口。实测 698x422。"
+      "note": "窗口被盖住也能拍，出的图只有游戏窗口。实测 698x422。★ 【唯一该登记的抓图路线】。\n2026-10-05 已把 vis.screenshot（CopyFromScreen 版 / mc-screenshot.ps1）从注册表移除：它按屏幕矩形抓，会把遮挡窗口和标题栏一起拍进来（standards.md S-MC-04 与 进游戏前必读 §4 都把它列为降级路线）。\n★ 它仍有一个 niche 用途 —— 「想连桌面一起看」时按 `rdd-selfcompile\\scripts\\mc-screenshot.ps1 -OutPath <png>` 手动跑；脚本文件还在磁盘上，但【不再登记为工具】。\n⚠ 已知矛盾：rddharness\\工具总索引-20261003\\70-*.md 说相反的话（称 mc-screenshot 是「视觉主用」、PrintWindow 会黑屏）。以 standards.md + 进游戏前必读为准，那份索引是快照、已过期。"
     },
     {
       "id": "vis.dropall",
@@ -453,15 +470,6 @@
       "path": "rdd-selfcompile/scripts/sample-ai.js",
       "side": "read",
       "needsGame": true
-    },
-    {
-      "id": "vis.screenshot",
-      "name": "外部抓 MC 窗口（CopyFromScreen）",
-      "path": "rdd-selfcompile/scripts/mc-screenshot.ps1",
-      "side": "read",
-      "needsGame": true,
-      "usage": "powershell -File mc-screenshot.ps1 -OutPath <png>",
-      "note": "⚠ 按屏幕矩形抓，会把遮挡/相邻窗口拍进来。窗口标题会变，只能按前缀 'Minecraft NeoForge*' 匹配。"
     },
     {
       "id": "vis.verify",

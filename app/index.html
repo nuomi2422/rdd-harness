@@ -1,0 +1,674 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<title>RDD Harness 面板</title>
+<style>
+  /* ══════════════════════════════════════════════════════════════════
+     RDD Harness 面板 · 视觉参考《明日方舟》罗德岛终端 / PRTS 风格
+     色值与视觉特征由 model_router(to=deepseek) 于 2026-10-05 反推给出，
+     官方没有公开色板，所以这是一套「按实机 UI 视觉反推的自洽值」。
+
+     这个主题真正决定长相的不是颜色，是这几条禁令（照着反面清单做的）：
+       圆角 0（全站 border-radius:0）｜无渐变按钮｜无柔和投影/发光｜
+       无 emoji｜无胶囊按钮｜无毛玻璃｜无聊天气泡｜无平滑弹性动画
+     真正在做的四件事：
+       ① 45° 切角（右上角切 11px，用 ::after 叠页面底色切出来 —— 这样真边框还在）
+       ② 1px 细边框 + 关键面板的双线框（外框 + 内缩一根）
+       ③ 拉丁标签全大写 + letter-spacing，数字一律 tabular-nums
+       ④ 高密度：1px 细横线分隔、方括号标签 [ STATIC ]，不用留白泡
+     ══════════════════════════════════════════════════════════════════ */
+  :root{
+    --bg-base:#17181A; --bg-panel:#212226; --bg-card:#2B2C31; --bg-sunk:#141517;
+    --line:#3A3C42; --line-strong:#5A5D66;
+    --accent:#F9B93F; --accent-dim:#B8892F; --accent-2:#3ED1E8;
+    --tx:#E6E7E9; --tx-2:#9A9DA3; --tx-3:#5A5D63;
+    --ok:#45C46A; --warn:#F9B93F; --danger:#E8443A; --info:#3EA6FF;
+    --hover:rgba(255,255,255,.06); --sel:rgba(249,185,63,.14);
+    --mono:Consolas,"Cascadia Mono","Roboto Mono",monospace;
+  }
+  *{box-sizing:border-box; border-radius:0 !important}
+  html,body{background:var(--bg-base); color:var(--tx)}
+  body{margin:0;
+       font:13.5px/1.55 "Segoe UI","Microsoft YaHei UI",system-ui,sans-serif;
+       /* 极淡网格底：终端感，几乎看不见但少了会觉得「太干净」 */
+       background-image:
+         linear-gradient(rgba(255,255,255,.014) 1px,transparent 1px),
+         linear-gradient(90deg,rgba(255,255,255,.014) 1px,transparent 1px);
+       background-size:34px 34px}
+  /* 扫描线：整页一层横纹，不干扰阅读 */
+  body::after{content:'';position:fixed;inset:0;pointer-events:none;z-index:1;
+       background:repeating-linear-gradient(0deg,rgba(0,0,0,.16) 0 1px,transparent 1px 3px)}
+  code,kbd{background:var(--bg-sunk);border:1px solid var(--line);padding:0 5px;
+           font:11.5px/1.6 var(--mono);color:var(--accent)}
+  a{color:var(--accent-2);text-decoration:none}
+  a:hover{text-decoration:underline}
+
+  /* ── 切角：右上 11px。靠 ::after 叠底色切掉，所以真边框没丢 ── */
+  .cut{position:relative}
+  .cut::after{content:'';position:absolute;top:-1px;right:-1px;width:11px;height:11px;
+              background:var(--bg-base);
+              clip-path:polygon(100% 0,0 0,100% 100%)}
+  .cut.cl::after{left:-1px;right:auto;top:auto;bottom:-1px;
+                 clip-path:polygon(0 100%,100% 100%,0 0)}
+  /* 关键面板的双线框：外框 1px + 内缩一根 1px */
+  .frame{border:1px solid var(--line-strong);box-shadow:none;padding:1px;background:var(--line)}
+  .frame>.in{background:var(--bg-panel);padding:14px 16px}
+
+  /* ── 顶栏 ── */
+  .bar{position:sticky;top:0;z-index:30;background:rgba(23,24,26,.97);
+       border-bottom:1px solid var(--line-strong);padding:0 16px;
+       display:flex;gap:14px;align-items:stretch;min-height:40px}
+  .bar h1{font-size:12px;margin:0;padding:13px 0;letter-spacing:.22em;color:var(--accent);
+          text-transform:uppercase;font-weight:700;white-space:nowrap}
+  .nav{display:flex}
+  .nav button{background:transparent;color:var(--tx-2);border:0;border-right:1px solid var(--line);
+              padding:0 14px;font:600 11.5px/1 inherit;letter-spacing:.16em;text-transform:uppercase;
+              cursor:pointer}
+  .nav button:hover{background:var(--hover);color:var(--tx)}
+  .nav button.on{background:var(--sel);color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .bar .sp{flex:1}
+  .wrap{max-width:1560px;margin:0 auto;padding:16px 16px 60px}
+
+  /* ── 卡片 ── */
+  .card{background:var(--bg-panel);border:1px solid var(--line);padding:14px 16px;position:relative}
+  .card>h2{font-size:11px;margin:0 0 12px;color:var(--tx-2);font-weight:700;letter-spacing:.2em;
+           text-transform:uppercase;display:flex;align-items:center;gap:10px;
+           border-bottom:1px solid var(--line);padding-bottom:7px}
+  .card>h2::before{content:'[ ';}
+  .card>h2::after{content:' ]';color:var(--tx-3)}
+  .card>h2 .r{margin-left:auto;font-weight:400;letter-spacing:.06em;text-transform:none;
+              color:var(--tx);font-size:12px;display:flex;align-items:center;gap:8px}
+
+  /* ── 方括号标签（替代 pill）── */
+  .tag{display:inline-block;font:600 10.5px/1.7 var(--mono);letter-spacing:.08em;
+       padding:0 6px;border:1px solid var(--line-strong);color:var(--tx-2);text-transform:uppercase}
+  .tag.ok{color:var(--ok);border-color:#2C5A38} .tag.warn{color:var(--warn);border-color:#6B5420}
+  .tag.bad{color:var(--danger);border-color:#6B2A26} .tag.acc{color:var(--accent);border-color:var(--accent-dim)}
+  .tag.cy{color:var(--accent-2);border-color:#22626E}
+
+  /* ── 按钮：方角 1px，hover 叠白不改色相 ── */
+  button.b{background:var(--bg-card);color:var(--tx);border:1px solid var(--line-strong);
+           padding:3px 10px;font:600 11px/1.7 inherit;letter-spacing:.1em;text-transform:uppercase;
+           cursor:pointer;white-space:nowrap}
+  button.b:hover{background:var(--hover);border-color:var(--accent);color:var(--accent)}
+  button.b.p{border-color:var(--accent-dim);color:var(--accent)}
+  button.b.p:hover{background:var(--sel)}
+  button.b:disabled{opacity:.35;cursor:not-allowed}
+  input[type=search],input[type=text]{background:var(--bg-sunk);border:1px solid var(--line-strong);
+       color:var(--tx);padding:5px 9px;font:12.5px var(--mono);outline:none}
+  input[type=search]:focus{border-color:var(--accent)}
+
+  /* ── 表格：1px 细横线，无斑马纹 ── */
+  table{width:100%;border-collapse:collapse;font-size:12.5px}
+  th,td{text-align:left;padding:5px 8px;border-bottom:1px solid var(--line);vertical-align:top}
+  th{color:var(--tx-2);font-weight:700;font-size:10.5px;letter-spacing:.14em;text-transform:uppercase;
+     position:sticky;top:40px;background:var(--bg-panel);z-index:2;
+     border-bottom:1px solid var(--line-strong)}
+  tbody tr:hover td{background:var(--hover)}
+  td.num{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+  td b,th b{font-weight:600}
+
+  /* ── 说明块：左边 2px 竖线，不用圆角气泡 ── */
+  .note{border-left:2px solid var(--line-strong);padding:1px 0 1px 11px;margin:7px 0;
+        font-size:12.5px;color:var(--tx-2)}
+  .note.ok{border-color:var(--ok)} .note.warn{border-color:var(--warn)} .note.bad{border-color:var(--danger)}
+  .note.acc{border-color:var(--accent)}
+  .note b{color:var(--tx)}
+
+  .kv{display:grid;grid-template-columns:auto 1fr;gap:3px 14px;font-size:12.5px}
+  .kv b{color:var(--tx-2);font-weight:600;letter-spacing:.1em;text-transform:uppercase;
+        font-size:10.5px;padding-top:2px;white-space:nowrap}
+
+  /* ── 进度条：方角 + 45° 斜纹填充（不用渐变）── */
+  .bar2{height:9px;background:var(--bg-sunk);border:1px solid var(--line-strong);position:relative;overflow:hidden}
+  .bar2>i{display:block;height:100%;
+    background:repeating-linear-gradient(45deg,var(--accent) 0 5px,#8A6A22 5px 10px)}
+
+  /* ── 阶段条 ── */
+  .steps{display:flex;flex-wrap:wrap;margin-top:11px;border:1px solid var(--line)}
+  .step{border:0;border-right:1px solid var(--line);padding:5px 11px;font:600 11px/1.6 inherit;
+        letter-spacing:.08em;text-transform:uppercase;color:var(--tx-3)}
+  .step:last-child{border-right:0}
+  .step.cur{background:var(--sel);color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .step.done{color:var(--ok)}
+
+  /* ── 决策卡：左边 3px 类别色 + 切角 ── */
+  .dec{background:var(--bg-card);border:1px solid var(--line);border-left:3px solid var(--accent);
+       padding:13px 15px;margin:11px 0;position:relative}
+  .dec.arch{border-left-color:var(--accent)} .dec.risk{border-left-color:#E07A3C}
+  .dec .t{font-weight:600;margin:0 0 5px;font-size:14px;color:var(--tx)}
+  .dec .why{font-size:12.5px;color:var(--tx-2);white-space:pre-wrap;margin:0 0 9px}
+  .opt{display:flex;gap:11px;align-items:flex-start;width:100%;text-align:left;background:var(--bg-sunk);
+       border:1px solid var(--line);color:var(--tx);padding:8px 12px;margin:6px 0;
+       font:inherit;cursor:pointer}
+  .opt:hover{border-color:var(--accent);background:var(--sel)}
+  .opt .k{flex:0 0 22px;height:22px;background:var(--bg-card);border:1px solid var(--line-strong);
+          display:flex;align-items:center;justify-content:center;font:700 11px var(--mono);color:var(--accent)}
+  .opt .l{font-size:13px;font-weight:600}
+  .opt .c{font-size:12px;color:var(--tx-2)}
+  .tag.rec{color:var(--accent);border:1px solid var(--accent-dim);background:var(--sel);margin-left:6px}
+  .tag.warn{color:var(--warn);border:1px solid #6B5420;margin-left:6px}
+
+  textarea{width:100%;background:var(--bg-sunk);border:1px solid var(--line-strong);color:var(--tx);
+           padding:10px 12px;font:12.5px/1.75 var(--mono);resize:vertical;min-height:400px;outline:none}
+  textarea:focus{border-color:var(--accent)}
+
+  /* ── 目录浏览 ── */
+  .listdir{border:1px solid var(--line);padding:6px 9px;background:var(--bg-sunk);
+           font:12px/1.8 var(--mono);max-height:210px;overflow:auto}
+  .listdir div{cursor:pointer}
+  .listdir div:hover{background:var(--sel);color:var(--accent)}
+  .listdir div span{color:var(--tx-3)}
+
+  .empty{color:var(--tx-3);font-size:12.5px}
+  .pre{white-space:pre-wrap;word-break:break-word;font:12px/1.7 var(--mono);color:var(--tx-2);
+       max-height:540px;overflow:auto;background:var(--bg-sunk);border:1px solid var(--line);padding:10px 12px}
+  .tabs{display:flex;flex-wrap:wrap;border-bottom:1px solid var(--line);margin-bottom:11px}
+  .tabs button{background:transparent;border:0;border-right:1px solid var(--line);color:var(--tx-2);
+               padding:6px 13px;font:600 11.5px/1.5 inherit;letter-spacing:.1em;cursor:pointer;
+               text-transform:uppercase}
+  .tabs button.on{background:var(--sel);color:var(--accent);box-shadow:inset 0 -2px 0 var(--accent)}
+  .tabs button:hover{background:var(--hover);color:var(--tx)}
+  .toast{position:fixed;right:16px;bottom:16px;background:var(--bg-card);
+         border:1px solid var(--accent);padding:9px 14px;font:12.5px var(--mono);display:none;z-index:60;max-width:62vw}
+  .toast.on{display:block}
+  .toast.bad{border-color:var(--danger);color:#FFB9B4}
+  .hide{display:none !important}
+  .grid{display:grid;gap:13px}
+  .g2{grid-template-columns:repeat(auto-fit,minmax(430px,1fr))}
+  .g3{grid-template-columns:repeat(auto-fit,minmax(300px,1fr))}
+  ::-webkit-scrollbar{width:9px;height:9px}
+  ::-webkit-scrollbar-track{background:var(--bg-sunk)}
+  ::-webkit-scrollbar-thumb{background:var(--line-strong);border:1px solid var(--bg-sunk)}
+  ::-webkit-scrollbar-thumb:hover{background:var(--accent-dim)}
+</style>
+</head>
+<body>
+<div class="bar">
+  <h1>RDD Harness 面板</h1>
+  <div class="nav" id="nav"></div>
+  <div class="sp"></div>
+  <span class="tag" id="stamp">…</span>
+  <button class="b" onclick="location.reload()">刷新</button>
+  <span class="toast" id="toast"></span>
+</div>
+<div class="wrap" id="view"><div class="card empty">读取中…</div></div>
+
+<script>
+const $ = (i)=>document.getElementById(i);
+let OV=null, PAGE='总览', TOOLS=null, TOOLQ='', GRP='*';
+const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const kb = n => n>1048576 ? (n/1048576).toFixed(1)+'M' : n>1024 ? (n/1024).toFixed(1)+'K' : n+'B';
+
+async function J(url, opts){
+  const r = await fetch(url, opts);
+  return r.json();
+}
+async function post(url, body){
+  return J(url, {method:'POST', headers:{'content-type':'application/json'}, body: JSON.stringify(body||{})});
+}
+let tT=null;
+function toast(m, bad){
+  const t=$('toast'); t.textContent=m; t.className='toast on'+(bad?' bad':'');
+  clearTimeout(tT); tT=setTimeout(()=>{t.className='toast'+(bad?' bad':'');}, bad?10000:5000);
+}
+async function openPath(p){
+  const r = await post('/api/open', {path:p});
+  if(!r.ok) toast('[!] '+(r.why||'打不开'), true);
+}
+async function saveDoc(id, content){
+  const r = await post('/api/save', {id, content});
+  toast((r.ok ? '[+] ' : '[!] ')+(r.msg||r.why), !r.ok || r.verified===false);
+  return r;
+}
+
+const NAV = [
+  ['总览','ov'], ['决策收件箱','dec'], ['AI 进度','stage'],
+  ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
+];
+
+function paintNav(){
+  $('nav').innerHTML = NAV.map(([t,k])=>
+    '<button class="'+(PAGE===t?'on':'')+'" onclick="go(\''+k+'\')">'+esc(t)+'</button>').join('');
+}
+function go(k){
+  PAGE = NAV.find(x=>x[1]===k)[0];
+  paintNav(); paint();
+}
+window.go = go;
+
+// ══════════════════════════════════════════════ 总览
+function paintOverview(){
+  const h = OV.harness || {}, b = OV.budget || {}, A = OV.stage && OV.stage.active;
+  const dec = OV.decisions || {};
+  let s = '';
+
+  s += '<div class="grid g2">';
+
+  // harness 体检
+  s += '<div class="card cut"><h2>harness 体检 <span class="r"><span class="tag '+(h.ok?'ok':'bad')+'">'+
+       (h.ok?'健康':'有问题')+'</span></span></h2>';
+  s += '<div class="kv">';
+  s += '<b>工具</b><span>'+(h.tools||0)+' 条　·　id '+(h.idUnique?'唯一':'· 有重复')+
+       '　·　路径落地 '+(h.pathMissing&&h.pathMissing.length?('· 缺 '+h.pathMissing.length):'全在')+'（跳过 '+(h.skipped||0)+' 个游戏内指令）</span>';
+  s += '<b>编程规范</b><span>'+(h.standardClauses||0)+' 条带 id 的条款　·　'+kb(h.standardBytes||0)+'</span>';
+  s += '<b>门禁</b><span>preflight '+(h.gates?h.gates.preflight:0)+' 项　·　postflight '+(h.gates?h.gates.postflight:0)+' 项</span>';
+  s += '<b>时间锁</b><span>'+(h.locksOpen||0)+'/'+(h.locks||0)+' open　'+(h.locksOverdue&&h.locksOverdue.length?'<span class="tag bad">'+h.locksOverdue.length+' 条已过期</span>':'没到期')+'</span>';
+  s += '<b>历史 bug</b><span>'+(h.bugs||0)+' 条已登记　·　文档编号 max '+(h.docNo||'?')+'</span>';
+  s += '</div>';
+  (h.notes||[]).forEach(n=>{ s += '<div class="note '+n.lv+'">'+(n.lv==='bad'||n.lv==='warn')?'[!] ':'[+] '+esc(n.t)+'</div>'; });
+  s += '<div style="margin-top:10px;display:flex;gap:7px;flex-wrap:wrap">'+
+       '<button class="b p" onclick="runSelftest()">跑 harness selftest</button>'+
+       '<button class="b" onclick="runGate(\'preflight\')">preflight</button>'+
+       '<button class="b" onclick="runGate(\'postflight\')">postflight</button></div>';
+  s += '</div>';
+
+  // 当前 stage
+  s += '<div class="card cut"><h2>AI 现在做到哪儿 <span class="r">'+(A?'<button class="b" onclick="go(\'stage\')">详情</button>':'')+'</span></h2>';
+  if(!A){ s += '<div class="empty">没有进行中的 stage 任务。AI 没在跑流程 —— 要开一条：<code>stager start "&lt;需求&gt;"</code></div>'; }
+  else {
+    const st=A.stage, sd=A.stageDef||{};
+    s += '<div class="kv">';
+    s += '<b>阶段</b><span><b style="color:var(--fg);font-size:15px">'+(sd.icon||'')+' '+esc(sd.name||st.stage)+'</b>　('+
+         (((sd._i||0)+1))+'/'+(A.stageCount||0)+')　<code>'+esc(st.stage)+'</code></span>';
+    s += '<b>任务</b><span>'+esc(st.title||st.id)+'</span>';
+    s += '<b>轮次</b><span>第 '+st.round+'/'+st.maxRounds+' 轮　·　轮回 '+(st.wrap||0)+' 次　·　人次 '+esc(st.actor)+'</span>';
+    s += '<b>门禁</b><span>'+(A.need.length? '<span class="tag bad">还差 '+esc(A.need.join(' '))+'</span>'
+                                          : '<span class="tag ok">[+] 达标，可以 stager next</span>')+'</span>';
+    s += '</div>';
+    s += '<div class="bar2" style="margin-top:11px"><i style="width:'+Math.round((((sd._i||0)+1)/(A.stageCount||1))*100)+'%"></i></div>';
+    s += '<div class="steps">'+(A.stageList||[]).map((x,i)=>{
+      const done = (sd._i||0) > i;
+      return '<div class="step'+(x.id===st.stage?' cur':'')+(done?' done':'')+'">'+(i+1)+' '+esc(x.name||x.id)+'</div>';
+    }).join('')+'</div>';
+    if(sd.brief) s += '<div class="note" style="margin-top:10px">'+esc(sd.brief)+'</div>';
+  }
+  s += '</div>';
+  s += '</div>';
+
+  // 待办三合一
+  s += '<div class="grid g3">';
+  s += '<div class="card cut"><h2>等你拍板 <span class="r">'+(dec.pending&&dec.pending.length
+        ? '<button class="b p" onclick="go(\'dec\')">去收件箱</button>':'')+'</span></h2>';
+  if(!dec.pending || !dec.pending.length) s += '<div class="empty">没有。AI 要么在自己写，要么在问你之前已经把该查的查完了。</div>';
+  else (dec.pending||[]).forEach(d=>{ s += '<div class="note warn" style="border-left-color:#e07a3c">[>] <b>'+esc(d.id)+'</b> '+
+    esc(d.title)+(d.forced?' <span class="tag warn">强制入队</span>':'')+'</div>'; });
+  s += '</div>';
+
+  s += '<div class="card cut"><h2>门禁还差</h2>';
+  if(!A || !A.need.length) s += '<div class="empty">'+(A?'[+] 都达标了':'（没有进行中的任务）')+'</div>';
+  else A.need.forEach(n=>{ s += '<div class="note bad">[!] '+esc(n)+'</div>'; });
+  s += '</div>';
+
+  s += '<div class="card cut"><h2>服务活没活</h2>';
+  (OV.ports||[]).forEach(p=>{
+    s += '<div style="display:flex;gap:9px;align-items:center;padding:3px 0;font-size:12.5px">'+
+      '<span class="tag '+(p.alive?'ok':'bad')+'">'+(p.alive?'ON':'OFF')+'</span>'+
+      '<b style="font-weight:500">'+esc(p.name)+'</b>'+
+      '<span style="color:var(--dim)">:'+p.port+'</span>'+
+      '<span style="color:var(--dim);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">'+esc(p.why)+'</span>'+
+      (p.url?'<a href="'+esc(p.url)+'" target="_blank">开</a>':'')+'</div>';
+  });
+  s += '</div>';
+  s += '</div>';
+
+  // 文件位置
+  s += '<div class="card cut"><h2>文件都在哪 <span class="r"><button class="b" onclick="go(\'files\')">文件管理</button></span></h2>';
+  s += '<table><tr><th>用途</th><th>路径</th><th>在不在</th><th></th></tr>';
+  (OV.roots||[]).forEach(r=>{
+    s += '<tr><td>'+esc(r.label)+'</td><td><code>'+esc(r.path)+'</code></td>'+
+      '<td>'+(r.exists?'<span class="tag ok">在</span>':'<span class="tag bad">没了</span>')+'</td>'+
+      '<td><button class="b" onclick="openPath(\''+esc(r.path).replace(/\\/g,'\\\\')+'\')">打开</button></td></tr>';
+  });
+  s += '</table></div>';
+
+  return s;
+}
+
+// ══════════════════════════════════════════════ 决策收件箱
+function paintDecide(){
+  let s = '<div class="card cut"><h2>决策收件箱</h2>';
+  const P = (OV.decisions||{}).policy||{};
+  if(P.ok){
+    s += '<div class="note" style="border-color:var(--acc)"><b>这里只放该你拍板的</b>：'+
+      P.risks.map(r=>'【'+esc(r.label)+'】'+esc(r.means)).join('　｜　')+
+      '<br><span style="color:var(--bad)">AI 不许问的</span>：'+esc(P.never.join('、'))+
+      '<br><b>被问之前 AI 必须先自己做完</b>：①自己查一遍定位清楚 ②先看有没有已有规矩 ③选项收敛到 2~4 个且各写后果 ④写清不决定会怎样</div>';
+  } else s += '<div class="note bad">· 策略读不到：'+esc(P.why||'?')+'</div>';
+
+  const dec = OV.decisions||{};
+  if(!dec.pending || !dec.pending.length) s += '<div class="note ok">[+] 没有等你拍板的事。</div>';
+  (dec.pending||[]).forEach(d=>{
+    s += '<div class="dec '+(/^high-risk/.test(d.risk)?'risk':'arch')+'">';
+    s += '<p class="t">'+esc(d.title)+(d.forced?' <span class="tag warn">[!] 强制入队</span>':'')+
+         (d.conflict?' <span class="tag warn">[!] 这句也像机械题，请确认真有这么高风险</span>':'')+'</p>';
+    s += '<div class="note" style="border:none;padding:0 0 7px 0"><span class="tag">'+esc(d.riskLabel||d.risk)+
+         '</span> '+esc(d.id)+'　阶段 '+(d.stage||'?')+' 第'+(d.round!=null?d.round:'?')+'轮　'+esc(d.raisedBy||'ai')+' '+esc(String(d.raisedAt||'').replace('T',' ').slice(0,19))+'</div>';
+    s += '<p class="why">'+esc(d.why)+'</p>';
+    if(d.context) s += '<div class="pre" style="max-height:150px;background:#0b0a10;border:1px solid var(--line);padding:8px 10px;margin-bottom:8px">'+esc(d.context)+'</div>';
+    (d.options||[]).forEach(o=>{
+      s += '<button class="opt" onclick="pick(\''+d.id+'\',\''+esc(o.id)+'\',this)"><span class="k">'+esc(o.id)+'</span><span>'+
+        '<span class="l">'+esc(o.label)+(o.recommended?'<span class="tag rec">· AI 推荐</span>':'')+'</span>'+
+        '<div class="c">'+esc(o.consequence||'（AI 没写后果 —— 这是它的失职）')+'</div></span></button>';
+    });
+    s += '<textarea id="n-'+d.id+'" rows="2" style="min-height:56px" placeholder="补充说明（可选，会一起存进决策文档）"></textarea>';
+    s += '<div style="margin-top:7px"><button class="b" onclick="dismiss(\''+d.id+'\')">这条不用问，撤回</button></div>';
+    s += '</div>';
+  });
+
+  if(dec.resolved && dec.resolved.length){
+    s += '<h2 style="margin-top:20px">最近已定</h2>';
+    dec.resolved.slice().reverse().forEach(d=>{
+      s += '<div class="note '+(d.status==='resolved'?'ok':'')+'">'+(d.status==='resolved'?'[+]':'[-]')+
+        ' <b>'+esc(d.id)+'</b> '+esc(d.title)+'<br>→ '+(d.chosen?'选了 '+esc(d.chosen)+' · '+esc(d.chosenLabel||''):'已撤回')+
+        (d.note?'　<span style="opacity:.7">'+esc(d.note)+'</span>':'')+
+        '<br><span style="opacity:.55">'+esc(String(d.resolvedAt||'').replace('T',' ').slice(0,19))+
+        '　（选完自动存成了 docs/ 里的决策文档，AI 已经知道）</span></div>';
+    });
+  }
+  s += '</div>';
+  return s;
+}
+async function pick(id, choice, btn){
+  const note = ($('n-'+id)||{}).value||'';
+  const box = btn && btn.parentNode;
+  box && box.querySelectorAll('.opt').forEach(b=>b.disabled=true);
+  const r = await post('/api/decide', {id, choice, note});
+  if(!r.ok){ toast('[!] 没选成：'+(r.why||''), true); box && box.querySelectorAll('.opt').forEach(b=>b.disabled=false); return; }
+  toast('[+] '+id+' 已定 → 已存 '+r.file, false);
+  refresh();
+}
+async function dismiss(id){
+  const note = ($('n-'+id)||{}).value||'';
+  const r = await post('/api/decide', {id, action:'dismiss', note});
+  if(!r.ok) return toast('[!] 撤不回：'+(r.why||''), true);
+  toast('[!] '+id+' 已撤回'); refresh();
+}
+window.pick=pick; window.dismiss=dismiss;
+
+// ══════════════════════════════════════════════ AI 进度
+function paintStage(){
+  const S = OV.stage||{}, A=S.active;
+  let s = '<div class="grid g2">';
+  s += '<div class="card cut"><h2>任务清单 <span class="r">'+((S.tasks||[]).length)+' 条</span></h2>';
+  s += '<table><tr><th>状态</th><th>阶段/轮</th><th>标题</th><th>人次</th><th>更新</th><th></th></tr>';
+  (S.tasks||[]).forEach(t=>{
+    const isA = A && A.id===t.id;
+    s += '<tr><td>'+(isA?'<span class="tag ok">在跑</span>':(t.status==='active'?'<span class="tag warn">开着</span>':'<span class="tag">'+esc(t.status)+'</span>'))+
+      '</td><td>'+esc(t.stage)+' / '+t.round+'</td><td>'+esc(t.title||t.id)+
+      '<br><code>'+esc(t.id)+'</code></td><td>'+esc(t.actor)+'</td><td>'+esc(String(t.updatedAt||'').replace('T',' ').slice(5,16))+
+      '</td><td><button class="b" onclick="openPath(\''+esc(t.id).replace(/'/g,"\'")+'\')" disabled></button></td></tr>';
+  });
+  s += '</table></div>';
+
+  s += '<div class="card cut"><h2>当前任务产出</h2>';
+  if(!A) s += '<div class="empty">没有进行中的任务。</div>';
+  else {
+    s += '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px">'+
+      '<button class="b" onclick="openPath(\''+esc(A.dir).replace(/\\/g,'\\\\')+'\')">打开任务目录</button>'+
+      '<button class="b" onclick="openPath(\''+esc(A.progressPath).replace(/\\/g,'\\\\')+'\')">打开 progress.md</button>'+
+      '<span class="tag">文档 '+((A.docs||[]).length)+' 份</span><span class="tag">标记 '+((A.marks||[]).length)+' 个</span></div>';
+    s += '<table><tr><th>#</th><th>类型</th><th>阶段</th><th>轮</th><th>标题</th><th></th></tr>';
+    (A.docs||[]).slice().reverse().forEach((d,i)=>{
+      const fp = A.dir+'\\docs\\'+d.file;
+      s += '<tr><td class="num">'+(A.docs.length-i)+'</td><td><span class="tag">'+esc(d.kind)+'</span></td>'+
+        '<td>'+esc(d.stage)+'</td><td class="num">'+d.round+'</td><td>'+esc(d.title)+
+        '<br><code>'+esc(d.file)+'</code></td>'+
+        '<td><button class="b" onclick="openPath(\''+esc(fp).replace(/\\/g,'\\\\')+'\')">打开</button></td></tr>';
+    });
+    s += '</table>';
+  }
+  s += '</div>';
+  s += '</div>';
+
+  if(A && A.progress) s += '<div class="card cut"><h2>progress.md（AI 自己写的进度）</h2><div class="pre">'+esc(A.progress)+'</div></div>';
+  return s;
+}
+
+// ══════════════════════════════════════════════ 工具
+function paintTools(){
+  const T = TOOLS||{};
+  const list = (T.tools||[]).filter(t=>{
+    if(GRP!=='*' && t.id.split('.')[0]!==GRP) return false;
+    if(!TOOLQ) return true;
+    const q=TOOLQ.toLowerCase();
+    return (t.id+' '+t.name+' '+t.path+' '+(t.note||'')+' '+(t.usage||'')).toLowerCase().includes(q);
+  });
+  const dead = (T.tools||[]).filter(t=>t.alive===false).length;
+  let s = '<div class="card cut"><h2>工具注册表 <span class="r">'+(T.tools||[]).length+' 条'+
+    (dead?'　<span class="tag bad">'+dead+' 条路径不存在</span>':'　<span class="tag ok">路径全在</span>')+'</span></h2>';
+  s += '<div style="display:flex;gap:7px;flex-wrap:wrap;margin-bottom:11px">'+
+       '<input type="search" id="tq" placeholder="搜 id / 名字 / 路径 / note…" value="'+esc(TOOLQ)+'" oninput="q(\'tq\')" style="flex:1;min-width:220px">'+
+       '<button class="b'+(GRP==='*'?' p':'')+'" onclick="grp(\'*\')">全部</button>'+
+       (T.groups||[]).map(g=>'<button class="b'+(GRP===g?' p':'')+'" onclick="grp(\''+g+'\')">'+esc(g)+'</button>').join('')+
+       '</div>';
+  s += '<table><tr><th>id</th><th>名称</th><th>类型</th><th>路径</th><th>状态</th><th>用法 / 坑</th></tr>';
+  list.forEach(t=>{
+    s += '<tr><td><code>'+esc(t.id)+'</code></td><td>'+esc(t.name)+'</td>'+
+      '<td><span class="tag">'+esc(t.side)+'</span>'+(t.needsGame?' <span class="tag warn">要游戏</span>':'')+'</td>'+
+      '<td>'+(t.inGameCommand?'<span class="tag">游戏内</span>':'<code>'+esc(t.path)+'</code><br>'+
+        (t.absolute?'<button class="b" onclick="openPath(\''+esc(t.abs).replace(/\\/g,'\\\\')+'\')">打开文件</button> ':'')+
+        (t.alive?'<button class="b" onclick="openDir(\''+esc(t.abs).replace(/\\/g,'\\\\')+'\')">打开目录</button>'
+                 :'<span class="tag bad">文件不在</span>'))+'</td>'+
+      '<td>'+(t.inGameCommand?'—':(t.alive?'<span class="tag ok">在</span>':'<span class="tag bad">缺</span>'))+'</td>'+
+      '<td style="max-width:340px">'+
+        (t.usage?'<div style="color:var(--fg)">'+esc(t.usage)+'</div>':'')+
+        (t.note?'<div style="color:var(--warn);white-space:pre-wrap">'+esc(t.note)+'</div>':'')+'</td></tr>';
+  });
+  if(!list.length) s += '<tr><td colspan="6" class="empty">没有匹配的。</td></tr>';
+  s += '</table></div>';
+  s += '<div class="note warn">· 两条工具指向同一个文件 = 重复登记，不是一个工具。改 registry 记得同步改 <code>工具分类索引-20261005.md</code>（改完跑 selftest）。</div>';
+  return s;
+}
+function q(id){ TOOLQ = $(id).value; const p=TOOLQ.length; paint(); setTimeout(()=>{const e=$('tq'); if(e){e.focus(); e.setSelectionRange(p,p);} },0); }
+function grp(g){ GRP=g; paint(); }
+window.q=q; window.grp=grp;
+async function openDir(p){
+  const r = await post('/api/raw', p).catch(()=>null);
+  // 直接开父目录：POST /api/open 只接受存在的路径，这里手动换一层
+  const back = p.replace(/[\\/][^\\/]+$/,'');
+  const o = await post('/api/open', {path: back});
+  if(!o.ok) toast('[!] '+(o.why||''), true);
+}
+window.openDir=openDir;
+
+// ══════════════════════════════════════════════ 纪律（可编辑）
+let CURDOC=null, CURBUF='';
+function paintRules(){
+  let s = '<div class="card cut"><h2>工程纪律与规则文件</h2>';
+  s += '<div class="tabs" id="doctabs">'+(OV.docs||[]).map(d=>
+    '<button class="'+(CURDOC===d.id?'on':'')+'" onclick="openDoc(\''+d.id+'\')">'+
+    esc(d.name)+(d.editable?' <span class="tag acc">EDIT</span>':'')+(d.exists?'':' <span class="tag bad">MISS</span>')+'</button>').join('')+'</div>';
+  if(!CURDOC) CURDOC = (OV.docs||[]).length ? OV.docs[0].id : null;
+  const meta = (OV.docs||[]).find(d=>d.id===CURDOC);
+  if(!meta){ s += '<div class="empty">没有可看的文件。</div>'; return s+'</div>'; }
+  s += '<div class="note"><b>'+esc(meta.name)+'</b>　<code>'+esc(meta.path)+'</code><br>'+esc(meta.why)+
+       '<br><span style="color:var(--dim)">位置：<b>'+esc(meta.path)+'</b>　'+
+       (meta.editable?'<b style="color:var(--ok)">可编辑</b>':'<b style="color:var(--warn)">面板里只读</b>')+
+       '　<button class="b" onclick="openPath(\''+esc(meta.path).replace(/\\/g,'\\\\')+'\')">用系统程序打开</button></span></div>';
+  s += '<div id="ed"></div></div>';
+  return s;
+}
+async function openDoc(id){
+  CURDOC=id;
+  const r = await J('/api/doc/'+encodeURIComponent(id));
+  const box = $('ed');
+  if(!box) return;
+  if(!r.ok){ box.innerHTML = '<div class="note bad">[!] '+esc(r.why)+'</div>'; return; }
+  CURBUF = r.content;
+  const meta = (OV.docs||[]).find(d=>d.id===id)||{};
+  box.innerHTML =
+    (meta.editable
+      ? '<div style="display:flex;gap:7px;align-items:center;margin-bottom:9px;flex-wrap:wrap">'+
+          '<span class="tag warn">改的是真源</span>'+
+          '<span id="dirty" class="tag ok">未改</span>'+
+          '<span style="flex:1"></span>'+
+          '<button class="b" onclick="reloadDoc()">撤销修改</button>'+
+          '<button class="b p" onclick="doSave()">保存并回读校验</button>'+
+        '</div>'
+      : '<div class="note">只读。要改请用系统程序打开。</div>') +
+    '<textarea id="ta" oninput="markDirty()" spellcheck="false">'+esc(r.content)+'</textarea>'+
+    '<div class="note" style="margin-top:9px">'+kb(Buffer.byteLength ? new Blob([r.content]).size : r.content.length)+
+    '　·　改这个文件的规矩见 <code>S-DOC-01</code> / <code>S-DOC-02</code>（在左边这份 standards.md 里）。'+
+    '　·　保存会先自动备份成 <code>.panel-bak</code>，并回读校验。</div>';
+  markDirty();
+}
+function markDirty(){
+  const t=$('ta'), d=$('dirty');
+  if(!t||!d) return;
+  const same = t.value === CURBUF;
+  d.textContent = same ? '未改' : '· 有未保存的修改（'+kb(t.value.length)+'）';
+  d.className = 'pill ' + (same?'ok':'warn');
+}
+function reloadDoc(){ if(CURDOC) openDoc(CURDOC); }
+async function doSave(){
+  const t=$('ta'); if(!t) return;
+  if(!confirm('确定要写这个真源文件？\n\n'+CURDOC+'\n\n（会自动备份原内容，并回读校验）')) return;
+  const r = await saveDoc(CURDOC, t.value);
+  if(r.ok && r.changed){ CURBUF = t.value; markDirty(); }
+}
+window.openDoc=openDoc; window.markDirty=markDirty; window.reloadDoc=reloadDoc; window.doSave=doSave;
+
+// ══════════════════════════════════════════════ 文件
+let DIRQ='';
+function paintFiles(){
+  let s = '<div class="grid g2">';
+  s += '<div class="card cut"><h2>登记的根目录</h2><table><tr><th>用途</th><th>路径</th><th></th></tr>';
+  (OV.roots||[]).forEach(r=>{
+    s += '<tr><td>'+esc(r.label)+'</td><td><code>'+esc(r.path)+'</code></td><td>'+
+      '<button class="b" onclick="openPath(\''+esc(r.path).replace(/\\/g,'\\\\')+'\')">打开</button> '+
+      '<button class="b" onclick="browse(\''+esc(r.path).replace(/\\/g,'\\\\')+'\')">看内容</button></td></tr>';
+  });
+  s += '</table><div class="note warn">· 面板的「打开」只认上面这些根目录里的路径 —— 它会拉起系统程序，不能当任意执行口用。</div></div>';
+  s += '<div class="card cut"><h2>规则文件速览</h2><table><tr><th>文件</th><th>可编辑</th><th></th></tr>';
+  (OV.docs||[]).forEach(d=>{
+    s += '<tr><td>'+esc(d.name)+'<br><code>'+esc(d.path)+'</code></td>'+
+      '<td>'+(d.editable?'<span class="tag ok">是</span>':'<span class="tag">否</span>')+'</td>'+
+      '<td><button class="b" onclick="openDoc(\''+d.id+'\');go(\'rules\')">看/改</button> '+
+      '<button class="b" onclick="openPath(\''+esc(d.path).replace(/\\/g,'\\\\')+'\')">打开</button></td></tr>';
+  });
+  s += '</table></div>';
+  s += '</div>';
+  s += '<div class="card cut"><h2>目录浏览 <span class="r" id="bdir"></span></h2><div id="browse" class="empty">点上面某个「看内容」。</div></div>';
+  return s;
+}
+async function browse(p){
+  const r = await J('/api/raw?path='+encodeURIComponent(p));
+  const box=$('browse');
+  if(!r.ok){ box.innerHTML='<div class="note bad">[!] '+esc(r.why)+'</div>'; return; }
+  $('bdir').innerHTML='<code>'+esc(r.dir)+'</code>';
+  const dirs = r.listing.filter(x=>x.dir), files = r.listing.filter(x=>!x.dir);
+  box.innerHTML = '<div class="listdir">'+
+    dirs.map(x=>'<div onclick="browse(\''+esc(r.dir+'\\\\'+x.name).replace(/\\/g,'\\\\')+'\')">[D] '+esc(x.name)+'</div>').join('')+
+    '</div><div class="listdir" style="margin-top:8px;max-height:260px">'+
+    files.map(x=>'<div onclick="openPath(\''+esc(r.dir+'\\\\'+x.name).replace(/\\/g,'\\\\')+'\')">[F] '+esc(x.name)+
+      ' <span style="color:var(--dim)">'+kb(x.size)+'</span></div>').join('')+'</div>';
+  if(!r.listing.length) box.innerHTML = '<div class="empty">（空目录）</div>';
+}
+window.browse=browse;
+
+// ══════════════════════════════════════════════ 额度
+function paintBudget(){
+  const B=OV.budget||{};
+  let s='<div class="card cut"><h2>模型额度 <span class="r">本小时桶 <code>'+esc(B.hourKey||'?')+'</code>（整点自动清零）'+
+    (B.order&&B.order.length?'　降级链 '+esc(B.order.join(' → ')):'')+'</span></h2>';
+  if(!B.ok){ s += '<div class="note bad">[!] '+esc(B.why)+'</div>'; return s+'</div>'; }
+  s += '<table><tr><th>档位</th><th>模型</th><th>本小时用了</th><th>上限</th><th>状态</th></tr>';
+  (B.rows||[]).forEach(r=>{
+    const l=r.limit||{}, u=r.used||{};
+    const mins=(u.ms/60000);
+    s += '<tr><td><b>'+esc(r.id)+'</b><br><span style="color:var(--dim)">'+esc(r.label)+'</span></td>'+
+      '<td>'+(r.model?'<code>'+esc(r.model.providerID+'/'+r.model.modelID)+'</code>'
+                       :'<span class="tag warn">运行时解析</span> <code>'+esc((r.matchModels||[]).join(','))+'</code>')+'</td>'+
+      '<td class="num">'+mins.toFixed(1)+' 分钟 / '+(u.calls||0)+' 次'+(u.errors?' / <span style="color:var(--bad)">失败 '+(u.errors)+'</span>':'')+'</td>'+
+      '<td class="num">'+(l.maxMinutesPerHour!=null?l.maxMinutesPerHour+' 分钟':'不限')+
+        (l.maxCallsPerHour!=null?' / '+l.maxCallsPerHour+' 次':'')+'</td>'+
+      '<td><span class="tag '+(r.state==='可用'?'ok':r.state==='本小时超限'?'bad':'warn')+'">'+esc(r.state)+'</span></td></tr>';
+  });
+  s += '</table>';
+  s += '<div class="note">· 分工：难的从来不是「敲代码」，是「想清楚」—— <b>只外包思考，写代码留在免费档自己写</b>。'+
+       'GPT-6 额度稀缺，默认不用；大多数时候 DeepSeek 就够。改额度/降级链只改 <code>opencode-plugin/model-budget.json</code>，不用动代码。</div>';
+  s += '<div style="display:flex;gap:7px"><button class="b p" onclick="openDoc(\'budget\');go(\'rules\')">去改额度文件</button></div>';
+  s += '</div>';
+  return s;
+}
+
+// ══════════════════════════════════════════════ 诊断
+function paintDiag(){
+  let s = '<div class="grid g2">';
+  s += '<div class="card cut"><h2>门禁输出 <span class="r" id="dstat">还没跑</span></h2>'+
+       '<div style="display:flex;gap:7px;margin-bottom:10px">'+
+       '<button class="b p" onclick="runSelftest()">selftest</button>'+
+       '<button class="b" onclick="runGate(\'preflight\')">preflight</button>'+
+       '<button class="b" onclick="runGate(\'postflight\')">postflight</button>'+
+       '<button class="b" onclick="runRepo()">6 个套娃仓库状态</button></div>'+
+       '<div class="pre" id="dout">点上面任意一个。· 门禁自己的缺陷长得像「门禁在正确地报债」，所以每次都要逐项核对是不是真债。</div></div>';
+  s += '<div class="card cut"><h2>这台机器上的相关服务</h2>'+
+       '<div class="note">常驻端口：监测台 8776　·　Numen MCP 8765　·　stage 看板 8899　·　OpenClaw 8080　·　本面板 8891<br>'+
+       '一次性开关：<code>E:\\新建文件夹\\rddharness\\ALL-ON-OFF.bat on</code> / <code>off</code>（纯 ASCII，别往里加中文）<br>'+
+       '· 改路径要改真源：node 侧 <code>stager/core/stages.json</code>，PowerShell 侧 <code>rdd-selfcompile/scripts/config.ps1</code>，'+
+       '**改完必须全仓 grep**（历史上散落 13 处硬编码，搬一次家全失配）。</div>'+
+       '<div class="note warn">· PS 5.1 读无 BOM 的 UTF-8 会乱码：.ps1 必须写 UTF-8 BOM；<code>node -e</code> 内联会被 PS 拆坏，一律写 .js 文件。</div>'+
+       '</div>';
+  s += '</div>';
+  return s;
+}
+function showOut(t, st){
+  const o=$('dout'); if(!o) return;
+  o.textContent = t; o.style.whiteSpace='pre-wrap';
+  const s=$('dstat'); if(s) s.innerHTML = st||'';
+}
+async function runSelftest(){
+  showOut('跑 selftest 中…（它会拿真债跑一遍门禁自身）');
+  const r = await J('/api/selftest');
+  showOut(r.output, '<span class="tag '+(r.exit===0?'ok':'bad')+'">exit='+r.exit+'</span>');
+}
+async function runGate(phase){
+  showOut('跑 '+phase+' 中…');
+  const r = await post('/api/gate', {phase});
+  showOut(r.output, '<span class="tag '+({0:'ok',3:'warn'}[r.exit]||'bad')+'">exit='+r.exit+'</span>');
+  toast(phase+' exit='+r.exit, r.exit!==0);
+}
+async function runRepo(){
+  showOut('读套娃仓库状态…');
+  const r = await J('/api/repo');
+  showOut(r.output);
+}
+window.runSelftest=runSelftest; window.runGate=runGate; window.runRepo=runRepo;
+window.openPath = openPath;
+
+// ══════════════════════════════════════════════ 主循环
+const PAINT = {ov:paintOverview, dec:paintDecide, stage:paintStage, tools:paintTools,
+               rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
+let curTab = null;
+function paint(){
+  paintNav();
+  const k = NAV.find(x=>x[0]===PAGE)[1];
+  // 规则页重绘会把光标弹走，所以只在第一次或换页时才整体重绘
+  if(k===curTab && k!=='rules') return;
+  curTab = k;
+  $('view').innerHTML = (PAINT[k]||paintOverview)();
+  if(k==='rules' && CURDOC) openDoc(CURDOC);
+}
+async function refresh(){
+  try{
+    const needTools = (PAGE==='tools');
+    OV = await J('/api/overview');
+    if(needTools) TOOLS = await J('/api/tools');
+    $('stamp').innerHTML = '更新于 '+new Date(OV.now).toLocaleTimeString()+' · 每 5 秒自动刷新';
+    if(TOOLS===null && PAGE==='tools') TOOLS = await J('/api/tools');
+    paint();
+  }catch(e){
+    $('view').innerHTML = '<div class="card cut"><div class="note bad">[!] 读不出来：'+esc(e.message)+
+      '　（面板进程还在吗？端口 8891 被别的程序占了吗？）</div></div>';
+  }
+}
+(async function(){
+  paintNav();
+  await refresh();
+  setInterval(()=>{ if(PAGE!=='rules') refresh(); else J('/api/overview').then(o=>{OV=o; $('stamp').textContent='更新于 '+new Date(OV.now).toLocaleTimeString();}).catch(()=>{}); }, 5000);
+})();
+</script>
+</body>
+</html>
