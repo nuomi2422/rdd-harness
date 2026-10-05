@@ -610,7 +610,12 @@ function runSelftest() {
   //   相对路径要按 roots 依次试；inGameCommand 的条目（游戏内指令，不是文件）跳过。
   const resolveTool = (p) => {
     if (path.isAbsolute(p)) return p;
-    const bare = p.replace(/^harness[\\/]/, '');   // 注册表里的 harness/ 前缀是相对于 harness 根的
+    // ★ harness/ 与 rddharness/ 两个前缀都剥 —— 两个都出现在注册表里（cam.sendCommand 写 harness/，
+    //   os.wallpaper* 写 rddharness/）。原来只剥 harness/，于是 rddharness/ 那两条被判「路径不存在」，
+    //   而文件明明在 E:\新建文件夹\rddharness\ 下面。
+    //   ★ 这是 bug-9/bug-10 同类的第 6 例：门禁自己的缺陷长得像「门禁在正确地报债」。
+    //   判别标准（别再犯）：报「不存在」之前，先把三个候选路径都打出来看一遍。
+    const bare = p.replace(/^(?:rdd)?harness[\\/]/, '');
     const cands = [
       path.join(REG.roots.workspace, p),
       path.join(REG.roots.harness, bare),
