@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
   "version": 1,
-  "updated": "2026-10-04",
+  "updated": "2026-10-06",
   "roots": {
     "workspace": "E:\\restart developing doer",
     "harness": "E:\\新建文件夹\\rddharness",
@@ -862,6 +862,18 @@
         "guard": "preflight P11（check-global.js 比对 H2 条目数）；registry.standards.contract 要求规范单一真源在 standards.md 而非 AGENTS.md。",
         "verifiedBy": "check-global.js 从 FAIL 转 PASS",
         "reviewBy": "2026-11-04",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-06-01",
+        "title": "dev jar 从不带 datagen 产物（lang）——游戏内 I18n 键全部显示原始键",
+        "class": "静默失效",
+        "detected": "2026-10-06",
+        "rootCause": "翻译键都在 ModLanguageData（源码），但 lang JSON 是 :api:neoforge:runData 的产物，落在 api/neoforge/src/generated/resources/（.gitignore 忽略、靠 sourceSets 进构建）。本地 run-mutation 构建不跑 datagen → dev jar 无 lang JSON → I18n.get 缺键静默显示原始键。曾误判为「jar 里有 4 个 lang entries」——实为 ModLanguageData* 类名被模糊匹配。",
+        "impact": "气泡工具行、brain 提示、快捷对话等全部显示 numen.xxx 原始键；用户要的「汉字」全程不出现，且无任何报错。",
+        "guard": "check-jar-lang.js（verify-tools）直接扫 jar 字节流里有没有 assets/numen_api/lang/{en_us,zh_cn}.json，exit 1 = 缺；生成目录在盘上持久存在时后续构建自带 lang；CI publish.yml 本来就跑 datagenAll。",
+        "verifiedBy": "node rdd-selfcompile\\scripts\\verify-tools\\check-jar-lang.js → exit 0（live jar 含 en_us 16182B + zh_cn 16265B，309 键）",
+        "reviewBy": "2026-11-06",
         "status": "open"
       }
     ]
