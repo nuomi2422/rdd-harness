@@ -300,6 +300,33 @@
       "note": "★ 退出码 2 = 有源码领先于 jar。比的是「最后一次改 src/main/java 的提交」vs jar mtime，不是最后一次提交。"
     },
     {
+      "id": "gate.econ",
+      "name": "经济计量报表（tokens/耗时/工具配对/预算建议与拦截）",
+      "path": "rdd-selfcompile/scripts/verify-tools/econ-report.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--since <YYYY-MM-DD> [--until <ISO>] [--dir <monitor目录>] [--json]",
+      "note": "E0/E1 观测半边：llm_usage 四元(输入/输出/缓存读/缓存写)+耗时+重试+截断；tools.jsonl 的 tool_call↔tool_result 配对（本地工具 duration_ms 由 2026-10-06 新 jar 起才有）；budget_advice（shadow）与 budget_block（enforce）段。"
+    },
+    {
+      "id": "gate.replay",
+      "name": "回放对账（消息合法性：孤儿 tool_call/tool_result 等）",
+      "path": "rdd-selfcompile/scripts/verify-tools/replay-check.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--since <ISO> | --file <单个jsonl> [--limit N] [--json] [--selftest]",
+      "note": "E1 正确性半边（econ-report 管钱，它管合法性）：重放 llm_request.request.messages 结构校验，抓 2026-10-06 实机 400 的根因类（窗口以 tool 开头 = 孤儿 tool_result）。--selftest 7 用例合成自测；历史轮转文件 context-1791259005120.jsonl 抓到 30 处违规（全在 validTail 修复前，10/6 11:28 后清零）。"
+    },
+    {
+      "id": "gate.jarLang",
+      "name": "查 jar 是否带翻译（datagen lang JSON）",
+      "path": "rdd-selfcompile/scripts/verify-tools/check-jar-lang.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--dir <mods目录> | --jar <单个jar> [--json]",
+      "note": "TL-2026-10-06-01 的 guard：扫 jar 字节流查 assets/numen_api/lang/{en_us,zh_cn}.json；exit 1 = 缺（本地构建不跑 datagen 就会缺，游戏内静默显示原始键）。"
+    },
+    {
       "id": "gate.stager",
       "name": "流程状态机 CLI",
       "path": "stager/bin/stager.js",
