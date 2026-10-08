@@ -35,7 +35,7 @@
 
 ### S-BUILD-02 改执行层必须显式指定模块
 改 `core/common` 的类必须 `-Module core:neoforge`，默认模块盖不到。
-模块取值：`plugins:rdd` / `plugins:learner` / `plugins:ac` / `plugins:acx` / `plugins:experience` / `plugins:camera` / `core:neoforge` / `api:neoforge`。
+模块取值：`plugins:rdd` / `plugins:learner` / `plugins:acx` / `plugins:experience` / `plugins:camera` / `core:neoforge` / `api:neoforge`。
 
 ### S-BUILD-03 一个 mutation 只放一个 jar
 `deploy.ps1` 取 `$dir\jar` 下**第一个** jar 部署。多模块必须开多个 mutation。
