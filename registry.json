@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
   "version": 1,
-  "updated": "2026-10-06",
+  "updated": "2026-10-07",
   "roots": {
     "workspace": "E:\\restart developing doer",
     "harness": "E:\\新建文件夹\\rddharness",
@@ -213,7 +213,7 @@
       "side": "read",
       "needsGame": false,
       "usage": "回答「我现在要干 X，用哪一条工具」。按「我要干什么」查，不是按工具名查。",
-      "note": "★ registry.json 是机器真源但**不回答「我该用哪个」** —— 65 条平铺必挑错。这份只回答选择问题，细节回注册表。\n★ 内含三条 2026-10-05 新规矩：① 内脑/驾驶模式怎么切（比 task_stop 强）② 监测台 7 组 30 页什么时候看 ③ **哪里不方便就自己写一个工具注册进来**（含五步 + 三条铁律）。\n⚠ 改 registry.json 必须同步改它；两份不一致时以 registry.json 为准，但要立刻把它修回来 —— 骗人的索引比没索引更糟。"
+      "note": "★ registry.json 是机器真源但**不回答「我该用哪个」** —— 71 条平铺必挑错。这份只回答选择问题，细节回注册表。\n★ 内含三条 2026-10-05 新规矩：① 内脑/驾驶模式怎么切（比 task_stop 强）② 监测台 7 组 30 页什么时候看 ③ **哪里不方便就自己写一个工具注册进来**（含五步 + 三条铁律）。\n★ 2026-10-07 增：架构目标锁 `goal.*`（不走 stage 也能逼到验收），机制细则见本库 `goal-drive.md`。\n⚠ 改 registry.json 必须同步改它；两份不一致时以 registry.json 为准，但要立刻把它修回来 —— 骗人的索引比没索引更糟。"
     },
     {
       "id": "game.brainStop",
@@ -584,6 +584,27 @@
       "path": "rddharness/WALLPAPER.bat",
       "side": "run",
       "needsGame": false
+    },
+    {
+      "id": "goal.cli",
+      "name": "架构目标锁：验收条目 + 实跑证据 + 机器最终验收（不许写文档冒充完成）",
+      "path": "rddharness/bin/goal.js",
+      "side": "run",
+      "needsGame": false
+    },
+    {
+      "id": "goal.drive",
+      "name": "目标锁催跑插件：AI 停了自动开动 / 断流退避续写 / 压缩上下文时锚住架构边界",
+      "path": "opencode-plugin/goal-drive.mjs",
+      "side": "run",
+      "needsGame": false
+    },
+    {
+      "id": "goal.doc",
+      "name": "目标锁机制说明（怎么上锁 / 证据规则 / 关掉它的三个办法）",
+      "path": "rddharness/goal-drive.md",
+      "side": "read",
+      "needsGame": false
     }
   ],
   "standards": {
@@ -901,6 +922,30 @@
         "guard": "check-jar-lang.js（verify-tools）直接扫 jar 字节流里有没有 assets/numen_api/lang/{en_us,zh_cn}.json，exit 1 = 缺；生成目录在盘上持久存在时后续构建自带 lang；CI publish.yml 本来就跑 datagenAll。",
         "verifiedBy": "node rdd-selfcompile\\scripts\\verify-tools\\check-jar-lang.js → exit 0（live jar 含 en_us 16182B + zh_cn 16265B，309 键）",
         "reviewBy": "2026-11-06",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-07-01",
+        "title": "goal-drive 插件「已写已注册」但 opencode 没重启 → 目标锁一个钩子都没挂上，全程零行为",
+        "class": "假成功",
+        "detected": "2026-10-07",
+        "rootCause": "opencode 的配置与插件不热重载；goal-drive.mjs 写完、opencode.json 注册完，看起来全绿，但当前会话仍跑在旧插件集上。催跑/断流续写/压缩锚定三条钩子一条都没注册，而 goal.js 那边状态文件一切正常 —— 「锁上了」的错觉。",
+        "impact": "用户以为有护栏在盯着「不许停」，实际停了没人催；和 2026-10-01 的「回执 success:true 但 keyDown 静默无效」同一形态。",
+        "guard": "goal-drive.md 第八节明写「回执说它催了不等于它真催了」；判据是 opencode-plugin\\.state\\goal-drive.jsonl 当天有没有条目（插件每条自动行为都留痕，包括 kick-ok / resume-ok / skip-子会话）。上线流程：注册后必须重启 opencode，再看 jsonl。",
+        "verifiedBy": "待首跑：重启 opencode → 造成一次 idle → jsonl 出现 kick-ok（探针 54/0 只证明代码对，不证明已上线）",
+        "reviewBy": "2026-11-07",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-08-04",
+        "title": "进游戏前必读 的起游戏命令用 Start-Process -ArgumentList 数组且含空格路径未加引号 → 静默失败",
+        "class": "静默失效",
+        "detected": "2026-10-08",
+        "rootCause": "PS 5.1 的 Start-Process -ArgumentList 数组按空白拆词、不给元素自动加引号。@(-File, 带空格的路径) 被拆开 → -File 拿到 E:\\restart 而不是脚本 → 子进程秒退；Start-Process -WindowStyle Hidden 又把报错吞掉 → 外部只看到「没反应」（无 java、launch-gpt.log 零增长）。",
+        "impact": "2026-10-08 本轮照抄 进游戏前必读 第17行的后台启动，连续静默失败，被误判为「游戏卡了」，浪费多轮。同源坑此前已记（AGENTS 坑 + 记忆几条），但文档里的示例本身就是坏的 → 照抄即中。",
+        "guard": "进游戏前必读 第17行 已改成实测可行写法：-ArgumentList 传【一个字符串】并在其中给路径写双引号；并写明数组写法为什么错。判据只看实际发生：起后复核 MC java 进程 CreationDate + MCP 8765 可连，不看退出码/回执。",
+        "verifiedBy": "2026-10-08 22:52 实测：单字符串+带引号路径 → LAUNCH_OK + java PID 47732(22:52:40) + 8765 LISTENING",
+        "reviewBy": "2026-11-08",
         "status": "open"
       }
     ]
