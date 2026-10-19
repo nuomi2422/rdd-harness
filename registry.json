@@ -1,18 +1,24 @@
 {
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
-  "version": 1,
-  "updated": "2026-10-07",
+  "version": 2,
+  "updated": "2026-10-19",
+  "paths": {
+    "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
+    "rootAnchor": "../..",
+    "envOverride": "RDD_ROOT"
+  },
   "roots": {
-    "workspace": "E:\\restart developing doer",
-    "harness": "E:\\新建文件夹\\rddharness",
-    "docs": "E:\\新建文件夹\\rdd-docs\\rdd架构",
-    "docsUnified": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版",
-    "docsOut": "E:\\新建文件夹\\rdd-docs\\rdd存放",
-    "numen": "E:\\restart developing doer\\minecraft-numen",
-    "scripts": "E:\\restart developing doer\\rdd-selfcompile\\scripts",
-    "live": "E:\\.minecraft\\versions\\The Best of Twilight Forest",
-    "stageDocs": "E:\\restart developing doer\\stager\\.stager\\tasks"
+    "workspace": "workspace",
+    "harness": "harness/rdd-harness",
+    "docs": "docs/rdd-docs/rdd架构",
+    "docsUnified": "docs/rdd-docs/rdd架构/自编译统一版",
+    "docsOut": "docs/rdd-docs/rdd存放",
+    "numen": "workspace/minecraft-numen",
+    "scripts": "workspace/rdd-selfcompile/scripts",
+    "live": "mc/The Best of Twilight Forest",
+    "stageDocs": "workspace/stager/.stager/tasks",
+    "runs": "harness/rdd-harness/runs"
   },
   "routing": {
     "$comment": "★ 用户 2026-10-04 定：总结/文档写到原本的地方，harness 里不放总结。",
@@ -59,8 +65,18 @@
       "path": "游戏内聊天框 /cam",
       "side": "run",
       "needsGame": true,
-      "usage": "/cam help|status|list|bind <name>|unbind|tp|follow[on|off]|followdist <n>|mode <M>|dist|height|shoulder|bearing|pitch|hold|lock<x y z>|run<true|false>|fly<true|false>|speed<n>|rec start[fps][dedupe]|rec stop|rec status|rec maxframes|save|reload",
-      "note": "客户端 NeoForge RegisterClientCommandsEvent。cam.json 20 tick 热载。",
+      "usage": "/cam help|status|list|possess <name>|release|bind <name>|unbind|tp|follow[on|off]|followdist <n>|mode <M>|dist|height|shoulder|bearing|pitch|hold|lock<x y z>|run<true|false>|fly<true|false>|speed<n>|rec start[fps][dedupe]|rec stop|rec status|rec maxframes|save|reload",
+      "note": "客户端 NeoForge RegisterClientCommandsEvent。cam.json 20 tick 热载。★ 跟拍优先用 /cam possess（观察者+视角绑定），别再靠反复 /cam tp。",
+      "inGameCommand": true
+    },
+    {
+      "id": "cam.possess",
+      "name": "★★ 附身：观察者模式 + 视角绑定（替代反复 /tp）",
+      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/possess/Possession.java",
+      "side": "run",
+      "needsGame": true,
+      "usage": "/cam possess <名字> → /cam release ｜ 或者（推荐，免键盘）改 config\\numen_api\\cam.json 的 \"possess\" 字段：填名字=附身，填 \"\"=退出，20 tick 生效",
+      "note": "一步 = 玩家切 SPECTATOR + ServerPlayer.setCamera(同伴)。服务端 tick 里 absMoveTo(camera) 每 tick 跟随，所以视角是物理绑定的，不用再发 /tp（旧路会刷屏）。单人存档走 Minecraft.getSingleplayerServer() 直接调 API，不需要作弊/OP；联机服退回 /gamemode spectator + /spectate <name>，需 OP 等级 2，权限不足会明确报错。附身期间 CameraRig 机位与 CompanionTether 牵引自动让位。崩溃保护：config/numen_api/possess.json 记原游戏模式，下次进世界自动恢复。 ★2026-10-19 实测通过：同伴走到 186 格外时玩家本体 distance_to_me=0、0 条 /tp；退出后 HUD/模式恢复。★本机键盘注入完全失效（见 TL-2026-10-19-02），所以自动化一律走 cam.json 文件扳机。★scan_nearby_entities 不列玩家本体，判「身体有没有跟过去」要用 get_owner_status。",
       "inGameCommand": true
     },
     {
@@ -105,11 +121,11 @@
     },
     {
       "id": "cam.tether",
-      "name": "绑定 + 走出加载区自动牵引",
+      "name": "绑定 + 走出加载区自动牵引（附身时自动停用）",
       "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/tether/CompanionTether.java",
       "side": "run",
       "needsGame": true,
-      "note": "★ 传坐标不传名字（按名字 tp 会落在它脚下正中，可能被挤进墙里）。需 hasPermissions(2)（单人游戏开作弊）。"
+      "note": "★ 传坐标不传名字（按名字 tp 会落在它脚下正中，可能被挤进墙里）。需 hasPermissions(2)（单人游戏开作弊）。⚠ 这条会刷屏：要长跟请用 cam.possess。附身期间 tick 直接早退，不会再发 /tp。"
     },
     {
       "id": "compile.build",
@@ -413,10 +429,12 @@
     },
     {
       "id": "oc.walk",
-      "name": "抢焦点后走一步",
-      "path": "mc-openclaw-controller/scripts/oc-walk.ps1",
+      "name": "走一步（已并入 oc.send 的 --walk）",
+      "path": "mc-openclaw-controller/scripts/oc-send.js",
       "side": "run",
-      "needsGame": true
+      "needsGame": true,
+      "usage": "node oc-send.js --walk <键> <毫秒>",
+      "note": "★ 2026-10-19 核实：原先登记的 oc-walk.ps1 在仓库里不存在（4 个脚本是重写的，只保留了 oc-send / oc-drive / watch-ai / capture-win）。走一步请用 oc-send.js --walk。id 保持不变——门禁和文档都按 id 引用。"
     },
     {
       "id": "oc.watch",
@@ -440,7 +458,7 @@
       "path": "opencode-plugin/model-budget.json",
       "side": "run",
       "needsGame": false,
-      "usage": "工具名 model_router。action=plan（让它写可照做的方案，默认档位 auto）/ ask / status / back；可 to=free|deepseek|sol|astra。插件源 E:\\restart developing doer\\opencode-plugin\\model-router.mjs，已注册进 ~/.config/opencode/opencode.json 的 plugin 数组（改配置不热重载，要重启 opencode）。",
+      "usage": "工具名 model_router。action=plan（让它写可照做的方案，默认档位 auto）/ ask / status / back；可 to=free|deepseek|sol|astra。插件源 D:\\rdd\\workspace\\opencode-plugin\\model-router.mjs，已注册进 ~/.config/opencode/opencode.json 的 plugin 数组（改配置不热重载，要重启 opencode）。",
       "note": "★ 分工铁律：难的从来不是「敲代码」，是「想清楚」—— 只外包思考，写代码留在免费档自己写。\n降级链 deepseek → gpt-6-sol → gpt-6-astra，每小时上限 45/25/15 分钟（+ 次数上限），本地整点桶自动清零。★ GPT-6 额度稀缺，默认不用。\n★ 换模型的实现原理：opencode 的 chat.params 钩子【改不了 model】（output 只有 temperature/topP/topK/maxOutputTokens/options）；只能自己用 SDK 发带 model 的 prompt，所以插件开**子会话**跑目标模型再把正文交回外层。\n★ 失败一律明确报错（额度用完 / 模型解析不到 / 空正文 / 超时），并记一次失败额度 —— 不假装成功。plan 模式结构性关掉 write/edit/patch/bash/task。\n★ 改额度/降级链/档位只改这个 json，不用动代码。"
     },
     {
@@ -605,12 +623,32 @@
       "path": "rddharness/goal-drive.md",
       "side": "read",
       "needsGame": false
+    },
+    {
+      "id": "harness.multimodel",
+      "name": "★ 多模型协同 + 实机验证闭环（按需索引，默认不读）",
+      "path": "multimodel/README.md",
+      "side": "read",
+      "needsGame": false,
+      "whenToUse": "只在①用户明确不在/要求长程无人值守，②要做实机取证、沙盒晋级、多模型升级链，③要复现故障注入验收矩阵（T01–T20）时打开。日常改码、写文档、跑单测不要读它，也不要为了它启动游戏。",
+      "usage": "node bin/harness-run.js selftest  |  validate <card.yaml>  |  plan <card.yaml>  |  mock-run <card.yaml> --scenario <t01|t02|...|happy> [--runs <dir>]  |  report <runId>",
+      "note": "★ 2026-10-19 建。M1 骨架：TaskCard（严格 YAML）→ 能力对账 → 证据信封/对齐 → 确定性裁决 → 有界模型路由 → RunStore。全部可离线跑，**不需要游戏**。\n★ 状态标注（不许当已接通）：implemented=离线骨架/测试；mocked=模型/相机/MCP 适配器；not_connected=DSH 真实调用、游戏内相机、mutation 沙盒发布；verified_in_game=0 条。\n★ 设计文档：docs/rdd-docs/rdd架构/RDD-Harness-多模型协同与实机验证闭环-设计草案-20261019.md。\n★ 铁律：模型说完成、MCP success、构建成功、截图存在，都不是 PASS。只有确定性断言 + 证据门 + 工程门同时过。"
+    },
+    {
+      "id": "memory.mcp",
+      "name": "★ MCP 记忆库（知识图谱，跨会话经验检索）",
+      "path": "tools/mcp-memory/start-memory-mcp.mjs",
+      "side": "write",
+      "needsGame": false,
+      "whenToUse": "开工前查「这个坑踩过没有」；收工前把新踩的坑写成实体。会话上下文被压缩后，这里是唯一还记得的东西。",
+      "usage": "node tools/mcp-memory/start-memory-mcp.mjs（DSH 自动拉起）｜ 导入历史：node tools/mcp-memory/import-legacy-memory.mjs <旧 memory.json>",
+      "note": "★ 2026-10-19 装。库文件跟 rdd-docs 仓走：docs/rdd-docs/rdd架构/_memory/memory.jsonl（可被 git 备份）。入口脚本解析路径（唯一真源）+ 支持 RDD_ROOT 覆盖，配置里不写死路径。工具名形如 mcp__rdd_memory__create_entities / search_nodes / read_graph。实测：414 实体 / 195 关系已导入，search_nodes 可用。⚠ 别把 MEMORY_FILE_PATH 指向 .json 老文件（服务器会一次性迁成 .jsonl）。"
     }
   ],
   "standards": {
     "$comment": "★ 编程规范的唯一真源是 standards.md（本 harness 内，机器可读、带 id）；docsUnified\\01-工程规范.md 是人读的完整版。两者条款一一对应，改一处必须改另一处 —— postflight Q-CODE-SPEC 查这个。",
-    "source": "E:\\新建文件夹\\rddharness\\standards.md",
-    "mirror": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\01-工程规范.md",
+    "source": "harness/rdd-harness/standards.md",
+    "mirror": "docs/rdd-docs/rdd架构/自编译统一版/01-工程规范.md",
     "contract": "standards.md 每条规则带稳定 id（如 S-COMMIT-01）。mirror 里每个对应小节标题里带同一个 id。"
   },
   "gates": {
@@ -722,7 +760,7 @@
           "kind": "human",
           "level": "ask",
           "rule": "★ 进游戏【之前】必须先读一遍「游戏内能力清单」，确认这一轮要用的能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 / 飞行 / 看监测台）已有一条现成工具。清单里每一条都带正确调用姿势和坑。目的是别临场手写已有工具、别用错那条必然失效的路。",
-          "verify": "人工确认：已读 E:\\新建文件夹\\rddharness\\进游戏前必读-游戏内能力清单.md（preflight 输出里会把这句打出来，读没读过是你的判断，机器查不到「读过」这件事 —— 所以它宁可误报也不静默跳过）",
+          "verify": "人工确认：已读 D:\\rdd\\harness\\rdd-harness\\进游戏前必读-游戏内能力清单.md（preflight 输出里会把这句打出来，读没读过是你的判断，机器查不到「读过」这件事 —— 所以它宁可误报也不静默跳过）",
           "tool": "gate.read"
         }
       ]
@@ -827,6 +865,14 @@
           "rule": "★ 关游戏不是结束。顺序固定：关游戏 → 写记录 → 写文档 → 门禁。两件必须真动手：(1) 写记录 = 测试日志.md 加本轮条目（带 keyword 或 HEAD 前 12 位签名）+ 09-更新日志.md 登记本轮变更；(2) 写文档 = 长期资产落 docsUnified\\NN-<中文名>.md 并同时登记 3 处（README §二目录表 / 50-按主题导航.md / 09-更新日志.md）。另需 memory_create_entities 灌记忆图谱 —— 别只写文档不进图谱。",
           "verify": "人工确认三条都做了：① 测试日志有本轮签名条目 ② 09-更新日志有本轮登记 ③ 记忆图谱有新实体。Q2/Q3/Q5/Q9 是同一件事的机器侧对应项，这里是给人看的完整清单",
           "tool": "gate.read"
+        },
+        {
+          "id": "Q13",
+          "name": "实机验证卡已写",
+          "kind": "trace",
+          "level": "warn",
+          "rule": "★ 2026-10-19 用户要求：进过游戏就必须在 rdd架构\\实机验证\\YYYY-MM.md 留一张卡，写清「要验什么（判据）/ 为什么现在验 / 采了什么数据 / 结果 / 原因 / 下次怎么复现」。待验的也要建卡（状态 ⬜，判据先写死）。",
+          "verify": "扫 docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 的 mtime 是否本轮 + 里面有几张 ### V-YYYYMMDD-NN 卡 + 回填了几张（状态为 ✅/❌/🟡）"
         }
       ]
     },
@@ -947,20 +993,42 @@
         "verifiedBy": "2026-10-08 22:52 实测：单字符串+带引号路径 → LAUNCH_OK + java PID 47732(22:52:40) + 8765 LISTENING",
         "reviewBy": "2026-11-08",
         "status": "open"
+      },
+      {
+        "id": "TL-2026-10-19-01",
+        "title": "registry 用绝对路径 → 工作区搬家/换机器后整套门禁静默指向旧位置或另一份副本",
+        "class": "静默失效",
+        "detected": "2026-10-19",
+        "rootCause": "roots / standards / docNumbers 全是 D:\\rdd\\... 字面量。目录一改名、换账号、拷到另一台机器，门禁要么读不到（还算好），要么读到同名旧副本（更糟：它照样打印 PASS）。同族形态是「配置指向了一个不再存在的位置，而没有任何一处会因此报错」。",
+        "impact": "门禁绿灯与真实仓库脱钩；harness 无法作为整体被拷贝/迁移，只能原地用。",
+        "guard": "registry 新增 paths.rootAnchor(../..)/envOverride(RDD_ROOT)；所有根改为相对 RDD 根；唯一解析层 bin/lib/registry.js；harness-gate.js selftest 新增「registry roots 已相对化」检查（出现绝对路径即 FAIL）；multimodel/test/router-store.test.js 覆盖 RDD_ROOT 搬家。",
+        "verifiedBy": "node bin/harness-gate.js selftest → 「registry roots 已相对化」✔（RDD 根=D:\\rdd）；node --test multimodel/test → RDD_ROOT 覆盖用例 ✔",
+        "reviewBy": "2026-11-19",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-19-02",
+        "title": "键盘注入进不了 MC，但 send-mc-command 照样回 SENT",
+        "symptom": "脚本打印 SENT/TYPED，游戏里聊天框根本没开；每条 /cam 指令都「像发出去了」",
+        "impact": "任何依赖「自动敲游戏内指令」的验证都会变成假绿 —— 2026-10-19 附身验证第一轮就是这么卡住的",
+        "guard": "改用文件扳机（cam.json 的 possess 字段，20 tick 热载）；真要验证送达必须截图看聊天框，不能信回执",
+        "verifiedBy": "V-20261019-04：SendKeys / keybd_event / 扫描码 SendInput 三种全失效，GetForegroundWindow 确为 MC，shell 已 High IL",
+        "reviewBy": "2026-11-19",
+        "status": "open"
       }
     ]
   },
   "docNumbers": {
-    "root": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版",
-    "ledger": "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\docs-freshness.json",
+    "root": "docs/rdd-docs/rdd架构/自编译统一版",
+    "ledger": "docs/rdd-docs/rdd架构/自编译统一版/docs-freshness.json",
     "pattern": "^(\\d{2})-",
-    "maxDocNo": 73,
+    "maxDocNo": 74,
     "$maxDocNoNote": "2026-10-04：70 号已被 docsUnified 的「70-相机独立模块numencam与实测记录-20261004.md」占用。★ 分配新号时必须现场重扫，不要信这个缓存值 —— harness 门禁 P10 就是这么判的（它打印「别信这个缓存值」）。",
-    "nextDocNo": 74,
+    "nextDocNo": 75,
     "registerIn": [
-      "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\README.md §二目录表",
-      "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\09-更新日志.md",
-      "E:\\新建文件夹\\rdd-docs\\rdd架构\\自编译统一版\\50-按主题导航.md"
+      "docs/rdd-docs/rdd架构/自编译统一版/README.md §二目录表",
+      "docs/rdd-docs/rdd架构/自编译统一版/09-更新日志.md",
+      "docs/rdd-docs/rdd架构/自编译统一版/50-按主题导航.md"
     ],
     "legacyDuplicateWarn": [
       44,
@@ -978,7 +1046,62 @@
       "65/66 是并行会话互相撞的（台账自述：为避开 64 改成 66，又撞上对方建的 66-AC脚本两份副本）。未登记 → 现在是 BLOCK。",
       "55 有两份，其中 `55自主寻找bug和修改的特殊执行.md` 缺连字符，整个逃过 /^(\\d{2})-/ 正则 —— 这是编号检查的盲区，修法见 standards.md S-DOC-02。",
       "2026-10-04: 71 号《昨晚至今待补充与待整合总提取》已落盘，故 maxDocNo 70 -> 71。65/66 撞号仍为 BLOCK 未消歧。"
-    ]
+    ],
+    "standingDocs": [
+      {
+        "path": "docs/rdd-docs/rdd架构/目录规范.md",
+        "what": "目录规划唯一真源（什么放哪、进不进 git、打包口径）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/_格式规范.md",
+        "what": "rdd架构\\ 根的写作规范（先判写哪一类）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/项目历史/",
+        "what": "六类①：项目大事记（YYYY-MM至MM-主题.md + _格式规范）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/模块架构/",
+        "what": "六类②：模块架构七节 + §8 代码↔意图绑定（每模块一份）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/红线回退/",
+        "what": "六类③：红线 tag → 回退点 → 回退后必跑（索引）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/杂项记录/",
+        "what": "六类④：统一编号 #NNN 的零散记录 + 下一步"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/运维/",
+        "what": "六类⑤：起停/端口/路径/备份/救火"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/代码解释/",
+        "what": "六类⑥：跨模块的代码↔意图绑定（模块内的写模块 §8）"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/自编译统一版/_格式规范.md",
+        "what": "编号文档的写作与编号规则"
+      },
+      {
+        "path": "docs/rdd-docs/rdd存放/_格式规范.md",
+        "what": "给用户看的报告的写法"
+      },
+      {
+        "path": "harness/rdd-harness/_格式规范.md",
+        "what": "registry/时间锁/skill 的写法"
+      },
+      {
+        "path": "workspace/_格式规范.md",
+        "what": "提交信息/脚本头注释/编译通道"
+      },
+      {
+        "path": "docs/rdd-docs/rdd架构/实机验证/",
+        "what": "七类⑦：每次验证一张卡（判据/原因/数据/结果/复现），进游戏前建卡、退游戏后回填"
+      }
+    ],
+    "standingDocsNote": "★ 2026-10-19 建。这些是【非编号】长期资产：不占 NN 号、不进 自编译统一版、但同样是真源。六类文档是【文件夹】不是单文件（用户 2026-10-19 明确），每个文件夹自带 _格式规范.md。改它们不用登记三处，改完在 杂项记录\\ 记一行即可。"
   },
   "bugs": {
     "$comment": "已定位的历史缺陷。postflight Q7 会挑相关的复查。",

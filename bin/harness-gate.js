@@ -21,6 +21,7 @@
 const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
+const registryLib = require('./lib/registry.js');
 
 const HARNESS = path.resolve(__dirname, '..');
 const REGISTRY = path.join(HARNESS, 'registry.json');
@@ -31,8 +32,9 @@ const R = (rel) => path.join(J(REG.roots.workspace), rel);
 const P = (p) => path.join(p);
 
 function loadRegistry() {
-  const raw = fs.readFileSync(REGISTRY, 'utf8').replace(/^﻿/, '');
-  REG = JSON.parse(raw);
+  // ★ 路径解析统一走 bin/lib/registry.js：注册表现在全是相对 RDD 根的路径，
+  //   绝对路径只作兼容。别在这里自己 path.join(REG.roots...) 拼死路径。
+  REG = registryLib.load();
 }
 let REG = null;
 
@@ -77,9 +79,31 @@ function walk(dir, depth, pred, out) {
   return out;
 }
 
+/**
+ * 找到可用的 git 可执行文件。
+ *
+ * ★ 2026-10-19：本机 git 不在 PATH 上（MinGit 装在 %LOCALAPPDATA%\Programs\MinGit）。
+ *   原来直接 spawnSync('git') → selftest 永远报「git 可用 ✘」，
+ *   看起来像「仓库坏了」，其实是 PATH 的事（门禁自己的缺陷长得像债，同类第 9 例）。
+ *   现在按 ①PATH ②已知安装位 ③RDD_GIT 环境变量 依次找；找不到返回原名（让报错照旧）。
+ */
+function resolveGit() {
+  if (process.env.RDD_GIT && fs.existsSync(process.env.RDD_GIT)) return process.env.RDD_GIT;
+  const probes = [
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'MinGit', 'cmd', 'git.exe'),
+    path.join(process.env.ProgramFiles || '', 'Git', 'cmd', 'git.exe'),
+    path.join(process.env['ProgramFiles(x86)'] || '', 'Git', 'cmd', 'git.exe'),
+  ];
+  for (const p of probes) if (p && fs.existsSync(p)) return p;
+  return 'git';
+}
+const GIT = resolveGit();
+
 function git(cwd, args) {
-  const r = spawnSync('git', args, { cwd, encoding: 'utf8', maxBuffer: 32 << 20 });
-  return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
+  const r = spawnSync(GIT, args, { cwd, encoding: 'utf8', maxBuffer: 32 << 20 });
+  const out = (r.stdout || '') + (r.stderr || '');
+  // spawn 本身失败（ENOENT）时 r.status 是 null —— 归一成非零码，别让它冒充成功
+  return { code: r.status === null ? 127 : r.status, out };
 }
 
 /** 列 zip/jar 里的 entry 名（借 powershell 的 ZipFile，避免引依赖） */
@@ -279,10 +303,20 @@ function preflight(ctx) {
     const align = spawnSync(process.execPath, [path.join(chk, 'check-align.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
     const glb = spawnSync(process.execPath, [path.join(chk, 'check-global.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
     const bad = [align, glb].filter((r) => r.status !== 0);
-    record('P11', '规则没打架', BLOCK, 'artifact', bad.length ? BLOCK : PASS,
-      bad.length
-        ? `check-align exit=${align.status} / check-global exit=${glb.status} —— 规则文件之间有冲突或指针失效，先修那个再动游戏`
-        : `check-align 0 · check-global 0（外层 AGENTS.md / rddharness\\stage.md / 全局指针卡 三层分工一致）`);
+    // ★ 2026-10-19：退出码 3 = 环境错（例如全局指针卡还没装到 ~/.config/opencode/），
+    //   按项目契约那是 SKIP 不是债 —— 报 BLOCK 会让「文件没装」长得像「规则打架」。
+    const env = bad.filter((r) => r.status === 3);
+    const real = bad.filter((r) => r.status !== 3);
+    let p11state = PASS;
+    let p11detail = `check-align 0 · check-global 0（外层 AGENTS.md / rddharness\\stage.md / 全局指针卡 三层分工一致）`;
+    if (real.length) {
+      p11state = BLOCK;
+      p11detail = `check-align exit=${align.status} / check-global exit=${glb.status} —— 规则文件之间有冲突或指针失效，先修那个再动游戏`;
+    } else if (env.length) {
+      p11state = SKIP;
+      p11detail = `check-global exit=3（环境错，不是债）：${env.map((r) => (r.stdout || '').split(/\r?\n/).find((l) => /SKIP|缺失/.test(l)) || '').filter(Boolean).join(' ').trim() || '全局指针卡缺失'} —— 装法见该脚本输出`;
+    }
+    record('P11', '规则没打架', BLOCK, 'artifact', p11state, p11detail);
   }
   {
     // P12 改接口先查消费者 —— 机器判不了「你到底改了哪个接口」，只能问
@@ -437,6 +471,34 @@ function postflight(ctx) {
       `编号接现有最大号往后排，并【同时登记 3 处】：README §二目录表 / 09-更新日志 / 50-按主题导航\n` +
       `       ③ 灌记忆图谱：memory_create_entities / memory_add_observations —— 别只写文档不进图谱\n` +
       `       ★ 机器侧的对应项是 Q2(evidence) / Q3(总结) / Q5(图谱) / Q9(编号三处)，它们绿了不等于你走过上面三步。`);
+  }
+
+  // ★ Q13（2026-10-19 新增）：本轮有没有写「实机验证卡」。
+  //   用户明确要求：进游戏要留下「收集了什么数据 / 为什么 / 结果 / 验的什么 / 什么时候 / 以后怎么复现」。
+  //   判据 = docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 本轮被改过，且里面有 V- 编号的卡。
+  //   级别 WARN 不是 BLOCK：有的轮次确实不进游戏（纯文档/纯编译），那就不该被拦。
+  {
+    const dir = path.join(REG.roots.docs, '实机验证');
+    const today = new Date();
+    const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}.md`;
+    const file = path.join(dir, month);
+    const exists = fs.existsSync(file);
+    const fresh = exists && freshEnough(file, since);
+    const text = exists ? fs.readFileSync(file, 'utf8') : '';
+    // 卡标题允许 `##` 或 `###`（有人用 h2 当卡片级标题，别因为标题级别判成「0 张卡」）
+    const cards = (text.match(/^#{2,3} V-\d{8}-\d{2}/gm) || []).length;
+    const filled = (text.match(/\|\s*状态\s*\|\s*(?:✅|❌|🟡)/g) || []).length;
+    if (!exists) {
+      record('Q13', '实机验证卡', WARN, 'trace', WARN,
+        `没有 实机验证/${month} —— 本轮若进过游戏，必须建卡（判据/数据/结果/原因/复现）`);
+    } else if (!fresh) {
+      record('Q13', '实机验证卡', WARN, 'trace', WARN,
+        `本轮没动 实机验证/${month}（现有 ${cards} 张卡）。如果这轮进了游戏 = 漏写；没进游戏可忽略`);
+    } else {
+      record('Q13', '实机验证卡', WARN, 'trace', filled > 0 ? PASS : WARN,
+        `实机验证/${month} 本轮已更新 · ${cards} 张卡 · 已回填结果 ${filled} 张` +
+        (filled === 0 ? '（还是待验状态，退游戏后记得填结果/原因/复现）' : ''));
+    }
   }
 
   builtinChecks(ctx, 'postflight');
@@ -600,6 +662,15 @@ function runSelftest() {
     ['roots.stageDocs', REG.roots.stageDocs], ['roots.harness', REG.roots.harness],
   ];
   for (const [k, v] of paths) chk(`registry ${k}`, typeof v === 'string' && v.length > 0, v);
+  {
+    // ★ 2026-10-19：root 相对化自检。注册表里再出现 `D:\rdd\...` 就是搬家必炸的隐患。
+    const absRoots = Object.entries(REG.rootsRaw).filter(([, v]) => path.isAbsolute(String(v))).map(([k]) => k);
+    chk('registry roots 已相对化', absRoots.length === 0,
+      absRoots.length ? '★ 这些还是绝对路径，换机器/换目录会静默指错：' + absRoots.join(', ')
+                      : `RDD 根=${REG._meta.root}（${REG._meta.envApplied ? '来自 ' + REG._meta.envName : '由 rootAnchor ' + REG._meta.anchor + ' 推出'}）`);
+    const dnAbs = ['root', 'ledger'].filter((k) => REG.docNumbersRaw && path.isAbsolute(String(REG.docNumbersRaw[k] || '')));
+    chk('registry docNumbers 已相对化', dnAbs.length === 0, dnAbs.join(',') || 'OK');
+  }
   chk('registry routing 铁律', Array.isArray(REG.routing.rule) && REG.routing.rule.length >= 4, `${((REG.routing || {}).rule || []).length} 条`);
   chk('registry tools', Array.isArray(REG.tools) && REG.tools.length > 0, `${(REG.tools || []).length} 个`);
   const tids = new Set((REG.tools || []).map((t) => t.id));
@@ -612,7 +683,7 @@ function runSelftest() {
     if (path.isAbsolute(p)) return p;
     // ★ harness/ 与 rddharness/ 两个前缀都剥 —— 两个都出现在注册表里（cam.sendCommand 写 harness/，
     //   os.wallpaper* 写 rddharness/）。原来只剥 harness/，于是 rddharness/ 那两条被判「路径不存在」，
-    //   而文件明明在 E:\新建文件夹\rddharness\ 下面。
+    //   而文件明明在 D:\rdd\harness\rdd-harness\ 下面。
     //   ★ 这是 bug-9/bug-10 同类的第 6 例：门禁自己的缺陷长得像「门禁在正确地报债」。
     //   判别标准（别再犯）：报「不存在」之前，先把三个候选路径都打出来看一遍。
     const bare = p.replace(/^(?:rdd)?harness[\\/]/, '');
@@ -620,6 +691,10 @@ function runSelftest() {
       path.join(REG.roots.workspace, p),
       path.join(REG.roots.harness, bare),
       path.join(REG.roots.live, p.replace(/^live[\\/]/, '')),
+      // ★ 2026-10-19：补第 4 个候选 = RDD 根。`tools/` 是顶层目录（工具链、mcp-memory），
+      //   既不在 workspace 也不在 harness 下面，前三个候选必然落空 → 又被误报成「空头支票」。
+      //   同类第 7 例。判别标准不变：报「不存在」之前先把候选路径都打出来看一遍。
+      path.join(REG._meta.root, p),
     ];
     return cands.find((c) => isFile(c)) || cands[0];
   };
