@@ -501,6 +501,55 @@ function postflight(ctx) {
     }
   }
 
+  // ★ Q14（2026-10-20 #087 新增）：验证卡里的「证据坐标」是否指得到东西。
+  //   为什么：V-13 引用的原文只在归档 rdd-1792489290677.jsonl 里，主 rdd.jsonl 0 命中，
+  //   复查时差点判成「汇报造假」。证据没有坐标 = 每次复查都靠记忆哪个文件。
+  //   分两档：
+  //     hard（BLOCK 级 → 记 WARN，因为本项不拦收工，但要让它在报告里显眼）
+  //       坐标指不到文件 / 行号越界 / 那一行是空行 / 引文在整个文件里找不到
+  //     warn（只是缺坐标）
+  //       只写文件名没写行号 —— H3 要求补，但不至于拦
+  //   级别定 WARN：与 Q13 同口径，避免「今天没验就过不了门」把门禁钉死。
+  {
+    const dir = path.join(REG.roots.docs, '实机验证');
+    const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
+    const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
+    if (!fs.existsSync(checker)) {
+      record('Q14', '证据坐标', WARN, 'trace', WARN,
+        `检查器不存在（${checker}）—— H3 未落地，证据无法对账`);
+    } else if (!fs.existsSync(monitor)) {
+      record('Q14', '证据坐标', WARN, 'trace', WARN,
+        `监测目录不存在（${monitor}）—— 无法核对证据坐标（环境问题，不是债）`);
+    } else {
+      const r = require('child_process').spawnSync(
+        process.execPath,
+        [checker, '--cards', dir, '--monitor', monitor, '--json'],
+        { encoding: 'utf8', timeout: 60000 }
+      );
+      let parsed = null;
+      try { parsed = JSON.parse(r.stdout || '{}'); } catch { /* 交给下面的降级分支 */ }
+      if (!parsed) {
+        record('Q14', '证据坐标', WARN, 'trace', WARN,
+          `检查器没给出可解析结果（exit=${r.status}）—— 不能当 PASS，也不能当 BLOCK（环境/脚本问题）`);
+      } else {
+        const hard = parsed.hard || [];
+        const warn = parsed.warn || [];
+        const brief = (arr) => arr.slice(0, 3).map((x) => `${x.md}:${x.mdLine || '-'} ${x.level}`).join(' · ');
+        if (hard.length) {
+          record('Q14', '证据坐标', WARN, 'trace', WARN,
+            `有 ${hard.length} 条坐标指不到东西/引文不存在（必须修，否则证据是编的）：${brief(hard)}` +
+            (hard.length > 3 ? ' …' : '') + `\n       → 详情：node ${checker}`);
+        } else if (warn.length) {
+          record('Q14', '证据坐标', WARN, 'trace', WARN,
+            `坐标可解析，但有 ${warn.length} 处只写文件名没写行号（H3：补成 文件:行号）：${brief(warn)}` +
+            (warn.length > 3 ? ' …' : ''));
+        } else {
+          record('Q14', '证据坐标', WARN, 'trace', PASS, '所有证据坐标都对得上，引文一致');
+        }
+      }
+    }
+  }
+
   builtinChecks(ctx, 'postflight');
 }
 
