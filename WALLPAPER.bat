@@ -22,7 +22,7 @@ REM ============================================================
 
 set "HARNESS=%~dp0"
 set "PS1=%HARNESS%bin\set-wallpaper.ps1"
-set "SRC=C:\Users\lenovo\Pictures\Wallpapers-src"
+set "SRC=C:\Users\admin\Pictures\Wallpapers-src"
 
 if not exist "%PS1%" (
   echo [X] set-wallpaper.ps1 not found under "%HARNESS%bin" - folder is broken.

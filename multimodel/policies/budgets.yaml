@@ -1,0 +1,50 @@
+apiVersion: rdd.harness/v1alpha1
+kind: BudgetPolicy
+metadata:
+  id: survival-small-v1
+  version: 1
+  title: "小规模长程实验预算（示例值，必须按实测调整）"
+currency: CNY
+total: 20.0
+roles:
+  worker:
+    maxCalls: 40
+    maxCost: 8.0
+    maxTokens: 400000
+  vision:
+    maxCalls: 60
+    maxCost: 4.0
+    maxTokens: 120000
+  code_specialist:
+    maxCalls: 6
+    maxCost: 5.0
+    maxTokens: 200000
+  fallback:
+    maxCalls: 2
+    maxCost: 3.0
+    maxTokens: 60000
+priceTable:
+  version: mock-2026-10-19
+  fallbackToEstimate: true
+  $note: "键必须与 model-routing.yaml 的 modelRef 完全一致（真实 API ID）。★ 下面单价是占位估算值，不是供应商报价：真机前必须用实际账单校准；供应商不返回费用时用这张表估算并标 usageSource=estimate。价格未知【不能】绕过金额预算。"
+  entries:
+    deepseek-v4.1-flash:
+      inputPerMTok: 2.0
+      outputPerMTok: 8.0
+    glm-5.3-flash:
+      inputPerMTok: 1.0
+      outputPerMTok: 3.0
+    glm-5.3:
+      inputPerMTok: 4.0
+      outputPerMTok: 16.0
+    gpt-6-astra:
+      inputPerMTok: 30.0
+      outputPerMTok: 120.0
+reservation:
+  $note: "执行前按 maxOutputTokens + 预估输入预留，结束结算；并发任务不能各自看到同一份剩余预算。"
+  inputTokenEstimate: 4000
+  safetyFactor: 1.2
+safety:
+  onQuotaExhausted: safe_pause
+  onAuthError: circuit_break
+  unverifiedPricesBlockChargedCalls: true

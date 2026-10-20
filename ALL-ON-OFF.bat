@@ -13,8 +13,10 @@ REM  goes through kill-by-cmdline.ps1 (CIM) instead.
 REM ============================================================
 
 set "D=%~dp0"
-set "SHOWPET=E:\restart developing doer\stager\bin\show-pet.ps1"
-set "KILL=powershell.exe -NoProfile -ExecutionPolicy Bypass -File E:\restart developing doer\stager\bin\kill-by-cmdline.ps1"
+REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.
+set "RDD_ROOT=%D%..\.."
+set "SHOWPET=%RDD_ROOT%\workspace\stager\bin\show-pet.ps1"
+set "KILL=powershell.exe -NoProfile -ExecutionPolicy Bypass -File %RDD_ROOT%\workspace\stager\bin\kill-by-cmdline.ps1"
 
 if "%~1"=="" goto :ask
 if /i "%~1"=="on" goto :on

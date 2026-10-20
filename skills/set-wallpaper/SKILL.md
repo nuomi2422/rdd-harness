@@ -10,10 +10,10 @@ description: |-
   "换桌面", "恢复壁纸", "屏幕分辨率".
 Metadata:
   role: "skills 级能力（操作系统侧，与 Minecraft 无关）"
-  script: "E:\\新建文件夹\\rddharness\\bin\\set-wallpaper.ps1"
-  bat_entry: "E:\\新建文件夹\\rddharness\\WALLPAPER.bat"
-  source_dir: "C:\\Users\\lenovo\\Pictures\\Wallpapers-src"
-  output_dir: "C:\\Users\\lenovo\\Pictures\\Wallpapers"
+  script: "D:\\rdd\\harness\\rdd-harness\\bin\\set-wallpaper.ps1"
+  bat_entry: "D:\\rdd\\harness\\rdd-harness\\WALLPAPER.bat"
+  source_dir: "C:\\Users\\admin\\Pictures\\Wallpapers-src"
+  output_dir: "C:\\Users\\admin\\Pictures\\Wallpapers"
   scheduled_task: "RddWallpaperRotate（每小时一次，schtasks 创建）"
 ---
 
@@ -23,15 +23,15 @@ Metadata:
 
 ```powershell
 # 1) 双击（最省事）—— 轮播换下一张
-E:\新建文件夹\rddharness\WALLPAPER.bat
+D:\rdd\harness\rdd-harness\WALLPAPER.bat
 
 # 2) 命令行走一遍轮播 / 看屏幕
 powershell -NoProfile -ExecutionPolicy Bypass -File `
-  "E:\新建文件夹\rddharness\bin\set-wallpaper.ps1" -RotateDir "C:\Users\lenovo\Pictures\Wallpapers-src"
+  "D:\rdd\harness\rdd-harness\bin\set-wallpaper.ps1" -RotateDir "C:\Users\admin\Pictures\Wallpapers-src"
 
 # 3) 指定单张图
 powershell -NoProfile -ExecutionPolicy Bypass -File `
-  "E:\新建文件夹\rddharness\bin\set-wallpaper.ps1" -Image "D:\pic.jpg"
+  "D:\rdd\harness\rdd-harness\bin\set-wallpaper.ps1" -Image "D:\pic.jpg"
 ```
 
 ## 参数
@@ -69,9 +69,9 @@ powershell -NoProfile -ExecutionPolicy Bypass -File `
 
 ## 轮播已配好
 
-- 源图 4 张：`C:\Users\lenovo\Pictures\Wallpapers-src\`
+- 源图 4 张：`C:\Users\admin\Pictures\Wallpapers-src\`
   `1-moon-night.png` / `2-stars-bubbles.png` / `3-sakura-cat.png` / `4-lake-fishing.png`
-- 处理产物：`C:\Users\lenovo\Pictures\Wallpapers\rotate-01..04-*.jpg`（各约 500KB，1920x1200）
+- 处理产物：`C:\Users\admin\Pictures\Wallpapers\rotate-01..04-*.jpg`（各约 500KB，1920x1200）
 - 计划任务 `RddWallpaperRotate`：**每小时**换一次（下次运行时间看
   `schtasks /query /tn RddWallpaperRotate /v /fo LIST`）
 - 产物按**序号+原名**命名，所以第二次起命中缓存，不会每小时重新压一遍 5MB 的 PNG
@@ -81,5 +81,5 @@ powershell -NoProfile -ExecutionPolicy Bypass -File `
 
 ## 相关
 
-- 工具注册表（真源）：`E:\新建文件夹\rddharness\registry.json` → `tools[]` 里 `os.wallpaper`
+- 工具注册表（真源）：`D:\rdd\harness\rdd-harness\registry.json` → `tools[]` 里 `os.wallpaper`
 - 门禁：`bin\harness-gate.js preflight|postflight`

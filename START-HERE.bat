@@ -10,7 +10,9 @@ REM  ASCII-only: cmd desyncs its byte pointer on multibyte chars.
 REM ============================================================
 
 set "D=%~dp0"
-set "S=E:\restart developing doer\stager\bin\stager.js"
+REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.
+set "RDD_ROOT=%D%..\.."
+set "S=%RDD_ROOT%\workspace\stager\bin\stager.js"
 
 :menu
 cls

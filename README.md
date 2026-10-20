@@ -9,7 +9,7 @@
 
 ⚠️ **消歧**（先读完再动手）：本工作区里 `harness` 有 4 个互不相干的含义。
 本目录**只**指第 1 个，其余三个是噪音：
-1. ✅ **`E:\新建文件夹\rddharness\`** = 本目录（AI 工程脚手架 + 用户面启动台）
+1. ✅ **`D:\rdd\harness\rdd-harness\`** = 本目录（AI 工程脚手架 + 用户面启动台）
 2. ❌ `rdd-selfcompile\scripts\opencode-harness.ps1` = headless opencode CLI 跑批器，**无人调用**
 3. ❌ `minecraft-numen\...\core\pathing\execute\ExecHarness.java` = 移动执行层
 4. ❌ `plugins\selfcompile\...\HarnessWriteLocks.java` = 写锁，**0 处引用、从未接线**
@@ -18,7 +18,9 @@
 
 | 路径 | 是什么 | 性质 |
 |---|---|---|
-| **`registry.json`** | ★ **唯一真源**：8 条根路径 + 4 条路由铁律 + 61 个工具 + 12/11 项门禁 + **6 条时间锁** + 编号台账 + **9 条 bug** | 机器可读，门禁全读它 |
+| **`registry.json`** | ★ **唯一真源**：相对 RDD 根的 10 条根路径 + 4 条路由铁律 + 72 个工具 + 12/11 项门禁 + **10 条时间锁** + 编号台账 + **10 条 bug** | 机器可读，门禁全读它 |
+| **`bin\lib\registry.js`** | ★ **唯一路径解析层**：把 registry 的相对路径解析成绝对路径（`RDD_ROOT` 环境变量可整体搬家） | 只读，别绕过它自己拼路径 |
+| **`multimodel\`** | **多模型协同 + 实机验证闭环（按需索引，默认不读）** —— M1 离线骨架：测试卡/证据/裁决/路由/预算/RunStore | 只在无人值守或要做实机取证时打开；`multimodel\README.md` |
 | **`standards.md`** | ★ **编程规范唯一真源**：8 域 40 条，每条带稳定 id（`S-BUILD-03` 这种） | 人读 + 机器读（有 id 才能进门禁） |
 | **`bin\harness-gate.js`** | 门禁执行器，`preflight` / `postflight` / `registry` / `selftest` | 只读，唯一入口 |
 | **`bin\send-mc-command.ps1`** | 把斜杠指令送进游戏聊天框 | 唯一可行路径 |
@@ -28,24 +30,39 @@
 
 ## ★ 4 条路由铁律（`registry.json` → `routing`）
 
-1. **总结 / 复盘 / 经验文档一律写 `docs`（`E:\新建文件夹\rdd-docs\rdd架构\`），
+1. **总结 / 复盘 / 经验文档一律写 `docs`（`D:\rdd\docs\rdd-docs\rdd架构\`），
    绝不写进 harness 目录。** harness 只放：工具注册表 / 门禁 / 规则 / skill。
 2. 改码只走 `scripts\run-mutation.ps1`（唯一通道）。
 3. 起游戏只走 `scripts\mc-start.js gpt <分钟>`。
 4. 规范条目**必须带 id**——没 id 就没法进门禁，也就等于没有。
 
+## ★ 路径约定（2026-10-19 起：全部相对化）
+
+**注册表里所有路径都相对「RDD 根」，RDD 根相对 `registry.json` 自己**（`paths.rootAnchor` 默认 `../..`）：
+
+```text
+<RDD 根>/                      ← registry.json 的上一级目录的上一级
+  harness/rdd-harness/        ← 本目录（roots.harness = "harness/rdd-harness"）
+  workspace/  docs/  mc/      ← 其余 roots 同理
+```
+
+- 换机器 / 换目录 / 拷一份临时副本：只改 `paths.rootAnchor`，或设环境变量 `RDD_ROOT`。
+- 解析**只有一处**：`bin/lib/registry.js`。门禁、面板、脚本都走它；绝对路径仍兼容但 `selftest` 会报 FAIL。
+- `.bat` / `.ps1` 入口用 `%~dp0..\..`（或 `$PSScriptRoot\..\..\..`）自己算根，不再写死 `D:\rdd`。
+- `selftest` 的「registry roots 已相对化」是这条约定唯一的机器判据（时间锁 `TL-2026-10-19-01`）。
+
 ## 两段门禁
 
 ```powershell
 # ① 进游戏之前：查工程纪律 / 补测试 / 补规范
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" preflight --since 2026-10-04 --keyword camera --head a91f2710
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" preflight --since 2026-10-04 --keyword camera --head a91f2710
 
 # ② 出游戏之后：查标记 / 文档 / 总结 / 记忆图谱 / 产物 / 时间锁 / 编号 / 游戏是否关
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" postflight --since 2026-10-04 --keyword camera --head a91f2710
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" postflight --since 2026-10-04 --keyword camera --head a91f2710
 
 # 只看注册表 / 自检执行器自身
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" registry
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" selftest
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" registry
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" selftest
 ```
 
 退出码：`0` 全过 ／ `1` 有 BLOCK ／ `3` 环境错（不是债）。
@@ -92,7 +109,7 @@ Q6 三个机器门结果被记录 ／ **Q7 产物真的落地**（录音录像�
 
 ## 编号统一
 
-- 真源目录 `E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\`
+- 真源目录 `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\`
 - 现状：**最大号 69 → 下一个 70**。缺号 29/49（不必补）。
 - **新文档接最大号往后排，并同时登记 3 处**：① `README.md` §二目录表
   ② `09-更新日志.md` ③ `50-按主题导航.md`
@@ -102,8 +119,8 @@ Q6 三个机器门结果被记录 ／ **Q7 产物真的落地**（录音录像�
 
 ## 规范契约（两份，同一 id 对账）
 
-- **真源**：`E:\新建文件夹\rddharness\standards.md`（带 id）
-- **镜像**：`E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`（人读长文）
+- **真源**：`D:\rdd\harness\rdd-harness\standards.md`（带 id）
+- **镜像**：`D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`（人读长文）
 - **改一处必须同步另一边**；postflight 的对账项按 id 比对。
 - **为什么两份**：门禁只能引用稳定 id，而写给人读的规范不该被 id 淹没。
 

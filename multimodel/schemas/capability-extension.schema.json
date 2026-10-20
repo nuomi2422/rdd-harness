@@ -1,0 +1,21 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "rdd.harness/capability-extension@1",
+  "title": "能力元数据扩展（registry 的 versioned 扩展，设计草案 §4.1）",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["capabilityId", "contractVersion", "adapter", "sideEffect", "healthProbe"],
+  "properties": {
+    "capabilityId": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_-]+)+$" },
+    "contractVersion": { "type": "integer", "minimum": 1 },
+    "adapter": { "type": "string", "pattern": "^[a-z][a-z0-9-]{1,40}$" },
+    "sideEffect": { "enum": ["read", "write_game", "write_mods", "build", "run"] },
+    "permissions": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 60 } },
+    "inputSchemaRef": { "type": "string", "maxLength": 80 },
+    "outputSchemaRef": { "type": "string", "maxLength": 80 },
+    "healthProbe": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_-]+)+$" },
+    "requiredRuntime": { "type": "array", "uniqueItems": true, "items": { "type": "string", "maxLength": 60 } },
+    "identityScope": { "type": "array", "uniqueItems": true, "items": { "enum": ["instanceId", "worldId", "worldSessionId", "companionId", "ownerEpoch"] } },
+    "status": { "enum": ["disabled", "declared"] }
+  }
+}

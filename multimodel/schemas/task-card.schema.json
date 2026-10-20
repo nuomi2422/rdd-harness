@@ -1,0 +1,182 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "rdd.harness/task-card@1",
+  "title": "TaskCard（YAML 测试卡）",
+  "description": "严格 Schema：拒绝未知字段、重复键、路径越界。执行前冻结本卡哈希与谓词版本。设计依据 docs/rdd-docs/rdd架构/RDD-Harness-多模型协同与实机验证闭环-设计草案-20261019.md §7。",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": { "const": "rdd.harness/v1alpha1" },
+    "kind": { "const": "TaskCard" },
+    "metadata": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]*(\\.[a-z0-9-]+)+$", "maxLength": 80 },
+        "version": { "type": "integer", "minimum": 1, "maximum": 100000 },
+        "title": { "type": "string", "maxLength": 200 },
+        "owner": { "type": "string", "maxLength": 80 }
+      }
+    },
+    "spec": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["goal", "environment", "requires", "execution", "observation", "assertions", "budget"],
+      "properties": {
+        "goal": { "type": "string", "minLength": 8, "maxLength": 500 },
+        "environment": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "controlMode"],
+          "properties": {
+            "profile": { "enum": ["sandbox", "live"] },
+            "fixture": { "type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9._-]*$", "maxLength": 80 },
+            "controlMode": { "enum": ["autonomous", "external"] },
+            "companionSelector": {
+              "type": "object",
+              "additionalProperties": false,
+              "properties": {
+                "alias": { "type": "string", "pattern": "^[A-Za-z0-9_-]{2,40}$" },
+                "stableId": { "type": "string", "pattern": "^[A-Za-z0-9:_-]{4,80}$" }
+              }
+            },
+            "resetBeforeRun": { "type": "boolean" },
+            "seed": { "type": "integer", "minimum": 0, "maximum": 2147483647 },
+            "tickRate": { "type": "number", "minimum": 0.05, "maximum": 20 }
+          }
+        },
+        "requires": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_-]+)+$", "maxLength": 80 }
+        },
+        "preconditions": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["predicate"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,60}$" },
+              "predicate": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_]+)+$", "maxLength": 80 },
+              "args": { "type": "object" },
+              "detail": { "type": "string", "maxLength": 300 }
+            }
+          }
+        },
+        "baseline": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["key", "query"],
+            "properties": {
+              "key": { "type": "string", "pattern": "^[a-zA-Z][a-zA-Z0-9_]{1,60}$" },
+              "query": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_]+)+$", "maxLength": 80 },
+              "args": { "type": "object" }
+            }
+          }
+        },
+        "execution": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["deadlineSeconds", "maxActions"],
+          "properties": {
+            "deadlineSeconds": { "type": "integer", "minimum": 5, "maximum": 86400 },
+            "maxActions": { "type": "integer", "minimum": 1, "maximum": 100000 },
+            "maxRecoveryAttempts": { "type": "integer", "minimum": 0, "maximum": 10 },
+            "allowDeath": { "type": "boolean" },
+            "prohibitedActions": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["creative_grant", "teleport_target", "modify_inventory", "kill_target", "change_gamemode", "spawn_entity"] }
+            }
+          }
+        },
+        "observation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["profile", "requiredSources"],
+          "properties": {
+            "profile": { "enum": ["state_exact_visual_context", "strict_dual_quantity"] },
+            "requiredSources": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": { "enum": ["worldstate", "runtime_events", "camera", "build_artifacts", "mcp_receipts"] }
+            },
+            "maxEvidenceAgeMs": { "type": "integer", "minimum": 100, "maximum": 60000 },
+            "maxAlignmentSkewTicks": { "type": "integer", "minimum": 0, "maximum": 200 },
+            "keyframes": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": { "enum": ["start", "action_milestone", "before_verdict", "recovery", "death", "dimension_change"] }
+            }
+          }
+        },
+        "assertions": {
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "predicate"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,60}$" },
+              "predicate": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_]+)+$", "maxLength": 80 },
+              "required": { "type": "boolean" },
+              "args": { "type": "object" },
+              "detail": { "type": "string", "maxLength": 300 }
+            }
+          }
+        },
+        "invariants": {
+          "type": "array",
+          "maxItems": 64,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["id", "predicate"],
+            "properties": {
+              "id": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,60}$" },
+              "predicate": { "type": "string", "pattern": "^[a-z][a-zA-Z0-9]*(\\.[a-zA-Z0-9_]+)+$", "maxLength": 80 },
+              "args": { "type": "object" },
+              "detail": { "type": "string", "maxLength": 300 }
+            }
+          }
+        },
+        "routing": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "workerRole": { "enum": ["worker", "code_specialist", "fallback"] },
+            "visionRole": { "enum": ["vision", "fallback"] }
+          }
+        },
+        "budget": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["policyRef"],
+          "properties": {
+            "policyRef": { "type": "string", "pattern": "^[a-z][a-z0-9-]{2,60}$" },
+            "maxWallClockSeconds": { "type": "integer", "minimum": 30, "maximum": 604800 }
+          }
+        },
+        "cleanup": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "policy": { "enum": ["stop_owned_processes_preserve_evidence", "preserve_all"] }
+          }
+        }
+      }
+    }
+  }
+}

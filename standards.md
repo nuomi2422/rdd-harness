@@ -1,6 +1,6 @@
 # 编程规范 · 唯一真源（机器可读）
 
-> **这份是唯一真源。** 人读的完整版在 `E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`，
+> **这份是唯一真源。** 人读的完整版在 `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`，
 > 它是本文件的**镜像**，每条对应小节的标题里带本文的 `id`。
 > ★ **改规范只改一处**：改本文 → 把同 id 小节的标题同步进镜像；或改镜像 → 同步回本文。
 > `harness-gate.js postflight` 的 Q-CODE-SPEC 会查这个对账。
@@ -266,8 +266,8 @@ openclaw 驱不动聊天框（`InputHandler` 只认 7 个键）。
 
 ### S-GATE-01 两段门禁：进游戏前 / 出游戏后
 ```powershell
-node E:\新建文件夹\rddharness\bin\harness-gate.js preflight  --since <YYYY-MM-DD>
-node E:\新建文件夹\rddharness\bin\harness-gate.js postflight --since <YYYY-MM-DD>
+node D:\rdd\harness\rdd-harness\bin\harness-gate.js preflight  --since <YYYY-MM-DD>
+node D:\rdd\harness\rdd-harness\bin\harness-gate.js postflight --since <YYYY-MM-DD>
 ```
 - **preflight** = 编译通道 / 部署到位 / 无重复 mixin / 测试 / 规范已补 / 编号不撞 / 时间锁
 - **postflight** = 有标记 / evidence / 总结 / ★ 总结位置对 / 记忆图谱 / 三个机器门 / 产物真落地 / 时间锁已更新

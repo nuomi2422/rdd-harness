@@ -1,0 +1,163 @@
+{
+  "$comment": "能力目录（声明层）。REGISTERED 只说明在表里；DISCOVERED 要运行时 list/探测；HEALTHY 要行为探针通过。★ 现在只有声明层是真的，DISCOVERED/HEALTHY 全部由适配器提供，未接游戏时为 unknown。",
+  "version": 1,
+  "updated": "2026-10-19",
+  "capabilities": [
+    {
+      "capabilityId": "worldstate.inventory.snapshot",
+      "contractVersion": 1,
+      "adapter": "mcp",
+      "sideEffect": "read",
+      "healthProbe": "worldstate.inventory.probe",
+      "requiredRuntime": ["game.server", "worldstate.loaded"],
+      "identityScope": ["instanceId", "worldSessionId", "companionId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "worldstate.nearby.blocks",
+      "contractVersion": 1,
+      "adapter": "mcp",
+      "sideEffect": "read",
+      "healthProbe": "worldstate.nearby.probe",
+      "requiredRuntime": ["game.server", "worldstate.loaded"],
+      "identityScope": ["instanceId", "worldSessionId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "camera.capture",
+      "contractVersion": 1,
+      "adapter": "numencam",
+      "sideEffect": "read",
+      "permissions": ["game.capture"],
+      "healthProbe": "camera.capture.probe",
+      "requiredRuntime": ["game.client", "camera.loaded"],
+      "identityScope": ["instanceId", "worldId", "companionId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "camera.binding.status",
+      "contractVersion": 1,
+      "adapter": "numencam",
+      "sideEffect": "read",
+      "healthProbe": "camera.binding.probe",
+      "requiredRuntime": ["game.client", "camera.loaded"],
+      "identityScope": ["instanceId", "worldId", "companionId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "agent.goal.submit",
+      "contractVersion": 1,
+      "adapter": "mcp",
+      "sideEffect": "write_game",
+      "permissions": ["game.control"],
+      "healthProbe": "agent.goal.probe",
+      "requiredRuntime": ["game.server", "mcp.connected"],
+      "identityScope": ["instanceId", "worldSessionId", "companionId", "ownerEpoch"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "agent.action.dispatch",
+      "contractVersion": 1,
+      "adapter": "mcp",
+      "sideEffect": "write_game",
+      "permissions": ["game.control"],
+      "healthProbe": "agent.action.probe",
+      "requiredRuntime": ["game.server", "mcp.connected"],
+      "identityScope": ["instanceId", "worldSessionId", "companionId", "ownerEpoch"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "runtime.events.read",
+      "contractVersion": 1,
+      "adapter": "files",
+      "sideEffect": "read",
+      "healthProbe": "runtime.events.probe",
+      "requiredRuntime": ["monitor.running"],
+      "identityScope": ["instanceId", "worldSessionId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "vision.inventory_count_ui",
+      "contractVersion": 1,
+      "adapter": "numencam",
+      "sideEffect": "read",
+      "permissions": ["game.capture"],
+      "healthProbe": "vision.inventory_ui.probe",
+      "requiredRuntime": ["game.client", "companion.inventory_ui.available"],
+      "identityScope": ["instanceId", "worldId", "companionId"],
+      "status": "disabled",
+      "$note": "★ strict_dual_quantity 必需。当前没有「能明确归属同伴的背包 UI」证据 → disabled。缺它时严格档位必须 BLOCKED，不许自动降级成 state_exact_visual_context。"
+    },
+    {
+      "capabilityId": "build.artifact.manifest",
+      "contractVersion": 1,
+      "adapter": "mutation",
+      "sideEffect": "read",
+      "healthProbe": "build.manifest.probe",
+      "requiredRuntime": ["mutation.artifacts"],
+      "identityScope": ["instanceId"],
+      "status": "declared"
+    },
+    {
+      "capabilityId": "mutation.build_only",
+      "contractVersion": 1,
+      "adapter": "mutation",
+      "sideEffect": "build",
+      "healthProbe": "mutation.build_only.probe",
+      "requiredRuntime": ["mutation.scripts"],
+      "identityScope": ["instanceId"],
+      "status": "disabled",
+      "$note": "★ 现有 run-mutation.ps1 的 -SkipLaunch -SkipMcp 【仍会部署】。真正的 build-only 语义尚未实现 → disabled。M5 的 T11（build-only 时 live 哈希无变化）因此现在必然 BLOCKED，这是诚实状态，不是 bug。"
+    }
+  ],
+  "predicates": [
+    {
+      "predicate": "world.nearby_block_count",
+      "evaluator": "deterministic",
+      "requires": ["worldstate.nearby.blocks"],
+      "args": { "blockTag": "string", "radiusBlocks": "integer", "min": "integer" }
+    },
+    {
+      "predicate": "agent.alive",
+      "evaluator": "deterministic",
+      "requires": ["worldstate.inventory.snapshot"],
+      "args": { "equals": "boolean" }
+    },
+    {
+      "predicate": "inventory.delta_gte",
+      "evaluator": "deterministic",
+      "requires": ["worldstate.inventory.snapshot"],
+      "args": { "itemTag": "string", "baselineKey": "string", "owner": "string", "value": "integer" }
+    },
+    {
+      "predicate": "vision.target_context_confirmed",
+      "evaluator": "visual",
+      "requires": ["camera.capture"],
+      "args": { "frameRole": "string", "owner": "string" }
+    },
+    {
+      "predicate": "vision.inventory_count_gte",
+      "evaluator": "visual",
+      "requires": ["camera.capture", "vision.inventory_count_ui"],
+      "args": { "itemTag": "string", "owner": "string", "value": "integer" }
+    },
+    {
+      "predicate": "audit.no_prohibited_action",
+      "evaluator": "audit",
+      "requires": ["runtime.events.read"],
+      "args": { "actions": "array" }
+    },
+    {
+      "predicate": "evidence.sources_fresh",
+      "evaluator": "deterministic",
+      "requires": [],
+      "args": { "maxAgeMs": "integer" }
+    },
+    {
+      "predicate": "build.live_hash_unchanged",
+      "evaluator": "deterministic",
+      "requires": ["build.artifact.manifest"],
+      "args": { "baselineKey": "string" }
+    }
+  ]
+}

@@ -1,0 +1,59 @@
+apiVersion: rdd.harness/v1alpha1
+kind: TaskCard
+metadata:
+  id: survival.strict-dual-quantity-logs
+  version: 1
+  title: "严格双源：结构化计数 + 同伴背包 UI 数量识别，二者都要过"
+  owner: rdd
+spec:
+  goal: "用严格双源证据证明目标同伴净增 3 个原木：worldstate 计数与同伴背包 UI 视觉识别各自独立成立"
+  environment:
+    profile: sandbox
+    fixture: forest-start-v1
+    controlMode: autonomous
+    companionSelector:
+      alias: primary
+    resetBeforeRun: true
+  requires:
+    - worldstate.inventory.snapshot
+    - camera.capture
+    - runtime.events.read
+    - vision.inventory_count_ui
+  preconditions:
+    - id: companion-alive
+      predicate: agent.alive
+      args: { equals: true }
+  baseline:
+    - key: logsBefore
+      query: inventory.count
+      args: { itemTag: "minecraft:logs", owner: targetCompanion }
+  execution:
+    deadlineSeconds: 300
+    maxActions: 80
+    maxRecoveryAttempts: 1
+  observation:
+    profile: strict_dual_quantity
+    requiredSources: [worldstate, runtime_events, camera]
+    maxEvidenceAgeMs: 2000
+    maxAlignmentSkewTicks: 20
+    keyframes: [before_verdict]
+  assertions:
+    - id: logs-net-gain
+      predicate: inventory.delta_gte
+      required: true
+      args: { itemTag: "minecraft:logs", baselineKey: logsBefore, owner: targetCompanion, value: 3 }
+    - id: ui-count
+      predicate: vision.inventory_count_gte
+      required: true
+      args: { itemTag: "minecraft:logs", owner: targetCompanion, value: 3 }
+  invariants:
+    - id: no-inventory-injection
+      predicate: audit.no_prohibited_action
+      args: { actions: [creative_grant, modify_inventory] }
+  routing:
+    workerRole: worker
+    visionRole: vision
+  budget:
+    policyRef: survival-small-v1
+  cleanup:
+    policy: stop_owned_processes_preserve_evidence

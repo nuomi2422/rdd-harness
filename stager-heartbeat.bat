@@ -19,7 +19,9 @@ REM
 REM  ASCII-only on purpose (see stager.bat for why).
 REM ============================================================
 
-set "HB=E:\restart developing doer\rdd-selfcompile\scripts\stage-heartbeat.js"
+REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.
+set "RDD_ROOT=%~dp0..\.."
+set "HB=%RDD_ROOT%\workspace\rdd-selfcompile\scripts\stage-heartbeat.js"
 
 if not exist "%HB%" (
   echo [X] not found: %HB%

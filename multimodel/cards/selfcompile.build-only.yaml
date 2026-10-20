@@ -1,0 +1,37 @@
+apiVersion: rdd.harness/v1alpha1
+kind: TaskCard
+metadata:
+  id: selfcompile.build-only-guard
+  version: 1
+  title: "声明 build-only 时，live 产物哈希必须与运行前基线一致"
+  owner: rdd
+spec:
+  goal: "验证 mutation 的 build-only 语义：只构建不部署，live 目录产物哈希零变化；哈希变了就是 FAIL"
+  environment:
+    profile: sandbox
+    controlMode: autonomous
+  requires:
+    - build.artifact.manifest
+  baseline:
+    - key: liveJarSha
+      query: build.live_jar_sha
+  execution:
+    deadlineSeconds: 60
+    maxActions: 1
+    maxRecoveryAttempts: 0
+  observation:
+    profile: state_exact_visual_context
+    requiredSources: [build_artifacts]
+    maxEvidenceAgeMs: 60000
+    maxAlignmentSkewTicks: 5
+    keyframes: [start]
+  assertions:
+    - id: live-artifact-unchanged
+      predicate: build.live_hash_unchanged
+      required: true
+      args: { baselineKey: liveJarSha }
+  budget:
+    policyRef: survival-small-v1
+    maxWallClockSeconds: 120
+  cleanup:
+    policy: preserve_all

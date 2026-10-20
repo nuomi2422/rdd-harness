@@ -1,0 +1,63 @@
+apiVersion: rdd.harness/v1alpha1
+kind: ModelRouting
+metadata:
+  id: default-routing
+  version: 2
+  title: "默认路由：DeepSeek 干活 / Flash 看图 / GLM 5.3 接复杂代码 / GPT-6 Astra 兜底"
+  providersConfirmedAt: "2026-10-19"
+  providersConfirmedBy: "用户口述；model ID 以 minecraft-numen/ai/src/main/resources/numen_providers.json 为准"
+$comment: '★ 提供商（2026-10-19 用户确认，别再写成 deepseek/openai 这种厂商名）：worker + vision + code_specialist 全部走 opencode-go（OpenCode Go，baseUrl https://opencode.ai/zen/go/v1）；只有 fallback 走 moyuu（baseUrl https://moyuu.cc/v1，模型 gpt-6-astra）。★ 模型 ID 是「真实 API ID」不是商品名：opencode-go 上带 .1 与不带 .1 是两个模型（deepseek-v4-flash 在 Go 上 403，deepseek-v4.1-flash 才 200）。★ 探针没过 = 该角色 DISABLED；名字像不等于能力有。'
+roles:
+  worker:
+    provider: opencode-go
+    modelRef: deepseek-v4.1-flash
+    requiredCapabilities: [text, tools]
+    maxAttempts: 2
+    budgetRole: worker
+    $note: "用户口中的 DeepSeek V4.1；在 OpenCode Go 上的真实 ID 是 deepseek-v4.1-flash（1M ctx）。"
+  vision:
+    provider: opencode-go
+    modelRef: glm-5.3-flash
+    requiredCapabilities: [text, vision, image_input]
+    maxAttempts: 2
+    budgetRole: vision
+    $note: "GLM 5.3 Flash；视觉能力必须探针确认（真的收到图片字节），不能因为名字里有 GLM 就当视觉模型。"
+  code_specialist:
+    provider: opencode-go
+    modelRef: glm-5.3
+    requiredCapabilities: [text, tools, long_context]
+    maxAttempts: 1
+    budgetRole: code_specialist
+  fallback:
+    provider: moyuu
+    modelRef: gpt-6-astra
+    requiredCapabilities: [text, tools]
+    maxAttempts: 1
+    budgetRole: fallback
+    $note: "★ moyuu 中转上实测只有 gpt-6-astra 稳定（其余 5 个模型 500/503）；要当视觉兜底必须另有 vision 探针通过，未通过时视觉链只剩 vision 角色。"
+chains:
+  normal: [worker, code_specialist, fallback]
+  code: [worker, code_specialist, fallback]
+  vision: [vision, fallback]
+limits:
+  maxSameErrorSignatureRepeats: 2
+  maxFormatRepairs: 1
+  retry:
+    maxRetries: 2
+    baseMs: 500
+    jitterRatio: 0.3
+  providerCircuit:
+    authStatus: [401, 403]
+    quotaStatus: [402]
+    retryableStatus: [429, 500, 502, 503, 504]
+providers:
+  opencode-go:
+    name: OpenCode Go
+    baseUrlHint: https://opencode.ai/zen/go/v1
+    state: unverified
+    $note: "DeepSeek V4.1 / GLM 5.3 / GLM 5.3 Flash 都挂在这个 provider 下。"
+  moyuu:
+    name: moyuu（中转）
+    baseUrlHint: https://moyuu.cc/v1
+    state: unverified
+    $note: "GPT-6 Astra 的 provider。稀缺额度，默认不用。"

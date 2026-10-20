@@ -12,7 +12,9 @@ REM  multibyte chars inside a .bat and eats the first character of
 REM  the following lines.  All Chinese lives in pet-launch.ps1.
 REM ============================================================
 
-set "HELPER=E:\restart developing doer\stager\pet\pet-launch.ps1"
+REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.
+set "RDD_ROOT=%~dp0..\.."
+set "HELPER=%RDD_ROOT%\workspace\stager\pet\pet-launch.ps1"
 
 if not exist "%HELPER%" (
   echo [X] helper missing: %HELPER%

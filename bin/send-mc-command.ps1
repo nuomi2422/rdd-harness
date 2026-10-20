@@ -32,7 +32,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-$focus = 'E:\restart developing doer\rdd-selfcompile\scripts\mc-focus.ps1'
+# ★ 2026-10-19：不再写死 D:\rdd。布局：<RDD 根>\harness\rdd-harness\bin\ 本文件
+#   → 上三级 = RDD 根；也支持 RDD_ROOT 环境变量覆盖（换机器/临时副本）。
+$RddRoot = if ($env:RDD_ROOT) { $env:RDD_ROOT } else { (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path }
+$focus = Join-Path $RddRoot 'workspace\rdd-selfcompile\scripts\mc-focus.ps1'
 if (-not (Test-Path -LiteralPath $focus)) { Write-Output "NO_FOCUS_HELPER $focus"; exit 3 }
 
 foreach ($c in @('^', '%', '+', '~', '(', ')', '{', '}', '[', ']')) {

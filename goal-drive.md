@@ -102,7 +102,7 @@ experimental.session.compacting  ★ 压缩上下文之前，把「目标锁 + �
 ## 五、命令速查
 
 ```powershell
-$G = "E:\新建文件夹\rddharness\bin\goal.js"
+$G = "D:\rdd\harness\rdd-harness\bin\goal.js"
 
 # ① 上锁 —— 架构写完、stager put --kind arch 之后
 node $G init --title "<任务名>" --arch "<架构文档路径>"
@@ -155,8 +155,8 @@ node $G clear --yes
 ## 八、怎么验它（改完必跑）
 
 ```powershell
-node "C:\Users\lenovo\AppData\Local\Temp\opencode\probe-goal.mjs"        # CLI：81 项
-node "C:\Users\lenovo\AppData\Local\Temp\opencode\probe-goaldrive.mjs"   # 插件：54 项
+node "C:\Users\admin\AppData\Local\Temp\opencode\probe-goal.mjs"        # CLI：81 项
+node "C:\Users\admin\AppData\Local\Temp\opencode\probe-goaldrive.mjs"   # 插件：54 项
 ```
 
 两个都是隔离状态文件（`RDD_GOAL_STATE` 指到临时目录），**不碰真实 goal.json**。

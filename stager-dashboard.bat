@@ -9,7 +9,9 @@ REM  cmd.exe desyncs its byte pointer on multibyte chars in a
 REM  .bat and eats the first char of following lines. So: no CJK.
 REM ============================================================
 
-set "STAGER_DIR=E:\restart developing doer\stager"
+REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.
+set "RDD_ROOT=%~dp0..\.."
+set "STAGER_DIR=%RDD_ROOT%\workspace\stager"
 set "PORT=8899"
 set "URL=http://127.0.0.1:%PORT%/"
 REM ping instead of timeout: timeout needs a console stdin and dies when

@@ -3,7 +3,7 @@
 > **什么时候读这个文件？** 用户明确说了「开 stage / 走 stage 流程 / 走流水线」才读。
 > **没说的话不要读、不要套。** —— 按普通任务直接做。
 >
-> 本文是 `E:\restart developing doer\AGENTS.md` 的**分工伙伴**：
+> 本文是 `D:\rdd\workspace\AGENTS.md` 的**分工伙伴**：
 > **AGENTS.md 只留工程纪律 + 杂项，不承载 stage 流**；stage 流全部在这里。
 > 想改 stage 流（加阶段 / 改门禁 / 改必读）改本文 + `stager\core\stages.json`，**不要改 AGENTS.md**。
 
@@ -20,14 +20,14 @@
 ## 开档
 
 ```powershell
-node "E:\restart developing doer\stager\bin\stager.js" start "<用户原话目标>" --actor "<你的名字>"
+node "D:\rdd\workspace\stager\bin\stager.js" start "<用户原话目标>" --actor "<你的名字>"
 ```
 
 开完档后 `stager ctx` 会把下面这些自动注入到你的上下文里（opencode 插件已装）。
 没被注入就手动跑一次：
 
 ```powershell
-node "E:\restart developing doer\stager\bin\stager.js" ctx
+node "D:\rdd\workspace\stager\bin\stager.js" ctx
 ```
 
 `ctx` 里有三样东西，**每次动手前都要看**：
@@ -63,10 +63,10 @@ node "E:\restart developing doer\stager\bin\stager.js" ctx
 
 ```powershell
 # ★ 进游戏之前（部署完 jar、要把游戏拉起来的那一刻）
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
 
 # ★ 出游戏之后（关掉游戏之后、写记录之前）
-node "E:\新建文件夹\rddharness\bin\harness-gate.js" postflight --since <今天> --keyword <模块> --head <HEAD>
+node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" postflight --since <今天> --keyword <模块> --head <HEAD>
 ```
 
 | 退出码 | 意思 |
@@ -108,8 +108,8 @@ node "E:\新建文件夹\rddharness\bin\harness-gate.js" postflight --since <今
 ### ① 计划统筹 · 必读
 
 ```
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\10-计划阶段.md
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\10-计划阶段.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
 ```
 
 > ### ★★ 本阶段的产物 = 「防迷路的锚」
@@ -121,9 +121,9 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回�
 > ★★ **arch 定稿后可以上「目标锁」** —— 如果这件事要盯到**验收通过**才算完（而不是走完四阶段就算），
 > 就把 arch 变成一把锁，AI 停了自动催、断流自动续、每条必须给跑出来的证据：
 > ```powershell
-> node "E:\新建文件夹\rddharness\bin\goal.js" init --title "<任务名>" --from-stage   # 自动认领刚冻结的 arch
+> node "D:\rdd\harness\rdd-harness\bin\goal.js" init --title "<任务名>" --from-stage   # 自动认领刚冻结的 arch
 > ```
-> 细则（证据规则 / 三个钩子 / 怎么关掉它）读 `E:\新建文件夹\rddharness\goal-drive.md`。
+> 细则（证据规则 / 三个钩子 / 怎么关掉它）读 `D:\rdd\harness\rdd-harness\goal-drive.md`。
 > ★ **不走 stage 也能上锁** —— 目标锁和四阶段是两件事，`stage.md` 管节奏，goal 管验收。
 >
 > 外脑**可选**：已经有 arch 就跳过（见上面「外脑咨询是可选的」）。
@@ -131,21 +131,21 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回�
 ### ② 编码实现 · 必读
 
 ```
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\01-工程规范.md   （八项全表）
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\11-模块化回滚.md
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\01-工程规范.md   （八项全表）
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\11-模块化回滚.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
 固化红线时改清单
 ```
 
 **编译入口的完整参数在 `AGENTS.md`（工程纪律）**，那里是唯一真源，这里不重复：
 
 ```powershell
-& "E:\restart developing doer\rdd-selfcompile\scripts\run-mutation.ps1" -Requirement "<需求>" -Module <模块>
+& "D:\rdd\workspace\rdd-selfcompile\scripts\run-mutation.ps1" -Requirement "<需求>" -Module <模块>
 ```
 
 > ### ★ 部署完、准备把游戏拉起来之前 → 跑 preflight
 > ```powershell
-> node "E:\新建文件夹\rddharness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
+> node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
 > ```
 > exit=0 才动游戏。它会拦住这几类：jar 落后于源码、重复 mixin 注入、本轮没按模块 commit、
 > 文档编号新撞号、规则文件三层分工打架。`☞ P12/P13` 会提醒你查消费者 + 读游戏内能力清单。
@@ -155,19 +155,19 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回�
 ### ③ 游戏验证 · 必读（**这一阶段规范最多**）
 
 ```
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\12-进游戏验证工具集.md    ← 工具/脚本全在这
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\04-进游戏巡检规范.md    ← 四层监察
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\13-埋点与监测台链路.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\12-进游戏验证工具集.md    ← 工具/脚本全在这
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\04-进游戏巡检规范.md    ← 四层监察
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\13-埋点与监测台链路.md
 ```
 
 > ### ★★ 进游戏之前 —— 本阶段的第一件事，两步
 > **① 跑 preflight**
 > ```powershell
-> node "E:\新建文件夹\rddharness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
+> node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" preflight --since <今天> --keyword <模块> --head <HEAD>
 > ```
 > **② 读游戏内能力清单**
 > ```text
-> E:\新建文件夹\rddharness\进游戏前必读-游戏内能力清单.md
+> D:\rdd\harness\rdd-harness\进游戏前必读-游戏内能力清单.md
 > ```
 > 它列了游戏里到底有哪些能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 /
 > 飞行 / 看监测台）和每一条的正确调用姿势与坑。
@@ -178,9 +178,9 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\13-埋点与监测台�
 ### ④ 记录收口 · 必读
 
 ```
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\06-检查清单.md
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
-E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\05-记忆库与经验注入.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\06-检查清单.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\30-主要功能不回退清单.md
+D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\05-记忆库与经验注入.md
 ```
 
 **① 记录经验 → 灌进 memory MCP**
@@ -190,7 +190,7 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\05-记忆库与经验�
 > 顺序反了就变成「边跑着游戏边补文档」，补出来的全是记忆里的版本，不是盘上那一版。
 >
 > ```powershell
-> node "E:\新建文件夹\rddharness\bin\harness-gate.js" postflight --since <今天> --keyword <模块> --head <HEAD>
+> node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" postflight --since <今天> --keyword <模块> --head <HEAD>
 > ```
 > exit=0 才许上报完成。`☞ Q12` 会把「写记录 + 写文档」三件必做的事逐条念出来：
 > ① `测试日志.md` / `09-更新日志.md` 各加本轮条目（**要带签名**，否则机器判不出是你写的）
@@ -211,11 +211,11 @@ E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\05-记忆库与经验�
 
 ```powershell
 # ① 阶段门禁（stager 管：当前阶段该交的东西交了没）
-node "E:\restart developing doer\stager\bin\stager.js" check
+node "D:\rdd\workspace\stager\bin\stager.js" check
 # ② 九步流硬门禁（20 项：六步 + 记忆/外脑/巡检/清单）
-node "E:\restart developing doer\rdd-selfcompile\scripts\loop-gate.js" --since <今天> --keyword <模块> --head <本轮HEAD>
+node "D:\rdd\workspace\rdd-selfcompile\scripts\loop-gate.js" --since <今天> --keyword <模块> --head <本轮HEAD>
 # ③ 自编译闭环门
-node "E:\restart developing doer\rdd-selfcompile\scripts\flow-gate.js" --since <今天> --active <开工时的 store active>
+node "D:\rdd\workspace\rdd-selfcompile\scripts\flow-gate.js" --since <今天> --active <开工时的 store active>
 ```
 
 `flow-gate` 输出 `VERDICT=NOT_DONE` → **不许收工、不许上报完成**。
@@ -286,7 +286,7 @@ stager close --status done --note "<一句话结论>"   # ① 关 stage
 改完必跑：
 
 ```powershell
-rg --files "E:\新建文件夹\rdd-docs\rdd架构\自编译统一版"     # 手工确认每个 read[] 路径都在（没有 self-check 命令，见 registry bug-10）
+rg --files "D:\rdd\docs\rdd-docs\rdd架构\自编译统一版"     # 手工确认每个 read[] 路径都在（没有 self-check 命令，见 registry bug-10）
 ```
 
 ---
@@ -296,9 +296,9 @@ rg --files "E:\新建文件夹\rdd-docs\rdd架构\自编译统一版"     # 手�
 - **stager 的交接文档**：`stager\STAGER.md`（给 AI）+ `stager\README.md`（给人）
 - **换人接手**：`stager swap "<你的名字>"` → `stager ctx --full`（把历史文档全文注入给你）
 - **桌宠**：`stager\启动桌宠.bat` 或 `stager pet`；点一下报「阶段 (n/4) / 第几轮 / 轮回几次 / 人次 / 门禁」
-- **跨仓库状态面板**：`node "E:\restart developing doer\stager\bin\repo-status.js"`（只读，一次看清 6 个仓库）
+- **跨仓库状态面板**：`node "D:\rdd\workspace\stager\bin\repo-status.js"`（只读，一次看清 6 个仓库）
 
 ## 文档根（stage 流的规则正文）
 
-**全部在** `E:\新建文件夹\rdd-docs\rdd架构\自编译统一版\`（70 份）。
+**全部在** `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\`（70 份）。
 想解决 X 该读哪份 → `50-按主题导航.md`；那天他究竟做了什么 → `51-研发叙事时间线.md`。

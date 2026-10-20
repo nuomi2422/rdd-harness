@@ -1,0 +1,70 @@
+apiVersion: rdd.harness/v1alpha1
+kind: TaskCard
+metadata:
+  id: survival.collect-three-logs
+  version: 1
+  title: "目标同伴在本轮净增加至少 3 个原木"
+  owner: rdd
+spec:
+  goal: "目标同伴在本轮净增加至少 3 个原木（minecraft:logs），且画面确认动作对象是它本人"
+  environment:
+    profile: sandbox
+    fixture: forest-start-v1
+    controlMode: autonomous
+    companionSelector:
+      alias: primary
+    resetBeforeRun: true
+  requires:
+    - worldstate.inventory.snapshot
+    - worldstate.nearby.blocks
+    - camera.capture
+    - camera.binding.status
+    - runtime.events.read
+    - agent.goal.submit
+  preconditions:
+    - id: logs-nearby
+      predicate: world.nearby_block_count
+      args: { blockTag: "minecraft:logs", radiusBlocks: 20, min: 1 }
+    - id: companion-alive
+      predicate: agent.alive
+      args: { equals: true }
+  baseline:
+    - key: logsBefore
+      query: inventory.count
+      args: { itemTag: "minecraft:logs", owner: targetCompanion }
+  execution:
+    deadlineSeconds: 300
+    maxActions: 80
+    maxRecoveryAttempts: 2
+    prohibitedActions: [creative_grant, teleport_target, modify_inventory]
+  observation:
+    profile: state_exact_visual_context
+    requiredSources: [worldstate, runtime_events, camera]
+    maxEvidenceAgeMs: 2000
+    maxAlignmentSkewTicks: 20
+    keyframes: [start, action_milestone, before_verdict, recovery]
+  assertions:
+    - id: logs-net-gain
+      predicate: inventory.delta_gte
+      required: true
+      args:
+        itemTag: "minecraft:logs"
+        baselineKey: logsBefore
+        owner: targetCompanion
+        value: 3
+    - id: observed-correct-target
+      predicate: vision.target_context_confirmed
+      required: true
+      args: { frameRole: before_verdict, owner: targetCompanion }
+  invariants:
+    - id: no-inventory-injection
+      predicate: audit.no_prohibited_action
+      args: { actions: [creative_grant, modify_inventory] }
+  routing:
+    workerRole: worker
+    visionRole: vision
+  budget:
+    policyRef: survival-small-v1
+    maxWallClockSeconds: 900
+  cleanup:
+    policy: stop_owned_processes_preserve_evidence
