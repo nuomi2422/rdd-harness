@@ -97,6 +97,26 @@ function preflightChecks() {
         significant.slice(0, 5).join('\n      ') + (significant.length > 5 ? '\n      …' : ''));
     }
   }
+  // 3. 资产普查：清单上每一项都必须被 git 跟踪
+  //    为什么单列一条：门禁原来盯的全是「改动过的文件」，没人盯「从来没被跟踪的文件」。
+  //    26 项文档资产 + 44 个 harness 文件就是这么攒了几周的（见 check-asset-census.js 注释）。
+  try {
+    const census = path.join(__dirname, 'check-asset-census.js');
+    if (fs.existsSync(census)) {
+      const c = spawnSync(process.execPath, [census, '--json'], { encoding: 'utf8', timeout: 60000 });
+      let parsed = null;
+      try { parsed = JSON.parse(c.stdout || '{}'); } catch { /* 降级到下面 */ }
+      if (!parsed) {
+        problems.push('资产普查跑不起来（check-asset-census.js 输出无法解析）—— 不能当通过');
+      } else if (parsed.badCount > 0) {
+        const names = (parsed.items || []).filter((x) => x.status !== 'OK').map((x) => x.p);
+        problems.push(`资产普查有 ${parsed.badCount} 项裸奔（磁盘有、git 没有）：\n      ` +
+          names.slice(0, 6).join('\n      ') + (names.length > 6 ? '\n      …' : '') +
+          '\n      → 这些是治理层的器官，不许在库外');
+      }
+    }
+  } catch { /* 普查脚本缺失不算硬失败，但下面会提示 */ }
+
   return problems;
 }
 
