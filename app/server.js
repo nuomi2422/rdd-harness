@@ -44,12 +44,16 @@ const REG_FILE = path.join(HARNESS, 'registry.json');
 let DECIDE = null;
 function decide() {
   if (DECIDE) return DECIDE;
-  const p = path.join(HARNESS, '..', 'restart developing doer', 'stager', 'bin', 'decide.js');
-  try { DECIDE = require(p); }
-  catch (e) {
-    try { DECIDE = require('E:\\restart developing doer\\stager\\bin\\decide.js'); }
-    catch (e2) { DECIDE = { __err: e2.message }; }
+  // ★ 2026-10-19：路径从 registry 解析（相对 RDD 根），不再写死 D:\rdd；
+  //   顺序：registry.roots.workspace\stager → harness 同级的老布局 → 报错对象。
+  const cands = [
+    path.join(WS, 'stager', 'bin', 'decide.js'),
+    path.join(HARNESS, '..', 'restart developing doer', 'stager', 'bin', 'decide.js'),
+  ];
+  for (const p of cands) {
+    try { DECIDE = require(p); return DECIDE; } catch (e) { /* 试下一个 */ }
   }
+  DECIDE = { __err: `decide.js 找不到（试过：${cands.join(' ; ')}）` };
   return DECIDE;
 }
 
@@ -65,13 +69,16 @@ function writeAtomic(p, text) {
   catch (e) { try { fs.unlinkSync(tmp); } catch (_) { } throw e; }
 }
 
-const REG = readJson(REG_FILE, null);
-if (!REG) {
-  process.stderr.write('★ 读不到 registry.json，面板只能显示「坏了」：' + REG_FILE + '\n');
-}
+// ★ 2026-10-19：注册表必须走 bin/lib/registry.js 解析（roots 现在是相对 RDD 根），
+//   直接 readJson 会拿到 "workspace" 这种相对字符串，后面所有路径全错。
+const REG = (() => {
+  try { return require(path.join(HARNESS, 'bin', 'lib', 'registry.js')).load(); }
+  catch (e) { process.stderr.write('★ 读不到 registry.json，面板只能显示「坏了」：' + REG_FILE + '（' + e.message + '）\n'); return null; }
+})();
 const R = (REG && REG.roots) || {};
 const H = R.harness || HARNESS;
-const WS = R.workspace || path.resolve(HARNESS, '..');
+// registry 读不到时的兜底：harness 在 <RDD 根>\harness\rdd-harness，所以上两级才是 workspace 的父目录
+const WS = R.workspace || path.resolve(HARNESS, '..', '..', 'workspace');
 
 // ───────────────────────────────────────────── 可读 / 可写的文件白名单
 // key = 前端用的 id。value 尽量是「相对某个 root」，这样搬家不用改这里。
@@ -300,6 +307,65 @@ const server = http.createServer((req, res) => {
         docs: DOCS.map((d) => ({ id: d.id, name: d.name, editable: d.editable, why: d.why, path: docPath(d), exists: exists(docPath(d)) })),
         harnessDir: H, workspaceDir: WS,
       }));
+  }
+
+  if (p === '/api/boss') {
+    // ★ 老板台（2026-10-20 用户要求）：
+    //   用户原话「我无法快速拿到想要的文件，我要自己发文件夹，很麻烦」。
+    //   面板原先只列「给 AI 看的真源文档」，没有「今天该看什么」的入口。
+    //   这里按日期倒序列出 rdd存放\ 里的日报，并把「给老板的三行」抽出来直接显示，
+    //   点标题才进全文 —— 先看三行，想深究再翻。
+    // ★ 路径注意：registry 的 roots.docs 指向 `…\rdd-docs\rdd架构`，
+    //   而 `rdd存放` 是它的**同级**目录（不是子目录）。写成 join(R.docs,'rdd存放')
+    //   会得到不存在的 `rdd架构\rdd存放` —— 实测 count=0 才发现。
+    const docsRepo = path.dirname(R.docs || '');           // …\rdd-docs
+    const outDir = path.join(docsRepo, 'rdd存放');          // …\rdd-docs\rdd存放
+    const items = [];
+    if (fs.existsSync(outDir)) {
+      const files = fs.readdirSync(outDir).filter((f) => f.endsWith('.md') && !f.startsWith('_'));
+      for (const f of files) {
+        const full = path.join(outDir, f);
+        let st;
+        try { st = fs.statSync(full); } catch { continue }
+        const text = fs.readFileSync(full, 'utf8');
+        // 抽「给老板的三行」整节
+        const head = text.match(/^#{1,4}\s*给老板的三行[^\n]*$/m);
+        let three = null;
+        if (head) {
+          const rest = text.slice(head.index + head[0].length);
+          const next = rest.match(/^#{1,4}\s+\S/m);
+          three = (next ? rest.slice(0, next.index) : rest).trim();
+        }
+        const chars = three ? three.replace(/\s/g, '').length : 0;
+        // 合规判定与 goal.js 同口径（简洁版，供面板显示）
+        const BANNED = ['批次号', '判据', '契约', 'sha', 'commit', '.md', '.json', '.jsonl', '.java', '.ps1', '.js'];
+        const EMPTY_W = ['持续推进', '继续优化', '完善机制', '按计划进行', '效果良好', '基本完成', '稳步推进'];
+        const problems = [];
+        if (!three) problems.push('没有「给老板的三行」');
+        else {
+          if (chars > 250) problems.push('超过 250 字（' + chars + '）');
+          const b = BANNED.filter((w) => three.includes(w)); if (b.length) problems.push('禁用词：' + b.join('、'));
+          const e = EMPTY_W.filter((w) => three.includes(w)); if (e.length) problems.push('空话：' + e.join('、'));
+          if (!/①/.test(three) || !/②/.test(three) || !/③/.test(three)) problems.push('三问不全');
+        }
+        // 从文件名或正文里取日期（YYYYMMDD 或 YYYY-MM-DD）
+        const dm = (f.match(/(20\d{6})/) || text.match(/(20\d{2}-\d{2}-\d{2})/) || [])[1] || '';
+        const dateKey = dm.replace(/-/g, '');
+        items.push({
+          file: f, path: full,
+          date: dateKey,
+          mtime: st.mtime.toISOString(),
+          size: st.size,
+          title: (text.match(/^#\s+(.+)$/m) || [])[1] || f.replace(/\.md$/, ''),
+          three: three,
+          threeChars: chars,
+          ok: problems.length === 0,
+          problems,
+        });
+      }
+    }
+    items.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.mtime.localeCompare(a.mtime));
+    return send(res, 200, { ok: true, now: new Date().toISOString(), dir: outDir, count: items.length, items });
   }
 
   if (p === '/api/tools') {

@@ -197,7 +197,7 @@
 
 <script>
 const $ = (i)=>document.getElementById(i);
-let OV=null, PAGE='总览', TOOLS=null, TOOLQ='', GRP='*';
+let OV=null, PAGE='老板台', TOOLS=null, TOOLQ='', GRP='*';
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const kb = n => n>1048576 ? (n/1048576).toFixed(1)+'M' : n>1024 ? (n/1024).toFixed(1)+'K' : n+'B';
 
@@ -224,7 +224,7 @@ async function saveDoc(id, content){
 }
 
 const NAV = [
-  ['总览','ov'], ['决策收件箱','dec'], ['AI 进度','stage'],
+  ['老板台','boss'], ['总览','ov'], ['决策收件箱','dec'], ['AI 进度','stage'],
   ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
 ];
 
@@ -606,7 +606,7 @@ function paintDiag(){
        '<div class="pre" id="dout">点上面任意一个。· 门禁自己的缺陷长得像「门禁在正确地报债」，所以每次都要逐项核对是不是真债。</div></div>';
   s += '<div class="card cut"><h2>这台机器上的相关服务</h2>'+
        '<div class="note">常驻端口：监测台 8776　·　Numen MCP 8765　·　stage 看板 8899　·　OpenClaw 8080　·　本面板 8891<br>'+
-       '一次性开关：<code>E:\\新建文件夹\\rddharness\\ALL-ON-OFF.bat on</code> / <code>off</code>（纯 ASCII，别往里加中文）<br>'+
+       '一次性开关：<code>D:\\rdd\\harness\\rdd-harness\\ALL-ON-OFF.bat on</code> / <code>off</code>（纯 ASCII，别往里加中文）<br>'+
        '· 改路径要改真源：node 侧 <code>stager/core/stages.json</code>，PowerShell 侧 <code>rdd-selfcompile/scripts/config.ps1</code>，'+
        '**改完必须全仓 grep**（历史上散落 13 处硬编码，搬一次家全失配）。</div>'+
        '<div class="note warn">· PS 5.1 读无 BOM 的 UTF-8 会乱码：.ps1 必须写 UTF-8 BOM；<code>node -e</code> 内联会被 PS 拆坏，一律写 .js 文件。</div>'+
@@ -639,7 +639,110 @@ window.runSelftest=runSelftest; window.runGate=runGate; window.runRepo=runRepo;
 window.openPath = openPath;
 
 // ══════════════════════════════════════════════ 主循环
-const PAINT = {ov:paintOverview, dec:paintDecide, stage:paintStage, tools:paintTools,
+// ══════════════════════════════════════════════ 老板台（2026-10-20 用户要求）
+// 用户原话：「我无法快速拿到想要的文件，我要自己发文件夹，很麻烦」
+// 所以这一页只做一件事：把「今天该看什么」摆在最上面，三行大白话直接可见，
+// 点标题才进全文。不合格的日报标红并写出问题，不让它混过去。
+let BOSS = null;
+async function paintBoss(){
+  // 数据由 refresh() 统一拉（避免每 5 秒重复请求）；这里只兜底第一次
+  if(BOSS===null){
+    try{ BOSS = await J('/api/boss'); }
+    catch(e){ return '<div class="card cut"><div class="note bad">[!] 读不出日报：'+esc(e.message)+'</div></div>'; }
+  }
+  if(BOSS && BOSS.err){
+    return '<div class="card cut"><div class="note bad">[!] 读不出日报：'+esc(BOSS.err)+'</div></div>';
+  }
+  const B = BOSS, items = B.items || [];
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
+  // ★ 跨夜会出问题：0 点一过「今天」就没有日报了，而人还在干 10-20 的活。
+  //   所以今天为空时，回退到「最近有日报的那一天」，并明说这是哪天的。
+  const newestDate = items.length ? items[0].date : '';
+  const showDate = items.some(x=>x.date===today) ? today : newestDate;
+  const isFallback = showDate !== today;
+  const todays = items.filter(x=>x.date===showDate);
+  const older = items.filter(x=>x.date!==showDate);
+
+  let s = '';
+
+  // 今天该看的
+  const fmt = d => d && d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : (d||'');
+  const headLabel = isFallback
+    ? '最近一次日报（'+fmt(showDate)+'，今天还没写新的）'
+    : '今天要你看的';
+  s += '<div class="card cut"><h2>'+headLabel+' <span class="r">'+
+       (todays.length ? todays.length+' 份' : '<span class="tag bad">还没有日报</span>')+'</span></h2>';
+  if(!todays.length){
+    s += '<div class="note bad">还没有日报。让 AI 在 rdd存放\\ 写一份，顶部必须有「给老板的三行」。</div>';
+  }else{
+    s += todays.map(x=>bossCard(x,true)).join('');
+  }
+  s += '</div>';
+
+  // 历史
+  if(older.length){
+    s += '<div class="card cut"><h2>更早的 <span class="r">'+older.length+' 份</span></h2>';
+    s += older.slice(0,12).map(x=>bossCard(x,false)).join('');
+    s += '</div>';
+  }
+
+  s += '<div class="card cut"><h2>说明</h2><div class="note">'+
+       '这一页只列 <code>rdd存放\\</code> 里的日报。判定与 goal 的验收同口径：'+
+       '三行必须齐（①②③）、不超过 250 字、不出现批次号/判据/契约/文件名/sha、不写空话。'+
+       '不合格的会标红并写出原因 —— 那是要 AI 重写的，不是给你凑合看的。</div></div>';
+  return s;
+}
+
+// 去掉 markdown 标记：老板台是给人快速扫的，星号/反引号只会碍眼
+function plainMd(s){
+  return String(s||'').replace(/\*\*/g,'').replace(/`/g,'').replace(/^#+\s*/gm,'').trim();
+}
+
+function bossCard(x, isToday){
+  const bad = !x.ok;
+  let s = '<div class="docrow" style="padding:10px 0;border-top:1px solid var(--line)">';
+  // 标题行：点进全文
+  s += '<div style="display:flex;align-items:baseline;gap:8px">';
+  s += '<a href="#" onclick="bossOpen(\''+esc(x.file).replace(/'/g,"\\'")+'\');return false" '+
+       'style="font-weight:600;color:var(--tx);text-decoration:none">'+esc(plainMd(x.title))+'</a>';
+  s += '<span class="tag '+(bad?'bad':'ok')+'">'+(bad?'不合格':'三行合规')+'</span>';
+  s += '<span class="r" style="margin-left:auto;color:var(--tx-2);font-size:11.5px">'+
+       esc(x.date||'')+' · '+(x.threeChars||0)+' 字</span>';
+  s += '</div>';
+  // 三行正文（这是重点，直接显示）
+  // ★ 三行是给人快速读的，不该出现 markdown 符号：去掉 ** / ` 这类标记
+  if(x.three){
+    const plain = plainMd(x.three);
+    s += '<div style="margin:8px 0 0;white-space:pre-wrap;line-height:1.75;font-size:13.5px">'+
+         esc(plain)+'</div>';
+  }else{
+    s += '<div class="note bad" style="margin-top:6px">没有「给老板的三行」这一节。</div>';
+  }
+  // 问题清单
+  if(x.problems && x.problems.length){
+    s += '<div class="note bad" style="margin-top:6px">问题：'+esc(x.problems.join('；'))+'　→ 让 AI 重写</div>';
+  }
+  s += '</div>';
+  return s;
+}
+
+// 点标题看全文（复用已有的 /api/doc 机制）
+window.bossOpen = async function(file){
+  const rel = 'rdd存放/' + file;
+  try{
+    const d = await J('/api/doc/' + encodeURIComponent(rel));
+    const html = '<div class="card cut"><h2>'+esc(file)+
+      ' <span class="r"><button class="b" onclick="go(\'boss\')">← 回老板台</button></span></h2>'+
+      '<div style="white-space:pre-wrap;line-height:1.8;font-size:13px">'+esc(d.text||'')+'</div></div>';
+    $('view').innerHTML = html;
+    curTab = 'boss-full';
+  }catch(e){
+    $('view').innerHTML = '<div class="card cut"><div class="note bad">[!] 打不开：'+esc(e.message)+
+      '　<a href="#" onclick="go(\'boss\');return false">← 回去</a></div></div>';
+  }
+};
+
+const PAINT = {boss:paintBoss, ov:paintOverview, dec:paintDecide, stage:paintStage, tools:paintTools,
                rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
 let curTab = null;
 function paint(){
@@ -648,7 +751,16 @@ function paint(){
   // 规则页重绘会把光标弹走，所以只在第一次或换页时才整体重绘
   if(k===curTab && k!=='rules') return;
   curTab = k;
-  $('view').innerHTML = (PAINT[k]||paintOverview)();
+  const fn = PAINT[k]||paintOverview;
+  const out = fn();
+  // ★ 异步渲染页（老板台要读 /api/boss）返回 Promise，必须 resolve 后再塞 innerHTML，
+  //   否则页面上会出现 "[object Promise]"（同步 paint 的老写法没这个问题，是新增页带来的）。
+  if(out && typeof out.then==='function'){
+    out.then(html=>{ if(curTab===k) $('view').innerHTML = html; })
+       .catch(e=>{ $('view').innerHTML = '<div class="card cut"><div class="note bad">[!] 渲染失败：'+esc(e.message)+'</div></div>'; });
+  }else{
+    $('view').innerHTML = out;
+  }
   if(k==='rules' && CURDOC) openDoc(CURDOC);
 }
 async function refresh(){
@@ -656,6 +768,8 @@ async function refresh(){
     const needTools = (PAGE==='tools');
     OV = await J('/api/overview');
     if(needTools) TOOLS = await J('/api/tools');
+    // 老板台要单独拉日报列表（不进 overview，避免总览变慢）
+    if(PAGE==='老板台'){ try{ BOSS = await J('/api/boss'); }catch(e){ BOSS = {ok:false,items:[],err:e.message}; } }
     $('stamp').innerHTML = '更新于 '+new Date(OV.now).toLocaleTimeString()+' · 每 5 秒自动刷新';
     if(TOOLS===null && PAGE==='tools') TOOLS = await J('/api/tools');
     paint();

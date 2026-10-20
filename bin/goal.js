@@ -43,7 +43,15 @@ const fs = require('fs')
 const path = require('path')
 const { spawnSync } = require('child_process')
 
-const DEFAULT_STATE = 'E:/restart developing doer/stager/.stager/goal.json'
+// ── 路径（★ 2026-10-19：不再写死 D:\rdd）────────────────────────────
+// 优先问 registry（rootAnchor 相对化后的唯一真源），拿不到就按
+// 「harness 在 <RDD 根>\harness\rdd-harness」这个布局往回退三级。
+function registryRoots() {
+  try { return require('./lib/registry.js').load().roots } catch { return null }
+}
+const FALLBACK_RDD_ROOT = path.resolve(__dirname, '..', '..', '..')
+const RDD_WORKSPACE = (registryRoots() || {}).workspace || path.join(FALLBACK_RDD_ROOT, 'workspace')
+const DEFAULT_STATE = process.env.RDD_GOAL_STATE || path.join(RDD_WORKSPACE, 'stager', '.stager', 'goal.json')
 const EVIDENCE_TTL_H = 72          // 手工证据（--file）超过 72 小时算过期
 const OUT_MAX = 4000               // 单条证据存多少字符（够判读，不撑爆状态文件）
 
@@ -63,7 +71,7 @@ function parseArgs(argv) {
 }
 const argv = parseArgs(process.argv.slice(2))
 const CMD = argv._[0] || ''
-const STATE_FILE = argv.state || process.env.RDD_GOAL_STATE || DEFAULT_STATE
+const STATE_FILE = argv.state || DEFAULT_STATE
 
 // ── 状态读写 ────────────────────────────────────────────
 function readGoal(fallback) {
@@ -222,7 +230,7 @@ function pendingItems(g) {
 // 用户诉求：「架构文档写完了就把它放到 stage 里面」—— stager put --kind arch 已经存了，
 // 这里直接把它捡起来当目标锁的边界，少一次手敲路径（手敲 = 抄错 = 锁错边界）。
 function findArchFromStage(stagerRoot) {
-  const STAGER_ROOT = stagerRoot || 'E:/restart developing doer/stager'
+  const STAGER_ROOT = stagerRoot || process.env.RDD_STAGER_ROOT || path.join(RDD_WORKSPACE, 'stager')
   let activeId = null
   try { activeId = JSON.parse(fs.readFileSync(path.join(STAGER_ROOT, '.stager/active.json'), 'utf8')) } catch { /* 没有活动任务 */ }
   if (typeof activeId === 'string') activeId = activeId.replace(/^"|"$/g, '')
@@ -428,6 +436,18 @@ function cmdAccept() {
   if (!g.items.length) die(2, '一条验收条目都没有 —— 空验收不算验收。先 goal.js add。')
 
   const fails = []
+
+  // ── ★ 内置验收项：用户日报的「三行大白话」（2026-10-20 用户要求）──
+  // 为什么是机器项而不是纪律：用户原话「你是唯一能批准它干危险事的人，
+  // 但你看不懂报告的时候，批准就变成了闭眼签字」。三行不写 = 批准权是形式。
+  // 检查 rdd存放\ 下当天的日报有没有这三行，且没写空话。
+  {
+    const chk = checkPlainSummary(g)
+    if (!chk.ok) {
+      fails.push({ id: '(内置) 三行大白话', title: '用户日报', why: chk.why })
+    }
+  }
+
   for (const it of g.items) {
     const j = judgeItem(it)
     if (j.ok) { it.status = 'proved'; it.lastFail = null }
@@ -437,7 +457,7 @@ function cmdAccept() {
   if (fails.length) {
     g.status = 'active'   // 验收没过就还是没完成 —— 留着 active，goal-drive 继续催
     writeGoal(g)
-    process.stderr.write('✘ 最终验收未通过：' + fails.length + '/' + g.items.length + ' 条不过\n')
+    process.stderr.write('✘ 最终验收未通过：' + fails.length + ' 条不过\n')
     for (const f of fails) {
       process.stderr.write('   [  ] ' + f.id + ' ' + f.title + '\n        ↳ ' + f.why + '\n')
     }
@@ -448,12 +468,122 @@ function cmdAccept() {
   g.status = 'accepted'
   g.acceptedAt = new Date().toISOString()
   writeGoal(g)
-  console.log('✔✔ 最终验收通过：' + g.items.length + '/' + g.items.length + ' 条（每条都是刚复跑出来的结果）')
+  console.log('✔✔ 最终验收通过：' + g.items.length + '/' + g.items.length + ' 条（每条都是刚复跑出来的结果）+ 给老板的三行已合规')
   console.log('   目标：' + g.title)
   console.log('   架构：' + g.arch)
   console.log('   验收于：' + g.acceptedAt)
   console.log('   ★ goal.status=accepted —— goal-drive 从现在起不再催跑。')
+  console.log('')
+  console.log('   ★ 拍板铁律（2026-10-20 用户定）：老板只回复三行相关的内容时，')
+  console.log('     不代表默认批准了技术区的所有事项 —— 需要拍板的事必须等明确答复。')
+  console.log('     老板是拍板者，不是审阅者。')
   bye(0)
+}
+
+/**
+ * 检查用户日报的「给老板的三行」。
+ * 规则真源：rdd存放\_格式规范.md §2.1（用户 2026-10-20 定稿）。
+ *
+ * 拒收条件（任一命中即不合格，要求重写）：
+ *   - 没有「给老板的三行」这一节
+ *   - 三问不全（①②③ 或对应标题缺任一）
+ *   - 三行总字数 > 250
+ *   - 出现禁用词：批次号/判据/契约/卡/sha/commit/模块名/文件名
+ *   - 出现空话：持续推进/继续优化/完善机制/按计划进行/效果良好/基本完成/稳步推进
+ *   - 第①行没说清「本事」还是「内部设施」
+ */
+function checkPlainSummary(g) {
+  const DIR = path.join(RDD_WORKSPACE, '..', 'docs', 'rdd-docs', 'rdd存放')
+  if (!fs.existsSync(DIR)) return { ok: false, why: '找不到 rdd存放\\ 目录：' + DIR }
+
+  const today = new Date()
+  const ymd = today.getFullYear() + String(today.getMonth() + 1).padStart(2, '0') + String(today.getDate()).padStart(2, '0')
+  const dash = today.getFullYear() + '-' + String(today.getMonth() + 1).padStart(2, '0') + '-' + String(today.getDate()).padStart(2, '0')
+
+  const files = fs.readdirSync(DIR).filter((f) => f.endsWith('.md') && !f.startsWith('_'))
+  const todays = files.filter((f) => f.includes(ymd) || f.includes(dash))
+  if (todays.length === 0) {
+    // ★ 跨夜：0 点后「今天」还没有日报，但人可能还在干前一天晚上的活。
+    //   回退到最近一份带日期的日报，而不是直接拒（否则通宵干完必被拒一次）。
+    const dated = files
+      .map((f) => ({ f, m: f.match(/(20\d{2}-?\d{2}-?\d{2})/) }))
+      .filter((x) => x.m)
+      .map((x) => ({ f: x.f, d: x.m[1].replace(/-/g, '') }))
+      .sort((a, b) => b.d.localeCompare(a.d))
+    const latest = dated.length ? dated[0] : null
+    if (!latest) {
+      return { ok: false, why: '今天（' + dash + '）没有日报，也没有任何带日期的日报。在 rdd存放\\ 建一份，顶部必须有「给老板的三行」（见 _格式规范.md §2.1）' }
+    }
+    // 用最近那份来判（并把它当作本轮日报）
+    todays.push(latest.f)
+    console.log('   [跨夜] 今天（' + dash + '）还没有日报，改用最近一份：' + latest.f + '（' + latest.d + '）')
+  }
+
+  // §2.1 规则 2：禁用词（用了就是不合格）
+  const BANNED = [
+    '批次号', '判据', '契约', 'sha', 'commit', 'SHA', 'COMMIT',
+    '.md', '.json', '.jsonl', '.java', '.ps1', '.js',
+  ]
+  // §2.1 规则 2：空话
+  const EMPTY_WORDS = ['持续推进', '继续优化', '完善机制', '按计划进行', '效果良好', '基本完成', '稳步推进']
+  const MAX_CHARS = 250
+
+  let lastErr = null
+  for (const f of todays) {
+    const text = fs.readFileSync(path.join(DIR, f), 'utf8')
+
+    // 找「给老板的三行」这一节（标题允许几种写法）
+    const head = text.match(/^#{1,4}\s*给老板的三行[^\n]*$/m)
+    if (!head) { lastErr = f + ' 没有「给老板的三行」一节（必须放最顶部，见 §2.1）'; continue }
+
+    // 取该节正文：从标题后到下一个同级或更高级标题
+    const start = head.index + head[0].length
+    const rest = text.slice(start)
+    const nextHead = rest.match(/^#{1,4}\s+\S/m)
+    const section = (nextHead ? rest.slice(0, nextHead.index) : rest).trim()
+
+    // 三问齐全：①②③ 或三个问句关键字
+    const has1 = /①/.test(section) || /本事/.test(section)
+    const has2 = /②/.test(section) || /必须.*知道/.test(section)
+    const has3 = /③/.test(section) || /明天/.test(section)
+    if (!(has1 && has2 && has3)) {
+      lastErr = f + ' 三行不全（要 ①②③ 三问：本事 / 必须知道 / 明天干什么）'
+      continue
+    }
+
+    // 字数上限（去空白后计）
+    const chars = section.replace(/\s/g, '').length
+    if (chars > MAX_CHARS) {
+      lastErr = f + ' 三行共 ' + chars + ' 字，超过 ' + MAX_CHARS + ' 字上限（老板只有 30 秒）'
+      continue
+    }
+
+    // 禁用词（技术黑话不许进三行）
+    const banned = BANNED.filter((w) => section.includes(w))
+    if (banned.length) {
+      lastErr = f + ' 三行里出现禁用词：' + banned.join('、') + '（不许出现批次号/判据/契约/文件名/sha）'
+      continue
+    }
+
+    // 空话
+    const empty = EMPTY_WORDS.filter((w) => section.includes(w))
+    if (empty.length) {
+      lastErr = f + ' 三行里出现空话：' + empty.join('、') + '（这些词不回答任何问题）'
+      continue
+    }
+
+    // 第①行必须说清「本事」还是「内部设施」
+    const i1 = section.search(/①/)
+    const i2 = section.search(/②/)
+    const seg1 = i1 >= 0 ? section.slice(i1, i2 > i1 ? i2 : i1 + 300) : section.slice(0, 300)
+    if (!/本事|内部设施|账本|没有/.test(seg1)) {
+      lastErr = f + ' 第①行没说清是「本事」还是「内部设施」（只装设施的一天要明写「没有，今天装的是内部设施」）'
+      continue
+    }
+
+    return { ok: true, file: f, chars }
+  }
+  return { ok: false, why: lastErr || '给老板的三行检查未通过' }
 }
 
 function cmdPause() {
@@ -485,6 +615,7 @@ function cmdClear() {
 //   最终权威始终是 accept 的复跑 —— 两边都只读同一份 goal.json。
 function buildNudge(g, pendList) {
   const pend = pendList || g.items.map((it) => ({ it, j: judgeItem(it) })).filter((x) => !x.j.ok)
+  const SELF = __filename   // ★ 不再写死 D:\rdd\... —— 拷到别处也能照着催
   const L = []
   L.push('[GOAL-DRIVE 架构目标锁 · 系统自动催跑，不是用户新指令]')
   L.push('')
@@ -506,16 +637,16 @@ function buildNudge(g, pendList) {
   L.push('')
   L.push('硬性规矩（对每一条）：')
   L.push('1. 不许用「写了文档 / 我认为完成了」冒充完成。每完成一条，跑：')
-  L.push('     node "E:\\新建文件夹\\rddharness\\bin\\goal.js" prove ' + (pend[0] ? pend[0].it.id : 'A1') +
+  L.push('     node "' + SELF + '" prove ' + (pend[0] ? pend[0].it.id : 'A1') +
     ' --cmd "<能判定它真成了的命令>" --note "<实际是什么>"')
   L.push('   证据是【跑出来的输出】，accept 时还会重新跑一遍 —— 手打的字不算。')
   L.push('2. 每条收尾自问三连，答不上来就是没完成：')
   L.push('     我这里完成了？证据是什么？实际是什么？它能撑起最终验收吗？')
   L.push('3. 全部 prove 过之后跑最终验收：')
-  L.push('     node "E:\\新建文件夹\\rddharness\\bin\\goal.js" accept')
+  L.push('     node "' + SELF + '" accept')
   L.push('   accept 逐条复跑判据，有一条不过就是没完成 —— 继续干。')
   L.push('4. 真卡住 / 在等用户拍板 → 停下来留痕，别硬编：')
-  L.push('     node "E:\\新建文件夹\\rddharness\\bin\\goal.js" pause --reason "<卡在哪>"')
+  L.push('     node "' + SELF + '" pause --reason "<卡在哪>"')
   L.push('   （pause 了我就不催；resume 之后接着逼。）')
   L.push('')
   L.push('（第 ' + ((g.nudges && g.nudges.count) || 0) + ' 次催跑' +
