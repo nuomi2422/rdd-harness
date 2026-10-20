@@ -550,6 +550,37 @@ function postflight(ctx) {
     }
   }
 
+  // ★ Q15（2026-10-20 #091 自审新增）：债账有没有真的进「下一步（汇总）」表。
+  //   为什么：H1 的试金石是「三值化不经提醒自己浮进下一步表」，实测连续为负 ——
+  //   完成的批次还挂在 P0、本轮新债一条没进表。这件事靠「我记得」不成立，所以做成机检。
+  //   级别定 WARN（不拦收工）：表没刷新是流程债，不是本次证据造假。
+  {
+    const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-debt-rollup.js');
+    if (!fs.existsSync(checker)) {
+      record('Q15', '债账入表', WARN, 'trace', WARN,
+        `检查器不存在（${checker}）—— H1 未落地，债账仍靠记忆`);
+    } else {
+      const r = require('child_process').spawnSync(process.execPath, [checker, '--json'],
+        { encoding: 'utf8', timeout: 60000 });
+      let parsed = null;
+      try { parsed = JSON.parse(r.stdout || '{}'); } catch { /* 降级到下面 */ }
+      if (!parsed) {
+        record('Q15', '债账入表', WARN, 'trace', WARN,
+          `检查器没给出可解析结果（exit=${r.status}）—— 不能当 PASS，也不能当 BLOCK`);
+      } else {
+        const warns = parsed.warn || [];
+        if (warns.length === 0) {
+          record('Q15', '债账入表', WARN, 'trace', PASS,
+            `下一步表已刷新（行=${(parsed.info || {}).openRows}，H 段=${(parsed.info || {}).hasHSection ? '有' : '无'}）`);
+        } else {
+          record('Q15', '债账入表', WARN, 'trace', WARN,
+            warns.map((w) => `${w.code}：${w.detail}`).join('\n       ') +
+            `\n       → 详情：node ${checker}`);
+        }
+      }
+    }
+  }
+
   builtinChecks(ctx, 'postflight');
 }
 
