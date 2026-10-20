@@ -646,7 +646,7 @@
     }
   ],
   "standards": {
-    "$comment": "★ 编程规范的唯一真源是 standards.md（本 harness 内，机器可读、带 id）；docsUnified\\01-工程规范.md 是人读的完整版。两者条款一一对应，改一处必须改另一处 —— postflight Q-CODE-SPEC 查这个。",
+    "$comment": "★ 编程规范的唯一真源是 standards.md（本 harness 内，机器可读、带 id）；docsUnified\\01-工程规范.md 是人读的完整版。两者应当一一对应，改一处必须改另一处。⚠️ 2026-10-21 核实：**没有 Q-CODE-SPEC 这个检查**（gate 代码 0 命中），而且镜像一个 S-* id 都没有（standards 45 个 / 镜像 0 个）→ 这条契约目前只能人工履行，等镜像补上标题 id 后才能机检（杂项 #094）。",
     "source": "harness/rdd-harness/standards.md",
     "mirror": "docs/rdd-docs/rdd架构/自编译统一版/01-工程规范.md",
     "contract": "standards.md 每条规则带稳定 id（如 S-COMMIT-01）。mirror 里每个对应小节标题里带同一个 id。"
@@ -873,6 +873,24 @@
           "level": "warn",
           "rule": "★ 2026-10-19 用户要求：进过游戏就必须在 rdd架构\\实机验证\\YYYY-MM.md 留一张卡，写清「要验什么（判据）/ 为什么现在验 / 采了什么数据 / 结果 / 原因 / 下次怎么复现」。待验的也要建卡（状态 ⬜，判据先写死）。",
           "verify": "扫 docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 的 mtime 是否本轮 + 里面有几张 ### V-YYYYMMDD-NN 卡 + 回填了几张（状态为 ✅/❌/🟡）"
+        },
+        {
+          "id": "Q14",
+          "name": "证据坐标指得到东西",
+          "kind": "trace",
+          "level": "warn",
+          "rule": "★ 2026-10-20 #087 新增：验证卡里写的 `文件:行号` 必须指得到真实的行，引文必须在文件里找得到。教训：V-13 引用的原文只在归档 rdd-1792489290677.jsonl 里，主 rdd.jsonl 0 命中，复查第一遍差点判成「汇报造假」。证据散在 rdd*.jsonl / context*.jsonl（含归档），没有坐标就只能靠记忆哪个文件，每次复查都踩一遍。",
+          "verify": "node rdd-selfcompile/scripts/verify-tools/check-evidence-anchor.js --json → hard（指不到/引文不存在）与 warn（只写文件名没写行号）分别计数；hard>0 = 证据是编的",
+          "tool": "trace.evidence"
+        },
+        {
+          "id": "Q15",
+          "name": "债账入表",
+          "kind": "trace",
+          "level": "warn",
+          "rule": "★ 2026-10-20 #091 新增（H1 试金石的机检版）：杂项记录\\YYYY-MM.md 的「下一步（汇总）」表必须吸收本轮的债 —— 不能出现「完成的批次还挂在未完成行」、必须有 H 段、表里必须提到债。教训：H1 原判据（goal.js accept 要件）连续多轮为负，三值化从没自己浮进表；靠「我记得」是不成立的。",
+          "verify": "node rdd-selfcompile/scripts/verify-tools/check-debt-rollup.js --json → warn 为空 = 表已刷新（缺文件按 WARN 降级，不冒充通过）；--selftest 7/7 证明它抓得住「表没刷新」",
+          "tool": "trace.debt"
         }
       ]
     },
