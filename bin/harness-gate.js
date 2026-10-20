@@ -347,6 +347,50 @@ function preflight(ctx) {
     }
   }
 
+  {
+    // ★ P14（2026-10-21 用户定）：脏工作区不许开新批次。
+    //   为什么加：334 处脏项能攒几周没人发现，说明「干净」没有强制点。
+    //   根因是各会话判断干净时**只看 diff，不看「磁盘上有但 git 不知道」的文件** ——
+    //   26 项文档资产 + 44 个 harness 文件就是这么攒出来的（宪法和记忆从没进过版本控制）。
+    //   ★ 所以「干净」的定义必须写死：clean = git status --porcelain 为空；
+    //     **untracked 一律算脏**（不许只盯改动过的文件）。
+    //   白名单：运行产物（report/ 的临时件、runs/、mutations/、.tmp/、*.log）
+    //   它们本来就该在盘上而不该进库。
+    const repos = [
+      { name: 'docs', dir: REG.roots.docs },
+      { name: 'harness', dir: REG.roots.harness },
+      { name: 'numen', dir: path.join(REG.roots.workspace, 'minecraft-numen') },
+    ];
+    const IGNORE = /(^|\/)(runs|mutations|\.tmp|node_modules)\/|\.log$|report\/w-replies\//;
+    const dirtyAll = [];
+    for (const r of repos) {
+      if (!fs.existsSync(r.dir)) continue;
+      const g = require('child_process').spawnSync(
+        'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe',
+        ['-C', r.dir, '-c', 'core.quotepath=false', 'status', '--porcelain'],
+        { encoding: 'utf8', timeout: 30000 }
+      );
+      if (g.status !== 0) continue;
+      const lines = (g.stdout || '').split(/\r?\n/).filter(Boolean).filter((l) => !IGNORE.test(l.slice(3)));
+      if (lines.length) dirtyAll.push({ name: r.name, lines });
+    }
+    if (dirtyAll.length === 0) {
+      record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', PASS,
+        '三仓 git status --porcelain 均为空 —— 可以开新批次 / 打审计 tag');
+    } else {
+      const total = dirtyAll.reduce((a, x) => a + x.lines.length, 0);
+      const brief = dirtyAll.map((d) => `${d.name} ${d.lines.length}`).join(' / ');
+      const sample = dirtyAll[0].lines.slice(0, 3).map((l) => l.slice(0, 70)).join('\n       ');
+      record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+        `★ 脏工作区不许开新批次（${brief}，共 ${total} 处）。\n` +
+        `       ★ 「干净」= git status --porcelain 为空；**untracked 也算脏**\n` +
+        `         （26 项文档资产 + 44 个 harness 文件就是这样攒出来的：\n` +
+        `          各会话只看 diff，不看「磁盘上有但 git 不知道」的文件）。\n` +
+        `       先收口再开批次。示例：\n       ${sample}\n` +
+        `       ★ 为什么：334 能攒出来 = 干净没有强制点。不收口，下轮 334 变 600，tag 门永远差一步。`);
+    }
+  }
+
   builtinChecks(ctx, 'preflight');
 }
 
