@@ -365,7 +365,34 @@ const server = http.createServer((req, res) => {
       }
     }
     items.sort((a, b) => (b.date || '').localeCompare(a.date || '') || b.mtime.localeCompare(a.mtime));
-    return send(res, 200, { ok: true, now: new Date().toISOString(), dir: outDir, count: items.length, items });
+
+    // ── 治理层（76号）：距上次审计多少天 ──
+    // 审计 tag 的命名约定：audit-<里程碑>-<YYYYMMDD>（如 audit-G5-20261023）。
+    // 从 docs 仓找最近一个 audit-* tag 的日期；找不到就返回 null（面板会提示「还没有审计 tag」）。
+    // 为什么用 tag 而不是文件时间：tag 是「固化」的动作，文件改多少次都不代表审计过。
+    let daysSinceAudit = null, lastAuditTag = null;
+    try {
+      const g = require('child_process').spawnSync(
+        'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe',
+        ['-C', docsRepo, 'tag', '-l', 'audit-*', '--sort=-creatordate'],
+        { encoding: 'utf8', timeout: 15000 }
+      );
+      const tags = (g.stdout || '').split(/\r?\n/).filter(Boolean);
+      if (tags.length) {
+        lastAuditTag = tags[0];
+        const m = lastAuditTag.match(/(20\d{6})/);
+        if (m) {
+          const d = m[1];
+          const tagDate = new Date(+d.slice(0, 4), +d.slice(4, 6) - 1, +d.slice(6, 8));
+          daysSinceAudit = Math.floor((Date.now() - tagDate.getTime()) / 86400000);
+        }
+      }
+    } catch { /* git 不可用就当没有 */ }
+
+    return send(res, 200, {
+      ok: true, now: new Date().toISOString(), dir: outDir, count: items.length, items,
+      governance: { daysSinceAudit, lastAuditTag, maxDays: 2 },
+    });
   }
 
   if (p === '/api/tools') {

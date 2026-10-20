@@ -665,6 +665,29 @@ async function paintBoss(){
 
   let s = '';
 
+  // ★ 治理层（76号）：老板每个轮回只做三件事，其余时间系统自己跑。
+  //   放在最上面，因为这是「这套系统该怎么用」的答案，比任何日报都先要看到。
+  const gov = B.governance || {};
+  s += '<div class="card cut"><h2>你的轮回 <span class="r">'+
+       (gov.daysSinceAudit!=null ? ('距上次审计 '+(gov.daysSinceAudit===0?'今天':gov.daysSinceAudit+' 天')+
+         (gov.daysSinceAudit>=2?' <span class="tag bad">已超两天，该审计了</span>':' <span class="tag ok">在窗口内</span>'))
+         : '<span class="tag">还没有审计 tag</span>')+'</span></h2>';
+  s += '<div class="note" style="line-height:1.9">'+
+       '<b>① 看三行</b>（30 秒）　→　<b>② 玩五分钟游戏</b>（按验收单，亲眼看到本事）　→　<b>③ 打一次 tag</b>'+
+       '<br>其余时间系统自己跑。<b>你的注意力是最稀缺的资源，花在边界上，不花在过程里。</b>'+
+       '</div>';
+  // 熔断线（不等里程碑，触发就停）
+  s += '<div class="note" style="margin-top:10px;line-height:1.8">'+
+       '<b style="color:var(--bad)">⚡ 不等里程碑、立刻停（熔断线）</b><br>'+
+       '① 批准范围外的破坏性操作　② <b>修改 harness/goal/审计文件本身</b>（改自己的宪法=越权）'+
+       '　③ 无声超过 X 小时　④ 同一失败连续复发'+
+       '</div>';
+  s += '<div class="note" style="margin-top:8px;color:var(--tx-2)">'+
+       '规则真源：<a href="#" onclick="go(\'rules\');return false">纪律</a> → '+
+       '76 · 里程碑门禁与红线固化（治理层）｜ 75 · 重构决策草案（施工层）'+
+       '</div>';
+  s += '</div>';
+
   // 今天该看的
   const fmt = d => d && d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : (d||'');
   const headLabel = isFallback
