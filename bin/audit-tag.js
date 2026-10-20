@@ -146,23 +146,37 @@ function collectSnapshot(milestone) {
   return snap;
 }
 
-/* ── 已知不可用清单：从验证卡里抽「影子/未生效/未实机」 ── */
+/* ── 已知不可用清单：从验证卡里抽「影子/未生效/未实机」 ──
+ *
+ * ★ 两条设计约束（2026-10-21 用户要求「确认是机械抽取不是现打字的」）：
+ *   1. 纯机械：只读文件 + 正则匹配，**不生成任何新判断**。抽到几条就是几条，
+ *      抽不到就明确写「没抽到」，绝不手写补充。
+ *   2. 带坐标：每条都记 `文件:行号`，审计时能回到原文核对 —— 否则这就是新的撒谎点。
+ *
+ * ★ 踩过的坑：正则带 /g 时 `re.test()` 会保留 lastIndex，连续调用会漏判。
+ *   所以这里用不带 g 的正则逐行测（每次都是全新匹配）。
+ */
 function collectUnavailable() {
   const out = [];
   const verifyDir = path.join(DOCS, '实机验证');
+  const RE = /影子|未实机|未部署|未生效|not_connected|占位|不回归|降档/;
+  let srcFile = null;
   try {
     const month = new Date().toISOString().slice(0, 7) + '.md';
     const p = path.join(verifyDir, month);
     if (fs.existsSync(p)) {
+      srcFile = path.relative(RDD, p);
       const text = fs.readFileSync(p, 'utf8');
-      const re = /影子|仍是影子|未实机|未部署|未生效|not_connected|假|占位/g;
       const lines = text.split(/\r?\n/);
       lines.forEach((l, i) => {
-        if (re.test(l) && l.trim().length > 10) out.push({ line: i + 1, text: l.trim().slice(0, 200) });
+        // 跳过标题行和表格分隔线，只收有实质内容的行
+        if (l.trim().length <= 10) return;
+        if (/^#{1,6}\s/.test(l.trim())) return;
+        if (RE.test(l)) out.push({ file: srcFile, line: i + 1, text: l.trim().slice(0, 200) });
       });
     }
-  } catch { /* 读不到就空着 */ }
-  return out.slice(0, 30);
+  } catch { /* 读不到就空着，下面会写明 */ }
+  return { items: out.slice(0, 40), source: srcFile, total: out.length };
 }
 
 function renderSnapshot(snap, unavailable) {
@@ -206,10 +220,18 @@ function renderSnapshot(snap, unavailable) {
   L.push('## 5 · 已知不可用清单（坏的/假的/影子）');
   L.push('');
   L.push('> ★ 这一节的作用：防止下轮把「影子」当「已生效」。');
+  L.push('> ★ 纯机械抽取，不现打字：正则从验证卡抓关键词行，每条带 `文件:行号` 可回原文核对。');
   L.push('');
-  if (unavailable.length) {
-    for (const u of unavailable) L.push(`- ${u.text}`);
-  } else L.push('（本轮验证卡里没抽到「影子/未实机/未生效」类表述 —— 若实际有，说明卡写漏了）');
+  if (unavailable.items.length) {
+    L.push(`来源：\`${unavailable.source}\`（共命中 ${unavailable.total} 行，列出前 ${unavailable.items.length} 条）`);
+    L.push('');
+    for (const u of unavailable.items) L.push(`- \`${u.file}:${u.line}\` ${u.text}`);
+  } else if (!unavailable.source) {
+    L.push('（**没找到本月验证卡** —— 不是「没有不可用项」，是没数据可抽。别把这条读成「一切正常」。）');
+  } else {
+    L.push(`（从 \`${unavailable.source}\` 里没抽到「影子/未实机/未生效」类表述。）`);
+    L.push('★ 若实际存在这类状态，说明**验证卡写漏了** —— 这是卡的问题，不是这一节的问题。');
+  }
   L.push('');
   return L.join('\n');
 }
@@ -222,7 +244,11 @@ function selftest() {
     jar: { file: 'n.jar', sha256: 'B'.repeat(64) },
     debtsSource: 'x.md', debtsText: '| P0 | 例子 |', timeLocks: [{ id: 'TL-1', title: 't', status: 'open', reviewBy: '2026-11-01' }],
   };
-  const md = renderSnapshot(snap, [{ line: 1, text: 'token 预算仍是影子' }]);
+  // ★ 不可用清单现在是 { items, source, total } 结构（带文件:行号，可回原文核对）
+  const md = renderSnapshot(snap, {
+    items: [{ file: '实机验证/2026-10.md', line: 42, text: 'token 预算仍是影子' }],
+    source: '实机验证/2026-10.md', total: 1,
+  });
   const checks = [
     ['含三仓快照', /三仓快照/.test(md)],
     ['含 jar sha', /B{64}/.test(md)],
@@ -230,6 +256,8 @@ function selftest() {
     ['含时间锁', /TL-1/.test(md)],
     ['含不可用清单', /影子/.test(md)],
     ['含诚实起点声明', /诚实起点/.test(md)],
+    ['不可用项带文件:行号坐标', /2026-10\.md:42/.test(md)],
+    ['标注纯机械抽取', /纯机械抽取/.test(md)],
   ];
   let pass = 0;
   for (const [name, ok] of checks) {
@@ -280,7 +308,7 @@ function main() {
   console.log(`  ① 三仓 tag:  ${tag}`);
   console.log(`  ② jar sha:   ${snap.jar ? snap.jar.sha256.slice(0, 16) + '…' : '（未读到）'}`);
   console.log(`  ③ 债账快照:  ${snap.debtsSource || '（没找到）'}`);
-  console.log(`  ④ 不可用项:  ${unavailable.length} 条`);
+  console.log(`  ④ 不可用项:  ${unavailable.items.length} 条（来源 ${unavailable.source || "未找到验证卡"}）`);
 
   if (!opt.apply) {
     console.log('');
