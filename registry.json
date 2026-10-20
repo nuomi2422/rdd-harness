@@ -1015,6 +1015,26 @@
         "verifiedBy": "V-20261019-04：SendKeys / keybd_event / 扫描码 SendInput 三种全失效，GetForegroundWindow 确为 MC，shell 已 High IL",
         "reviewBy": "2026-11-19",
         "status": "open"
+      },
+      {
+        "id": "TL-2026-10-20-01",
+        "title": "mcp-call.js 的 key=value 一律当字符串 → 工具侧数字参数被静默吞掉",
+        "symptom": "判据写 radius=24，回执却是 radius:16（默认值）；不报错、不回拒、exit 0，看着像成功了",
+        "impact": "任何「数字参数」类判据都可能假绿：V-20261020-20 只清了 9 实体/73 件（半径 16 而非 24），判据仍算达成，所以没露馅。同族风险覆盖所有 MCP 工具的 integer 参数。",
+        "guard": "mcp-call.js 对纯数字值转 JSON number（或工具侧对非数字 integer 参数显式 fail，不许静默取默认）；单测钉住「radius=24 → 回执 radius:24」。修好前：数字参数一律用 @file.json 传，不要用 key=value。",
+        "verifiedBy": "V-20261020-20 实测：debug_clear_drops confirm=true radius=24 → tool_result 回执 radius:16（12:28:16.396Z）",
+        "reviewBy": "2026-11-20",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-20-02",
+        "title": "证据散落在多个 rdd*.jsonl（含归档）→ 只 grep 主文件会得出「引用不存在」的错误结论",
+        "symptom": "复查 V-13 引用的 `[关键] minecraft:torch ×32`，主 rdd.jsonl 命中 0 条；实际原文在归档文件 rdd-1792489290677.jsonl",
+        "impact": "复查/审计时把真实证据误判为「汇报造假」；证据链没有索引，全靠记忆哪个文件，每次复查都重新踩。",
+        "guard": "实机验证卡引用证据必须写 `文件+行号`；新增 verify-tools/check-evidence-anchor.js 逐条 grep（含 monitor 归档目录），缺行号即 BLOCK。",
+        "verifiedBy": "V-20261020-13 S44 原文定位：rdd-1792489290677.jsonl 09:33:10.422Z 的 numen_context `<needs>` 块，`[关键] minecraft:torch ×32（现有 22）` 逐字一致",
+        "reviewBy": "2026-11-20",
+        "status": "open"
       }
     ]
   },
