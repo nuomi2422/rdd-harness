@@ -1,0 +1,271 @@
+{
+  "fetchedAt": "2026-10-21T09:15:10.887Z",
+  "source": "https://openrouter.ai/api/v1/models",
+  "note": "只含 pricing.prompt=0 的免费模型；已排除地区受限厂商",
+  "blockedVendors": [
+    "openai/",
+    "anthropic/",
+    "google/",
+    "cohere/",
+    "meta-llama/",
+    "x-ai/",
+    "mistralai/",
+    "ai21/",
+    "perplexity/"
+  ],
+  "totalAllModels": 468,
+  "totalFree": 20,
+  "usableCount": 12,
+  "blockedCount": 5,
+  "models": [
+    {
+      "id": "minimax/minimax-m3.1-flash:free",
+      "name": "MiniMax: MiniMax M3.1 Flash (free)",
+      "contextWindow": 1000000,
+      "maxOutput": 524288,
+      "vision": true
+    },
+    {
+      "id": "nvidia/nemotron-3.5-super-vl:free",
+      "name": "NVIDIA: Nemotron 3.5 Super VL (free)",
+      "contextWindow": 1000000,
+      "maxOutput": 131072,
+      "vision": true
+    },
+    {
+      "id": "dots-studio/dots-3-note-preview:free",
+      "name": "Dots Studio: Dots3-Note Preview (free)",
+      "contextWindow": 512000,
+      "maxOutput": 460800,
+      "vision": true
+    },
+    {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "name": "LiquidAI: LFM2.5-2.6B (free)",
+      "contextWindow": 65536,
+      "maxOutput": 8192,
+      "vision": false
+    },
+    {
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "name": "NVIDIA: Nemotron 3.5 Lightning (free)",
+      "contextWindow": 1000000,
+      "maxOutput": 65536,
+      "vision": false
+    },
+    {
+      "id": "thinkingmachines/inkling-small:free",
+      "name": "Thinking Machines: Inkling Small (free)",
+      "contextWindow": 1048576,
+      "maxOutput": 262144,
+      "vision": true
+    },
+    {
+      "id": "poolside/laguna-s-2.1:free",
+      "name": "Poolside: Laguna S 2.1 (free)",
+      "contextWindow": 262144,
+      "maxOutput": 32768,
+      "vision": false
+    },
+    {
+      "id": "thinkingmachines/inkling:free",
+      "name": "Thinking Machines: Inkling (free)",
+      "contextWindow": 1048576,
+      "maxOutput": 262144,
+      "vision": true
+    },
+    {
+      "id": "nvidia/nemotron-3.5-content-safety:free",
+      "name": "NVIDIA: Nemotron 3.5 Content Safety (free)",
+      "contextWindow": 128000,
+      "maxOutput": 8192,
+      "vision": true
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "name": "NVIDIA: Nemotron 3 Ultra (free)",
+      "contextWindow": 1000000,
+      "maxOutput": 65536,
+      "vision": false
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "name": "NVIDIA: Nemotron 3 Nano Omni (free)",
+      "contextWindow": 256000,
+      "maxOutput": 65536,
+      "vision": true
+    },
+    {
+      "id": "openrouter/free",
+      "name": "Free Models Router",
+      "contextWindow": 200000,
+      "maxOutput": null,
+      "vision": true
+    }
+  ],
+  "blocked": [
+    {
+      "id": "cohere/north-mini-code:free",
+      "name": "Cohere: North Mini Code (free)",
+      "contextWindow": 256000,
+      "maxOutput": 64000,
+      "vision": false
+    },
+    {
+      "id": "google/gemma-4-26b-a4b-it:free",
+      "name": "Google: Gemma 4 26B A4B  (free)",
+      "contextWindow": 262144,
+      "maxOutput": 32768,
+      "vision": true
+    },
+    {
+      "id": "google/gemma-4-31b-it:free",
+      "name": "Google: Gemma 4 31B (free)",
+      "contextWindow": 262144,
+      "maxOutput": 32768,
+      "vision": true
+    },
+    {
+      "id": "google/lyria-3-pro-preview",
+      "name": "Google: Lyria 3 Pro Preview",
+      "contextWindow": 1048576,
+      "maxOutput": 65536,
+      "vision": true
+    },
+    {
+      "id": "google/lyria-3-clip-preview",
+      "name": "Google: Lyria 3 Clip Preview",
+      "contextWindow": 1048576,
+      "maxOutput": 65536,
+      "vision": true
+    }
+  ],
+  "verifiedAt": "2026-10-21T09:15:34.606Z",
+  "verified": [
+    {
+      "id": "minimax/minimax-m3.1-flash:free",
+      "ok": true,
+      "detail": "minimax/minimax-m3.1-flash:free",
+      "ms": 3303,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "xingchen-agi/xing4.0-29b-a4b:free",
+      "ok": false,
+      "detail": "HTTP 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"xingchen-agi/xing4.0-29b-a4b:free ",
+      "ms": 1631,
+      "agentOnly": false,
+      "rateLimited": true
+    },
+    {
+      "id": "nvidia/nemotron-3.5-super-vl:free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3.5-super-vl:free",
+      "ms": 1051,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "dots-studio/dots-3-note-preview:free",
+      "ok": true,
+      "detail": "dots-studio/dots-3-note-preview:free",
+      "ms": 6699,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "liquid/lfm-2.5-2.6b:free",
+      "ok": true,
+      "detail": "liquid/lfm-2.5-2.6b:free",
+      "ms": 1079,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "nvidia/nemotron-3.5-lightning:free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3.5-lightning:free",
+      "ms": 681,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "thinkingmachines/inkling-small:free",
+      "ok": false,
+      "detail": "HTTP 403: {\"error\":{\"message\":\"thinkingmachines/inkling-small:free is only available on agentic harnesses. Try plugging ",
+      "ms": 472,
+      "agentOnly": true,
+      "rateLimited": false
+    },
+    {
+      "id": "poolside/laguna-s-2.1:free",
+      "ok": true,
+      "detail": "poolside/laguna-s-2.1:free",
+      "ms": 2163,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "thinkingmachines/inkling:free",
+      "ok": false,
+      "detail": "HTTP 403: {\"error\":{\"message\":\"thinkingmachines/inkling:free is only available on agentic harnesses. Try plugging it int",
+      "ms": 435,
+      "agentOnly": true,
+      "rateLimited": false
+    },
+    {
+      "id": "poolside/laguna-xs-2.1:free",
+      "ok": false,
+      "detail": "HTTP 429: {\"error\":{\"message\":\"Provider returned error\",\"code\":429,\"metadata\":{\"raw\":\"poolside/laguna-xs-2.1:free is tem",
+      "ms": 624,
+      "agentOnly": false,
+      "rateLimited": true
+    },
+    {
+      "id": "nvidia/nemotron-3.5-content-safety:free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3.5-content-safety:free",
+      "ms": 1977,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3-ultra-550b-a55b:free",
+      "ms": 895,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3-nano-omni-30b-a3b-reasoning:free",
+      "ms": 1360,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "nvidia/nemotron-3-super-120b-a12b:free",
+      "ok": false,
+      "detail": "HTTP 404: {\"error\":{\"message\":\"Provider returned error\",\"code\":404,\"metadata\":{\"raw\":\"{\\\"status\\\":404,\\\"title\\\":\\\"Not Fo",
+      "ms": 507,
+      "agentOnly": false,
+      "rateLimited": false
+    },
+    {
+      "id": "openrouter/free",
+      "ok": true,
+      "detail": "nvidia/nemotron-3.5-lightning:free",
+      "ms": 722,
+      "agentOnly": false,
+      "rateLimited": false
+    }
+  ],
+  "agentOnlyCount": 2,
+  "agentOnly": [
+    "thinkingmachines/inkling-small:free",
+    "thinkingmachines/inkling:free"
+  ]
+}
