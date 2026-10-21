@@ -94,6 +94,13 @@ node rdd-selfcompile\scripts\verify-tools\check-runtime-deployment.js   # 退出
 ### S-CODE-05 一个类一个职责，文件别超 500 行
 超过就该拆。判据是「能不能一句话说清这文件干嘛」。
 
+### S-CODE-06 每轮/每请求都读的缓存必须懒建，或显式报「没准备好」
+`get(uuid)` 返回 null **不代表「没有数据」**，很多时候是「还没人初始化」——在每轮读路径上，
+它会静默地永远为 null，功能看起来像「过滤器没生效」，实际是「压根没喂到」。
+> 活案例（2026-10-21 G5e）：executor 知识每轮用 `MEMORIES.get(uuid)` 取惰性创建的 `ExperienceMemory`，
+> 而该缓存由工具/规划先调 `memory(uuid)` 才建 ⇒ 首次部署后 **0 条**快照；改成 `memory(uuid)` 懒建后 **32 轮 = 32 条**。
+判据：同一窗口的**事件数应 ≈ 轮数**；不等就先查初始化时机（谁该建、什么时候建），别先怀疑过滤器。
+
 ---
 
 ## S-GIT · 版本控制
