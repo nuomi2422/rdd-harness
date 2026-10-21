@@ -117,6 +117,25 @@ function preflightChecks() {
     }
   } catch { /* 普查脚本缺失不算硬失败，但下面会提示 */ }
 
+  // 4. 决策队列：有未决项就提醒（不拦，但必须让打 tag 的人看见）
+  //    用户 2026-10-21 定：「拍板记录一并入 tag 快照。决策队列是治理证据链的一部分——
+  //    当时谁批的、批了什么，应该和债账快照同等级别被固化。」
+  //    注意：未决项**不阻止**打 tag（tag 固化的是此刻状态，包括「还有事没拍板」），
+  //    但必须显式告知，否则 tag 看起来像「一切已定」。
+  try {
+    const inbox = path.join(__dirname, 'decide-inbox.js');
+    if (fs.existsSync(inbox)) {
+      const d = spawnSync(process.execPath, [inbox, 'list', '--pending', '--json'], { encoding: 'utf8', timeout: 30000 });
+      let parsed = null;
+      try { parsed = JSON.parse(d.stdout || '{}'); } catch { /* 忽略 */ }
+      if (parsed && Array.isArray(parsed.items) && parsed.items.length) {
+        problems.push(`决策队列还有 ${parsed.items.length} 条未决（不拦打 tag，但会被写进快照）：\n      ` +
+          parsed.items.slice(0, 5).map((x) => `${x.id} ${x.title}`).join('\n      ') +
+          '\n      → 若此刻确实该冻结，就在 snapshot 里带上「未决清单」；若该等，先让主人拍板');
+      }
+    }
+  } catch { /* 队列读不到不算硬失败 */ }
+
   return problems;
 }
 
@@ -268,6 +287,57 @@ function renderSnapshot(snap, unavailable) {
   } else {
     L.push(`（从 \`${unavailable.source}\` 里没抽到「影子/未实机/未生效」类表述。）`);
     L.push('★ 若实际存在这类状态，说明**验证卡写漏了** —— 这是卡的问题，不是这一节的问题。');
+  }
+  L.push('');
+
+  // ── 7 · 决策队列快照（用户 2026-10-21 定：四件套加一项）──
+  //    「拍板记录一并入 tag 快照。决策队列是治理证据链的一部分——
+  //     当时谁批的、批了什么，应该和债账快照同等级别被固化。」
+  L.push('## 7 · 决策队列快照（谁批的、批了什么）');
+  L.push('');
+  L.push('> ★ 与债账快照同等级别：这是**治理证据链**的一部分。');
+  L.push('> ★ 未决项不代表「没定就打了 tag」，而是「tag 固化时它还没定」—— 如实记。');
+  L.push('');
+  try {
+    const inbox = path.join(__dirname, 'decide-inbox.js');
+    if (fs.existsSync(inbox)) {
+      const d = spawnSync(process.execPath, [inbox, 'list', '--all', '--json'], { encoding: 'utf8', timeout: 30000 });
+      const parsed = JSON.parse(d.stdout || '{}');
+      const items = (parsed.items || []);
+      const pend = items.filter((x) => x.status === 'pending');
+      const done = items.filter((x) => x.status === 'resolved');
+      if (!items.length) {
+        L.push('（队列为空：至今没有任何需要主人拍板的事。）');
+      } else {
+        L.push(`共 ${items.length} 条（未决 ${pend.length} / 已定 ${done.length}）`);
+        L.push('');
+        if (pend.length) {
+          L.push('### 未决（tag 固化时仍未拍板）');
+          L.push('');
+          for (const it of pend) {
+            L.push(`- **${it.id}** [${it.riskLabel || it.risk}] ${it.title}`);
+            L.push(`  - 为什么要主人定：${it.why}`);
+            L.push(`  - 选项：${(it.options || []).map((o) => o.id + '.' + o.label).join('　')}`);
+            L.push(`  - 提出于：${(it.raisedAt || '').replace('T', ' ').slice(0, 19)}`);
+          }
+          L.push('');
+        }
+        if (done.length) {
+          L.push('### 已拍板（谁批的、批了什么）');
+          L.push('');
+          for (const it of done) {
+            L.push(`- **${it.id}** ${it.title}`);
+            L.push(`  - **主人选了 ${it.chosen} · ${it.chosenLabel || ''}**（${(it.resolvedAt || '').replace('T', ' ').slice(0, 19)}，by ${it.resolvedBy || 'user'}）`);
+            if (it.note) L.push(`  - 补充：${it.note}`);
+          }
+          L.push('');
+        }
+      }
+    } else {
+      L.push('（decide-inbox.js 不在 —— 读不到决策队列，这不是「没有决策」）');
+    }
+  } catch (e) {
+    L.push(`（读决策队列失败：${e.message} —— 不是「没有决策」）`);
   }
   L.push('');
   return L.join('\n');
