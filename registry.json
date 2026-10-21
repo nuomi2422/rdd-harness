@@ -1060,17 +1060,17 @@
         "symptom": "acb12b3 第一次实机构造里：farm 的 pickp 任务 t5 在等待 AC resume 期间，被身体自己的自发任务中途顶掉（终态 CANCELLED）。探针按 id 查表后如实报 FAIL——行为正确，但这说明身体会改写 AC 异步任务的终态，频率未知。",
         "impact": "若替换频率很高，AC 的异步步骤会大量假失败（尽管是「如实」失败），G5 里学习/记忆吃到的 AC 结果会带上这个噪声；若频率很低，替换类事件只是偶发可接受。",
         "guard": "acb12b2/b3 已把「槽占用→按 id 查表」与 UNKNOWN→保留挂账 落地（`NumenToolBridgeX.probeFor` / `PortToolAdapter.COMPLETION_UNKNOWN_TIMEOUT_MS=30s`）；终态表按 id 隔离，不受后续任务覆盖（`RecentFinishedTasks`）。",
-        "verifiedBy": "V-20261021-13：t5 CANCELLED → FAIL（如实）；t14 SUCCESS + goto t15 占槽 → resume SUCCESS（MAJOR-1 直证）",
+        "verifiedBy": "V-20261021-13：t5 CANCELLED → FAIL（如实）；t14 SUCCESS + goto t15 占槽 → resume SUCCESS（MAJOR-1 直证） ｜ 2026-10-21 长跑采样（TL-02 窗口 A，40 min、260 次 AC 异步步）：被身体替换取消仅 1 次（≈0.4%），另 86 次 FAIL 是 goto 寻路失败（与替换无关）→ 替换频率**低**，噪声主要来自寻路。",
         "reviewBy": "2026-10-28",
         "status": "open"
       },
       {
         "id": "TL-2026-10-21-02",
         "title": "dropNoResult 死亡旁路与 B-M4 长跑缺实机（开 G5 前必须补）",
-        "symptom": "acb12b2 给 `TaskSlot.dropNoResult` 接了 `notifySettled`（死亡也写终态表），但没有任何死亡实机；`BRAINS` 改 ConcurrentHashMap、`record` 加 volatile 也只有代码审查，没有实机长跑压测。",
+        "symptom": "acb12b2 给 `TaskSlot.dropNoResult` 接了 `notifySettled`（死亡也写终态表），但没有任何死亡实机；`BRAINS` 改 ConcurrentHashMap、`record` 加 volatile 也只有代码审查，没有实机长跑压测。 ｜ 2026-10-21 21:32 实机复现：AC 异步 goto（t37）在飞时 debug_kill，复活后 resume = 「槽已空且找不到该任务的终态记录」（stale-null），30s 内始终 UNKNOWN。",
         "impact": "若死亡旁路有未覆盖路径或并发可见性有残留，AC 的终态表可能在 G5 里以低概率出错——而那时学习/记忆已经把 AC 结果当输入，低概率错误会变成记忆里的长期住户。",
-        "guard": "acb12b2=b3 离线 230/230；`probeFor` 三种槽状态都查同一张按 id 终态表（死亡也走 notifySettled→rememberFinished→remember）。B 批第二轮复审 + 长跑压测（连续 resume + 其它任务穿插，stale-null→FAILED 计数 0）是开 G5 的硬前置。",
-        "verifiedBy": "V-20261021-11/13 实机（成功/失败/槽占用三分支）；死亡分支暂无——此锁就是提醒它没验",
+        "guard": "acb12b2=b3 离线 230/230；`probeFor` 三种槽状态都查同一张按 id 终态表（死亡也走 notifySettled→rememberFinished→remember）。B 批第二轮复审 + 长跑压测（连续 resume + 其它任务穿插，stale-null→FAILED 计数 0）是开 G5 的硬前置。 ｜ 修复：d51963546 把终态表搬出 brain 到 TaskTerminalRegistry（按 UUID 独立、32 条有界）；部署 mutation-20261021-221317-e68630（batch=TL02b）。",
+        "verifiedBy": "V-20261021-11/13 实机（成功/失败/槽占用三分支）；死亡分支暂无——此锁就是提醒它没验 ｜ 长跑 40 min（旧构建，261 轮，102 条完整 2-暂停；stale-null=2 均来自死亡）+ 修复后 15 min（窗口 B，109 轮，stale-null=0；死亡轮 FAIL + 「任务终态是 CANCELLED」）+ 离线 TaskTerminalRegistryTest 4/4。",
         "reviewBy": "2026-10-28",
         "status": "open"
       }
