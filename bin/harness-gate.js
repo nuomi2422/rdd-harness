@@ -757,6 +757,44 @@ function builtinChecks(ctx, phase) {
         `${noHyphen.join(' ; ')} —— 缺连字符，整个逃过编号检查。这是【历史文件】，不拦，但下次动它时顺手改名。`);
     }
 
+    // ★ P10d（2026-10-22）：**取号必须走集中分配处**，否则并行会话必然撞号。
+    //   背景（实测根因，不是猜测）：编号撞了 8 个（44/45/48/52/53/54/65/66）。
+    //   现行规矩只说「接最大号往后排」= 每个写入方自己扫目录 → 并行会话同时扫到同一号 → 撞。
+    //   registry 的 legacyNotes 第 1 条自述就是这个：「65/66 是并行会话互相撞的」。
+    //   而 registry.docNumbers.nextDocNo 是缓存（停在 75，实际最大 76）且自述「别信这个缓存值」，
+    //   台账 docs-freshness.json 里也没有任何预留字段 —— 即【没有单一真源】。
+    //   ⇒ 修法是给号源一个地方：bin/docno-alloc.js（先占后建，落台账 allocations）。
+    //   本项只查「本轮新建的编号文档是不是从取号处来的」，不查内容质量。
+    {
+      const ledgerPath2 = REG.docNumbers.ledger;
+      let allocNos = null;
+      if (isFile(ledgerPath2)) {
+        try {
+          const led = JSON.parse(readText(ledgerPath2).replace(/^﻿/, ''));
+          allocNos = new Set((led.allocations || []).map((a) => Number(a.no)).filter(Number.isFinite));
+        } catch { allocNos = null; }
+      }
+      if (allocNos === null) {
+        // 台账还没有 allocations 段 —— 说明还没启用集中取号（旧债，不拦）
+        record('P10d', '编号走集中取号处', WARN, 'artifact', WARN,
+          '台账还没有 allocations 段 —— 集中取号处（bin/docno-alloc.js）还没启用。' +
+          '本轮新建编号文档仍可能撞号（并行会话各自扫目录）。这是【新机制未启用】，不拦。');
+      } else {
+        // ★ 只管【本轮动过】的编号文档：历史文件全部没走过取号处，不能一次性全红
+        const freshNums = [...byNo.entries()]
+          .filter(([, arr]) => arr.some((nm) => freshEnough(path.join(REG.roots.docsUnified, nm), since)))
+          .map(([no]) => Number(no));
+        const bypass = freshNums.filter((n) => !allocNos.has(n));
+        // ★ 只卡「本轮新建」（号靠近当前最大号 = 刚建的）而不是所有本轮改过的历史文件
+        record('P10d', '编号走集中取号处', WARN, 'artifact', bypass.length ? WARN : PASS,
+          bypass.length
+            ? `★ 本轮动过但没从取号处分配过的号：${bypass.join(' , ')} —— 新建编号文档请先跑 ` +
+              `\`node D:\\rdd\\harness\\rdd-harness\\bin\\docno-alloc.js next\`（先占号再建文件），` +
+              `否则并行会话会各扫各的目录、各拿同一个号。`
+            : `本轮动过的编号 ${freshNums.join(' , ') || '无'} 均从取号处分配 ✔（台账 allocations ${allocNos.size} 条）`);
+      }
+    }
+
     // 未登记台账（UNREGISTERED）—— 债，但不是永久的，补登记就行 → WARN
     const ledgerPath = REG.docNumbers.ledger;
     if (isFile(ledgerPath)) {

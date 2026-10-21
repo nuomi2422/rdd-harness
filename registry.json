@@ -756,6 +756,14 @@
           "verify": "内置检查（台账 docs[].file 覆盖编号文档集；缺则 WARN）"
         },
         {
+          "id": "P10d",
+          "name": "编号走集中取号处",
+          "kind": "artifact",
+          "level": "warn",
+          "rule": "★ 2026-10-22 登记：新建 NN-*.md 必须先跑 `node D:\\rdd\\harness\\rdd-harness\\bin\\docno-alloc.js next` 取号（先占号再建文件，占号落台账 allocations）。理由：实测撞号 8 个（44/45/48/52/53/54/65/66），根因是没有集中取号处 —— 现行规矩只说「接最大号往后排」＝每个写入方自己扫目录，并行会话同时扫到同一号就撞。registry.nextDocNo 是缓存（停在 75、实际最大 76），台账也没有预留字段。改文件名只能平掉这次的 8 个，下周再来 8 个；修的是分配机制。",
+          "verify": "内置检查（台账 docs-freshness.json 的 allocations 段；本轮动过但没分配过的号 → WARN）"
+        },
+        {
           "id": "P11",
           "name": "规则没打架",
           "kind": "trace",
