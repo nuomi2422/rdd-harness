@@ -740,6 +740,22 @@
           "verify": "内置检查（扫 docsUnified 顶层 NN-*.md 的编号 + docs-freshness.json）"
         },
         {
+          "id": "P10b",
+          "name": "文档编号格式",
+          "kind": "artifact",
+          "level": "warn",
+          "rule": "★ 2026-10-21 登记（原为影子门禁）：编号文档的文件名必须带连字符，格式 NN-中文名.md。缺连字符的文件整个逃过 P10 的编号检查。历史文件不拦，但下次动它时顺手改名。",
+          "verify": "内置检查（扫 docsUnified 顶层 NN*.md，缺连字符者 WARN）"
+        },
+        {
+          "id": "P10c",
+          "name": "文档已登记台账",
+          "kind": "artifact",
+          "level": "warn",
+          "rule": "★ 2026-10-21 登记（原为影子门禁）：每份编号文档都要登记 docs-freshness.json 台账。没登记的是债不是永久的，补登记就行 → WARN，不 BLOCK。",
+          "verify": "内置检查（台账 docs[].file 覆盖编号文档集；缺则 WARN）"
+        },
+        {
           "id": "P11",
           "name": "规则没打架",
           "kind": "trace",
@@ -762,6 +778,22 @@
           "rule": "★ 进游戏【之前】必须先读一遍「游戏内能力清单」，确认这一轮要用的能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 / 飞行 / 看监测台）已有一条现成工具。清单里每一条都带正确调用姿势和坑。目的是别临场手写已有工具、别用错那条必然失效的路。",
           "verify": "人工确认：已读 D:\\rdd\\harness\\rdd-harness\\进游戏前必读-游戏内能力清单.md（preflight 输出里会把这句打出来，读没读过是你的判断，机器查不到「读过」这件事 —— 所以它宁可误报也不静默跳过）",
           "tool": "gate.read"
+        },
+        {
+          "id": "P14",
+          "name": "工作区干净（含 untracked）",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "★ 2026-10-21 用户定：脏工作区不许开新批次。「干净」= git status --porcelain 为空或显式白名单（运行产物 report/ 临时件、runs/、mutations/、.tmp/、*.log）；untracked 一律算脏。★ 为什么：各会话只看 diff，不看「磁盘上有但 git 不知道」的文件 —— 26 项文档资产 + 44 个 harness 文件就是这么攒出来的。干净没有强制点，334 处脏项能攒几周没人发现。",
+          "verify": "内置检查（三仓 git status --porcelain；忽略项按上述白名单正则过滤，untracked 不过滤）"
+        },
+        {
+          "id": "P15",
+          "name": "存档快照（你的工具，用完自己删）",
+          "kind": "human",
+          "level": "ask",
+          "rule": "★ 2026-10-21 用户定：进游戏前问一句「这次要不要先打存档快照」。★ 2026-10-21 用户纠正定性：快照是执行 AI 自己的工作副本，不是永久资产 —— 不是「问用户要不要」，是「告诉 AI 这是你的工具 + 你要负责删」。验证会破坏环境时先打一份（游戏必须已停），跑坏了回滚，用完自己删（默认 TTL 48 小时）。",
+          "verify": "人工确认：node bin/snapshot-world.js --status 看过现状；--name before-<批次> --apply 打过快照；--prune --apply 清理过期。机器判不了「该不该用快照」，所以是 ASK 不是 BLOCK"
         }
       ]
     },
@@ -891,6 +923,15 @@
           "rule": "★ 2026-10-20 #091 新增（H1 试金石的机检版）：杂项记录\\YYYY-MM.md 的「下一步（汇总）」表必须吸收本轮的债 —— 不能出现「完成的批次还挂在未完成行」、必须有 H 段、表里必须提到债。教训：H1 原判据（goal.js accept 要件）连续多轮为负，三值化从没自己浮进表；靠「我记得」是不成立的。",
           "verify": "node rdd-selfcompile/scripts/verify-tools/check-debt-rollup.js --json → warn 为空 = 表已刷新（缺文件按 WARN 降级，不冒充通过）；--selftest 7/7 证明它抓得住「表没刷新」",
           "tool": "trace.debt"
+        },
+        {
+          "id": "Q16",
+          "name": "退游戏后的文档书写清单（从 stage 搬来）",
+          "kind": "human",
+          "level": "ask",
+          "rule": "★ 2026-10-21 用户定（原为影子门禁，从 stage 的 close 阶段搬来）：关游戏不是结束，按顺序做完四件再开下一轮 —— ① 回填验证卡（判据/数据/结果/原因/复现）→ 实机验证\\YYYY-MM.md ② 杂项记录加一行 #NNN（三态 + 下一步）③ 新坑写时间锁（智能性错误必填 guard）→ registry.json ④ 经验实体写进记忆库 → _memory\\memory.jsonl（append-only）。另有两件容易漏：快照用完自己删；决策队列里等主人拍板的事别自己定了。★ 为什么必须挂在这里：stage 的 tasks 目录是空的（没人走 stage），挂在 stage 的必读清单等于从没被执行过。机器判不了「文档写得好不好」，但必须把清单摆在面前。",
+          "verify": "人工确认四条都做了；机器侧对应项是 Q2/Q3/Q5/Q9/Q13/Q14，这里是给人看的完整清单",
+          "tool": "gate.read"
         }
       ]
     },
