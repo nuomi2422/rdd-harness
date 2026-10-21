@@ -1053,6 +1053,26 @@
         "verifiedBy": "V-20261020-13 S44 原文定位：rdd-1792489290677.jsonl 09:33:10.422Z 的 numen_context `<needs>` 块，`[关键] minecraft:torch ×32（现有 22）` 逐字一致",
         "reviewBy": "2026-11-20",
         "status": "open"
+      },
+      {
+        "id": "TL-2026-10-21-01",
+        "title": "AC 探针的「身体自发任务顶掉 AC 任务」替换频率未统计（进 G5 前要长跑数据）",
+        "symptom": "acb12b3 第一次实机构造里：farm 的 pickp 任务 t5 在等待 AC resume 期间，被身体自己的自发任务中途顶掉（终态 CANCELLED）。探针按 id 查表后如实报 FAIL——行为正确，但这说明身体会改写 AC 异步任务的终态，频率未知。",
+        "impact": "若替换频率很高，AC 的异步步骤会大量假失败（尽管是「如实」失败），G5 里学习/记忆吃到的 AC 结果会带上这个噪声；若频率很低，替换类事件只是偶发可接受。",
+        "guard": "acb12b2/b3 已把「槽占用→按 id 查表」与 UNKNOWN→保留挂账 落地（`NumenToolBridgeX.probeFor` / `PortToolAdapter.COMPLETION_UNKNOWN_TIMEOUT_MS=30s`）；终态表按 id 隔离，不受后续任务覆盖（`RecentFinishedTasks`）。",
+        "verifiedBy": "V-20261021-13：t5 CANCELLED → FAIL（如实）；t14 SUCCESS + goto t15 占槽 → resume SUCCESS（MAJOR-1 直证）",
+        "reviewBy": "2026-10-28",
+        "status": "open"
+      },
+      {
+        "id": "TL-2026-10-21-02",
+        "title": "dropNoResult 死亡旁路与 B-M4 长跑缺实机（开 G5 前必须补）",
+        "symptom": "acb12b2 给 `TaskSlot.dropNoResult` 接了 `notifySettled`（死亡也写终态表），但没有任何死亡实机；`BRAINS` 改 ConcurrentHashMap、`record` 加 volatile 也只有代码审查，没有实机长跑压测。",
+        "impact": "若死亡旁路有未覆盖路径或并发可见性有残留，AC 的终态表可能在 G5 里以低概率出错——而那时学习/记忆已经把 AC 结果当输入，低概率错误会变成记忆里的长期住户。",
+        "guard": "acb12b2=b3 离线 230/230；`probeFor` 三种槽状态都查同一张按 id 终态表（死亡也走 notifySettled→rememberFinished→remember）。B 批第二轮复审 + 长跑压测（连续 resume + 其它任务穿插，stale-null→FAILED 计数 0）是开 G5 的硬前置。",
+        "verifiedBy": "V-20261021-11/13 实机（成功/失败/槽占用三分支）；死亡分支暂无——此锁就是提醒它没验",
+        "reviewBy": "2026-10-28",
+        "status": "open"
       }
     ]
   },
