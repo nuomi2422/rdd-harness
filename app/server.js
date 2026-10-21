@@ -395,6 +395,105 @@ const server = http.createServer((req, res) => {
     });
   }
 
+  if (p === '/api/decide-inbox') {
+    // ★ 独立决策队列（2026-10-21）：读 rdd存放\decisions.jsonl，**不依赖 stage**。
+    //   为什么另开一个接口而不复用 /api/decisions：那个依赖 stager 的 active.json，
+    //   没有 stage 任务就 409 —— 而「主人拍板」是治理层通道，不该被流水线卡住。
+    //   默认只返回未决项（用户定的规矩：已解决的归档不删，但默认视图只显示未决的）。
+    const q = path.join(path.dirname(R.docs || ''), 'rdd存放', 'decisions.jsonl');
+    const items = [];
+    let bad = 0;
+    if (fs.existsSync(q)) {
+      const raw = fs.readFileSync(q, 'utf8').replace(/^\uFEFF/, '');
+      const map = new Map();
+      for (const line of raw.split(/\r?\n/)) {
+        if (!line.trim()) continue;
+        let e;
+        try { e = JSON.parse(line); } catch { bad++; continue; }
+        if (!e || !e.ev || !e.id) { bad++; continue; }
+        const cur = map.get(e.id) || { id: e.id, status: 'pending' };
+        if (e.ev === 'raised') {
+          Object.assign(cur, {
+            title: e.title, risk: e.risk, riskLabel: e.riskLabel, why: e.why,
+            context: e.context, options: e.options || [], raisedBy: e.raisedBy,
+            raisedAt: e.at, batch: e.batch, forced: e.forced, conflict: e.conflict,
+          });
+          if (cur.status !== 'pending') cur.status = cur.status;
+        } else if (e.ev === 'resolved') {
+          Object.assign(cur, { status: 'resolved', chosen: e.choice, chosenLabel: e.chosenLabel, note: e.note, resolvedAt: e.at, resolvedBy: e.resolvedBy });
+        } else if (e.ev === 'dismissed') {
+          Object.assign(cur, { status: 'dismissed', note: e.reason, resolvedAt: e.at, resolvedBy: e.resolvedBy });
+        }
+        map.set(e.id, cur);
+      }
+      items.push(...map.values());
+    }
+    const now = Date.now();
+    const STALE = 7 * 86400000;
+    for (const it of items) {
+      it.stale = it.status === 'pending' && (now - Date.parse(it.raisedAt || 0)) > STALE;
+    }
+    items.sort((a, b) => String(b.raisedAt || '').localeCompare(String(a.raisedAt || '')));
+    const pend = items.filter((x) => x.status === 'pending');
+    const resolved = items.filter((x) => x.status !== 'pending');
+    return send(res, 200, {
+      ok: true, queue: q, badLines: bad,
+      pendingCount: pend.length,
+      pending: pend,
+      resolved: resolved.slice(0, 20),   // 归档只给最近 20 条，默认视图不展开
+      totalCount: items.length,
+    });
+  }
+
+  if (p === '/api/decide-resolve' && req.method === 'POST') {
+    // 面板点选项 → 追加一条 resolved 事件（append-only，不重写文件）
+    // ★ readBody 已经 JSON.parse 过并返回**对象**，别再 parse 一次（第一版踩到，报「请求不是 JSON」）。
+    return readBody(req).then((j) => {
+      if (!j || typeof j !== 'object') return send(res, 400, { ok: false, why: '请求不是 JSON 对象' });
+      const id = String(j.id || '').trim();
+      const choice = String(j.choice || '').trim();
+      if (!id || !choice) return send(res, 400, { ok: false, why: '缺 id 或 choice' });
+      const g = require('child_process').spawnSync(
+        process.execPath,
+        [path.join(H, 'bin', 'decide-inbox.js'), 'resolve', id, choice, '--note', String(j.note || '')],
+        { encoding: 'utf8', timeout: 30000 }
+      );
+      const out = ((g.stdout || '') + (g.stderr || '')).trim();
+      return send(res, g.status === 0 ? 200 : 400, { ok: g.status === 0, out, code: g.status });
+    });
+  }
+
+  if (p === '/api/tree') {
+    // ★ 左栏文件树（2026-10-21）：只列用户该看的目录，不是全盘。
+    //   用户原话「文件夹要更好管理、统一查看、原来台面的东西能直接点开」。
+    //   规矩（防变成第二个文档海）：只列 4 个根，深度 ≤2，跳过 _ 开头的归档目录。
+    const docsRepo = path.dirname(R.docs || '');
+    const roots = [
+      { key: 'out', label: '给你的（rdd存放）', dir: path.join(docsRepo, 'rdd存放') },
+      { key: 'verify', label: '实机验证', dir: path.join(R.docs || '', '实机验证') },
+      { key: 'misc', label: '杂项记录/债账', dir: path.join(R.docs || '', '杂项记录') },
+      { key: 'unified', label: '编号文档', dir: path.join(R.docs || '', '自编译统一版') },
+    ];
+    const tree = [];
+    for (const r of roots) {
+      if (!fs.existsSync(r.dir)) continue;
+      const node = { key: r.key, label: r.label, dir: r.dir, files: [] };
+      let ents = [];
+      try { ents = fs.readdirSync(r.dir, { withFileTypes: true }); } catch { /* 跳过 */ }
+      for (const e of ents) {
+        if (e.name.startsWith('_') || e.name.startsWith('.')) continue;
+        if (e.isFile() && e.name.endsWith('.md')) {
+          const full = path.join(r.dir, e.name);
+          let st; try { st = fs.statSync(full); } catch { continue }
+          node.files.push({ name: e.name, rel: path.relative(docsRepo, full).replace(/\\/g, '/'), mtime: st.mtime.toISOString(), size: st.size });
+        }
+      }
+      node.files.sort((a, b) => b.mtime.localeCompare(a.mtime));
+      if (node.files.length) tree.push(node);
+    }
+    return send(res, 200, { ok: true, roots: tree });
+  }
+
   if (p === '/api/tools') {
     if (!REG) return send(res, 500, { ok: false, why: 'registry.json 读不到' });
     const tools = (REG.tools || []).map((t) => {

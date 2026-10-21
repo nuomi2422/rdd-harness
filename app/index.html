@@ -224,8 +224,8 @@ async function saveDoc(id, content){
 }
 
 const NAV = [
-  ['老板台','boss'], ['总览','ov'], ['决策收件箱','dec'], ['AI 进度','stage'],
-  ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
+  ['老板台','boss'], ['等你拍板','decide'], ['总览','ov'], ['决策收件箱','dec'],
+  ['AI 进度','stage'], ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
 ];
 
 function paintNav(){
@@ -234,9 +234,25 @@ function paintNav(){
 }
 function go(k){
   PAGE = NAV.find(x=>x[1]===k)[0];
+  // ★ hash 路由（2026-10-21）：让 #decide 这类链接能直达，也方便桌面快捷方式。
+  try{ if(location.hash.slice(1) !== k) location.hash = k; }catch(e){}
   paintNav(); paint();
 }
 window.go = go;
+
+// 启动时按 hash 定初始页（直接打开 127.0.0.1:8891/#decide 就进那一页）
+(function initFromHash(){
+  const k = (location.hash || '').replace(/^#/, '');
+  if(k){
+    const hit = NAV.find(x=>x[1]===k);
+    if(hit) PAGE = hit[0];
+  }
+})();
+window.addEventListener('hashchange', () => {
+  const k = (location.hash || '').replace(/^#/, '');
+  const hit = NAV.find(x=>x[1]===k);
+  if(hit && hit[0] !== PAGE){ PAGE = hit[0]; paintNav(); paint(); }
+});
 
 // ══════════════════════════════════════════════ 总览
 function paintOverview(){
@@ -327,7 +343,7 @@ function paintOverview(){
 }
 
 // ══════════════════════════════════════════════ 决策收件箱
-function paintDecide(){
+function paintStageDecide(){
   let s = '<div class="card cut"><h2>决策收件箱</h2>';
   const P = (OV.decisions||{}).policy||{};
   if(P.ok){
@@ -663,7 +679,12 @@ async function paintBoss(){
   const todays = items.filter(x=>x.date===showDate);
   const older = items.filter(x=>x.date!==showDate);
 
-  let s = '';
+  // ★ 左栏文件树（2026-10-21）：用户要求「文件夹更好管理、统一查看、点开即看」。
+  //   用 table 布局而不是 flex —— 面板是内联 HTML，少一个 CSS 类少一处漂移风险。
+  const treeHtml = await paintTree();
+  let s = '<table style="width:100%;border-collapse:collapse"><tr>'+
+          '<td style="width:230px;vertical-align:top;padding-right:12px;border-right:1px solid var(--line)">'+
+          treeHtml+'</td><td style="vertical-align:top;padding-left:12px">';
 
   // ★ 治理层（76号）：老板每个轮回只做三件事，其余时间系统自己跑。
   //   放在最上面，因为这是「这套系统该怎么用」的答案，比任何日报都先要看到。
@@ -713,6 +734,8 @@ async function paintBoss(){
        '这一页只列 <code>rdd存放\\</code> 里的日报。判定与 goal 的验收同口径：'+
        '三行必须齐（①②③）、不超过 250 字、不出现批次号/判据/契约/文件名/sha、不写空话。'+
        '不合格的会标红并写出原因 —— 那是要 AI 重写的，不是给你凑合看的。</div></div>';
+
+  s += '</td></tr></table>';   // 闭合左栏表格
   return s;
 }
 
@@ -765,7 +788,135 @@ window.bossOpen = async function(file){
   }
 };
 
-const PAINT = {boss:paintBoss, ov:paintOverview, dec:paintDecide, stage:paintStage, tools:paintTools,
+// ══════════════════════════════════════════════ 等你拍板（2026-10-21）
+// 用户原话：「他给我的决策是什么？然后我可以直接选了，然后就会自动发过去」
+// 规矩（用户定，防变成第二个文档海）：
+//   · 已解决的项归档不删除，但**默认视图只显示未决的**
+//   · 超过 7 天未决的标黄
+let DEC = null;
+async function paintDecide(){
+  if(DEC===null){
+    try{ DEC = await J('/api/decide-inbox'); }
+    catch(e){ return '<div class="card cut"><div class="note bad">[!] 读不出决策队列：'+esc(e.message)+'</div></div>'; }
+  }
+  const D = DEC, pend = D.pending || [], done = D.resolved || [];
+  let s = '';
+
+  s += '<div class="card cut"><h2>等你拍板 <span class="r">'+
+       (pend.length ? '<span class="tag bad">'+pend.length+' 条未决</span>' : '<span class="tag ok">没有待决项</span>')+
+       '</span></h2>';
+  s += '<div class="note" style="margin-bottom:10px">'+
+       '队列：<code>'+esc((D.queue||'').split('\\').pop())+'</code>　·　'+
+       'append-only，已解决的归档不删（默认只显示未决）　·　超 7 天未决标黄</div>';
+  if(!pend.length){
+    s += '<div class="note">没有待拍板的事。AI 需要你定的时候，会出现在这里。</div>';
+  } else {
+    s += pend.map(x=>decideCard(x)).join('');
+  }
+  s += '</div>';
+
+  if(done.length){
+    s += '<div class="card cut"><h2>已拍板（归档） <span class="r">最近 '+done.length+' 条</span></h2>';
+    s += done.map(x=>decideDoneRow(x)).join('');
+    s += '</div>';
+  }
+  return s;
+}
+
+function decideCard(x){
+  const stale = x.stale;
+  let s = '<div style="padding:12px 0;border-top:1px solid var(--line)'+(stale?';background:rgba(255,200,0,.06)':'')+'">';
+  s += '<div style="display:flex;align-items:baseline;gap:8px;flex-wrap:wrap">';
+  s += '<b style="font-size:14px">'+esc(x.title)+'</b>';
+  s += '<span class="tag '+(x.risk==='high-arch'?'bad':'')+'">'+esc(x.riskLabel||x.risk||'')+'</span>';
+  if(x.forced) s += '<span class="tag bad">⚠ 强制入队</span>';
+  if(stale) s += '<span class="tag bad">🟡 超 7 天未决</span>';
+  s += '<span class="r" style="margin-left:auto;color:var(--tx-2);font-size:11.5px">'+esc(x.id)+(x.batch?' · '+esc(x.batch):'')+'</span>';
+  s += '</div>';
+  s += '<div class="note" style="margin:8px 0;line-height:1.7">'+esc(x.why||'')+'</div>';
+  if(x.context) s += '<div class="note" style="margin:6px 0;color:var(--tx-2)">'+esc(x.context)+'</div>';
+  // 选项按钮 —— 点一下就写回队列
+  s += '<div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:10px">';
+  for(const o of (x.options||[])){
+    s += '<button class="b'+(o.recommended?' p':'')+'" onclick="decidePick(\''+esc(x.id)+'\',\''+esc(o.id)+'\')" '+
+         'title="'+esc(o.consequence||'')+'">'+
+         esc(o.id)+' · '+esc(o.label)+(o.recommended?' ★':'')+'</button>';
+  }
+  s += '</div>';
+  // 每个选项的后果
+  const cons = (x.options||[]).filter(o=>o.consequence);
+  if(cons.length){
+    s += '<div class="note" style="margin-top:8px;font-size:11.5px;color:var(--tx-2)">';
+    s += cons.map(o=>'<b>'+esc(o.id)+'</b>：'+esc(o.consequence)).join('　·　');
+    s += '</div>';
+  }
+  s += '</div>';
+  return s;
+}
+
+function decideDoneRow(x){
+  const ok = x.status === 'resolved';
+  return '<div style="padding:7px 0;border-top:1px solid var(--line);font-size:12.5px">'+
+    '<span class="tag '+(ok?'ok':'')+'">'+(ok?'✔ 已定':'✘ 撤回')+'</span> '+
+    '<b>'+esc(x.id)+'</b> '+esc(x.title)+
+    (ok?'　→ 选了 <b>'+esc(x.chosen)+' · '+esc(x.chosenLabel||'')+'</b>':'')+
+    '<span style="color:var(--tx-2)">　'+esc((x.resolvedAt||'').replace('T',' ').slice(0,16))+'</span>'+
+    (x.note?'<div class="note" style="margin-top:3px;color:var(--tx-2)">补充：'+esc(x.note)+'</div>':'')+
+    '</div>';
+}
+
+// 点选项 → POST /api/decide-resolve（后端追加一条 resolved 事件）
+window.decidePick = async function(id, choice){
+  try{
+    const r = await fetch('/api/decide-resolve', {
+      method:'POST', headers:{'content-type':'application/json'},
+      body: JSON.stringify({ id, choice }),
+    });
+    const j = await r.json();
+    if(!j.ok){ alert('没写进去：'+(j.out||j.why||'未知原因')); return; }
+    DEC = null;              // 强制重读
+    await refresh();
+  }catch(e){ alert('提交失败：'+e.message); }
+};
+
+// ══════════════════════════════════════════════ 左栏文件树（2026-10-21）
+let TREE = null;
+async function paintTree(){
+  if(TREE===null){
+    try{ TREE = await J('/api/tree'); }catch(e){ return '<div class="note bad">[!] 读不出目录</div>'; }
+  }
+  const T = TREE;
+  let s = '<div class="card cut"><h2>文件 <span class="r">点开即看</span></h2>';
+  for(const root of (T.roots||[])){
+    s += '<div style="margin:8px 0 4px;font-weight:600;color:var(--accent);font-size:12.5px">'+esc(root.label)+'</div>';
+    for(const f of root.files.slice(0,12)){
+      const dt = (f.mtime||'').replace('T',' ').slice(5,16);
+      s += '<div style="padding:2px 0 2px 8px;font-size:12px;display:flex;gap:6px">'+
+           '<a href="#" onclick="treeOpen(\''+esc(f.rel).replace(/'/g,"\\'")+'\');return false" '+
+           'style="color:var(--tx);text-decoration:none;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;flex:1" '+
+           'title="'+esc(f.name)+'">'+esc(f.name.replace(/\.md$/,''))+'</a>'+
+           '<span style="color:var(--tx-2);font-size:11px;white-space:nowrap">'+esc(dt)+'</span></div>';
+    }
+    if(root.files.length>12) s += '<div class="note" style="padding-left:8px;color:var(--tx-2)">…还有 '+(root.files.length-12)+' 份</div>';
+  }
+  s += '</div>';
+  return s;
+}
+
+window.treeOpen = async function(rel){
+  try{
+    const d = await J('/api/doc/' + encodeURIComponent(rel));
+    $('view').innerHTML = '<div class="card cut"><h2>'+esc(rel.split('/').pop())+
+      ' <span class="r"><button class="b" onclick="go(\'boss\')">← 回老板台</button></span></h2>'+
+      '<div style="white-space:pre-wrap;line-height:1.8;font-size:13px">'+esc(d.text||'')+'</div></div>';
+    curTab = 'tree-full';
+  }catch(e){
+    $('view').innerHTML = '<div class="card cut"><div class="note bad">[!] 打不开：'+esc(e.message)+
+      '　<a href="#" onclick="go(\'boss\');return false">← 回去</a></div></div>';
+  }
+};
+
+const PAINT = {boss:paintBoss, decide:paintDecide, ov:paintOverview, dec:paintStageDecide, stage:paintStage, tools:paintTools,
                rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
 let curTab = null;
 function paint(){
@@ -793,6 +944,10 @@ async function refresh(){
     if(needTools) TOOLS = await J('/api/tools');
     // 老板台要单独拉日报列表（不进 overview，避免总览变慢）
     if(PAGE==='老板台'){ try{ BOSS = await J('/api/boss'); }catch(e){ BOSS = {ok:false,items:[],err:e.message}; } }
+    // 「等你拍板」页要拉独立决策队列（不依赖 stage）
+    if(PAGE==='等你拍板'){ try{ DEC = await J('/api/decide-inbox'); }catch(e){ DEC = {ok:false,pending:[],resolved:[],err:e.message}; } }
+    // 文件树（老板台左栏用）
+    if(TREE===null || PAGE==='老板台'){ try{ TREE = await J('/api/tree'); }catch(e){ TREE = {roots:[]}; } }
     $('stamp').innerHTML = '更新于 '+new Date(OV.now).toLocaleTimeString()+' · 每 5 秒自动刷新';
     if(TOOLS===null && PAGE==='tools') TOOLS = await J('/api/tools');
     paint();
