@@ -153,7 +153,9 @@ function cmdNext(argv) {
     tool: 'bin/docno-alloc.js',
     rule: 'max(目录实占号, 台账已分配号) + 1；先占后建；删号不回收',
   };
-  ctx.ledger.updated = new Date().toISOString();
+  // ★ updated 保持台账原约定（YYYY-MM-DD 日期串），不要写成 ISO 时间戳 ——
+  //   这个字段全仓多处按字符串比对，写法一变就成了「文档滞后现实」的又一次实例。
+  ctx.ledger.updated = new Date().toISOString().slice(0, 10);
   try {
     writeLedger(ctx.ledgerFile, ctx.ledger);
   } catch (e) {
