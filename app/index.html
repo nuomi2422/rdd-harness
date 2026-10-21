@@ -224,8 +224,11 @@ async function saveDoc(id, content){
 }
 
 const NAV = [
-  ['老板台','boss'], ['等你拍板','decide'], ['总览','ov'], ['决策收件箱','dec'],
-  ['AI 进度','stage'], ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
+  ['老板台','boss'], ['等你拍板','decide'], ['总览','ov'],
+  ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
+  // ★ 2026-10-21：stage 已降级为可选，导航里隐藏（URL 直达 #stage 仍可用）。
+  //   用户原话「原本的 stage 就可以差不多废弃和隐藏了」。
+  //   为什么还留着：万一要开 stage，历史任务还能翻；只是默认不摆在台面上。
 ];
 
 function paintNav(){

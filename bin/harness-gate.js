@@ -391,6 +391,36 @@ function preflight(ctx) {
     }
   }
 
+  {
+    // ★ P15（2026-10-21 用户定）：进游戏前问一句「这次要不要先打存档快照」。
+    //   为什么挂在大门上而不是 stage 里：用户原话「所有挂在的话，基本上就进游戏和退游戏
+    //   那两个挂在大门，东西也更加确定性」—— stage 已经没人走了（tasks 目录空）。
+    //   为什么重要：「验证会破坏环境」是这轮最大的隐性成本 ——
+    //   同一场景想复现只能靠运气，因为每轮验证都在同一个世界上留痕。
+    //   级别 ASK 不是 BLOCK：不是每次都要快照（只读验证不用），但必须让人**有意识地**决定。
+    const snap = path.join(REG.roots.harness, 'bin', 'snapshot-world.js');
+    if (!isFile(snap)) {
+      record('P15', '进游戏前：要不要先打存档快照', 'human', 'ask', WARN,
+        `快照工具不在（${snap}）—— 想「同一环境反复重跑」就没手段了`);
+    } else {
+      let listOut = '';
+      try {
+        const g = require('child_process').spawnSync(process.execPath, [snap, '--list'], { encoding: 'utf8', timeout: 30000 });
+        listOut = (g.stdout || '').trim();
+      } catch { /* ignore */ }
+      const hasSnap = listOut && !/还没有任何快照/.test(listOut);
+      record('P15', '进游戏前：要不要先打存档快照', 'human', 'ask', ASK,
+        `★ 这次验证会不会**破坏环境**？会 → 先打快照（游戏必须已停）：\n` +
+        `       node "${snap}" --name before-<批次> --apply\n` +
+        `       跑坏了就回滚：node "${snap}" --restore before-<批次> --apply\n` +
+        (hasSnap
+          ? `       现有快照：${(listOut.split(/\r?\n/).filter((l) => /^ {2}\S/.test(l)).slice(0, 4).join(' / ') || '（见 --list）')}`
+          : `       ⚠ 当前**一个快照都没有** —— 想复现「同一个起点」只能靠运气`) +
+        `\n       ★ 为什么：每轮验证都在同一个世界上留痕（挖的洞/丢的东西/同伴记忆），` +
+        `不留快照就无法回到同一场景重跑。`);
+    }
+  }
+
   builtinChecks(ctx, 'preflight');
 }
 
@@ -623,6 +653,24 @@ function postflight(ctx) {
         }
       }
     }
+  }
+
+  {
+    // ★ Q16（2026-10-21 用户定）：退游戏后的「文档书写清单」。
+    //   从 stage 的 close 阶段搬过来的 —— 用户原话：
+    //   「原本的 stage 就可以差不多废弃和隐藏了，只是说要把我们想要挂在的东西给拉过来，
+    //    就比如说那个文档书写，就是退游戏的时候可能要挂在，然后 AI 看到了它就会自己写」。
+    //   为什么必须挂在这里：stage 的 tasks 目录是空的（没人走 stage），
+    //   挂在 stage 的必读清单等于**从没被执行过**。
+    //   级别 ASK：机器判不了「文档写得好不好」，但必须把清单摆在面前。
+    record('Q16', '退游戏后的文档书写清单（从 stage 搬来）', 'human', 'ask', ASK,
+      `★ 关游戏不是结束。按顺序做完这四件，再开下一轮：\n` +
+      `       ① 回填验证卡（判据/数据/结果/**原因**/复现）→ rdd架构\\实机验证\\YYYY-MM.md\n` +
+      `       ② 杂项记录加一行 #NNN（三态 + 下一步）→ rdd架构\\杂项记录\\YYYY-MM.md\n` +
+      `       ③ 新坑写时间锁（智能性错误必填 guard）→ harness\\registry.json\n` +
+      `       ④ 经验实体写进记忆库 → rdd架构\\_memory\\memory.jsonl（append-only，只追加不重写）\n` +
+      `       ★ 还有一件容易漏：**决策队列里若有事等你拍板，别自己定了** ——\n` +
+      `         node "D:\\rdd\\harness\\rdd-harness\\bin\\decide-inbox.js" list --pending`);
   }
 
   builtinChecks(ctx, 'postflight');
