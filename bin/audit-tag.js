@@ -38,9 +38,9 @@ const { spawnSync } = require('child_process');
 const RDD = 'D:\\rdd';
 const GIT = 'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe';
 const REPOS = [
-  { name: 'docs', dir: path.join(RDD, 'docs', 'rdd-docs') },
-  { name: 'harness', dir: path.join(RDD, 'harness', 'rdd-harness') },
-  { name: 'numen', dir: path.join(RDD, 'workspace', 'minecraft-numen') },
+  { name: 'docs', dir: path.join(RDD, 'docs', 'rdd-docs'), remote: 'origin' },
+  { name: 'harness', dir: path.join(RDD, 'harness', 'rdd-harness'), remote: 'origin' },
+  { name: 'numen', dir: path.join(RDD, 'workspace', 'minecraft-numen'), remote: 'backup' },
 ];
 const SNAP_ROOT = path.join(RDD, 'docs', 'rdd-docs', 'rdd架构', '审计快照');
 const DOCS = path.join(RDD, 'docs', 'rdd-docs', 'rdd架构');
@@ -449,6 +449,34 @@ function main() {
     }
     done.push(r);
     console.log(`✔ ${r.name} 打 tag 成功`);
+  }
+
+  // 四件套第 4 条：tag 必须真的在远程上（2026-10-22 用户点名补的机检）。
+  // 只打本地 tag 等于「回退点在另一块盘上」——换机器就没了。先查，缺了补推一次，仍缺就判失败。
+  const unpushed = [];
+  for (const r of done) {
+    const remote = r.remote || 'origin';
+    const ref = `refs/tags/${tag}`;
+    let ls = git(r.dir, ['ls-remote', '--tags', remote, ref]);
+    if (ls.status !== 0 || !String(ls.stdout || '').trim()) {
+      const push = git(r.dir, ['push', remote, ref]);
+      if (push.status !== 0) {
+        unpushed.push(`${r.name}→${remote}（push 失败：${(push.stderr || '').trim().slice(0, 120)}）`);
+        continue;
+      }
+      ls = git(r.dir, ['ls-remote', '--tags', remote, ref]);
+    }
+    if (ls.status !== 0 || !String(ls.stdout || '').trim()) {
+      unpushed.push(`${r.name}→${remote}`);
+    } else {
+      console.log(`✔ ${r.name} tag 已在远程 ${remote}`);
+    }
+  }
+  if (unpushed.length) {
+    console.error('\n✘ 有 tag 没推到远程（回退点只在本地 = 换机器即失效）：');
+    for (const u of unpushed) console.error(`   · ${u}`);
+    console.error('   修：git -C <仓> push <remote> refs/tags/' + tag);
+    return EXIT_REFUSED;
   }
 
   console.log('');
