@@ -397,27 +397,36 @@ function preflight(ctx) {
     //   那两个挂在大门，东西也更加确定性」—— stage 已经没人走了（tasks 目录空）。
     //   为什么重要：「验证会破坏环境」是这轮最大的隐性成本 ——
     //   同一场景想复现只能靠运气，因为每轮验证都在同一个世界上留痕。
-    //   级别 ASK 不是 BLOCK：不是每次都要快照（只读验证不用），但必须让人**有意识地**决定。
+    // ★ 2026-10-21 用户纠正定性：**快照是执行 AI 自己的工作副本，不是永久资产**。
+    //   用户原话：「不一定自动打，应该是要干活的 AI 知道这个东西的存在，他要用的时候才用，
+    //   而且还要主动的删掉，因为这种备份出来的存档实际上可以删掉的，就是他到一定时间
+    //   就会主动删掉，就相当于是一个快照，快照的话应该是执行 AI 自己的事。」
+    //   所以这里**不是「问用户要不要」，是「告诉 AI 这是你的工具 + 你要负责删」**。
     const snap = path.join(REG.roots.harness, 'bin', 'snapshot-world.js');
     if (!isFile(snap)) {
-      record('P15', '进游戏前：要不要先打存档快照', 'human', 'ask', WARN,
+      record('P15', '存档快照（你的工具，用完自己删）', 'human', 'ask', WARN,
         `快照工具不在（${snap}）—— 想「同一环境反复重跑」就没手段了`);
     } else {
-      let listOut = '';
+      let statusOut = '';
       try {
-        const g = require('child_process').spawnSync(process.execPath, [snap, '--list'], { encoding: 'utf8', timeout: 30000 });
-        listOut = (g.stdout || '').trim();
+        const g = require('child_process').spawnSync(process.execPath, [snap, '--status'], { encoding: 'utf8', timeout: 30000 });
+        statusOut = (g.stdout || '').trim();
       } catch { /* ignore */ }
-      const hasSnap = listOut && !/还没有任何快照/.test(listOut);
-      record('P15', '进游戏前：要不要先打存档快照', 'human', 'ask', ASK,
-        `★ 这次验证会不会**破坏环境**？会 → 先打快照（游戏必须已停）：\n` +
-        `       node "${snap}" --name before-<批次> --apply\n` +
-        `       跑坏了就回滚：node "${snap}" --restore before-<批次> --apply\n` +
-        (hasSnap
-          ? `       现有快照：${(listOut.split(/\r?\n/).filter((l) => /^ {2}\S/.test(l)).slice(0, 4).join(' / ') || '（见 --list）')}`
-          : `       ⚠ 当前**一个快照都没有** —— 想复现「同一个起点」只能靠运气`) +
-        `\n       ★ 为什么：每轮验证都在同一个世界上留痕（挖的洞/丢的东西/同伴记忆），` +
-        `不留快照就无法回到同一场景重跑。`);
+      const none = /没有任何快照/.test(statusOut);
+      const expired = /超过 TTL|🟡/.test(statusOut);
+      record('P15', '存档快照（你的工具，用完自己删）', 'human', 'ask', ASK,
+        `★ 这是**你的工具**，不是等用户批的事。自己判断要不要用：\n` +
+        `       这次验证会不会**破坏环境**（挖/丢/改同伴状态）？会 → 打一份再进游戏：\n` +
+        `         node "${snap}" --name before-<批次> --apply      （游戏必须已停）\n` +
+        `       跑坏了回滚：--restore before-<批次> --apply\n` +
+        `       ★ **用完自己删**：快照是工作副本不是资产（每份 30 MB 级），默认 TTL ${'48'} 小时。\n` +
+        `         查：--status ｜ 删过期的：--prune --apply\n` +
+        (none
+          ? `       ⚠ 当前**一个快照都没有** —— 想复现「同一个起点」只能靠运气`
+          : (expired
+            ? `       🟡 **有过期快照没删** —— 跑 --prune --apply 清掉（别攒着占盘）`
+            : `       ✔ 现有快照都在 TTL 内`)) +
+        `\n       ★ 为什么：每轮验证都在同一个世界上留痕，不留快照就无法回到同一场景重跑。`);
     }
   }
 
@@ -669,8 +678,12 @@ function postflight(ctx) {
       `       ② 杂项记录加一行 #NNN（三态 + 下一步）→ rdd架构\\杂项记录\\YYYY-MM.md\n` +
       `       ③ 新坑写时间锁（智能性错误必填 guard）→ harness\\registry.json\n` +
       `       ④ 经验实体写进记忆库 → rdd架构\\_memory\\memory.jsonl（append-only，只追加不重写）\n` +
-      `       ★ 还有一件容易漏：**决策队列里若有事等你拍板，别自己定了** ——\n` +
-      `         node "D:\\rdd\\harness\\rdd-harness\\bin\\decide-inbox.js" list --pending`);
+      `       ★ 还有两件容易漏：\n` +
+      `         · **快照用完了吗？** 这轮打的存档快照如果不再需要，自己删掉：\n` +
+      `             node "D:\\rdd\\harness\\rdd-harness\\bin\\snapshot-world.js" --prune --apply\n` +
+      `           （快照是工作副本不是资产，每份 30 MB 级，别攒着占盘）\n` +
+      `         · **决策队列里若有事等主人拍板，别自己定了**：\n` +
+      `             node "D:\\rdd\\harness\\rdd-harness\\bin\\decide-inbox.js" list --pending`);
   }
 
   builtinChecks(ctx, 'postflight');

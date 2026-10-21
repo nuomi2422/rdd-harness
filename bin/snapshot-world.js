@@ -49,16 +49,30 @@ const SNAP_ROOT = path.join(RDD, 'workspace', 'rdd-selfcompile', 'snapshots', 'w
 // monitor 只留最近这么多分钟的文件（日志回滚无意义，但要能对照回滚前后）
 const MONITOR_RECENT_MIN = 30;
 
+// ★ 快照默认 TTL（小时）。用户 2026-10-21 定：
+//   「这种备份出来的存档实际上可以删掉的，就是它到一定时间就会主动删掉，
+//    就相当于是一个快照，快照的话应该是执行 AI 自己的事」
+//   —— 所以它**不是永久资产**，是执行 AI 用完就该清的工作副本。
+//   默认 48 小时：够跨一个夜班+一个白班；超过就该删（31 MB/份，攒着没意义）。
+const DEFAULT_TTL_H = 48;
+// pre-restore 后悔药也吃 TTL（它同样是一次性工作副本）
+
 const EXIT_OK = 0, EXIT_REFUSED = 1, EXIT_USAGE = 2, EXIT_ENV = 3;
 
 const HELP = `用法：
-  node snapshot-world.js --list
-  node snapshot-world.js --name <标签> [--world live] [--apply]
+  node snapshot-world.js --status [--ttl <小时>]      # 还有几个、占多少、哪些该删
+  node snapshot-world.js --prune [--ttl <小时>] [--apply]   # 删过期的
+  node snapshot-world.js --name <标签> [--world live] [--note "..."] [--apply]
   node snapshot-world.js --restore <标签> [--apply]
   node snapshot-world.js --delete <标签> [--apply]
+  node snapshot-world.js --list
   node snapshot-world.js --selftest
 
   默认干跑（只打印会做什么）。--apply 才真执行。
+
+★ 快照是**执行 AI 自己的工作副本**，不是永久资产：
+  默认 TTL ${DEFAULT_TTL_H} 小时，过期就该 --prune 删掉（每份 30 MB 级）。
+  它存在是为了「同一环境反复重跑」，用完即弃。
 
 快照位置：${SNAP_ROOT}\\<标签>\\
   saves/<世界>/          全量
@@ -68,15 +82,19 @@ const HELP = `用法：
 退出码：0 正常 / 1 被安全检查拒 / 2 用法错 / 3 环境错`;
 
 function parseArgs(argv) {
-  const o = { apply: false, selftest: false, help: false, list: false };
+  const o = { apply: false, selftest: false, help: false, list: false, status: false, prune: false };
   for (let i = 0; i < argv.length; i++) {
     const a = argv[i];
     if (a === '--name') o.name = argv[++i];
     else if (a === '--world') o.world = argv[++i];
     else if (a === '--restore') o.restore = argv[++i];
     else if (a === '--delete') o.del = argv[++i];
+    else if (a === '--ttl') o.ttl = argv[++i];
+    else if (a === '--note') o.note = argv[++i];
     else if (a === '--apply') o.apply = true;
     else if (a === '--list') o.list = true;
+    else if (a === '--status') o.status = true;
+    else if (a === '--prune') o.prune = true;
     else if (a === '--selftest') o.selftest = true;
     else if (a === '--help' || a === '-h') o.help = true;
   }
@@ -107,6 +125,88 @@ function dirSize(p) {
 }
 
 function mb(b) { return (b / 1048576).toFixed(1) + ' MB'; }
+
+/* ── 读所有快照的 meta ── */
+function listSnapshots() {
+  if (!fs.existsSync(SNAP_ROOT)) return [];
+  const out = [];
+  for (const e of fs.readdirSync(SNAP_ROOT, { withFileTypes: true })) {
+    if (!e.isDirectory()) continue;
+    const full = path.join(SNAP_ROOT, e.name);
+    let m = null;
+    try {
+      // ★ 去 BOM 再 parse：PowerShell 的 Set-Content -Encoding UTF8 会写 BOM，
+      //   而 JSON.parse 不接受 BOM。不去掉的话会**静默回退到目录 mtime**，
+      //   看起来「能读」其实读的是错的时间（实测踩到：TTL 判定全失效）。
+      m = JSON.parse(fs.readFileSync(path.join(full, 'meta.json'), 'utf8').replace(/^\uFEFF/, ''));
+    } catch { /* 老快照没 meta，回退目录 mtime */ }
+    const sz = dirSize(full);
+    const at = (m && m.at) || (fs.existsSync(full) ? fs.statSync(full).mtime.toISOString() : '');
+    const ageH = at ? (Date.now() - Date.parse(at)) / 3600000 : 0;
+    out.push({
+      name: e.name, dir: full, at, ageH,
+      world: (m && m.world) || 'live',
+      note: (m && m.note) || '',
+      bytes: sz.bytes, files: sz.files,
+      isPreRestore: /^pre-restore-/.test(e.name),
+    });
+  }
+  return out.sort((a, b) => a.at.localeCompare(b.at));
+}
+
+/* ── status：一眼看还有几个、占多少、哪些该删 ── */
+function cmdStatus(o) {
+  const ttl = Number(o.ttl) || DEFAULT_TTL_H;
+  const snaps = listSnapshots();
+  if (!snaps.length) {
+    console.log('（没有任何快照）');
+    console.log('');
+    console.log('需要「同一环境反复重跑」时再打：');
+    console.log(`  node ${path.basename(__filename)} --name before-<批次> --apply`);
+    return EXIT_OK;
+  }
+  const total = snaps.reduce((a, x) => a + x.bytes, 0);
+  const expired = snaps.filter((x) => x.ageH > ttl);
+  console.log(`快照 ${snaps.length} 份，共 ${mb(total)}　（TTL ${ttl} 小时，超了就该删）\n`);
+  for (const s of snaps) {
+    const stale = s.ageH > ttl;
+    console.log(`  ${stale ? '🟡' : '  '} ${s.name}`);
+    console.log(`       ${s.world} · ${s.at.replace('T', ' ').slice(0, 19)} · ${s.ageH.toFixed(1)} 小时前 · ${mb(s.bytes)}`);
+    if (s.note) console.log(`       ${s.note}`);
+  }
+  console.log('');
+  if (expired.length) {
+    console.log(`⚠ ${expired.length} 份超过 TTL，可以删（释放 ${mb(expired.reduce((a, x) => a + x.bytes, 0))}）：`);
+    console.log(`  node ${path.basename(__filename)} --prune --apply`);
+  } else {
+    console.log('✔ 都在 TTL 内');
+  }
+  return EXIT_OK;
+}
+
+/* ── prune：按 TTL 删过期快照 ── */
+function cmdPrune(o) {
+  const ttl = Number(o.ttl) || DEFAULT_TTL_H;
+  const snaps = listSnapshots();
+  const expired = snaps.filter((x) => x.ageH > ttl);
+  if (!expired.length) {
+    console.log(`✔ 没有超过 ${ttl} 小时的快照（共 ${snaps.length} 份），不用删`);
+    return EXIT_OK;
+  }
+  const freed = expired.reduce((a, x) => a + x.bytes, 0);
+  console.log(`将删 ${expired.length} 份超过 ${ttl} 小时的快照${o.apply ? '' : '（干跑，加 --apply 才真删）'}：`);
+  for (const s of expired) {
+    console.log(`  - ${s.name}  ${s.ageH.toFixed(1)} 小时前  ${mb(s.bytes)}`);
+  }
+  console.log(`  释放 ${mb(freed)}`);
+  if (!o.apply) { console.log('\n干跑结束。加 --apply 执行。'); return EXIT_OK; }
+  let ok = 0;
+  for (const s of expired) {
+    try { fs.rmSync(s.dir, { recursive: true, force: true }); ok++; } catch (e) { console.error(`  ✘ ${s.name}: ${e.message}`); }
+  }
+  console.log(`\n✔ 已删 ${ok}/${expired.length} 份，释放 ${mb(freed)}`);
+  return ok === expired.length ? EXIT_OK : EXIT_ENV;
+}
 
 /* ── 列快照 ── */
 function cmdList() {
@@ -244,7 +344,7 @@ function cmdRestore(o) {
     return EXIT_ENV;
   }
   let meta = null;
-  try { meta = JSON.parse(fs.readFileSync(path.join(src, 'meta.json'), 'utf8')); } catch { /* 老快照没 meta */ }
+  try { meta = JSON.parse(fs.readFileSync(path.join(src, 'meta.json'), 'utf8').replace(/^\uFEFF/, '')); } catch { /* 老快照没 meta */ }
   const world = (meta && meta.world) || 'live';
 
   console.log(`回滚：${name}${o.apply ? '' : '（干跑，加 --apply 才真做）'}`);
@@ -369,6 +469,8 @@ function main() {
   const o = parseArgs(process.argv.slice(2));
   if (o.help) { console.log(HELP); return EXIT_OK; }
   if (o.selftest) return selftest();
+  if (o.status) return cmdStatus(o);
+  if (o.prune) return cmdPrune(o);
   if (o.list) return cmdList();
   if (o.restore) return cmdRestore(o);
   if (o.del) return cmdDelete(o);
