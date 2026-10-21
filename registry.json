@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
   "version": 2,
-  "updated": "2026-10-19",
+  "updated": "2026-10-21",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -1220,6 +1220,19 @@
         "fix": "2026-10-04 两份文件都改成实话：「⚠️ 以前这里写的是 self-check —— 那个命令根本不存在（真命令是 self-test，验的是状态机不是路径）。用 rg --files 一下 read[] 里的每个路径即可，别照抄不存在的命令。」",
         "lesson": "文档里出现「跑 X 验 Y」时，要确认 X 真的存在。一次纪律被执行 0 次而不自知，比没有这条纪律更糟 —— 它让人以为「验过了」。",
         "guard": "check-align.js 的「细则两份文件真实存在」只查那两份，不查 AGENTS.md 正文里的命令行。真要防这类，得对文档里的 `stager <cmd>` 逐个核对命令表 —— 尚未实现，记为待办。"
+      }
+    ]
+  },
+  "knownGaps": {
+    "$comment": "★ 结构性缺口：已知但**故意没做**的部分。每次 audit-tag 都必须把它们渲染进快照 —— 否则「某组三批都 ✅」会让将来考古误以为地基完整（owner 2026-10-21 点名：G3e-2 宿主接线未做）。与 timeLocks 的区别：时间锁是「防线到期要复核」，这里是「洞还在，别当它不存在」。",
+    "list": [
+      {
+        "id": "G3e-2",
+        "what": "G3e 的**宿主侧**没做：`SafePoint` 契约与 `TaskChain` 冻结闸已完成且 10 条单测全绿，但宿主 issuer（唯一「身体空闲」判据）、epoch 递增接线、实机 S97–S99b **一行未写**",
+        "why": "G3a/G3b/G3c/G3d 都挂着 ✅，容易让人以为 G3 组地基完整；实际「结构变更时身体是否停着」这层保护是空的",
+        "effect": "`replaceCurrentSubtasks` 仍可能在 `goto`/`mine` 跑到一半时换掉整条链；S99b 的三条对账（释放预留 / ORPHANED_CALL / 三数相符）没有实现",
+        "plan": "按 `rdd架构/实机验证/G3e-2-批次卡.md` 施工（白班 7 小时整轮；开工前跑 `check-idle-predicate.js`）",
+        "reviewBy": "2026-10-28"
       }
     ]
   }

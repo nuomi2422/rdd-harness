@@ -159,6 +159,9 @@ function collectSnapshot(milestone) {
   } catch { /* 没有就算了 */ }
   try {
     const reg = JSON.parse(fs.readFileSync(REGISTRY, 'utf8'));
+  // ★ 2026-10-21（owner 点名）：结构性缺口必须随 tag 固化，否则「某组三批都 ✅」会让
+  //   将来考古误以为地基完整（典型：G3e-2 宿主接线未做，而 G3a–G3d 全绿）。
+  knownGaps = (reg.knownGaps && Array.isArray(reg.knownGaps.list)) ? reg.knownGaps.list : [];
     const locks = (reg.timeLocks && reg.timeLocks.locks) || [];
     snap.timeLocks = locks.map((l) => ({ id: l.id, title: l.title, status: l.status, reviewBy: l.reviewBy }));
   } catch { snap.timeLocks = []; }
@@ -237,7 +240,21 @@ function renderSnapshot(snap, unavailable) {
     for (const t of snap.timeLocks) L.push(`| ${t.id} | ${String(t.title).replace(/\|/g, '\\|')} | ${t.status} | ${t.reviewBy} |`);
   } else L.push('（无）');
   L.push('');
-  L.push('## 5 · 已知不可用清单（坏的/假的/影子）');
+  L.push('## 5 · 结构性缺口（**洞还在，别当它不存在**）');
+  L.push('');
+  L.push('> ★ 来源：`registry.json` 的 `knownGaps`。这些是**已知但故意没做**的部分。');
+  L.push('> ★ 为什么必须随 tag 固化：某一组可能「三批都 ✅」而地基其实是空的，');
+  L.push('>   不写在这里，下个轮回会照着 ✅ 往下盖。');
+  L.push('');
+  if ((snap.knownGaps || []).length) {
+    L.push('| id | 没做的是什么 | 后果 | 计划 | 复核日期 |');
+    L.push('|---|---|---|---|---|');
+    for (const g of snap.knownGaps) {
+      L.push(`| ${g.id} | ${String(g.what).replace(/\|/g, '\\|')} | ${String(g.effect || '').replace(/\|/g, '\\|')} | ${String(g.plan || '').replace(/\|/g, '\\|')} | ${g.reviewBy || ''} |`);
+    }
+  } else L.push('（`registry.knownGaps` 为空 —— **零缺口是极强的主张**，确认过再信。）');
+  L.push('');
+  L.push('## 6 · 已知不可用清单（坏的/假的/影子）');
   L.push('');
   L.push('> ★ 这一节的作用：防止下轮把「影子」当「已生效」。');
   L.push('> ★ 纯机械抽取，不现打字：正则从验证卡抓关键词行，每条带 `文件:行号` 可回原文核对。');
@@ -263,6 +280,7 @@ function selftest() {
     repos: { docs: { sha: 'a'.repeat(40), when: '2026-10-21T00:00:00Z', subject: 'x' } },
     jar: { file: 'n.jar', sha256: 'B'.repeat(64) },
     debtsSource: 'x.md', debtsText: '| P0 | 例子 |', timeLocks: [{ id: 'TL-1', title: 't', status: 'open', reviewBy: '2026-11-01' }],
+    knownGaps: [{ id: 'G3e-2', what: '宿主 issuer 未接线', effect: '结构变更没有凭据保护', plan: '白班施工', reviewBy: '2026-10-28' }],
   };
   // ★ 不可用清单现在是 { items, source, total } 结构（带文件:行号，可回原文核对）
   const md = renderSnapshot(snap, {
@@ -275,6 +293,7 @@ function selftest() {
     ['含债账', /债账快照/.test(md)],
     ['含时间锁', /TL-1/.test(md)],
     ['含不可用清单', /影子/.test(md)],
+    ['含结构性缺口节（knownGaps 必须随 tag 固化）', /结构性缺口/.test(md) && /G3e-2/.test(md)],
     ['含诚实起点声明', /诚实起点/.test(md)],
     ['不可用项带文件:行号坐标', /2026-10\.md:42/.test(md)],
     ['标注纯机械抽取', /纯机械抽取/.test(md)],
