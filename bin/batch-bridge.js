@@ -62,6 +62,18 @@ function readEvents() {
 function appendEvent(e) {
   const file = ledgerFile();
   fs.mkdirSync(path.dirname(file), { recursive: true });
+  // C6：若上次写到一半就崩了（文件不以换行结尾），先补一个换行，
+  // 否则新事件会跟残行粘成一行、两条一起坏掉。
+  try {
+    const st = fs.statSync(file);
+    if (st.size > 0) {
+      const fd = fs.openSync(file, 'r');
+      const buf = Buffer.alloc(1);
+      fs.readSync(fd, buf, 0, 1, st.size - 1);
+      fs.closeSync(fd);
+      if (buf[0] !== 0x0a) fs.appendFileSync(file, '\n', 'utf8');
+    }
+  } catch { /* 文件不存在等，交给下面创建 */ }
   fs.appendFileSync(file, JSON.stringify({ v: 1, at: Date.now(), ...e }) + '\n', 'utf8');
 }
 
@@ -438,6 +450,69 @@ function cmdStressWriter() {
   process.exit(0);
 }
 
+/** C5/C6：子进程写 N 条完整事件 + 一条截断 JSON（无换行）后退出，模拟"写到半行就崩"。 */
+function cmdCrashWriter() {
+  const n = Number(arg('n') || 10);
+  for (let i = 0; i < n; i++) appendEvent({ kind: 'writer-mark', requestId: `crash-${i}`, i });
+  // 故意不换行、不闭合
+  fs.appendFileSync(ledgerFile(), '{"v":1,"kind":"half', 'utf8');
+  process.exit(0);
+}
+
+function cmdStressCrash() {
+  const os = require('node:os');
+  const { spawnSync } = require('node:child_process');
+  const tmp = path.join(os.tmpdir(), `bridge-crash-${Date.now()}.jsonl`);
+  const keep = process.env.RDD_BRIDGE_LEDGER;
+  process.env.RDD_BRIDGE_LEDGER = tmp;
+  const failures = [];
+  const N = 10;
+  const run = spawnSync(process.execPath, [__filename, 'crash-writer', '--n', String(N)],
+    { env: { ...process.env, RDD_BRIDGE_LEDGER: tmp }, stdio: 'ignore' });
+  if (run.status !== 0) failures.push('crash-writer 退出码 ' + run.status);
+
+  // C5：残行存在时，完整事件必须全部读得到、且不抛
+  let complete = 0;
+  let bad = 0;
+  const readAll = () => {
+    complete = 0; bad = 0;
+    for (const l of fs.readFileSync(tmp, 'utf8').split(/\r?\n/)) {
+      if (!l.trim()) continue;
+      try { JSON.parse(l); complete++; } catch { bad++; }
+    }
+  };
+  try {
+    readAll();
+  } catch (e) {
+    failures.push('C5 读账本抛异常: ' + e.message);
+  }
+  if (complete !== N) failures.push(`C5 完整事件 ${complete}（应 ${N}）`);
+  if (bad !== 1) failures.push(`C5 残行 ${bad}（应 1）`);
+  const listed = spawnSync(process.execPath, [__filename, 'list'],
+    { env: { ...process.env, RDD_BRIDGE_LEDGER: tmp }, encoding: 'utf8' });
+  if (listed.status !== 0) failures.push('C5 list 退出码 ' + listed.status);
+
+  // C6：残行之后继续 append，不许粘行
+  appendEvent({ kind: 'writer-mark', requestId: 'after-crash', i: 99 });
+  readAll();
+  if (complete !== N + 1) failures.push(`C6 append 后完整事件 ${complete}（应 ${N + 1}）`);
+  const text = fs.readFileSync(tmp, 'utf8');
+  const badLines = text.split(/\r?\n/).filter((l) => l.trim() && !isJson(l));
+  if (badLines.length !== 1) failures.push(`C6 坏行 ${badLines.length}（残行应与新行分开，保持 1 条）`);
+  const glued = text.split(/\r?\n/).filter((l) => (l.match(/\{"v":1/g) || []).length > 1);
+  if (glued.length) failures.push(`C6 有 ${glued.length} 行粘了两条事件`);
+
+  if (keep === undefined) delete process.env.RDD_BRIDGE_LEDGER; else process.env.RDD_BRIDGE_LEDGER = keep;
+  try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+  const r = { ok: failures.length === 0, failures, complete, bad };
+  console.log(JSON.stringify(r, null, 2));
+  process.exit(r.ok ? 0 : 1);
+}
+
+function isJson(s) {
+  try { JSON.parse(s); return true; } catch { return false; }
+}
+
 function selftest() {
   const tmp = path.join(require('node:os').tmpdir(), `bridge-${Date.now()}.jsonl`);
   const keep = process.env.RDD_BRIDGE_LEDGER;
@@ -569,6 +644,8 @@ try {
   else if (cmd === 'run') cmdRun();
   else if (cmd === 'stress') cmdStress();
   else if (cmd === 'stress-writer') cmdStressWriter();
+  else if (cmd === 'stress-crash') cmdStressCrash();
+  else if (cmd === 'crash-writer') cmdCrashWriter();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
