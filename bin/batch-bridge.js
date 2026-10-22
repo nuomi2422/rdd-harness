@@ -533,6 +533,24 @@ function cmdList() {
 
 function cmdShow() {
   const id = arg('id');
+  // --events：打原始事件（含 run/spend）。复验者提醒过：transitions[].at 是重放时刻，
+  // 不是真实时刻，对账必须看 JSONL 原文。
+  if (process.argv.includes('--events')) {
+    const file = ledgerFile();
+    if (!fs.existsSync(file)) return console.log('（账本不存在）');
+    const lines = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+    let n = 0;
+    lines.forEach((l, i) => {
+      if (!l.trim()) return;
+      let e = null;
+      try { e = JSON.parse(l); } catch { return; }
+      if (e.requestId !== id) return;
+      n++;
+      console.log(`L${i + 1}\t${JSON.stringify(e)}`);
+    });
+    if (!n) console.log('（这个请求没有事件）');
+    return;
+  }
   const req = replay(readEvents(), id);
   if (!req) return console.log('没有这个请求：' + id);
   console.log(JSON.stringify(req, null, 2));
