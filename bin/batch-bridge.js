@@ -316,15 +316,20 @@ function extractUsageSince(fromOffset) {
 function runBodyTask(tool, argsObj, holdMs) {
   const started = mcpCall(tool, argsObj);
   const taskId = (started && started.data && (started.data.task_id || started.data.taskId)) || '';
+  const dispatched = !!(started && started.success);
   const wait = (ms) => { const end = Date.now() + ms; while (Date.now() < end) { /* busy wait */ } };
   wait(holdMs);
-  const stopped = mcpCall('task_stop', taskId ? { task_id: taskId } : {});
+  // 没派发成功就不要再叫停：否则会造出「dispatched=false 但 stopped=true」的假象
+  const stopped = dispatched
+    ? mcpCall('task_stop', taskId ? { task_id: taskId } : {})
+    : { success: false };
   wait(2000);
   return {
     task_id: taskId,
-    dispatched: !!(started && started.success),
+    dispatched,
     stopped: !!(stopped && stopped.success),
     stop_message: String((stopped && stopped.message) || '').slice(0, 160),
+    error: dispatched ? '' : String((started && started.message) || 'dispatch failed').slice(0, 160),
   };
 }
 
@@ -478,10 +483,13 @@ function cmdRun() {
         appendEvent({ kind: 'transition', requestId: id, to: 'BLOCKED', by: 'batch-bridge', reason: `${e.code}: ${e.message}` });
       }
       const blocked = replay(readEvents(), id);
+      // 进程退出码要跟结果一致：外部 `$?` 不能把失败看成成功（复验提醒）
+      process.exitCode = 2;
       console.log(JSON.stringify({ ok: false, id, cmd, exit, state: blocked.state, spend: spendInfo, budget: e.code }));
       return;
     }
   }
+  process.exitCode = after.state === 'BLOCKED' ? 2 : 0;
   console.log(JSON.stringify({ ok: after.state !== 'BLOCKED', id, cmd, exit, state: after.state, spend: spendInfo }));
 }
 
