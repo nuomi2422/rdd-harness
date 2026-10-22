@@ -195,7 +195,7 @@ function cmdResume() {
 }
 
 const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
-const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke'];
+const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task'];
 
 /**
  * G7b 执行器第一刀：把「跑一条可验证的检查」接进来，并按结果**自动推进状态**。
@@ -228,6 +228,52 @@ function probePorts(ports) {
   }
   return out;
 }
+
+const MCP_CALL = 'D:\\\\rdd\\\\workspace\\\\rdd-selfcompile\\\\scripts\\\\mcp-call.js';
+
+/** 调一次游戏内 MCP 工具，返回解析后的 JSON（失败返回 null）。 */
+function mcpCall(tool, argsObj) {
+  const os = require('node:os');
+  const { spawnSync } = require('node:child_process');
+  const f = path.join(os.tmpdir(), `mcp-args-${process.pid}-${Date.now()}.json`);
+  fs.writeFileSync(f, JSON.stringify(argsObj), 'utf8');
+  try {
+    const got = spawnSync(process.execPath, [MCP_CALL, tool, 'RDD', '@' + f], { encoding: 'utf8' });
+    const txt = (got.stdout || '').trim();
+    const line = txt.split(/\r?\n/).filter(Boolean).pop() || '';
+    return JSON.parse(line);
+  } catch {
+    return null;
+  } finally {
+    try { fs.unlinkSync(f); } catch { /* ignore */ }
+  }
+}
+
+/** T1–T3：派一次 AC 并轮询到终态。没有 run_id 一律算失败。 */
+function runAcxTask(acJson, timeoutMs) {
+  const exec = mcpCall('acx_execute', { ac_json: acJson });
+  const runId = exec && exec.data && exec.data.run_id;
+  if (!runId) {
+    return { run_id: '', state: 'DISPATCH_FAILED', steps: 0, detail: JSON.stringify(exec || {}).slice(0, 200) };
+  }
+  const deadline = Date.now() + Math.max(5000, timeoutMs);
+  let last = 'RUNNING';
+  let steps = 0;
+  while (Date.now() < deadline) {
+    const st = mcpCall('acx_status', { run_id: runId });
+    const d = (st && st.data) || {};
+    last = d.status || d.state || last;
+    steps = Number(d.completed_step_index || steps);
+    if (last !== 'RUNNING' && last !== 'PENDING') break;
+    const t = Date.now() + 2000;
+    while (Date.now() < t) { /* 忙等 2s，避免额外依赖 */ }
+  }
+  return { run_id: runId, state: existingTerminal(last, deadline) ? 'TIMEOUT' : last, steps };
+}
+
+function existingTerminal(s, deadline) {
+  return (s === 'RUNNING' || s === 'PENDING') && Date.now() >= deadline;
+}
 function cmdRun() {
   const id = arg('id');
   const cmd = arg('cmd');
@@ -252,6 +298,14 @@ function cmdRun() {
     exit = closed.length === 0 ? 0 : 1;
     out = probe.map((p) => `${p.port}:${p.open ? 'open' : 'closed'}`).join(' ');
     if (closed.length) out += ` | 不在听: ${closed.join(',')}`;
+  } else if (cmd === 'acx-task') {
+    // T1–T4：真派一次 acx 任务并等到终态（只读 monitor，账本只写 run 事件）
+    const acFile = arg('ac-file');
+    if (!acFile) throw new Error('缺 --ac-file');
+    const timeout = Number(arg('timeout') || 90000);
+    probe = runAcxTask(fs.readFileSync(acFile, 'utf8'), timeout);
+    exit = probe.state === 'SUCCESS' ? 0 : 1;
+    out = `run_id=${probe.run_id} state=${probe.state} steps=${probe.steps}`;
   } else {
     const args = [GATE, cmd];
     if (arg('keyword')) args.push('--keyword', arg('keyword'));
