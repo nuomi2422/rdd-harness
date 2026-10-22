@@ -91,7 +91,17 @@ function replay(events, requestId) {
 function allRequests(events) {
   const ids = [];
   for (const e of events) if (!ids.includes(e.requestId)) ids.push(e.requestId);
-  return ids.map((id) => replay(events, id)).filter(Boolean);
+  // 一条坏请求不许拖垮整本列表（历史账本可能没有 submitter 等新必填字段）
+  const out = [];
+  for (const id of ids) {
+    try {
+      const r = replay(events, id);
+      if (r) out.push(r);
+    } catch (e) {
+      out.push({ requestId: id, state: 'UNREADABLE', error: e.code || e.message });
+    }
+  }
+  return out;
 }
 
 function cmdStart() {

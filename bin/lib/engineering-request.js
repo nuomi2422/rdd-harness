@@ -55,6 +55,10 @@ function clone(req) {
 
 function transition(req, to, { by, reason } = {}) {
   if (!STATES.includes(to)) fail('UNKNOWN_STATE', `没有这个状态：${to}`);
+  // 源状态也必须是已知的（重放到损坏载荷时不能被 TypeError 吞掉错误码）
+  if (!STATES.includes(req.state) || !NEXT[req.state]) {
+    fail('UNKNOWN_STATE', `源状态不可重放：${req.state}`);
+  }
   if (TERMINAL.includes(req.state)) fail('TERMINAL_STATE', `${req.state} 是终态，不能再迁到 ${to}`);
   if (!NEXT[req.state].includes(to)) fail('ILLEGAL_TRANSITION', `${req.state} 不能直接到 ${to}`);
   if ((to === 'BLOCKED' || to === 'REJECTED') && !nonEmpty(reason)) {
@@ -168,8 +172,14 @@ function assertBudget(req, budgets = {}, cost = {}, { at = nowMillis(), scope } 
   if (!nonEmpty(ref)) fail('NO_AUTHORIZATION', '请求没有预算授权（未填不等于无限）');
   const b = budgets[ref];
   if (!b) fail('NO_AUTHORIZATION', `授权表里没有 ${ref}`);
+  // 条目存在但一条额度都没填 = 没有额度（未填不等于无限）
+  if (b.amount == null && b.calls == null && b.tokens == null) {
+    fail('NO_AUTHORIZATION', `${ref} 一条额度上限都没填（未填不等于无限）`);
+  }
+  // 覆盖范围没写 = 不能判断能不能花（未填不等于无限）
+  if (!nonEmpty(b.scope)) fail('BUDGET_SCOPE_MISMATCH', `${ref} 没写覆盖范围（未填不等于无限）`);
   if (b.expiresAt && at > b.expiresAt) fail('BUDGET_EXPIRED', `${ref} 已过期`);
-  if (scope && b.scope && b.scope !== scope) fail('BUDGET_SCOPE_MISMATCH', `${ref} 只覆盖 ${b.scope}`);
+  if (scope && b.scope !== scope) fail('BUDGET_SCOPE_MISMATCH', `${ref} 只覆盖 ${b.scope}`);
   const amount = Number(cost.amount || 0);
   const calls = Number(cost.calls || 0);
   const tokens = Number(cost.tokens || 0);
@@ -240,13 +250,20 @@ function selftest() {
     expectCode(() => assertBudget(r, {}, { amount: 1 }), 'NO_AUTHORIZATION');
     const budgets = {
       b1: { amount: 10, expiresAt: nowMillis() + 10000, scope: 'harness' },
-      b2: { amount: 10, expiresAt: nowMillis() - 1000 },
+      b2: { amount: 10, expiresAt: nowMillis() - 1000, scope: 'harness' },
       b3: { amount: 10, scope: 'game' },
+      b4: {},
+      b5: { amount: 10 },
     };
     expectCode(() => assertBudget({ ...r, budgetAuthorizationRef: 'b1' }, budgets, { amount: 11 }), 'BUDGET_EXCEEDED');
     expectCode(() => assertBudget({ ...r, budgetAuthorizationRef: 'b2' }, budgets, { amount: 1 }), 'BUDGET_EXPIRED');
     expectCode(() => assertBudget({ ...r, budgetAuthorizationRef: 'b3' }, budgets, { amount: 1 }, { scope: 'harness' }),
       'BUDGET_SCOPE_MISMATCH');
+    // 空条目 / 没写 scope 都必须拒（未填不等于无限）
+    expectCode(() => assertBudget({ ...r, budgetAuthorizationRef: 'b4' }, budgets, { amount: 1 }), 'NO_AUTHORIZATION');
+    expectCode(() => assertBudget({ ...r, budgetAuthorizationRef: 'b5' }, budgets, { amount: 1 }), 'BUDGET_SCOPE_MISMATCH');
+    // 源状态损坏要报 UNKNOWN_STATE 而不是 TypeError
+    expectCode(() => transition({ ...base(), state: 'WAT' }, 'ACCEPTED', {}), 'UNKNOWN_STATE');
     const ok = assertBudget({ ...r, budgetAuthorizationRef: 'b1' }, budgets, { amount: 5 }, { scope: 'harness' });
     if (!ok.ok) throw new Error('正常授权不该被拒');
   });
