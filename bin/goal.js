@@ -448,6 +448,30 @@ function cmdAccept() {
     }
   }
 
+  // ── ★ 内置验收项：报告放行门禁（2026-10-22 用户批准的补丁 A）──
+  // 用户原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红。」
+  //
+  // 为什么钉在这里、而不是写成纪律：
+  //   decisions.jsonl 只是「止血记录层」—— 它记下了等主人拍板的事，但**没有任何东西
+  //   拦住一份报告把它悄悄漏掉**。报告一发出，主人看到的是「一切正常」，
+  //   问题就从「等他拍板」退化成「没人知道」，比前者更糟。
+  //   所以修法必须是门：报告放行前，机器逐条核对未了项有没有交代。
+  //
+  // 「未了项」= ① decisions.jsonl 里 pending 的 ② 报告的「还不能用的」表每行的
+  //   「要你做什么」不能空 ③ 那张 existential 卡必须交代现在在哪一步（亮没亮）。
+  // 判据实现见 bin/lib/report-release.js（自带 10 条自测，反例能打红、正例能放过）。
+  {
+    let chk
+    try {
+      chk = require('./lib/report-release.js').checkReportRelease()
+    } catch (e) {
+      chk = { ok: false, why: '报告放行门禁加载失败：' + (e && e.message ? e.message : String(e)) }
+    }
+    if (!chk.ok) {
+      fails.push({ id: '(内置) 报告放行门禁', title: '未了项必须在报告里有状态', why: chk.why })
+    }
+  }
+
   for (const it of g.items) {
     const j = judgeItem(it)
     if (j.ok) { it.status = 'proved'; it.lastFail = null }

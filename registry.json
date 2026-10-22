@@ -608,7 +608,28 @@
       "name": "架构目标锁：验收条目 + 实跑证据 + 机器最终验收（不许写文档冒充完成）",
       "path": "rddharness/bin/goal.js",
       "side": "run",
-      "needsGame": false
+      "needsGame": false,
+      "note": "★ 2026-10-22 起 accept 内置两条机器验收项：① 三行大白话（§2.1）② 报告放行门禁（未了项必须在报告里有状态，见 gate.report）。有一条不过就是没完成。"
+    },
+    {
+      "id": "gate.report",
+      "name": "★ 报告放行门禁：未了项必须在报告里有状态（漏一个 = 红）",
+      "path": "rddharness/bin/lib/report-release.js",
+      "side": "read",
+      "needsGame": false,
+      "whenToUse": "写/发日报前自检；或想知道「今天这份报告能不能放行」。已接进 goal.js accept 与 harness-gate postflight Q17，一般不用手动跑。",
+      "usage": "node bin/lib/report-release.js ｜ --selftest（10/10）｜ --file <报告.md>",
+      "note": "★ 2026-10-22 用户批准的两条补丁之一（原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红」）。核对三类未了项：① decisions.jsonl 里 pending 的待拍板项必须出现在报告里，且位置是三行 ②或「还不能用的」表 ②该表每行「要你做什么」不能空 ③必须交代那张 existential 卡在哪一步。★ 今天还没写日报 → SKIP 不拦；日报存在但漏项 → BLOCK。中文匹配用最长公共子串（≥4 字），不依赖分词。"
+    },
+    {
+      "id": "metrics.weekly",
+      "name": "★ 周行为指标：任务完成耗时 / 死亡率 / 7 天滚动（离线读埋点，不需要游戏在跑）",
+      "path": "rddharness/bin/weekly-metrics.js",
+      "side": "read",
+      "needsGame": false,
+      "whenToUse": "卡上 V5「周指标前后对比」取证；或想看「她最近是快了还是慢了」。改动前后各跑一次即可对比。",
+      "usage": "node bin/weekly-metrics.js [--days 7] [--json] [--write] [--selftest]",
+      "note": "★ 2026-10-22 用户批准的两条补丁之一。数据源实测：任务耗时 = tools.jsonl 异步提交 → events.jsonl task_finished（340/340 全配对）；死亡 = rdd-ledger\\<companion>.json 的 deaths[] + instrumentation.jsonl 的 death 事件交叉验证。★★ 关键坑：task_id 会复用（t1/t2 一直循环用），按 id 建字典配对会把 8 天前的 t1 配上今天的 t1 —— 必须按时间序配对。★★ 第二个坑：实测 9 条死亡全部是 debug_kill 触发的，**自然死亡样本为 0**，所以现在只能报「无自然死亡记录」，不能报「死亡率 0」；脚本会显式打这个 caveat。"
     },
     {
       "id": "goal.drive",
@@ -643,6 +664,66 @@
       "whenToUse": "开工前查「这个坑踩过没有」；收工前把新踩的坑写成实体。会话上下文被压缩后，这里是唯一还记得的东西。",
       "usage": "node tools/mcp-memory/start-memory-mcp.mjs（DSH 自动拉起）｜ 导入历史：node tools/mcp-memory/import-legacy-memory.mjs <旧 memory.json>",
       "note": "★ 2026-10-19 装。库文件跟 rdd-docs 仓走：docs/rdd-docs/rdd架构/_memory/memory.jsonl（可被 git 备份）。入口脚本解析路径（唯一真源）+ 支持 RDD_ROOT 覆盖，配置里不写死路径。工具名形如 mcp__rdd_memory__create_entities / search_nodes / read_graph。实测：414 实体 / 195 关系已导入，search_nodes 可用。⚠ 别把 MEMORY_FILE_PATH 指向 .json 老文件（服务器会一次性迁成 .jsonl）。"
+    },
+    {
+      "id": "harness.auditTag",
+      "name": "★ 打 tag 前跑一遍（四件套：远端校验/资产普查/决策队列/推送）",
+      "path": "harness/bin/audit-tag.js",
+      "side": "run",
+      "needsGame": false,
+      "usage": "node harness/bin/audit-tag.js <tag名> [--dry-run]",
+      "note": "★ 唯一该打 tag 的入口：它会先查远端有没有这个 tag、没有就 push，再复验 —— 「commit 不等于保住，push 了才算」。资产普查跑不起来会当失败处理，不能当通过。"
+    },
+    {
+      "id": "harness.census",
+      "name": "资产普查（清单上的资产必须都在 git 里）",
+      "path": "harness/bin/check-asset-census.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node harness/bin/check-asset-census.js [--json] [--selftest]",
+      "note": "★ 目录型条目是【逐文件】比对的，不是「ls-files 非空就算过」—— 旧实现下一个目录里 12 个已跟踪 + 1 个裸奔照样判 OK。git ls-files 默认把中文路径转义成八进制，比对时必须 core.quotepath=false。"
+    },
+    {
+      "id": "harness.decideInbox",
+      "name": "★ 待拍板队列（主人只在这一处被举手）",
+      "path": "harness/bin/decide-inbox.js",
+      "side": "run",
+      "needsGame": false,
+      "usage": "node harness/bin/decide-inbox.js list|add|decide",
+      "note": "★ 门禁原则：能自己定的不许冒泡到主人。举手前先问「不可逆且对外吗」—— 不是就自己定，写进卡里。"
+    },
+    {
+      "id": "harness.docnoAlloc",
+      "name": "★ 编号文档的集中取号处（先占号再建文件）",
+      "path": "harness/bin/docno-alloc.js",
+      "side": "write",
+      "needsGame": false,
+      "usage": "node harness/bin/docno-alloc.js next [--title \"标题\"] [--dry-run] | status | check | selftest",
+      "note": "★ 新建 NN-*.md 必须先取号：并行会话各自扫目录会撞号（实测撞了 8 个：44/45/48/52/53/54/65/66）。registry.nextDocNo 是缓存（停在 75、实际最大 76），别信它。"
+    },
+    {
+      "id": "harness.goalLock",
+      "name": "架构目标锁（按架构文档边界协作）",
+      "path": "harness/bin/goal.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node harness/bin/goal.js ..."
+    },
+    {
+      "id": "harness.orFreeModels",
+      "name": "维护 OpenRouter 免费模型清单",
+      "path": "harness/bin/or-free-models.js",
+      "side": "write",
+      "needsGame": false,
+      "note": "免费模型要用 :free 后缀，地区受限的（gpt/claude 等）会被 403 挡掉。"
+    },
+    {
+      "id": "harness.snapshotWorld",
+      "name": "存档快照 / 回滚（验证场景可复现）",
+      "path": "harness/bin/snapshot-world.js",
+      "side": "write",
+      "needsGame": false,
+      "note": "★ 快照是执行 AI 自己的工作副本，不是永久资产 —— 用完自己删。"
     }
   ],
   "standards": {
@@ -940,6 +1021,16 @@
           "rule": "★ 2026-10-21 用户定（原为影子门禁，从 stage 的 close 阶段搬来）：关游戏不是结束，按顺序做完四件再开下一轮 —— ① 回填验证卡（判据/数据/结果/原因/复现）→ 实机验证\\YYYY-MM.md ② 杂项记录加一行 #NNN（三态 + 下一步）③ 新坑写时间锁（智能性错误必填 guard）→ registry.json ④ 经验实体写进记忆库 → _memory\\memory.jsonl（append-only）。另有两件容易漏：快照用完自己删；决策队列里等主人拍板的事别自己定了。★ 为什么必须挂在这里：stage 的 tasks 目录是空的（没人走 stage），挂在 stage 的必读清单等于从没被执行过。机器判不了「文档写得好不好」，但必须把清单摆在面前。",
           "verify": "人工确认四条都做了；机器侧对应项是 Q2/Q3/Q5/Q9/Q13/Q14，这里是给人看的完整清单",
           "tool": "gate.read"
+        },
+        {
+          "id": "Q17",
+          "name": "★ 报告放行门禁：未了项必须在报告里有状态",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "★ 2026-10-22 用户批准的两条补丁之一（原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红」）。判据：① decisions.jsonl 里 status=pending 的待拍板项，必须出现在当天的 rdd存放\\ 日报里，且位置是「给老板的三行」的 ② 那一行或「还不能用的 / 我改不动的」表 ② 该表每一行的「要你做什么」不能为空（空 = 没有状态）③ 报告必须交代那张 existential 卡现在在哪一步（亮没亮 / 还差什么）。今天还没写日报 → 不拦（SKIP，报告在收工时才落）；日报已存在但漏了未了项 → BLOCK。",
+          "why": "外部复审的诊断：decisions.jsonl 只是「止血记录层」，没有任何东西拦住一份报告把等主人拍板的事悄悄漏掉。报告一发出，主人看到的是「一切正常」，问题就从「等他拍板」退化成「没人知道」—— 比前者更糟。真正的修法是门禁层，不是再写一条纪律。",
+          "verify": "node harness\\rdd-harness\\bin\\lib\\report-release.js（通过 exit 0）；--selftest 10/10 证明反例能打红、正例能放过",
+          "tool": "gate.report"
         }
       ]
     },

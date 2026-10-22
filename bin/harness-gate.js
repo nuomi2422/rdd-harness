@@ -389,6 +389,57 @@ function preflight(ctx) {
         `       先收口再开批次。示例：\n       ${sample}\n` +
         `       ★ 为什么：334 能攒出来 = 干净没有强制点。不收口，下轮 334 变 600，tag 门永远差一步。`);
     }
+
+    // ★★ 2026-10-22：P14 追加「资产普查」子判据。
+    //   为什么追加在 P14 里而不是另立一项（AGENTS.md §0.5「不许再加工具/新检查项」）：
+    //   普查盯的是同一件事的另一面 —— 「在不在库里」，而不是「干不干净」。
+    //   ★ 关键区别（实测证明，不是推断）：
+    //     git status --porcelain **看不见被 .gitignore 吃掉的文件**。
+    //     实测：造一个 .gitignore 掉的 secret.md → porcelain 输出为空，
+    //     而 `ls-files --others --ignored` 能看见它。
+    //   ⇒ 治理资产只要被某条 .gitignore 规则误伤，就永久处于「零机检」状态：
+    //     门禁说干净、普查（只在打 tag 时跑）不说、文档里照常引用它。
+    //   顺序（用户 2026-10-22 定）：红线回退 > 模块架构 > 项目历史。
+    //   判据（用户定）：「文件存在 + 在资产普查清单里」就够，不查内容。
+    {
+      const census = path.join(__dirname, 'check-asset-census.js');
+      if (!fs.existsSync(census)) {
+        record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+          '★ 资产普查脚本不存在（bin/check-asset-census.js）—— 不能当通过：治理资产可能裸奔且无人知道');
+      } else {
+        const cg = require('child_process').spawnSync(process.execPath, [census, '--json'],
+          { encoding: 'utf8', timeout: 120000 });
+        let parsed = null;
+        try { parsed = JSON.parse(cg.stdout || '{}'); } catch { /* 降级 */ }
+        if (!parsed || !Array.isArray(parsed.items)) {
+          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+            '★ 资产普查跑不起来（输出无法解析）—— 不能当通过：被 .gitignore 吃掉的资产门禁看不见');
+        } else if (parsed.badCount > 0) {
+          // 优先级序：红线回退 > 模块架构 > 项目历史（用户 2026-10-22 定）
+          const PRI = ['红线回退', '模块架构', '项目历史'];
+          const items = parsed.items.filter((x) => x.status !== 'OK');
+          items.sort((a, b) => {
+            const ia = PRI.findIndex((k) => String(a.p).includes(k));
+            const ib = PRI.findIndex((k) => String(b.p).includes(k));
+            return (ia < 0 ? 99 : ia) - (ib < 0 ? 99 : ib);
+          });
+          const detail = items.map((x) => {
+            const bare = (x.bare || []).slice(0, 3);
+            return `${x.p}（${bare.length ? bare.join('、') : x.detail}）`;
+          }).join('\n       ');
+          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+            `★ 资产普查有 ${parsed.badCount} 项裸奔 —— 治理层的器官在库外。\n` +
+            `       ★ 这些文件 git status --porcelain 看不见（被 .gitignore 吃掉），\n` +
+            `         所以「工作区干净」不等于「资产在库里」。\n` +
+            `       按优先级（红线回退 > 模块架构 > 项目历史）：\n       ${detail}\n` +
+            `       处理：git add 对应路径，或修掉误伤它的 .gitignore 规则。`);
+        } else {
+          const n = parsed.items.length;
+          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', PASS,
+            `三仓 git status --porcelain 均为空；资产普查 ${n} 项全部在库里（逐文件比对，含被 .gitignore 吃掉的那一类）`);
+        }
+      }
+    }
   }
 
   {
@@ -684,6 +735,41 @@ function postflight(ctx) {
       `           （快照是工作副本不是资产，每份 30 MB 级，别攒着占盘）\n` +
       `         · **决策队列里若有事等主人拍板，别自己定了**：\n` +
       `             node "D:\\rdd\\harness\\rdd-harness\\bin\\decide-inbox.js" list --pending`);
+  }
+
+  {
+    // ★ Q17（2026-10-22 用户批准的补丁 A）：报告放行门禁 —— 未了项必须在报告里有状态。
+    //   用户原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红。」
+    //
+    //   为什么挂在 postflight 而不是只挂在 goal.js accept：
+    //     goal.js accept 只在「有目标锁」时才跑；而日报每天都在写。
+    //     只挂 accept = 大部分轮次这条门禁从没执行过 —— 正是 Q1 那天踩过的形态
+    //     （「声明在 registry 里却从没被 record() 接线」）。
+    //
+    //   为什么「没日报」不拦：报告是收工时才落的，一天可能跑好几轮。
+    //     没日报 → SKIP（不冒充通过，也不制造假红）；日报存在但漏项 → BLOCK。
+    {
+      const lib = path.join(__dirname, 'lib', 'report-release.js');
+      let r = null;
+      try {
+        r = require(lib).checkReportRelease();
+      } catch (e) {
+        r = { ok: false, why: '报告放行门禁加载失败：' + (e && e.message ? e.message : String(e)) };
+      }
+      if (r.ok) {
+        const brief = (r.items || []).map((x) => x.kind + '·' + x.id).join('、');
+        record('Q17', '★ 报告放行门禁：未了项必须在报告里有状态', 'block', 'artifact', PASS,
+          `报告已放行：${path.basename(r.file || '')}\n` +
+          `       核对过的未了项（${(r.items || []).length}）：${brief || '（无）'}`);
+      } else if (r.noReport) {
+        record('Q17', '★ 报告放行门禁：未了项必须在报告里有状态', 'block', 'artifact', SKIP,
+          `今天还没有日报，无法核对未了项（不拦）：${r.why}\n` +
+          `       ★ 收工写日报时，记得：待拍板项 → 三行 ②；「还不能用的」表每行都要写「要你做什么」；\n` +
+          `         并交代那张卡现在在哪一步（亮没亮）。`);
+      } else {
+        record('Q17', '★ 报告放行门禁：未了项必须在报告里有状态', 'block', 'artifact', BLOCK, r.why);
+      }
+    }
   }
 
   builtinChecks(ctx, 'postflight');
