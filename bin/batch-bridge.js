@@ -195,6 +195,7 @@ function cmdResume() {
 }
 
 const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
+const ALLOWED_BODY_TOOLS = ['goto'];
 const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task', 'body-task'];
 
 /**
@@ -281,14 +282,20 @@ const MC_LOG = 'D:\\rdd\\mc\\The Best of Twilight Forest\\logs\\latest.log';
  * 从 latest.log 的尾部抓最近一条 `usage=UsageStats[...]`（U1/U3：只读）。
  * 抓不到返回 null —— 不是每个任务都会触发试用归因（U2）。
  */
-function extractUsageSince(fromMillis) {
+function logSize() {
+  try { return fs.statSync(MC_LOG).size; } catch { return 0; }
+}
+
+function extractUsageSince(fromOffset) {
   try {
     const st = fs.statSync(MC_LOG);
-    // 只读尾部 256KB，日志可能很大
-    const start = Math.max(0, st.size - 256 * 1024);
+    // MF1：只认「本次 run 开始之后新写入的字节」，旧账再像也不算本次的
+    const from = (Number.isFinite(fromOffset) && fromOffset > 0 && fromOffset <= st.size)
+      ? fromOffset
+      : Math.max(0, st.size - 256 * 1024);
     const fd = fs.openSync(MC_LOG, 'r');
-    const buf = Buffer.alloc(st.size - start);
-    fs.readSync(fd, buf, 0, buf.length, start);
+    const buf = Buffer.alloc(st.size - from);
+    fs.readSync(fd, buf, 0, buf.length, from);
     fs.closeSync(fd);
     const text = buf.toString('utf8');
     const m = [...text.matchAll(/usage=UsageStats\[([^\]]+)\]/g)].pop();
@@ -298,7 +305,7 @@ function extractUsageSince(fromMillis) {
       const [k, v] = kv.split('=').map((s) => s.trim());
       if (k) out[k] = Number.isNaN(Number(v)) ? v : Number(v);
     }
-    out.fromMillis = fromMillis;
+    out.fromOffset = from;
     return out;
   } catch {
     return null;
@@ -338,6 +345,7 @@ function cmdRun() {
   let out;
   let probe = null;
   const t0 = Date.now();
+  const logAtStart = logSize();   // MF1：记下开跑时的日志字节数，后面只认新写入的部分
   if (cmd === 'acx-smoke') {
     probe = probePorts([8765, 8080, 8776]);
     const closed = probe.filter((p) => !p.open).map((p) => p.port);
@@ -352,11 +360,16 @@ function cmdRun() {
     probe = runAcxTask(fs.readFileSync(acFile, 'utf8'), timeout);
     exit = probe.state === 'SUCCESS' ? 0 : 1;
     // U1/U2：把这次之后最近一条 usage=UsageStats[...] 挂到 probe（抓不到就 null，不影响成败）
-    probe.usage = extractUsageSince(t0);
+    probe.usage = extractUsageSince(logAtStart);
     out = `run_id=${probe.run_id} state=${probe.state} steps=${probe.steps}`;
   } else if (cmd === 'body-task') {
     // V1–V3：派一次身体任务（走 CompanionBrain）→ 3s 后取消 → 抓 usage
     const tool = arg('tool') || 'goto';
+    if (!ALLOWED_BODY_TOOLS.includes(tool)) {
+      const e = new Error(`TOOL_NOT_ALLOWED: 只允许 ${ALLOWED_BODY_TOOLS.join('/')}`);
+      e.code = 'TOOL_NOT_ALLOWED';
+      throw e;
+    }
     const rawArgs = arg('args') || '';
     const argsObj = {};
     for (const kv of rawArgs.split(/\s+/).filter(Boolean)) {
@@ -364,9 +377,12 @@ function cmdRun() {
       if (i > 0) argsObj[kv.slice(0, i)] = kv.slice(i + 1);
     }
     probe = runBodyTask(tool, argsObj, Number(arg('hold') || 3000));
+    probe.tool = tool;
+    probe.args = rawArgs;
     // V1：usage 非 null 才算成功；V2：抓不到即 BLOCKED
-    probe.usage = extractUsageSince(t0);
-    exit = probe.usage ? 0 : 1;
+    probe.usage = extractUsageSince(logAtStart);
+    // MF2：派发与取消都得成——光有 usage 不够（可能是别的任务留下的）
+    exit = (probe.usage && probe.dispatched && probe.stopped) ? 0 : 1;
     out = `task_id=${probe.task_id} dispatched=${probe.dispatched} stopped=${probe.stopped} usage=${probe.usage ? 'yes' : 'null'}`;
   } else {
     const args = [GATE, cmd];
