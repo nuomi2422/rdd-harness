@@ -195,7 +195,7 @@ function cmdResume() {
 }
 
 const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
-const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task'];
+const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task', 'body-task'];
 
 /**
  * G7b 执行器第一刀：把「跑一条可验证的检查」接进来，并按结果**自动推进状态**。
@@ -304,6 +304,22 @@ function extractUsageSince(fromMillis) {
     return null;
   }
 }
+
+/** V1–V3：派一次身体任务（走 CompanionBrain），3s 后取消，再抓 usage。 */
+function runBodyTask(tool, argsObj, holdMs) {
+  const started = mcpCall(tool, argsObj);
+  const taskId = (started && started.data && (started.data.task_id || started.data.taskId)) || '';
+  const wait = (ms) => { const end = Date.now() + ms; while (Date.now() < end) { /* busy wait */ } };
+  wait(holdMs);
+  const stopped = mcpCall('task_stop', taskId ? { task_id: taskId } : {});
+  wait(2000);
+  return {
+    task_id: taskId,
+    dispatched: !!(started && started.success),
+    stopped: !!(stopped && stopped.success),
+    stop_message: String((stopped && stopped.message) || '').slice(0, 160),
+  };
+}
 function cmdRun() {
   const id = arg('id');
   const cmd = arg('cmd');
@@ -338,6 +354,20 @@ function cmdRun() {
     // U1/U2：把这次之后最近一条 usage=UsageStats[...] 挂到 probe（抓不到就 null，不影响成败）
     probe.usage = extractUsageSince(t0);
     out = `run_id=${probe.run_id} state=${probe.state} steps=${probe.steps}`;
+  } else if (cmd === 'body-task') {
+    // V1–V3：派一次身体任务（走 CompanionBrain）→ 3s 后取消 → 抓 usage
+    const tool = arg('tool') || 'goto';
+    const rawArgs = arg('args') || '';
+    const argsObj = {};
+    for (const kv of rawArgs.split(/\s+/).filter(Boolean)) {
+      const i = kv.indexOf('=');
+      if (i > 0) argsObj[kv.slice(0, i)] = kv.slice(i + 1);
+    }
+    probe = runBodyTask(tool, argsObj, Number(arg('hold') || 3000));
+    // V1：usage 非 null 才算成功；V2：抓不到即 BLOCKED
+    probe.usage = extractUsageSince(t0);
+    exit = probe.usage ? 0 : 1;
+    out = `task_id=${probe.task_id} dispatched=${probe.dispatched} stopped=${probe.stopped} usage=${probe.usage ? 'yes' : 'null'}`;
   } else {
     const args = [GATE, cmd];
     if (arg('keyword')) args.push('--keyword', arg('keyword'));
