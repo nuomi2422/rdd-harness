@@ -18,7 +18,7 @@
  *   node bin/batch-bridge.js verify  --id <requestId> --reviewer <name> --evidence "a:1" --evidence "b:2" [--by ai]
  *   node bin/batch-bridge.js block   --id <requestId> --reason "..."
  *   node bin/batch-bridge.js list [--json]
- *   node bin/batch-bridge.js show    --id <requestId>
+ *   node bin/batch-bridge.js show    --id <requestId> [--events]   # --events = 原始事件（对账用）
  *   node bin/batch-bridge.js selftest
  */
 const fs = require('node:fs');
@@ -289,10 +289,9 @@ function logSize() {
 function extractUsageSince(fromOffset) {
   try {
     const st = fs.statSync(MC_LOG);
-    // MF1：只认「本次 run 开始之后新写入的字节」，旧账再像也不算本次的
-    const from = (Number.isFinite(fromOffset) && fromOffset > 0 && fromOffset <= st.size)
-      ? fromOffset
-      : Math.max(0, st.size - 256 * 1024);
+    // 严格窗口语义：偏移非法就返回 null，**不回退到尾部扫描**（否则旧账会被当成本次的）
+    if (!Number.isFinite(fromOffset) || fromOffset <= 0 || fromOffset > st.size) return null;
+    const from = fromOffset;
     const fd = fs.openSync(MC_LOG, 'r');
     const buf = Buffer.alloc(st.size - from);
     fs.readSync(fd, buf, 0, buf.length, from);
@@ -326,6 +325,11 @@ function runBodyTask(tool, argsObj, holdMs) {
     stopped: !!(stopped && stopped.success),
     stop_message: String((stopped && stopped.message) || '').slice(0, 160),
   };
+}
+
+/** 诊断用：只看「最后一条」usage（不参与成功判定，别拿它当某次运行的账）。 */
+function extractLastUsage() {
+  return extractUsageSince(Math.max(1, logSize() - 256 * 1024));
 }
 function cmdRun() {
   const id = arg('id');
@@ -858,6 +862,11 @@ function selftest() {
     if (req.state !== 'BLOCKED') throw new Error('超限后应为 BLOCKED，实际 ' + req.state);
   });
 
+  step('usage 严格窗口（MF1 残余）', () => {
+    if (extractUsageSince(0) !== null) throw new Error('偏移 0 必须返回 null（不许回退尾部扫描）');
+    if (extractUsageSince(-5) !== null) throw new Error('负偏移必须返回 null');
+    if (extractUsageSince(logSize() + 1) !== null) throw new Error('超出文件必须返回 null');
+  });
   step('非法迁移被拒且不落盘', () => {
     const id = allRequests(readEvents())[0].requestId;
     const lines = fs.readFileSync(tmp, 'utf8').trim().split('\n').length;
@@ -891,7 +900,7 @@ try {
   else if (cmd === 'list') cmdList();
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
-  else if (cmd === 'usage') console.log(JSON.stringify(extractUsageSince(0), null, 2));
+  else if (cmd === 'usage') console.log(JSON.stringify(extractLastUsage(), null, 2));
   else if (cmd === 'run') cmdRun();
   else if (cmd === 'stress') cmdStress();
   else if (cmd === 'stress-writer') cmdStressWriter();
@@ -902,7 +911,7 @@ try {
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
-    console.log('用法：start|accept|implement|verify|block|reject|list|show|selftest（见文件头）');
+    console.log('用法：start|accept|implement|verify|block|reject|list|show [--events]|selftest（见文件头）');
     process.exit(1);
   }
 } catch (e) {
