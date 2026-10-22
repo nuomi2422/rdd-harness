@@ -109,4 +109,19 @@ function move(deps) {
   });
   return { ok: true, code: 'MOVED', questId: quest.questId, from: [pos.x, pos.y, pos.z], to: [to.x, to.y, to.z], exit: 0 };
 }
-module.exports = { act, move, mcpRaw, mcpJson };
+
+/** K14：把好奇心的来龙去脉摊开（只读，不改状态）。 */
+function list(deps, limit) {
+  const events = deps.readEvents().filter((e) => e.kind === 'curiosity');
+  const byQuest = new Map();
+  for (const e of events) {
+    if (!e.questId) continue;
+    const q = byQuest.get(e.questId) || { questId: e.questId, target: e.target, question: e.question, states: [], last: 0 };
+    q.states.push(e.state);
+    q.last = Math.max(q.last, e.at || 0);
+    byQuest.set(e.questId, q);
+  }
+  const rows = [...byQuest.values()].sort((a, b) => b.last - a.last).slice(0, limit || 10);
+  return { ok: true, total: byQuest.size, rows };
+}
+module.exports = { act, move, list, mcpRaw, mcpJson };
