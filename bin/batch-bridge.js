@@ -45,7 +45,18 @@ function args(name) {
 function readEvents() {
   const file = ledgerFile();
   if (!fs.existsSync(file)) return [];
-  return fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l));
+  const out = [];
+  const lines = fs.readFileSync(file, 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/);
+  lines.forEach((l, i) => {
+    if (!l.trim()) return;
+    try {
+      out.push(JSON.parse(l));
+    } catch (e) {
+      // 坏行要能定位，且不许因此冻结整个账本（跳过并记住）
+      out.push({ kind: '__bad_line__', line: i + 1, error: e.message });
+    }
+  });
+  return out;
 }
 
 function appendEvent(e) {
@@ -87,13 +98,37 @@ function cmdStart() {
   const requestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const e = {
     kind: 'created', requestId,
-    contractRevision: arg('revision') || '',
+    contractRevision: arg('contract') || arg('revision') || '',
     batchId: arg('batch') || '',
     scope: arg('scope') || '',
-    expectedBaseRevision: arg('revision') || '',
+    expectedBaseRevision: arg('base') || arg('revision') || '',
     budgetAuthorizationRef: arg('budget') || '',
     submitter: arg('submitter') || 'ai',
   };
+  // ★ 断点要认基线：--revision 必须与宿主实际 HEAD 一致，否则当场拒（不落盘）
+  const wantRev = arg('revision') || '';
+  if (wantRev) {
+    const { spawnSync } = require('node:child_process');
+    const GIT = 'C:\\\\Users\\\\admin\\\\AppData\\\\Local\\\\Programs\\\\MinGit\\\\cmd\\\\git.exe';
+    const got = spawnSync(GIT, ['-C', HARNESS, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' });
+    const actual = (got.stdout || '').trim();
+    if (!actual) throw new Error('BASE_REVISION_MISMATCH: 读不到宿主 HEAD');
+    if (actual !== wantRev && !actual.startsWith(wantRev) && !wantRev.startsWith(actual)) {
+      const e = new Error(`BASE_REVISION_MISMATCH: 期望 ${wantRev}，实际 ${actual}`);
+      e.code = 'BASE_REVISION_MISMATCH';
+      throw e;
+    }
+  }
+  // ★ 预算：给了 --budget 就必须能在 --budget-json 里解析到有效授权（未填不等于无限）
+  if (e.budgetAuthorizationRef) {
+    const raw = arg('budget-json');
+    if (!raw) {
+      const err = new Error('NO_AUTHORIZATION: 给了 --budget 就必须同时给 --budget-json（否则无法校验）');
+      err.code = 'NO_AUTHORIZATION';
+      throw err;
+    }
+    er.assertBudget({ budgetAuthorizationRef: e.budgetAuthorizationRef }, JSON.parse(raw), {}, { scope: e.scope });
+  }
   // 先用契约校验一遍（缺字段会抛），再落盘
   er.create({
     requestId, contractRevision: e.contractRevision, batchId: e.batchId, scope: e.scope,
@@ -150,7 +185,11 @@ function selftest() {
 
   step('start→accept→implement→verify', () => {
     const before = process.argv.slice();
-    process.argv = ['node', 'batch-bridge.js', 'start', '--batch', 'T', '--scope', 's', '--revision', 'abc'];
+    const head = require('node:child_process')
+      .spawnSync('C:\\\\Users\\\\admin\\\\AppData\\\\Local\\\\Programs\\\\MinGit\\\\cmd\\\\git.exe',
+        ['-C', HARNESS, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' });
+    const sha = (head.stdout || '').trim();
+    process.argv = ['node', 'batch-bridge.js', 'start', '--batch', 'T', '--scope', 's', '--revision', sha];
     cmdStart();
     const id = JSON.parse(fs.readFileSync(tmp, 'utf8').trim()).requestId;
     process.argv = ['node', 'b', 'accept', '--id', id];

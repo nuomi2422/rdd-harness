@@ -107,7 +107,8 @@ function verify(req, opts = {}) {
   const reviewer = opts.reviewer || '';
   const refs = Array.isArray(opts.evidenceRefs) ? opts.evidenceRefs.filter(nonEmpty) : [];
   if (!nonEmpty(reviewer)) fail('INDEPENDENT_REVIEW_REQUIRED', '进 VERIFIED 必须有独立核验者');
-  if (req.submitter && reviewer === req.submitter) {
+  if (!nonEmpty(req.submitter)) fail('SUBMITTER_REQUIRED', '请求必须记提交者，否则「独立核验」无从判定');
+  if (reviewer === req.submitter) {
     fail('INDEPENDENT_REVIEW_REQUIRED', '核验者不能是提交者本人');
   }
   const all = [...req.evidenceRefs, ...refs];
