@@ -182,6 +182,58 @@ function cmdResume() {
   console.log(JSON.stringify({ ok: true, id, state: after.state, resumedFrom: actual }));
 }
 
+const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
+const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest'];
+
+/**
+ * G7b 执行器第一刀：把「跑一条可验证的检查」接进来，并按结果**自动推进状态**。
+ *
+ * 三条纪律：
+ *  1. **只跑白名单命令**（harness-gate.js 的 preflight/postflight/selftest），别的一律拒；
+ *  2. 成功（exit=0）→ 自动 implement 并写证据 `run:<cmd>:exit=0`；
+ *  3. 失败 → 自动 block，理由是退出码 + 输出尾部，**不许伪造证据**。
+ */
+function cmdRun() {
+  const id = arg('id');
+  const cmd = arg('cmd');
+  if (!id) throw new Error('缺 --id');
+  if (!ALLOWED_RUNS.includes(cmd)) {
+    const e = new Error(`RUN_NOT_ALLOWED: 只允许 ${ALLOWED_RUNS.join('/')}`);
+    e.code = 'RUN_NOT_ALLOWED';
+    throw e;
+  }
+  const events = readEvents();
+  const req = replay(events, id);
+  if (!req) throw new Error(`没有这个请求：${id}`);
+  const args = [GATE, cmd];
+  if (arg('keyword')) args.push('--keyword', arg('keyword'));
+  if (arg('since')) args.push('--since', arg('since'));
+  const { spawnSync } = require('node:child_process');
+  const t0 = Date.now();
+  const got = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: HARNESS });
+  const exit = got.status === null ? -1 : got.status;
+  const out = ((got.stdout || '') + (got.stderr || '')).trim();
+  const tail = out.split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
+  // 先在内存里校验迁移合法（非法就不落任何盘，与 G7a 同一纪律）
+  const evidence = [`run:${cmd}:exit=${exit}`];
+  if (exit === 0) er.implement(req, { by: 'batch-bridge', evidenceRefs: evidence });
+  else er.block(req, { by: 'batch-bridge', reason: `run ${cmd} exit=${exit}` });
+  appendEvent({ kind: 'run', requestId: id, cmd, exit, ms: Date.now() - t0, tail });
+  if (exit === 0) {
+    appendEvent({
+      kind: 'transition', requestId: id, to: 'IMPLEMENTED', by: 'batch-bridge',
+      reason: `run ${cmd} exit=0`, evidenceRefs: evidence,
+    });
+  } else {
+    appendEvent({
+      kind: 'transition', requestId: id, to: 'BLOCKED', by: 'batch-bridge',
+      reason: `run ${cmd} exit=${exit}: ${tail}`,
+    });
+  }
+  const after = replay(readEvents(), id);
+  console.log(JSON.stringify({ ok: exit === 0, id, cmd, exit, state: after.state }));
+}
+
 function cmdStart() {
   const requestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const e = {
@@ -378,6 +430,7 @@ try {
   else if (cmd === 'list') cmdList();
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
+  else if (cmd === 'run') cmdRun();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
