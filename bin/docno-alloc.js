@@ -209,20 +209,69 @@ function cmdCheck() {
   }
   unallocated.sort((a, b) => a.no - b.no);
 
-  console.log('编号一致性检查\n');
-  console.log(`  目录撞号（同一号多个文件）= ${cf.length}`);
-  for (const x of cf) console.log(`    ✘ ${x.no}: ${x.files.join(' + ')}`);
-  console.log(`  目录有、但台账没分配过 = ${unallocated.length}`);
-  for (const x of unallocated) {
-    console.log(`    · ${String(x.no).padStart(2, '0')}  ${x.files.join(' + ')}`);
+  // ★ 2026-10-22：把「历史文件」和「本轮绕过取号处」分开，否则一条命令刷 75 行。
+  //   台账 allocations 是 2026-10-22 才有的字段（先占后建），
+  //   在那之前建的文件全都没有分配记录 —— 那是**预期**，不是违规。
+  //   真正的违规是：取号处已经存在之后，还有文件在盘上出现却没走过取号。
+  //   判据用「台账 updated 之后的 git 改动」—— 取号处上线后动过的号才算数。
+  //   （不按 mtime：mtime 会被 git checkout / 解压覆盖，不能证明「新建」。）
+  let sinceIso = null;
+  try {
+    const firstAlloc = (ctx.ledger.allocations || []).slice().sort((a, b) => String(a.at).localeCompare(String(b.at)))[0];
+    if (firstAlloc && firstAlloc.at) sinceIso = String(firstAlloc.at).slice(0, 10);
+  } catch { /* 没分配记录就全算历史 */ }
+  const recentFiles = new Set();
+  if (sinceIso) {
+    const r = spawnSync(GIT, ['-C', ctx.dir, 'log', '--name-only', '--format=',
+      `--since=${sinceIso} 00:00`, '--', '.'], { encoding: 'utf8', timeout: 30000 });
+    if (r.status === 0) {
+      for (const l of (r.stdout || '').split(/\r?\n/)) {
+        const f = l.trim();
+        if (f && /\.md$/.test(f)) recentFiles.add(f);
+      }
+    }
   }
-  if (cf.length === 0 && unallocated.length === 0) {
-    console.log('\nVERDICT: 编号一致 —— 目录里的号都从取号处来');
+  const isRecent = (files) => files.some((f) => recentFiles.has(f));
+  const recentUnalloc = unallocated.filter((x) => isRecent(x.files));
+  const legacyUnalloc = unallocated.filter((x) => !isRecent(x.files));
+
+  // ★ 2026-10-22：撞号也分「已登记为债的旧撞号」和「新撞号」。
+  //   依据与 check-doc-freshness 同源：台账 knownDuplicateNumbers 里的是旧债，
+  //   降级不拦（否则一次旧债把门禁永久钉死，门禁一旦被长期忽略就等于没有）。
+  //   不在名单里的撞号 = 新撞号，必须 BLOCK。
+  const KNOWN_DUP = new Set((ctx.ledger.knownDuplicateNumbers || []).map((x) => Number(x)));
+  const newConflicts = cf.filter((x) => !KNOWN_DUP.has(Number(x.no)));
+  const knownConflicts = cf.filter((x) => KNOWN_DUP.has(Number(x.no)));
+
+  console.log('编号一致性检查\n');
+  console.log(`  取号处上线日     = ${sinceIso || '（无分配记录）'}`);
+  console.log(`  新撞号（未登记）  = ${newConflicts.length}   ← 这些要处理`);
+  for (const x of newConflicts) console.log(`    ✘ ${x.no}: ${x.files.join(' + ')}`);
+  console.log(`  旧撞号（已登记为债）= ${knownConflicts.length}   ← 降 WARN，不拦`);
+  for (const x of knownConflicts) console.log(`    · ${x.no}: ${x.files.join(' + ')}`);
+  console.log(`  取号后新增却没走过取号处 = ${recentUnalloc.length}   ← 这些是违规`);
+  for (const x of recentUnalloc) console.log(`    ✘ ${String(x.no).padStart(2, '0')}  ${x.files.join(' + ')}`);
+  console.log(`  历史文件（取号处之前建的） = ${legacyUnalloc.length}   ← 预期，不算违规`);
+  for (const x of legacyUnalloc.slice(0, 5)) console.log(`    · ${String(x.no).padStart(2, '0')}  ${x.files.join(' + ')}`);
+  if (legacyUnalloc.length > 5) console.log(`    · …还有 ${legacyUnalloc.length - 5} 个`);
+
+  if (newConflicts.length === 0 && recentUnalloc.length === 0) {
+    console.log('\nVERDICT: 编号一致 —— 本轮新增的号都从取号处来');
+    if (knownConflicts.length) {
+      console.log(`  （${knownConflicts.length} 个旧撞号已登记为债，在台账 knownDuplicateNumbers 里，降 WARN 不拦）`);
+    }
+    if (legacyUnalloc.length) {
+      console.log(`  （另有 ${legacyUnalloc.length} 个历史文件无分配记录，属取号处上线前的既有状态）`);
+    }
     return EXIT_OK;
   }
-  console.log('\nVERDICT: 上面这些要么是撞号，要么是绕过取号处建的文件。');
-  console.log('  撞号 → 改文件名并同步引用（改完重跑本命令）。');
-  console.log('  未分配 → 历史文件可留在 knownDuplicateNumbers 之外；新文件必须走 docno-alloc.js next。');
+  console.log('\nVERDICT: 有问题要处理。');
+  if (newConflicts.length) {
+    console.log('  新撞号 → 改文件名并同步引用；若确认是旧债，登记进台账 knownDuplicateNumbers 并说明理由。');
+  }
+  if (recentUnalloc.length) {
+    console.log('  取号后新增却没走过取号处 → 下次先跑 `node bin/docno-alloc.js next`，先占号再建文件。');
+  }
   return EXIT_CONFLICT;
 }
 
