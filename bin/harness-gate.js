@@ -1048,6 +1048,14 @@ function runSelftest() {
   chk('ffmpeg frame= 取最大值而非第一个', Math.max(...seen) === 160, `读到 ${JSON.stringify(seen)}`);
 
   console.log('══════════ RDD harness 门禁 · SELFTEST（体检门禁自身）═══════════');
+  // ★ 2026-10-22：selftest 绿 ≠ 门禁绿，两个必须在输出里分清。
+  //   用户原话：「体检和日报里每个『绿』必须注明是 selftest 绿还是 实跑绿。」
+  //   实测踩过：把 selftest 的「5 个都绿」当成 verify-tools 全绿汇报，
+  //   而实跑 check-doc-freshness 当时有 10 个 BLOCK。
+  //   判别标准（别再犯）：selftest 证明的是「门禁代码本身没坏」，
+  //   **不证明「工程没债」**。后者只有实跑 preflight/postflight 才知道。
+  console.log('  ⚠ 这是【selftest 绿】= 门禁自身健康，不代表工程没债。');
+  console.log('    要判「这一轮干得干不得」必须实跑 preflight / postflight。');
   console.log(`  规范源 ${REG.standards.source}`);
   console.log(`  时间锁 ${(REG.timeLocks.locks || []).length} 条 · 工具 ${(REG.tools || []).length} 个`);
   console.log('');
