@@ -195,7 +195,7 @@ function cmdResume() {
 }
 
 const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
-const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest'];
+const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke'];
 
 /**
  * G7b 执行器第一刀：把「跑一条可验证的检查」接进来，并按结果**自动推进状态**。
@@ -205,6 +205,29 @@ const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest'];
  *  2. 成功（exit=0）→ 自动 implement 并写证据 `run:<cmd>:exit=0`；
  *  3. 失败 → 自动 block，理由是退出码 + 输出尾部，**不许伪造证据**。
  */
+
+/** 只读探测：端口有没有在听（不派任务、不写盘、不启停游戏）。 */
+function probePorts(ports) {
+  const net = require('node:net');
+  const { execFileSync } = require('node:child_process');
+  const out = [];
+  for (const port of ports) {
+    let open = false;
+    try {
+      // Windows 上用 netstat 判 LISTEN 最稳（connect 在少了防火墙规则时会有延迟）
+      const txt = execFileSync('netstat', ['-ano', '-p', 'TCP'], { encoding: 'utf8' });
+      open = txt.split(/\r?\n/).some((l) => l.includes(`:${port} `) && l.includes('LISTENING'));
+    } catch {
+      try {
+        const sock = new net.Socket();
+        // 同步语义不可用，退化成"看不到就是 false"
+        sock.destroy();
+      } catch { /* ignore */ }
+    }
+    out.push({ port, open });
+  }
+  return out;
+}
 function cmdRun() {
   const id = arg('id');
   const cmd = arg('cmd');
@@ -217,20 +240,33 @@ function cmdRun() {
   const events = readEvents();
   const req = replay(events, id);
   if (!req) throw new Error(`没有这个请求：${id}`);
-  const args = [GATE, cmd];
-  if (arg('keyword')) args.push('--keyword', arg('keyword'));
-  if (arg('since')) args.push('--since', arg('since'));
-  const { spawnSync } = require('node:child_process');
+
+  // D1–D3：acx-smoke 是**只读探测**（只看端口），不派任务、不写 monitor、不启停游戏
+  let exit;
+  let out;
+  let probe = null;
   const t0 = Date.now();
-  const got = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: HARNESS });
-  const exit = got.status === null ? -1 : got.status;
-  const out = ((got.stdout || '') + (got.stderr || '')).trim();
+  if (cmd === 'acx-smoke') {
+    probe = probePorts([8765, 8080, 8776]);
+    const closed = probe.filter((p) => !p.open).map((p) => p.port);
+    exit = closed.length === 0 ? 0 : 1;
+    out = probe.map((p) => `${p.port}:${p.open ? 'open' : 'closed'}`).join(' ');
+    if (closed.length) out += ` | 不在听: ${closed.join(',')}`;
+  } else {
+    const args = [GATE, cmd];
+    if (arg('keyword')) args.push('--keyword', arg('keyword'));
+    if (arg('since')) args.push('--since', arg('since'));
+    const { spawnSync } = require('node:child_process');
+    const got = spawnSync(process.execPath, args, { encoding: 'utf8', cwd: HARNESS });
+    exit = got.status === null ? -1 : got.status;
+    out = ((got.stdout || '') + (got.stderr || '')).trim();
+  }
   const tail = out.split(/\r?\n/).slice(-3).join(' | ').slice(0, 300);
   // 先在内存里校验迁移合法（非法就不落任何盘，与 G7a 同一纪律）
   const evidence = [`run:${cmd}:exit=${exit}`];
   if (exit === 0) er.implement(req, { by: 'batch-bridge', evidenceRefs: evidence });
-  else er.block(req, { by: 'batch-bridge', reason: `run ${cmd} exit=${exit}` });
-  appendEvent({ kind: 'run', requestId: id, cmd, exit, ms: Date.now() - t0, tail });
+  else er.block(req, { by: 'batch-bridge', reason: `run ${cmd} exit=${exit}: ${tail}` });
+  appendEvent({ kind: 'run', requestId: id, cmd, exit, ms: Date.now() - t0, tail, ...(probe ? { probe } : {}) });
   if (exit === 0) {
     appendEvent({
       kind: 'transition', requestId: id, to: 'IMPLEMENTED', by: 'batch-bridge',
