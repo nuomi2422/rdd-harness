@@ -91,10 +91,18 @@ const DOCS = [
   { id: 'decidePolicy', name: '决策策略（什么才配问你）', file: 'stager/core/decide-policy.json', from: 'workspace', editable: true, why: '改它就改了「什么能问用户」' },
   { id: 'budget', name: '模型额度（每小时上限）', file: 'opencode-plugin/model-budget.json', from: 'workspace', editable: true, why: '降级链与额度上限，改它不用动代码' },
   { id: 'agents', name: '工程纪律（外层 AGENTS.md）', file: 'AGENTS.md', from: 'workspace', editable: true, why: '⚠ 全局卡是从这里同步出去的，改完要跑 check-global' },
+  // ★ 2026-10-22：面板原来只认上面 8 条治理文件，`rdd存放/`（给用户看的结论稿）
+  //   一份都点不开 —— 于是「老板台」上看不到结论，只能看纪律。
+  //   用户原话：「那个老板台那里不是有很多个窗口吗？你要把那些东西让我都看到实际的东西」。
+  //   加两份「入口级」的：架构总入口（新）+ 系统全景（规模与资产普查）。
+  { id: 'archIndex', name: '★ 架构总入口（模块/历史/结论三处怎么分）', file: '架构总入口-一张图看懂它在干什么-20261022.md', from: 'docsOut', editable: true, why: '想知道「架构文档在哪、哪份是现在的」从这里进' },
+  { id: 'panorama', name: '系统全景（规模 / 四层 / 资产普查清单）', file: '系统全景-有多少东西怎么搭的-20261021.md', from: 'docsOut', editable: false, why: '想快速知道「有多大、哪些资产必须进 git」看这份' },
 ];
 
 function docPath(d) {
-  const base = d.from === 'harness' ? H : WS;
+  const base = d.from === 'harness' ? H
+    : d.from === 'docsOut' ? (R.docsOut || path.join(path.dirname(R.docs || H), 'rdd存放'))
+    : WS;
   return path.join(base, d.file);
 }
 
@@ -119,10 +127,22 @@ function portAlive(port, timeout) {
 }
 
 // ───────────────────────────────────────────── harness 体检（轻量，只读）
+// ★ 2026-10-22：候选路径要跟 harness-gate.js 的 resolveTool 对齐。
+//   原来只有 3 个候选（workspace / harness / live），漏了 **RDD 根** ——
+//   而 `tools/` 是顶层目录（工具链、mcp-memory），既不在 workspace 也不在 harness 下。
+//   后果：面板把 memory.mcp（记忆库入口）报成「路径不存在（空头支票）」，
+//   而同一个文件 harness-gate 的 selftest 判「路径全部落地」✅。
+//   **同一个事实两个结论，面板那个是错的。** 这是「报不存在之前先把候选路径都打出来」的第 8 例。
 function toolResolve(p) {
   if (path.isAbsolute(p)) return p;
   const bare = p.replace(/^(?:rdd)?harness[\\/]/, '');
-  const cands = [path.join(WS, p), path.join(H, bare), path.join(R.live || '', p.replace(/^live[\\/]/, ''))];
+  const rddRoot = (REG && REG._meta && REG._meta.root) || path.resolve(H, '..', '..');
+  const cands = [
+    path.join(WS, p),
+    path.join(H, bare),
+    path.join(R.live || '', p.replace(/^live[\\/]/, '')),
+    path.join(rddRoot, p),          // ★ RDD 根：tools/ 这类顶层目录靠它
+  ];
   return cands.find((c) => exists(c)) || cands[0];
 }
 

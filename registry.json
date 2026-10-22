@@ -428,15 +428,6 @@
       "note": "★ 必须先于游戏起，否则 mod 连不上。仓库虽打了 archived tag，但 mc-watch.js 还依赖它，不能删。"
     },
     {
-      "id": "oc.walk",
-      "name": "走一步（已并入 oc.send 的 --walk）",
-      "path": "mc-openclaw-controller/scripts/oc-send.js",
-      "side": "run",
-      "needsGame": true,
-      "usage": "node oc-send.js --walk <键> <毫秒>",
-      "note": "★ 2026-10-19 核实：原先登记的 oc-walk.ps1 在仓库里不存在（4 个脚本是重写的，只保留了 oc-send / oc-drive / watch-ai / capture-win）。走一步请用 oc-send.js --walk。id 保持不变——门禁和文档都按 id 引用。"
-    },
-    {
       "id": "oc.watch",
       "name": "★ 像人一样看同伴：飞镜头+瞄准+干净截图",
       "path": "mc-openclaw-controller/scripts/watch-ai.js",
