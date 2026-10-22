@@ -15,6 +15,16 @@
  *
  * 判定：清单上每一项都必须被 git 跟踪（ls-files 非空）。不检查内容，只检查「在不在库里」。
  *
+ * ★ 2026-10-22 加固（原来只判「目录非空」，是假阴性）：
+ *   原实现对目录型条目只问「ls-files 非空吗」—— 一个目录里 12 个文件已跟踪、
+ *   另 1 个文件裸奔，它照样判 OK。这正是用户点名的三个「零机检位置」
+ *   （红线回退 > 模块架构 > 项目历史）看起来干净、实际没人盯的原因。
+ *   现在改成**逐文件比对**：磁盘上递归枚举的每一个文件都必须在 ls-files 里，
+ *   少一个就报裸奔（并把文件名列出来）。目录型条目额外报 tracked/裸奔计数。
+ *
+ * ★ 路径来源：原来硬编码 `D:\rdd`，换机/换目录就静默指空。
+ *   现在走 registry.json（registryLib.load()），跟其他 harness 脚本一致。
+ *
  * 用法：
  *   node check-asset-census.js            # 查默认清单
  *   node check-asset-census.js --json
@@ -26,11 +36,12 @@
 const fs = require('fs');
 const path = require('path');
 const { spawnSync } = require('child_process');
+const registryLib = require('./lib/registry.js');
 
-const RDD = 'D:\\rdd';
+const REG = registryLib.load();
 const GIT = 'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe';
-const DOCS = path.join(RDD, 'docs', 'rdd-docs');
-const HARNESS = path.join(RDD, 'harness', 'rdd-harness');
+const DOCS = path.resolve(REG.roots.docs, '..');
+const HARNESS = REG.roots.harness;
 
 // 应跟踪清单（与 全景文档 §六 一致）
 const CENSUS = [
@@ -53,23 +64,70 @@ const CENSUS = [
 
 const EXIT_OK = 0, EXIT_BAD = 2, EXIT_USAGE = 3;
 
+// ★ git ls-files 默认把非 ASCII 路径转义成八进制（"rdd\346\250..."），
+//   跟磁盘上的真实路径比不上 —— 这是个假阳性陷阱（实测踩过）。
+//   必须 -c core.quotepath=false 拿真实路径。
 function lsFiles(repo, p) {
-  const g = spawnSync(GIT, ['-C', repo, 'ls-files', '--', p], { encoding: 'utf8', timeout: 30000 });
+  const g = spawnSync(GIT, ['-C', repo, '-c', 'core.quotepath=false', 'ls-files', '--', p],
+    { encoding: 'utf8', timeout: 30000 });
   if (g.status !== 0) return null;
-  return (g.stdout || '').split(/\r?\n/).filter(Boolean);
+  return (g.stdout || '').split(/\r?\n/).filter(Boolean).map((s) => s.replace(/\\/g, '/'));
+}
+
+// 磁盘上递归枚举文件（相对 repo，正斜杠）。跳过 .git 目录。
+function walkDisk(repo, rel) {
+  const out = [];
+  const abs = path.join(repo, rel);
+  let entries = [];
+  try { entries = fs.readdirSync(abs, { withFileTypes: true }); } catch { return null; }
+  for (const e of entries) {
+    if (e.name === '.git') continue;
+    const childRel = (rel + '/' + e.name).replace(/^\/+/, '');
+    if (e.isDirectory()) {
+      const sub = walkDisk(repo, childRel);
+      if (sub === null) return null;
+      out.push(...sub);
+    } else {
+      out.push(childRel);
+    }
+  }
+  return out;
 }
 
 function run() {
   const results = [];
   for (const c of CENSUS) {
+    const isDir = /\/$/.test(c.p);
     if (!fs.existsSync(path.join(c.repo, c.p.replace(/\/$/, '')))) {
-      results.push({ ...c, status: 'MISSING', count: 0, detail: '磁盘上不存在' });
+      results.push({ ...c, status: 'MISSING', count: 0, bare: [], detail: '磁盘上不存在' });
       continue;
     }
     const files = lsFiles(c.repo, c.p);
-    if (files === null) { results.push({ ...c, status: 'GIT_ERR', count: 0, detail: 'git 不可用' }); continue }
-    if (files.length === 0) results.push({ ...c, status: 'UNTRACKED', count: 0, detail: '磁盘有、git 没有（裸奔）' });
-    else results.push({ ...c, status: 'OK', count: files.length, detail: `${files.length} 个文件已跟踪` });
+    if (files === null) { results.push({ ...c, status: 'GIT_ERR', count: 0, bare: [], detail: 'git 不可用' }); continue }
+
+    if (!isDir) {
+      // 单文件：ls-files 命中即算在库
+      if (files.length === 0) results.push({ ...c, status: 'UNTRACKED', count: 0, bare: [c.p], detail: '磁盘有、git 没有（裸奔）' });
+      else results.push({ ...c, status: 'OK', count: files.length, bare: [], detail: `${files.length} 个文件已跟踪` });
+      continue;
+    }
+
+    // ★ 目录型：逐文件比对 —— 磁盘上每个文件都必须在 ls-files 里。
+    //   原来的「非空即过」是假阴性：一个目录里 12 个已跟踪 + 1 个裸奔照样判 OK。
+    const disk = walkDisk(c.repo, c.p.replace(/\/$/, ''));
+    if (disk === null) { results.push({ ...c, status: 'MISSING', count: 0, bare: [], detail: '磁盘上不存在' }); continue }
+    const trackedSet = new Set(files);
+    const bare = disk.filter((f) => !trackedSet.has(f)).sort();
+    // git 里跟踪了但磁盘上已经没了 —— 反向缺口，报出来（但不判裸奔）
+    const diskSet = new Set(disk);
+    const missing = files.filter((f) => !diskSet.has(f)).sort();
+    const detail = `${disk.length} 个文件在盘上，${files.length} 个已跟踪` +
+      (missing.length ? `；${missing.length} 个已跟踪但盘上没了` : '') +
+      (bare.length ? `；★ ${bare.length} 个裸奔` : '');
+    results.push({
+      ...c, status: bare.length ? 'UNTRACKED' : 'OK', count: files.length,
+      bare, missing, detail,
+    });
   }
   return results;
 }
@@ -88,8 +146,45 @@ function selftest() {
     console.log(`  ${ok ? '✔' : '✘'} ${name}`);
     if (ok) pass++;
   }
-  console.log(`\n  selftest: ${pass}/${checks.length}`);
-  return pass === checks.length ? EXIT_OK : EXIT_BAD;
+  // ★ 2026-10-22：负向自检 —— 「工具跑起来了」不等于「它抓得住东西」。
+  //   造一个临时真 git 仓：提交一个文件，再放一个未跟踪文件进去，
+  //   逐文件比对必须报出这个裸奔文件（旧的「目录非空即过」实现会判 OK）。
+  //   没有这一条，这把尺子的刻度没人校过 —— 正是「selftest 绿 ≠ 实跑绿」的典型。
+  const neg = negSelfTest();
+  console.log(`  ${neg.ok ? '✔' : '✘'} 负向自检：目录里放 1 个未跟踪文件必须被抓出来`);
+  if (!neg.ok) console.log(`      ↳ ${neg.detail}`);
+  if (neg.ok) pass++;
+  const total = checks.length + 1;
+  console.log(`\n  selftest: ${pass}/${total}`);
+  return pass === total ? EXIT_OK : EXIT_BAD;
+}
+function negSelfTest() {
+  const os = require('os');
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'census-neg-'));
+  const git = (args) => spawnSync(GIT, ['-C', tmp, '-c', 'core.quotepath=false', ...args],
+    { encoding: 'utf8', timeout: 30000 });
+  try {
+    git(['init', '-q']);
+    git(['config', 'user.email', 'selftest@local']);
+    git(['config', 'user.name', 'selftest']);
+    fs.mkdirSync(path.join(tmp, 'dir'), { recursive: true });
+    fs.writeFileSync(path.join(tmp, 'dir', 'a.md'), '# a\n', 'utf8');
+    git(['add', 'dir/a.md']);
+    git(['commit', '-q', '-m', 'seed']);
+    fs.writeFileSync(path.join(tmp, 'dir', 'b.md'), '# b bare\n', 'utf8');
+    // 直接复用本脚本的逐文件比对逻辑
+    const tracked = lsFiles(tmp, 'dir');
+    const disk = walkDisk(tmp, 'dir');
+    const bare = disk.filter((f) => !new Set(tracked).has(f));
+    if (bare.length !== 1 || bare[0] !== 'dir/b.md') {
+      return { ok: false, detail: `期望抓到 dir/b.md，实际 bare=[${bare.join(',')}] tracked=[${tracked.join(',')}] disk=[${disk.join(',')}]` };
+    }
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, detail: String((e && e.message) || e) };
+  } finally {
+    try { fs.rmSync(tmp, { recursive: true, force: true }); } catch { /* 临时目录留着也不碍事 */ }
+  }
 }
 
 function main() {
@@ -111,6 +206,9 @@ function main() {
       const mark = x.status === 'OK' ? '✔' : '✘';
       console.log(`  ${mark} ${x.p.padEnd(42)} ${x.detail}`);
       if (x.status !== 'OK') console.log(`      ↳ ${x.why}`);
+      // ★ 逐文件裸奔：把具体文件名列出来 —— 只说「有裸奔」没人知道该 git add 什么
+      for (const b of (x.bare || [])) console.log(`      ✘ 裸奔: ${b}`);
+      for (const m of (x.missing || [])) console.log(`      ⚠ 已跟踪但盘上没了: ${m}`);
     }
     console.log('');
     if (bad.length === 0) console.log('VERDICT: 全部已跟踪，可以打 tag');
