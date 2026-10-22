@@ -348,6 +348,96 @@ function cmdShow() {
   console.log(JSON.stringify(req, null, 2));
 }
 
+/**
+ * G7c 综合压力：多批并发 + 预算耗尽 + 断点恢复。
+ *
+ * C1 三请求事件交错写同一账本，状态/消耗互不串；
+ * C2 其中一个预算耗尽 → 只有它 BLOCKED；
+ * C3 两个进程同时写同一账本，行不损坏、条数对得上；
+ * C4 断点只回自己，不牵连别人。
+ */
+function cmdStress() {
+  const os = require('node:os');
+  const { spawn } = require('node:child_process');
+  const tmp = path.join(os.tmpdir(), `bridge-stress-${Date.now()}.jsonl`);
+  const keep = process.env.RDD_BRIDGE_LEDGER;
+  process.env.RDD_BRIDGE_LEDGER = tmp;
+  const failures = [];
+  const step = (name, fn) => { try { fn(); } catch (e) { failures.push(`${name}: ${e.message}`); } };
+  const quiet = (fn) => { const l = console.log; console.log = () => {}; try { return fn(); } finally { console.log = l; } };
+  const sha = headRevision();
+  const budgets = '{"s1":{"amount":0,"calls":99,"tokens":999999,"scope":"harness"}}';
+  const ids = [];
+
+  step('C1 三请求交错', () => {
+    for (let i = 0; i < 3; i++) {
+      process.argv = ['node', 'b', 'start', '--batch', `S${i}`, '--scope', 'harness', '--revision', sha];
+      quiet(() => cmdStart());
+    }
+    const reqs = allRequests(readEvents());
+    if (reqs.length !== 3) throw new Error('请求数 ' + reqs.length);
+    for (const r of reqs) ids.push(r.requestId);
+    for (const id of ids) {
+      process.argv = ['node', 'b', 'accept', '--id', id, '--by', 'ai'];
+      quiet(() => transitionCmd('ACCEPTED'));
+    }
+    for (const id of ids) if (replay(readEvents(), id).state !== 'ACCEPTED') throw new Error('不是 ACCEPTED: ' + id);
+  });
+
+  step('C2 预算耗尽只影响自己', () => {
+    const target = ids[1];
+    process.argv = ['node', 'b', 'run', '--id', target, '--cmd', 'selftest', '--budget-json', budgets];
+    quiet(() => cmdRun());
+    const t = replay(readEvents(), target);
+    if (t.state !== 'BLOCKED') throw new Error('目标应 BLOCKED，实际 ' + t.state);
+    if (spentOf(readEvents(), target).calls < 1) throw new Error('没记到消耗');
+    for (const id of [ids[0], ids[2]]) {
+      if (replay(readEvents(), id).state !== 'ACCEPTED') throw new Error('被牵连：' + id);
+      if (spentOf(readEvents(), id).calls !== 0) throw new Error('消耗串了：' + id);
+    }
+  });
+
+  step('C4 断点只回自己', () => {
+    process.argv = ['node', 'b', 'resume', '--id', ids[1], '--by', 'ai'];
+    quiet(() => cmdResume());
+    if (replay(readEvents(), ids[1]).state !== 'ACCEPTED') throw new Error('resume 后不是 ACCEPTED');
+    if (replay(readEvents(), ids[0]).state !== 'ACCEPTED') throw new Error('无关请求被改了');
+  });
+
+  const finish = (extra) => {
+    if (keep === undefined) delete process.env.RDD_BRIDGE_LEDGER; else process.env.RDD_BRIDGE_LEDGER = keep;
+    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+    const r = { ok: failures.length === 0, failures, ...extra };
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(r.ok ? 0 : 1);
+  };
+
+  const writers = [0, 1].map((n) => new Promise((resolve) => {
+    const p = spawn(process.execPath, [__filename, 'stress-writer', '--n', String(n)], {
+      env: { ...process.env, RDD_BRIDGE_LEDGER: tmp }, stdio: 'ignore',
+    });
+    p.on('exit', (code) => resolve(code));
+  }));
+  Promise.all(writers).then((codes) => {
+    if (codes.some((c) => c !== 0)) failures.push('C3 子进程失败 ' + codes.join(','));
+    const lines = fs.readFileSync(tmp, 'utf8').split(/\r?\n/).filter(Boolean);
+    let bad = 0;
+    let marks = 0;
+    for (const l of lines) {
+      try { const e = JSON.parse(l); if (e.kind === 'writer-mark') marks++; } catch { bad++; }
+    }
+    if (bad) failures.push(`C3 有 ${bad} 行损坏`);
+    if (marks !== 200) failures.push(`C3 写入条数 ${marks}（应 200）`);
+    finish({ lines: lines.length, marks });
+  });
+}
+
+function cmdStressWriter() {
+  const n = Number(arg('n') || 0);
+  for (let i = 0; i < 100; i++) appendEvent({ kind: 'writer-mark', requestId: `w${n}-${i}`, i });
+  process.exit(0);
+}
+
 function selftest() {
   const tmp = path.join(require('node:os').tmpdir(), `bridge-${Date.now()}.jsonl`);
   const keep = process.env.RDD_BRIDGE_LEDGER;
@@ -477,6 +567,8 @@ try {
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
   else if (cmd === 'run') cmdRun();
+  else if (cmd === 'stress') cmdStress();
+  else if (cmd === 'stress-writer') cmdStressWriter();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
