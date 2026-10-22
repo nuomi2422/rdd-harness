@@ -210,4 +210,42 @@ function publish(deps) {
   });
   return { ok: true, code: 'TRIAL', questId: quest.questId, entryId: quest.entryId, exit: 0 };
 }
-module.exports = { act, move, list, closeQuest, promote, publish, mcpRaw, mcpJson };
+
+/**
+ * K24–K26：把「用过」的结果写回成熟度（只由人/桥显式给证据，绝不自动猜）。
+ */
+function verify(deps, opts) {
+  const successArg = opts && opts.success;
+  const note = String((opts && opts.note) || '').trim();
+  if (successArg !== 'true' && successArg !== 'false') {
+    return { ok: false, code: 'EVIDENCE_REQUIRED', why: '必须给 --success true|false', exit: 2 };
+  }
+  if (!note) return { ok: false, code: 'EVIDENCE_REQUIRED', why: '必须给 --note 说清凭什么', exit: 2 };
+  const events = deps.readEvents();
+  const trials = events.filter((e) => e.kind === 'curiosity' && e.state === 'TRIAL' && e.entryId);
+  if (!trials.length) return { ok: true, code: 'NOTHING_TO_DO', exit: 0 };
+  const quest = trials[trials.length - 1];
+  if (events.some((e) => e.kind === 'curiosity' && e.questId === quest.questId
+    && (e.state === 'VERIFIED_UP' || e.state === 'VERIFIED_DOWN'))) {
+    return { ok: true, code: 'ALREADY_DONE', questId: quest.questId, exit: 0 };
+  }
+  const res = mcpJson('experience_verify', { id: quest.entryId, success: successArg === 'true', note });
+  if (!res || res.success !== true) {
+    deps.appendEvent({
+      kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+      state: 'VERIFY_FAILED', entryId: quest.entryId,
+      reason: String((res && res.message) || 'unknown').slice(0, 160),
+    });
+    return { ok: false, code: 'VERIFY_FAILED', questId: quest.questId, exit: 2 };
+  }
+  deps.appendEvent({
+    kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+    state: successArg === 'true' ? 'VERIFIED_UP' : 'VERIFIED_DOWN',
+    entryId: quest.entryId, note: note.slice(0, 200),
+    verifiedCount: res.data ? res.data.verifiedCount : undefined,
+  });
+  return { ok: true, code: successArg === 'true' ? 'VERIFIED_UP' : 'VERIFIED_DOWN',
+    questId: quest.questId, entryId: quest.entryId,
+    verifiedCount: res.data ? res.data.verifiedCount : undefined, exit: 0 };
+}
+module.exports = { act, move, list, closeQuest, promote, publish, verify, mcpRaw, mcpJson };
