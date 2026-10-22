@@ -513,6 +513,60 @@ function isJson(s) {
   try { JSON.parse(s); return true; } catch { return false; }
 }
 
+/** C7/C8：持续写、等父进程 SIGKILL（不是自己优雅退出）。 */
+function cmdKillWriter() {
+  let i = 0;
+  const tick = () => {
+    appendEvent({ kind: 'writer-mark', requestId: `kill-${i}`, i });
+    i++;
+    setTimeout(tick, 2);
+  };
+  tick();
+}
+
+function cmdStressKill() {
+  const os = require('node:os');
+  const { spawn, spawnSync } = require('node:child_process');
+  const tmp = path.join(os.tmpdir(), `bridge-kill-${Date.now()}.jsonl`);
+  const keep = process.env.RDD_BRIDGE_LEDGER;
+  process.env.RDD_BRIDGE_LEDGER = tmp;
+  const failures = [];
+
+  const child = spawn(process.execPath, [__filename, 'kill-writer'], {
+    env: { ...process.env, RDD_BRIDGE_LEDGER: tmp }, stdio: 'ignore',
+  });
+  const killer = setTimeout(() => { try { child.kill('SIGKILL'); } catch { /* ignore */ } }, 250);
+
+  child.on('exit', (code, signal) => {
+    clearTimeout(killer);
+    let complete = 0;
+    let bad = 0;
+    let text = '';
+    try { text = fs.readFileSync(tmp, 'utf8'); } catch { failures.push('C7 账本不存在'); }
+    for (const l of text.split(/\r?\n/)) {
+      if (!l.trim()) continue;
+      if (isJson(l)) complete++; else bad++;
+    }
+    if (complete < 5) failures.push(`C7 完整行只有 ${complete}`);
+    if (bad > 1) failures.push(`C7 坏行 ${bad}（应 ≤1）`);
+
+    appendEvent({ kind: 'writer-mark', requestId: 'after-kill', i: -1 });
+    const text2 = fs.readFileSync(tmp, 'utf8');
+    const glued = text2.split(/\r?\n/).filter((l) => (l.match(/\{"v":1/g) || []).length > 1);
+    if (glued.length) failures.push(`C8 有 ${glued.length} 行粘连`);
+    if (!isJson(text2.trim().split(/\r?\n/).pop())) failures.push('C8 最后一行不是合法事件');
+    const listed = spawnSync(process.execPath, [__filename, 'list'],
+      { env: { ...process.env, RDD_BRIDGE_LEDGER: tmp }, encoding: 'utf8' });
+    if (listed.status !== 0) failures.push('C8 list 退出码 ' + listed.status);
+
+    if (keep === undefined) delete process.env.RDD_BRIDGE_LEDGER; else process.env.RDD_BRIDGE_LEDGER = keep;
+    try { fs.unlinkSync(tmp); } catch { /* ignore */ }
+    const r = { ok: failures.length === 0, failures, complete, bad, signal: String(signal), code };
+    console.log(JSON.stringify(r, null, 2));
+    process.exit(r.ok ? 0 : 1);
+  });
+}
+
 function selftest() {
   const tmp = path.join(require('node:os').tmpdir(), `bridge-${Date.now()}.jsonl`);
   const keep = process.env.RDD_BRIDGE_LEDGER;
@@ -646,6 +700,8 @@ try {
   else if (cmd === 'stress-writer') cmdStressWriter();
   else if (cmd === 'stress-crash') cmdStressCrash();
   else if (cmd === 'crash-writer') cmdCrashWriter();
+  else if (cmd === 'stress-kill') cmdStressKill();
+  else if (cmd === 'kill-writer') cmdKillWriter();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
