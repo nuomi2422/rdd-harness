@@ -63,4 +63,50 @@ function act(deps) {
   return { ok: true, code: 'OBSERVED', questId: quest.questId, observation: String(text).slice(0, 120), exit: 0 };
 }
 
-module.exports = { act, mcpRaw };
+
+/** 调 MCP 工具并解析 JSON（goto/get_self_status 都返回 JSON）。 */
+function mcpJson(tool, args) {
+  const txt = mcpRaw(tool, args);
+  if (!txt) return null;
+  try { return JSON.parse(txt.split(/\r?\n/).filter(Boolean).pop()); } catch { return null; }
+}
+
+/**
+ * K11–K13：从最近一条 OBSERVED 出发，走过去再看（当前白名单只有 goto）。
+ */
+function move(deps) {
+  const events = deps.readEvents();
+  const observed = events.filter((e) => e.kind === 'curiosity' && e.state === 'OBSERVED');
+  if (!observed.length) return { ok: true, code: 'NOTHING_TO_DO', exit: 0 };
+  const quest = observed[observed.length - 1];
+  const done = events.some((e) => e.kind === 'curiosity' && e.questId === quest.questId
+    && (e.state === 'MOVED' || e.state === 'MOVE_FAILED'));
+  if (done) return { ok: true, code: 'ALREADY_DONE', questId: quest.questId, exit: 0 };
+
+  const st = mcpJson('get_self_status', {});
+  const pos = st && st.position;
+  if (!pos) {
+    deps.appendEvent({ kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+      trigger: quest.trigger, target: quest.target, state: 'MOVE_FAILED', reason: 'no_position', source: 'live' });
+    return { ok: false, code: 'MOVE_FAILED', reason: 'no_position', exit: 2 };
+  }
+  const to = { x: Math.round(pos.x) + 8, y: Math.round(pos.y), z: Math.round(pos.z) + 8 };
+  const started = mcpJson('goto', { x: to.x, y: to.y, z: to.z });
+  const taskId = started && started.data && (started.data.task_id || started.data.taskId);
+  if (!started || started.success !== true) {
+    deps.appendEvent({ kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+      trigger: quest.trigger, target: quest.target, state: 'MOVE_FAILED', reason: 'dispatch', source: 'live' });
+    return { ok: false, code: 'MOVE_FAILED', reason: 'dispatch', exit: 2 };
+  }
+  const end = Date.now() + 5000;
+  while (Date.now() < end) { /* 等它走一段 */ }
+  const stopped = mcpJson('task_stop', taskId ? { task_id: taskId } : {});
+  deps.appendEvent({
+    kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+    trigger: quest.trigger, target: quest.target, state: 'MOVED', source: 'live',
+    from: { x: Math.round(pos.x), y: Math.round(pos.y), z: Math.round(pos.z) },
+    to, task_id: taskId || '', stop_message: String((stopped && stopped.message) || '').slice(0, 160),
+  });
+  return { ok: true, code: 'MOVED', questId: quest.questId, from: [pos.x, pos.y, pos.z], to: [to.x, to.y, to.z], exit: 0 };
+}
+module.exports = { act, move, mcpRaw, mcpJson };

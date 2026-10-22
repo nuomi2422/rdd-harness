@@ -1055,6 +1055,11 @@ try {
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
   else if (cmd === 'usage') console.log(JSON.stringify(extractLastUsage(), null, 2));
+  else if (cmd === 'curiosity-move') {
+    const r = require('./lib/curiosity').move({ readEvents, appendEvent });
+    process.exitCode = r.exit || 0;
+    console.log(JSON.stringify(r));
+  }
   else if (cmd === 'curiosity-act') {
     const r = require('./lib/curiosity').act({ readEvents, appendEvent });
     process.exitCode = r.exit || 0;
