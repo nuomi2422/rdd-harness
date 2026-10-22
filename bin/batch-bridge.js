@@ -867,6 +867,60 @@ function cmdCuriosity() {
   console.log(JSON.stringify({ ok: true, code: 'ASKED', target: cand.target, question: cand.question }));
 }
 
+/**
+ * G8 第二版：真世界触发（用当前工具面**真实可取**的三样东西）。
+ * 取不到 → NO_WORLD（exit 2，不落盘）；没有新东西 → NOTHING_NEW。
+ * K7 的诚实点：world.blocksFound=false，意思是「这次没有扫方块」，不是「没有方块」。
+ */
+function cmdCuriosityLive() {
+  const info = mcpCall('get_world_info', {});
+  if (!info || info.success === false) {
+    process.exitCode = 2;
+    return console.log(JSON.stringify({ ok: false, code: 'NO_WORLD', why: 'get_world_info 失败' }));
+  }
+  const st = mcpCall('get_self_status', {});
+  if (!st || st.success === false) {
+    process.exitCode = 2;
+    return console.log(JSON.stringify({ ok: false, code: 'NO_WORLD', why: 'get_self_status 失败' }));
+  }
+  const events = readEvents();
+  const seenItems = events.filter((x) => x.kind === 'curiosity' && x.trigger === 'new_item').map((x) => x.target);
+  const seenStructures = events.filter((x) => x.kind === 'curiosity' && x.trigger === 'new_structure').map((x) => x.target);
+  const seenWeather = events.filter((x) => x.kind === 'curiosity' && x.trigger === 'weather_change').map((x) => x.target);
+
+  const hand = st.equipment && st.equipment.mainhand && st.equipment.mainhand.item;
+  const structures = st.structures || [];
+  const weather = info.weather;
+
+  let cand = null;
+  if (hand && !seenItems.includes(hand)) {
+    cand = { trigger: 'new_item', target: hand, question: hand + ' 能用来做什么？', action: 'craft' };
+  } else if (structures.some((s) => !seenStructures.includes(s))) {
+    const s = structures.find((x) => !seenStructures.includes(x));
+    cand = { trigger: 'new_structure', target: s, question: s + ' 里有什么？', action: 'explore' };
+  } else if (weather && !seenWeather.includes(weather)) {
+    cand = { trigger: 'weather_change', target: weather, question: '在这种天气（' + weather + '）下能做什么？', action: 'explore' };
+  }
+  if (!cand) return console.log(JSON.stringify({ ok: true, code: 'NOTHING_NEW', source: 'live' }));
+
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todays = events.filter((x) => x.kind === 'curiosity' && x.at >= today.getTime());
+  if (todays.length >= CURIO_DAILY_MAX) {
+    process.exitCode = 2;
+    return console.log(JSON.stringify({ ok: false, code: 'QUOTA_EXCEEDED', today: todays.length }));
+  }
+  appendEvent({
+    kind: 'curiosity',
+    requestId: 'curio-' + Date.now().toString(36),
+    questId: 'q-' + Date.now().toString(36),
+    trigger: cand.trigger, target: cand.target, question: cand.question,
+    hypothesis: '', action: cand.action, state: 'ASKED', source: 'live',
+    blocksFound: false,
+    meta: { biome: st.biome, dimension: info.dimension, weather, isDark: info.is_dark_outside },
+  });
+  console.log(JSON.stringify({ ok: true, code: 'ASKED', source: 'live', trigger: cand.trigger, target: cand.target, question: cand.question }));
+}
+
 function selftest() {
   const tmp = path.join(require('node:os').tmpdir(), `bridge-${Date.now()}.jsonl`);
   const keep = process.env.RDD_BRIDGE_LEDGER;
@@ -1001,7 +1055,9 @@ try {
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
   else if (cmd === 'usage') console.log(JSON.stringify(extractLastUsage(), null, 2));
-  else if (cmd === 'curiosity') cmdCuriosity();
+  else if (cmd === 'curiosity') {
+    if (process.argv.includes('--live')) cmdCuriosityLive(); else cmdCuriosity();
+  }
   else if (cmd === 'run') cmdRun();
   else if (cmd === 'stress') cmdStress();
   else if (cmd === 'stress-writer') cmdStressWriter();
