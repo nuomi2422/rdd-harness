@@ -196,7 +196,8 @@ function cmdResume() {
 
 const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
 const ALLOWED_BODY_TOOLS = ['goto'];
-const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task', 'body-task'];
+const MAX_BATCH = 5;
+const ALLOWED_RUNS = ['preflight', 'postflight', 'selftest', 'acx-smoke', 'acx-task', 'body-task', 'body-batch'];
 
 /**
  * G7b 执行器第一刀：把「跑一条可验证的检查」接进来，并按结果**自动推进状态**。
@@ -331,6 +332,20 @@ function runBodyTask(tool, argsObj, holdMs) {
 function extractLastUsage() {
   return extractUsageSince(Math.max(1, logSize() - 256 * 1024));
 }
+
+/** W1–W4：顺序派 N 个身体任务（每个都派发+取消），一条 run 事件收拢。 */
+function runBodyBatch(tool, argsObj, holdMs, n) {
+  const items = [];
+  for (let i = 0; i < n; i++) {
+    const one = runBodyTask(tool, argsObj, holdMs);
+    items.push(one);
+    if (!one.dispatched) break;   // 派发就失败，后面不用再试
+  }
+  return {
+    batch: items,
+    ok: items.length === n && items.every((x) => x.dispatched && x.stopped),
+  };
+}
 function cmdRun() {
   const id = arg('id');
   const cmd = arg('cmd');
@@ -366,6 +381,32 @@ function cmdRun() {
     // U1/U2：把这次之后最近一条 usage=UsageStats[...] 挂到 probe（抓不到就 null，不影响成败）
     probe.usage = extractUsageSince(logAtStart);
     out = `run_id=${probe.run_id} state=${probe.state} steps=${probe.steps}`;
+  } else if (cmd === 'body-batch') {
+    // W1–W4：顺序派 N 个身体任务，一条 run 事件收拢
+    const tool = arg('tool') || 'goto';
+    if (!ALLOWED_BODY_TOOLS.includes(tool)) {
+      const e = new Error(`TOOL_NOT_ALLOWED: 只允许 ${ALLOWED_BODY_TOOLS.join('/')}`);
+      e.code = 'TOOL_NOT_ALLOWED';
+      throw e;
+    }
+    const n = Number(arg('n') || 2);
+    if (!Number.isInteger(n) || n < 1 || n > MAX_BATCH) {
+      const e = new Error(`BATCH_TOO_LARGE: --n 必须在 1..${MAX_BATCH}`);
+      e.code = 'BATCH_TOO_LARGE';
+      throw e;
+    }
+    const rawArgs = arg('args') || '';
+    const argsObj = {};
+    for (const kv of rawArgs.split(/\s+/).filter(Boolean)) {
+      const i = kv.indexOf('=');
+      if (i > 0) argsObj[kv.slice(0, i)] = kv.slice(i + 1);
+    }
+    probe = runBodyBatch(tool, argsObj, Number(arg('hold') || 2500), n);
+    probe.tool = tool;
+    probe.args = rawArgs;
+    probe.usage = extractUsageSince(logAtStart);
+    exit = (probe.ok && probe.usage) ? 0 : 1;
+    out = `n=${probe.batch.length}/${n} ok=${probe.ok} usage=${probe.usage ? 'yes' : 'null'}`;
   } else if (cmd === 'body-task') {
     // V1–V3：派一次身体任务（走 CompanionBrain）→ 3s 后取消 → 抓 usage
     const tool = arg('tool') || 'goto';
