@@ -274,6 +274,36 @@ function runAcxTask(acJson, timeoutMs) {
 function existingTerminal(s, deadline) {
   return (s === 'RUNNING' || s === 'PENDING') && Date.now() >= deadline;
 }
+
+const MC_LOG = 'D:\\rdd\\mc\\The Best of Twilight Forest\\logs\\latest.log';
+
+/**
+ * 从 latest.log 的尾部抓最近一条 `usage=UsageStats[...]`（U1/U3：只读）。
+ * 抓不到返回 null —— 不是每个任务都会触发试用归因（U2）。
+ */
+function extractUsageSince(fromMillis) {
+  try {
+    const st = fs.statSync(MC_LOG);
+    // 只读尾部 256KB，日志可能很大
+    const start = Math.max(0, st.size - 256 * 1024);
+    const fd = fs.openSync(MC_LOG, 'r');
+    const buf = Buffer.alloc(st.size - start);
+    fs.readSync(fd, buf, 0, buf.length, start);
+    fs.closeSync(fd);
+    const text = buf.toString('utf8');
+    const m = [...text.matchAll(/usage=UsageStats\[([^\]]+)\]/g)].pop();
+    if (!m) return null;
+    const out = {};
+    for (const kv of m[1].split(',')) {
+      const [k, v] = kv.split('=').map((s) => s.trim());
+      if (k) out[k] = Number.isNaN(Number(v)) ? v : Number(v);
+    }
+    out.fromMillis = fromMillis;
+    return out;
+  } catch {
+    return null;
+  }
+}
 function cmdRun() {
   const id = arg('id');
   const cmd = arg('cmd');
@@ -305,6 +335,8 @@ function cmdRun() {
     const timeout = Number(arg('timeout') || 90000);
     probe = runAcxTask(fs.readFileSync(acFile, 'utf8'), timeout);
     exit = probe.state === 'SUCCESS' ? 0 : 1;
+    // U1/U2：把这次之后最近一条 usage=UsageStats[...] 挂到 probe（抓不到就 null，不影响成败）
+    probe.usage = extractUsageSince(t0);
     out = `run_id=${probe.run_id} state=${probe.state} steps=${probe.steps}`;
   } else {
     const args = [GATE, cmd];
@@ -795,6 +827,7 @@ try {
   else if (cmd === 'list') cmdList();
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
+  else if (cmd === 'usage') console.log(JSON.stringify(extractUsageSince(0), null, 2));
   else if (cmd === 'run') cmdRun();
   else if (cmd === 'stress') cmdStress();
   else if (cmd === 'stress-writer') cmdStressWriter();
