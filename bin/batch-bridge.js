@@ -816,6 +816,57 @@ function cmdStressKill() {
   });
 }
 
+// ───────────── G8 好奇心支线（第一版：世界 → 一个问题，不派发） ─────────────
+
+const CURIO_DAILY_MAX = 5;
+const CURIO_DEDUPE_MS = 24 * 3600 * 1000;
+
+/** 世界快照 → 0 或 1 条候选（K1/K3：没新东西就不造）。 */
+function curiosityCandidate(world) {
+  const seenBlocks = new Set(world.seenBlocks || []);
+  const seenItems = new Set(world.seenItems || []);
+  for (const b of world.blocks || []) {
+    if (b && !seenBlocks.has(b)) {
+      return { trigger: 'new_block', target: b, question: b + ' 挖了会掉什么？', action: 'dig' };
+    }
+  }
+  for (const it of world.inventory || []) {
+    if (it && !seenItems.has(it)) {
+      return { trigger: 'new_item', target: it, question: it + ' 能用来做什么？', action: 'craft' };
+    }
+  }
+  return null;
+}
+
+function cmdCuriosity() {
+  const worldFile = arg('world-file');
+  if (!worldFile) throw new Error('缺 --world-file（世界快照 JSON）');
+  const world = JSON.parse(fs.readFileSync(worldFile, 'utf8').replace(/^\uFEFF/, ''));
+  const events = readEvents();
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const todays = events.filter((e) => e.kind === 'curiosity' && e.at >= today.getTime());
+  if (todays.length >= CURIO_DAILY_MAX) {
+    process.exitCode = 2;
+    return console.log(JSON.stringify({ ok: false, code: 'QUOTA_EXCEEDED', today: todays.length }));
+  }
+  const cand = curiosityCandidate(world);
+  if (!cand) {
+    return console.log(JSON.stringify({ ok: true, code: 'NOTHING_NEW' }));
+  }
+  const recent = events.filter((e) => e.kind === 'curiosity' && e.at >= Date.now() - CURIO_DEDUPE_MS);
+  if (recent.some((e) => e.target === cand.target && e.trigger === cand.trigger)) {
+    return console.log(JSON.stringify({ ok: true, code: 'DUPLICATE_24H', target: cand.target }));
+  }
+  appendEvent({
+    kind: 'curiosity',
+    requestId: 'curio-' + Date.now().toString(36),
+    questId: 'q-' + Date.now().toString(36),
+    trigger: cand.trigger, target: cand.target, question: cand.question,
+    hypothesis: '', action: cand.action, state: 'ASKED',
+  });
+  console.log(JSON.stringify({ ok: true, code: 'ASKED', target: cand.target, question: cand.question }));
+}
+
 function selftest() {
   const tmp = path.join(require('node:os').tmpdir(), `bridge-${Date.now()}.jsonl`);
   const keep = process.env.RDD_BRIDGE_LEDGER;
@@ -950,6 +1001,7 @@ try {
   else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'resume') cmdResume();
   else if (cmd === 'usage') console.log(JSON.stringify(extractLastUsage(), null, 2));
+  else if (cmd === 'curiosity') cmdCuriosity();
   else if (cmd === 'run') cmdRun();
   else if (cmd === 'stress') cmdStress();
   else if (cmd === 'stress-writer') cmdStressWriter();
