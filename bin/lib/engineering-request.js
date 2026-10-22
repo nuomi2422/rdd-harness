@@ -173,7 +173,9 @@ function assertBudget(req, budgets = {}, cost = {}, { at = nowMillis(), scope } 
   const b = budgets[ref];
   if (!b) fail('NO_AUTHORIZATION', `授权表里没有 ${ref}`);
   // 条目存在但一条额度都没填 = 没有额度（未填不等于无限）
-  if (b.amount == null && b.calls == null && b.tokens == null) {
+  // 只看「有没有填」，空串与 null 同义（核验 M1：mount:'' 曾被当成已填）
+  const filled = (v) => v != null && String(v).trim() !== '';
+  if (!filled(b.amount) && !filled(b.calls) && !filled(b.tokens)) {
     fail('NO_AUTHORIZATION', `${ref} 一条额度上限都没填（未填不等于无限）`);
   }
   // 覆盖范围没写 = 不能判断能不能花（未填不等于无限）

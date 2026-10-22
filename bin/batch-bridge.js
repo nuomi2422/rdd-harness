@@ -65,6 +65,18 @@ function appendEvent(e) {
   fs.appendFileSync(file, JSON.stringify({ v: 1, at: Date.now(), ...e }) + '\n', 'utf8');
 }
 
+/** 累计消耗（由 spend 事件重放算出，不存第二份计数器）。 */
+function spentOf(events, requestId) {
+  const spent = { amount: 0, calls: 0, tokens: 0 };
+  for (const e of events) {
+    if (e.kind !== 'spend' || e.requestId !== requestId) continue;
+    spent.amount += Number(e.amount || 0);
+    spent.calls += Number(e.calls || 0);
+    spent.tokens += Number(e.tokens || 0);
+  }
+  return spent;
+}
+
 /** 重放：事件流 → 当前状态（与 R7 同一口径）。 */
 function replay(events, requestId) {
   let req = null;
@@ -102,6 +114,34 @@ function allRequests(events) {
     }
   }
   return out;
+}
+
+function cmdSpend() {
+  const id = arg('id');
+  if (!id) throw new Error('缺 --id');
+  const events = readEvents();
+  const req = replay(events, id);
+  if (!req) throw new Error(`没有这个请求：${id}`);
+  const raw = arg('budget-json');
+  if (!raw) {
+    const err = new Error('NO_AUTHORIZATION: spend 必须给 --budget-json（未填不等于无限）');
+    err.code = 'NO_AUTHORIZATION';
+    throw err;
+  }
+  const add = {
+    amount: Number(arg('amount') || 0),
+    calls: Number(arg('calls') || 0),
+    tokens: Number(arg('tokens') || 0),
+  };
+  const before = spentOf(events, id);
+  // 用「累计 + 本次」校验：单次没超、累计超了也要拦
+  er.assertBudget(req, JSON.parse(raw), {
+    amount: before.amount + add.amount,
+    calls: before.calls + add.calls,
+    tokens: before.tokens + add.tokens,
+  }, { scope: req.scope });
+  appendEvent({ kind: 'spend', requestId: id, ...add, note: arg('note') || '' });
+  console.log(JSON.stringify({ ok: true, id, spent: spentOf(readEvents(), id) }));
 }
 
 function cmdStart() {
@@ -175,8 +215,14 @@ function cmdList() {
   if (process.argv.includes('--json')) return console.log(JSON.stringify(reqs, null, 2));
   if (!reqs.length) return console.log('（还没有请求）');
   for (const r of reqs) {
-    console.log(`${r.requestId}  ${r.state.padEnd(11)}  ${r.batchId}  ev=${r.evidenceRefs.length}  ${r.transitions.length} 步`);
-  }
+    if (r.state === 'UNREADABLE') {
+      console.log(`${r.requestId}  UNREADABLE  ${r.error || ''}`);
+      continue;
+    }
+    const s = spentOf(readEvents(), r.requestId);
+    console.log(`${r.requestId}  ${r.state.padEnd(11)}  ${r.batchId}  ev=${r.evidenceRefs.length}  ${r.transitions.length} 步  spent=${s.amount}/${s.calls}/${s.tokens}`);
+}
+
 }
 
 function cmdShow() {
@@ -252,6 +298,7 @@ try {
   else if (cmd === 'block') transitionCmd('BLOCKED');
   else if (cmd === 'reject') transitionCmd('REJECTED');
   else if (cmd === 'list') cmdList();
+  else if (cmd === 'spend') cmdSpend();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
