@@ -183,4 +183,31 @@ function promote(deps) {
   });
   return { ok: true, code: 'PROMOTED', questId: quest.questId, entryId, exit: 0 };
 }
-module.exports = { act, move, list, closeQuest, promote, mcpRaw, mcpJson };
+
+/** K19–K21：把 PROMOTED 的经验发布成 TRIAL（不改成熟度，可撤回）。 */
+function publish(deps) {
+  const events = deps.readEvents();
+  const promoted = events.filter((e) => e.kind === 'curiosity' && e.state === 'PROMOTED' && e.entryId);
+  if (!promoted.length) return { ok: true, code: 'NOTHING_TO_DO', exit: 0 };
+  const quest = promoted[promoted.length - 1];
+  if (events.some((e) => e.kind === 'curiosity' && e.questId === quest.questId && e.state === 'TRIAL')) {
+    return { ok: true, code: 'ALREADY_DONE', questId: quest.questId, exit: 0 };
+  }
+  const res = mcpJson('experience_publish', {
+    id: quest.entryId, target: 'TRIAL', note: '好奇心结论：进试用收集证据',
+  });
+  if (!res || res.success !== true) {
+    deps.appendEvent({
+      kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+      state: 'PUBLISH_FAILED', entryId: quest.entryId,
+      reason: String((res && res.message) || 'unknown').slice(0, 160), source: 'live',
+    });
+    return { ok: false, code: 'PUBLISH_FAILED', questId: quest.questId, exit: 2 };
+  }
+  deps.appendEvent({
+    kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+    state: 'TRIAL', entryId: quest.entryId, source: 'live',
+  });
+  return { ok: true, code: 'TRIAL', questId: quest.questId, entryId: quest.entryId, exit: 0 };
+}
+module.exports = { act, move, list, closeQuest, promote, publish, mcpRaw, mcpJson };
