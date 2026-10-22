@@ -231,7 +231,33 @@ function cmdRun() {
     });
   }
   const after = replay(readEvents(), id);
-  console.log(JSON.stringify({ ok: exit === 0, id, cmd, exit, state: after.state }));
+  // ★ G7b 扣账接真实消耗：给了 --budget-json 才记账（没授权就没有预算，与 G7a 同口径）。
+  //   消耗口径：calls=1、tokens=ceil(输出字符/4)（粗估，宁可高估不许低估）。
+  let spendInfo = null;
+  const budgetRaw = arg('budget-json') || (arg('budget-file') ? fs.readFileSync(arg('budget-file'), 'utf8').replace(/^\uFEFF/, '') : null);
+  if (budgetRaw) {
+    const budgets = JSON.parse(budgetRaw);
+    const before = spentOf(readEvents(), id);
+    const add = { amount: Number(arg('amount') || 0), calls: 1, tokens: Math.ceil(out.length / 4) };
+    // 先记实际消耗（钱已经花了，账不能丢），再看是否超限
+    appendEvent({ kind: 'spend', requestId: id, ...add, note: `run:${cmd}` });
+    spendInfo = spentOf(readEvents(), id);
+    try {
+      er.assertBudget(req, budgets, {
+        amount: before.amount + add.amount, calls: before.calls + add.calls, tokens: before.tokens + add.tokens,
+      }, { scope: req.scope });
+    } catch (e) {
+      // 超限：账已记，状态置 BLOCKED（理由带错误码），不许悄悄继续花
+      const cur = replay(readEvents(), id);
+      if (['RECEIVED', 'ACCEPTED', 'IMPLEMENTED', 'BLOCKED'].includes(cur.state)) {
+        appendEvent({ kind: 'transition', requestId: id, to: 'BLOCKED', by: 'batch-bridge', reason: `${e.code}: ${e.message}` });
+      }
+      const blocked = replay(readEvents(), id);
+      console.log(JSON.stringify({ ok: false, id, cmd, exit, state: blocked.state, spend: spendInfo, budget: e.code }));
+      return;
+    }
+  }
+  console.log(JSON.stringify({ ok: after.state !== 'BLOCKED', id, cmd, exit, state: after.state, spend: spendInfo }));
 }
 
 function cmdStart() {
@@ -261,7 +287,7 @@ function cmdStart() {
   }
   // ★ 预算：给了 --budget 就必须能在 --budget-json 里解析到有效授权（未填不等于无限）
   if (e.budgetAuthorizationRef) {
-    const raw = arg('budget-json');
+    const raw = arg('budget-json') || (arg('budget-file') ? fs.readFileSync(arg('budget-file'), 'utf8').replace(/^\uFEFF/, '') : null);
     if (!raw) {
       const err = new Error('NO_AUTHORIZATION: 给了 --budget 就必须同时给 --budget-json（否则无法校验）');
       err.code = 'NO_AUTHORIZATION';
@@ -395,6 +421,26 @@ function selftest() {
     const req = replay(readEvents(), id);
     if (req.state !== 'ACCEPTED') throw new Error('resume 后应为 ACCEPTED，实际 ' + req.state);
     if (!req.transitions.some((t) => t.reason.includes('resume'))) throw new Error('没记 resume 理由');
+  });
+
+  step('run 自动扣账 + 超限置 BLOCKED', () => {
+    const sha = headRevision();
+    const budgets = '{"b9":{"amount":0,"calls":9,"tokens":10,"scope":"harness"}}';
+    process.argv = ['node', 'b', 'start', '--batch', 'C', '--scope', 'harness', '--revision', sha];
+    cmdStart();
+    const id = allRequests(readEvents()).find((r) => r.batchId === 'C').requestId;
+    process.argv = ['node', 'b', 'accept', '--id', id, '--by', 'ai'];
+    transitionCmd('ACCEPTED');
+    // token 上限设成 10，跑一次检查必然超（输出远大于 40 字符）→ 账要记、状态要 BLOCKED
+    process.argv = ['node', 'b', 'run', '--id', id, '--cmd', 'selftest', '--budget-json', budgets];
+    const realLog = console.log;
+    console.log = () => {};              // 静音 run 的输出
+    try { cmdRun(); } finally { console.log = realLog; }
+    const req = replay(readEvents(), id);
+    if (!['BLOCKED', 'ACCEPTED', 'IMPLEMENTED'].includes(req.state)) throw new Error('状态异常 ' + req.state);
+    const s = spentOf(readEvents(), id);
+    if (s.calls < 1 || s.tokens < 1) throw new Error('没有记到实际消耗：' + JSON.stringify(s));
+    if (req.state !== 'BLOCKED') throw new Error('超限后应为 BLOCKED，实际 ' + req.state);
   });
 
   step('非法迁移被拒且不落盘', () => {
