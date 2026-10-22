@@ -1234,13 +1234,13 @@
       48,
       52,
       53,
-      54
-    ],
-    "legacyDuplicateBlock": [
+      54,
       65,
       66
     ],
+    "legacyDuplicateBlock": [],
     "legacyNotes": [
+      "2026-10-22：65/66 从 legacyDuplicateBlock 移到 legacyDuplicateWarn，与 check-doc-freshness 的 knownDuplicateNumbers 对齐。理由：这两组是 2026-10-03 并行会话互撞的旧债，19 天来一直被两个工具一个判 WARN 一个判 BLOCK（口径分裂，同一个事实两个结论）。按门禁原则「一次旧债不能把门禁永久钉死」，旧债登记为债降 WARN，新撞号仍 BLOCK。彻底解法是改名 + 同步引用方，另案处理，不混在这里。",
       "65/66 是并行会话互相撞的（台账自述：为避开 64 改成 66，又撞上对方建的 66-AC脚本两份副本）。未登记 → 现在是 BLOCK。",
       "55 有两份，其中 `55自主寻找bug和修改的特殊执行.md` 缺连字符，整个逃过 /^(\\d{2})-/ 正则 —— 这是编号检查的盲区，修法见 standards.md S-DOC-02。",
       "2026-10-04: 71 号《昨晚至今待补充与待整合总提取》已落盘，故 maxDocNo 70 -> 71。65/66 撞号仍为 BLOCK 未消歧。"
