@@ -124,4 +124,27 @@ function list(deps, limit) {
   const rows = [...byQuest.values()].sort((a, b) => b.last - a.last).slice(0, limit || 10);
   return { ok: true, total: byQuest.size, rows };
 }
-module.exports = { act, move, list, mcpRaw, mcpJson };
+
+/**
+ * K15：给一条好奇收尾，写下「结论」（finding）。
+ * 只是记账 —— **不写经验库**（那一步等主人点头）。
+ */
+function closeQuest(deps, finding) {
+  const text = String(finding || '').trim();
+  if (!text) return { ok: false, code: 'FINDING_REQUIRED', exit: 2 };
+  const events = deps.readEvents();
+  const live = events.filter((e) => e.kind === 'curiosity'
+    && ['OBSERVED', 'MOVED'].includes(e.state));
+  if (!live.length) return { ok: true, code: 'NOTHING_TO_DO', exit: 0 };
+  const quest = live[live.length - 1];
+  if (events.some((e) => e.kind === 'curiosity' && e.questId === quest.questId && e.state === 'CONCLUDED')) {
+    return { ok: true, code: 'ALREADY_DONE', questId: quest.questId, exit: 0 };
+  }
+  deps.appendEvent({
+    kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+    trigger: quest.trigger, target: quest.target, question: quest.question,
+    state: 'CONCLUDED', finding: text.slice(0, 400), source: 'live',
+  });
+  return { ok: true, code: 'CONCLUDED', questId: quest.questId, finding: text.slice(0, 120), exit: 0 };
+}
+module.exports = { act, move, list, closeQuest, mcpRaw, mcpJson };
