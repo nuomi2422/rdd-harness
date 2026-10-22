@@ -144,6 +144,44 @@ function cmdSpend() {
   console.log(JSON.stringify({ ok: true, id, spent: spentOf(readEvents(), id) }));
 }
 
+function headRevision() {
+  const { spawnSync } = require('node:child_process');
+  const GIT = 'C:\\\\Users\\\\admin\\\\AppData\\\\Local\\\\Programs\\\\MinGit\\\\cmd\\\\git.exe';
+  const got = spawnSync(GIT, ['-C', HARNESS, 'rev-parse', '--short', 'HEAD'], { encoding: 'utf8' });
+  return (got.stdout || '').trim();
+}
+
+/** B4 断点恢复：BLOCKED + 基线一致 → ACCEPTED（记 resumeFrom）；否则 RESUME_BASELINE_CONFLICT。 */
+function cmdResume() {
+  const id = arg('id');
+  if (!id) throw new Error('缺 --id');
+  const events = readEvents();
+  const req = replay(events, id);
+  if (!req) throw new Error(`没有这个请求：${id}`);
+  // 同 requestId 出现两个不同基线 = 历史冲突，先拦
+  const bases = new Set(
+    events.filter((e) => e.kind === 'created' && e.requestId === id).map((e) => e.expectedBaseRevision || ''));
+  if (bases.size > 1) {
+    const err = new Error(`RESUME_BASELINE_CONFLICT: 同 id 有多个基线 ${[...bases].join(' / ')}`);
+    err.code = 'RESUME_BASELINE_CONFLICT';
+    throw err;
+  }
+  const actual = headRevision();
+  if (actual !== req.expectedBaseRevision) {
+    const err = new Error(`RESUME_BASELINE_CONFLICT: 期望 ${req.expectedBaseRevision}，实际 ${actual}`);
+    err.code = 'RESUME_BASELINE_CONFLICT';
+    throw err;
+  }
+  if (req.state !== 'BLOCKED') throw new Error(`只有 BLOCKED 能 resume，当前 ${req.state}`);
+  appendEvent({
+    kind: 'transition', requestId: id, to: 'ACCEPTED', by: arg('by') || 'ai',
+    reason: `resume from BLOCKED @ ${actual}`,
+    resumeFrom: { requestId: id, atRevision: actual },
+  });
+  const after = replay(readEvents(), id);
+  console.log(JSON.stringify({ ok: true, id, state: after.state, resumedFrom: actual }));
+}
+
 function cmdStart() {
   const requestId = `req-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 6)}`;
   const e = {
@@ -267,6 +305,46 @@ function selftest() {
     if (again.state !== reqs[0].state) throw new Error('重放不一致');
   });
 
+  step('B1/B2 扣账累计 + list 的 spent', () => {
+    const sha = headRevision();
+    process.argv = ['node', 'b', 'start', '--batch', 'B', '--scope', 'harness', '--revision', sha,
+      '--budget', 'b1', '--budget-json', '{"b1":{"amount":10,"calls":2,"tokens":100,"scope":"harness"}}'];
+    cmdStart();
+    const id = allRequests(readEvents()).find((r) => r.batchId === 'B').requestId;
+    // 刚好到上限：放行
+    process.argv = ['node', 'b', 'spend', '--id', id, '--amount', '10', '--calls', '2', '--tokens', '100',
+      '--budget-json', '{"b1":{"amount":10,"calls":2,"tokens":100,"scope":"harness"}}'];
+    cmdSpend();
+    const before = fs.readFileSync(tmp, 'utf8').trim().split('\n').length;
+    // 再花 1：累计超限，必须拒且不落盘
+    process.argv = ['node', 'b', 'spend', '--id', id, '--amount', '1',
+      '--budget-json', '{"b1":{"amount":10,"calls":2,"tokens":100,"scope":"harness"}}'];
+    try {
+      cmdSpend();
+      throw new Error('超限应当被拒');
+    } catch (e) {
+      if (e.message === '超限应当被拒') throw e;
+    }
+    const after = fs.readFileSync(tmp, 'utf8').trim().split('\n').length;
+    if (after !== before) throw new Error('超限的 spend 不该落盘');
+    const s = spentOf(readEvents(), id);
+    if (s.amount !== 10 || s.calls !== 2 || s.tokens !== 100) throw new Error(JSON.stringify(s));
+  });
+
+  step('B4 resume 只认基线', () => {
+    const sha = headRevision();
+    process.argv = ['node', 'b', 'start', '--batch', 'R', '--scope', 'harness', '--revision', sha];
+    cmdStart();
+    const id = allRequests(readEvents()).find((r) => r.batchId === 'R').requestId;
+    process.argv = ['node', 'b', 'block', '--id', id, '--reason', '测试阻塞'];
+    transitionCmd('BLOCKED');
+    process.argv = ['node', 'b', 'resume', '--id', id, '--by', 'ai'];
+    cmdResume();
+    const req = replay(readEvents(), id);
+    if (req.state !== 'ACCEPTED') throw new Error('resume 后应为 ACCEPTED，实际 ' + req.state);
+    if (!req.transitions.some((t) => t.reason.includes('resume'))) throw new Error('没记 resume 理由');
+  });
+
   step('非法迁移被拒且不落盘', () => {
     const id = allRequests(readEvents())[0].requestId;
     const lines = fs.readFileSync(tmp, 'utf8').trim().split('\n').length;
@@ -299,6 +377,7 @@ try {
   else if (cmd === 'reject') transitionCmd('REJECTED');
   else if (cmd === 'list') cmdList();
   else if (cmd === 'spend') cmdSpend();
+  else if (cmd === 'resume') cmdResume();
   else if (cmd === 'show') cmdShow();
   else if (cmd === 'selftest') selftest();
   else {
