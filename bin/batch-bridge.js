@@ -333,6 +333,16 @@ function cmdStart() {
       throw e;
     }
   }
+  // ★ 闸门：--require-game 时端口不全在听就拒（失败要发生在最便宜的地方）
+  if (process.argv.includes('--require-game')) {
+    const probe = probePorts([8765, 8080, 8776]);
+    const closed = probe.filter((p) => !p.open).map((p) => p.port);
+    if (closed.length) {
+      const err = new Error(`GAME_NOT_READY: 端口不在听 ${closed.join(',')}`);
+      err.code = 'GAME_NOT_READY';
+      throw err;
+    }
+  }
   // ★ 预算：给了 --budget 就必须能在 --budget-json 里解析到有效授权（未填不等于无限）
   if (e.budgetAuthorizationRef) {
     const raw = arg('budget-json') || (arg('budget-file') ? fs.readFileSync(arg('budget-file'), 'utf8').replace(/^\uFEFF/, '') : null);
