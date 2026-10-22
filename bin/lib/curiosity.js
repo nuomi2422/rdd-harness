@@ -147,4 +147,40 @@ function closeQuest(deps, finding) {
   });
   return { ok: true, code: 'CONCLUDED', questId: quest.questId, finding: text.slice(0, 120), exit: 0 };
 }
-module.exports = { act, move, list, closeQuest, mcpRaw, mcpJson };
+
+/**
+ * K16–K18：把 CONCLUDED 的结论写进经验库（maturity=OBSERVED / DRAFT，不影响任何既有条目）。
+ * 失败就记 PROMOTE_FAILED —— 不写 entryId，不许假装写进库。
+ */
+function promote(deps) {
+  const events = deps.readEvents();
+  const concluded = events.filter((e) => e.kind === 'curiosity' && e.state === 'CONCLUDED' && e.finding);
+  if (!concluded.length) return { ok: true, code: 'NOTHING_TO_DO', exit: 0 };
+  const quest = concluded[concluded.length - 1];
+  if (events.some((e) => e.kind === 'curiosity' && e.questId === quest.questId && e.state === 'PROMOTED')) {
+    return { ok: true, code: 'ALREADY_DONE', questId: quest.questId, exit: 0 };
+  }
+  const args = {
+    type: 'EXECUTION',
+    title: quest.question || quest.target || '好奇心',
+    description: quest.finding,
+    trigger_strings: [String(quest.target || '')].filter(Boolean),
+  };
+  const res = mcpJson('experience_learn', args);
+  const entryId = res && res.data && res.data.id;
+  if (!res || res.success !== true || !entryId) {
+    deps.appendEvent({
+      kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+      trigger: quest.trigger, target: quest.target, question: quest.question,
+      state: 'PROMOTE_FAILED', reason: String((res && res.message) || 'unknown').slice(0, 160), source: 'live',
+    });
+    return { ok: false, code: 'PROMOTE_FAILED', questId: quest.questId, exit: 2 };
+  }
+  deps.appendEvent({
+    kind: 'curiosity', requestId: quest.requestId, questId: quest.questId,
+    trigger: quest.trigger, target: quest.target, question: quest.question,
+    state: 'PROMOTED', entryId, maturity: (res.data && res.data.maturity) || 'OBSERVED', source: 'live',
+  });
+  return { ok: true, code: 'PROMOTED', questId: quest.questId, entryId, exit: 0 };
+}
+module.exports = { act, move, list, closeQuest, promote, mcpRaw, mcpJson };
