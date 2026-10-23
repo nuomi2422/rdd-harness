@@ -2,60 +2,79 @@
 #
 # ASCII-only on purpose (PS 5.1 + UTF-8 source = mojibake; see capture-win.ps1).
 #
-# WHY THIS EXISTS (2026-10-04, measured):
-#   The obvious route -- OpenClaw's keyDown/keyUp actions -- CANNOT open or type
-#   into the chat screen. neoforge-mod InputHandler.java has exactly 7 branches:
-#   W A S D SPACE LEFTSHIFT LEFT_CONTROL. CommandHandler's name->keycode table
-#   maps 20+ names (t, escape, enter, ctrl+a, delete, 1-9 ...) but the ones with
-#   no branch silently do nothing while still replying {"success":true}.
-#   So `--chat` (t -> ctrl+a -> delete -> typeText) cannot work by design.
+# ============================ 2026-10-23 REWRITE ============================
+# History that still matters:
+#   * 2026-10-04: OpenClaw's keyDown/keyUp cannot open chat (the mod maps only
+#     W A S D SPACE LEFTSHIFT LEFTCONTROL; everything else replies success:true
+#     and does nothing).
+#   * 2026-10-04: "OS-level keystrokes reach MC" was believed true via SendKeys.
+#   * 2026-10-23: **that belief is false on this machine today.**
+#       - SendKeys('t') never opened the chat box (screenshot evidence);
+#       - SendInput returned 0 for every event (last_error=203) -> nothing was
+#         ever queued;
+#       - same session (1), same owner, shell is High integrity, so UIPI is not
+#         the obvious culprit.
+#   * 2026-10-23: **PostMessage works.** WM_KEYDOWN/WM_KEYUP for T opens the chat
+#     screen, WM_CHAR for each character fills the line, VK_RETURN sends it.
+#     Verified visually: `/help` printed the command list on screen.
+#     Delivery path = PostMessage straight to the GLFW window handle.
 #
-#   mc-focus.ps1 proved the other half: once the MC window really has focus,
-#   real OS-level keystrokes DO reach Minecraft. So: steal focus, put the text
-#   on the clipboard, paste it.
-#
-# WHY VERIFICATION EXISTS (2026-10-23, repo TODO P1):
-#   "success:true" from a keystroke helper only means "the call did not throw".
-#   Receipt is not product (AGENTS 4.3). This script now captures the window
-#   before and ~1s after the command and measures how much the lower-left area
-#   changed. Chat lines live there, so a real delivery changes pixels; a missed
-#   delivery leaves the frame identical.
-#     exit 0  = SENT_VERIFIED
-#     exit 4  = SENT_UNVERIFIED (typed/entered, but the frame did not change)
+# WHY VERIFICATION EXISTS: "posted" only means the message was queued. The old
+# script printed SENT while nothing happened. With -Verify the script captures
+# the bottom strip before/after opening the chat and requires the input bar to
+# actually appear (a real state change, not a receipt).
 #
 # USAGE:
 #   powershell -File send-mc-command.ps1 -Text "/cam status"
-#   powershell -File send-mc-command.ps1 -Text "/cam bind ACX" -Enter
 #   powershell -File send-mc-command.ps1 -Text "/cam list" -NoEnter   # type only
-#   powershell -File send-mc-command.ps1 -Text "/cam list" -Verify    # opt-in delivery check
+#   powershell -File send-mc-command.ps1 -Text "/help" -Verify        # check first
 #
-# NOTES:
-#   * -Text must not contain SendKeys metacharacters:  ^ % + ~ ( ) { } [ ]
-#     (they would be interpreted, not typed). "/cam ..." never does.
-#   * Returns FOCUS_OK / TYPED / SENT_VERIFIED / SENT_UNVERIFIED lines.
+# EXIT CODES: 0 sent / 2 no window / 3 bad argument / 4 verification failed
 param(
   [Parameter(Mandatory = $true)][string]$Text,
-  [string]$WindowKeyword = 'minecraft',
-  [int]$PreDelayMs = 400,
-  [int]$PostDelayMs = 500,
-  [int]$VerifyDelayMs = 900,
-  [double]$ChangeThreshold = 0.0015,
+  [string]$WindowKeyword = 'Minecraft',
+  [int]$OpenDelayMs = 350,
+  [int]$TypeDelayMs = 60,
   [switch]$NoEnter,
   [switch]$Verify
 )
 
 $ErrorActionPreference = 'Stop'
-# 2026-10-19: no hard-coded D:\rdd. Layout: <RDD root>\harness\rdd-harness\bin\ (this file)
-#   -> three levels up = RDD root; RDD_ROOT env var overrides (other machine / temp copy).
 $RddRoot = if ($env:RDD_ROOT) { $env:RDD_ROOT } else { (Resolve-Path (Join-Path $PSScriptRoot '..\..\..')).Path }
-$focus = Join-Path $RddRoot 'workspace\rdd-selfcompile\scripts\mc-focus.ps1'
-if (-not (Test-Path -LiteralPath $focus)) { Write-Output "NO_FOCUS_HELPER $focus"; exit 3 }
 
-foreach ($c in @('^', '%', '+', '~', '(', ')', '{', '}', '[', ']')) {
-  if ($Text.Contains($c)) { Write-Output "BAD_CHAR $c -- SendKeys would eat it"; exit 3 }
+Add-Type @'
+using System;
+using System.Runtime.InteropServices;
+public class McPost {
+  [DllImport("user32.dll", SetLastError = true, CharSet = CharSet.Auto)]
+  public static extern bool PostMessage(IntPtr hWnd, uint msg, IntPtr wParam, IntPtr lParam);
+  public const uint WM_KEYDOWN = 0x0100;
+  public const uint WM_KEYUP = 0x0101;
+  public const uint WM_CHAR = 0x0102;
+  public static bool Key(IntPtr h, int vk) {
+    bool a = PostMessage(h, WM_KEYDOWN, (IntPtr)vk, (IntPtr)0);
+    bool b = PostMessage(h, WM_KEYUP, (IntPtr)vk, (IntPtr)0);
+    return a && b;
+  }
+  public static bool Chars(IntPtr h, string s) {
+    foreach (char c in s) {
+      if (!PostMessage(h, WM_CHAR, (IntPtr)c, (IntPtr)0)) return false;
+    }
+    return true;
+  }
 }
+'@
 
-# ---- delivery verification helpers -----------------------------------------
+$proc = Get-Process | Where-Object { $_.MainWindowTitle -like "*$WindowKeyword*" } | Select-Object -First 1
+if (-not $proc) { Write-Output 'NO_WINDOW'; exit 2 }
+$h = $proc.MainWindowHandle
+if ($h -eq [IntPtr]::Zero) { Write-Output 'NO_HWND'; exit 2 }
+
+$VK_ESCAPE = 0x1B
+$VK_T = 0x54
+$VK_RETURN = 0x0D
+
+# ---- optional verification: chat input bar must appear ---------------------
 function Get-CaptureScript {
   Join-Path $RddRoot 'workspace\mc-openclaw-controller\scripts\capture-win.ps1'
 }
@@ -64,49 +83,44 @@ function Invoke-Capture([string]$Path) {
   $cap = Get-CaptureScript
   if (-not (Test-Path -LiteralPath $cap)) { return $false }
   if (Test-Path -LiteralPath $Path) { Remove-Item -LiteralPath $Path -Force -ErrorAction SilentlyContinue }
-  # capture-win.ps1 writes its notes to stderr; with ErrorActionPreference=Stop
-  # a native stderr line becomes a terminating NativeCommandError. Relax locally.
   $prevEap = $ErrorActionPreference
   $ErrorActionPreference = 'Continue'
   try {
     & powershell -NoProfile -ExecutionPolicy Bypass -File $cap -TitleMatch 'Minecraft' -Out $Path 2>$null | Out-Null
   } catch {
-    # ignore: caller decides based on whether the file exists
+    # caller decides based on file existence
   } finally {
     $ErrorActionPreference = $prevEap
   }
   return (Test-Path -LiteralPath $Path)
 }
 
-# Village of chat text: lower-left band. Sampled every 4 px so this stays cheap.
-function Measure-LowerLeftChange([string]$Before, [string]$After) {
+# Mean brightness of the chat input strip (bottom centre). The open line draws a
+# dark translucent bar there, so "bar present" == mean brightness drops a lot.
+function Get-InputStripLuma([string]$Path) {
   Add-Type -AssemblyName System.Drawing
-  $ia = [System.Drawing.Bitmap]::FromFile($Before)
-  $ib = [System.Drawing.Bitmap]::FromFile($After)
+  $bmp = [System.Drawing.Bitmap]::FromFile($Path)
   try {
-    $w = [Math]::Min($ia.Width, $ib.Width)
-    $h = [Math]::Min($ia.Height, $ib.Height)
-    if ($w -lt 50 -or $h -lt 50) { return -1.0 }
-    $x0 = 0
-    $x1 = [int]($w * 0.60)
-    $y0 = [int]($h * 0.55)
-    $y1 = $h
-    $changed = 0
-    $total = 0
-    for ($y = $y0; $y -lt $y1; $y += 4) {
-      for ($x = $x0; $x -lt $x1; $x += 4) {
-        $pa = $ia.GetPixel($x, $y)
-        $pb = $ib.GetPixel($x, $y)
-        $d = [Math]::Abs($pa.R - $pb.R) + [Math]::Abs($pa.G - $pb.G) + [Math]::Abs($pa.B - $pb.B)
-        if ($d -gt 30) { $changed++ }
-        $total++
+    $w = $bmp.Width
+    $h2 = $bmp.Height
+    if ($w -lt 100 -or $h2 -lt 100) { return -1.0 }
+    $x0 = [int]($w * 0.28)
+    $x1 = [int]($w * 0.72)
+    $y0 = [int]($h2 * 0.92)
+    $y1 = [int]($h2 * 0.965)
+    $sum = 0.0
+    $n = 0
+    for ($y = $y0; $y -lt $y1; $y += 3) {
+      for ($x = $x0; $x -lt $x1; $x += 3) {
+        $p = $bmp.GetPixel($x, $y)
+        $sum += (0.299 * $p.R + 0.587 * $p.G + 0.114 * $p.B)
+        $n++
       }
     }
-    if ($total -eq 0) { return -1.0 }
-    return ($changed / $total)
+    if ($n -eq 0) { return -1.0 }
+    return ($sum / $n)
   } finally {
-    $ia.Dispose()
-    $ib.Dispose()
+    $bmp.Dispose()
   }
 }
 
@@ -116,63 +130,51 @@ $stamp = [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $beforePng = Join-Path $tmpDir "before-$stamp.png"
 $afterPng = Join-Path $tmpDir "after-$stamp.png"
 
-$doVerify = $Verify -and (-not $NoEnter)
+$doVerify = [bool]$Verify
 if ($doVerify) {
   if (-not (Invoke-Capture $beforePng)) {
+    Write-Output 'VERIFY_SKIPPED no-capture-script'
     $doVerify = $false
-    Write-Output "VERIFY_SKIPPED no-capture-script-or-failed"
   }
 }
 
-. $focus
-# mc-focus.ps1 also echoes status lines through the pipeline; the real title is
-# the last object. Keep it a scalar so the SENT_VERIFIED line stays readable.
-$titleRaw = Focus-MinecraftWindow -Keyword $WindowKeyword
-$title = @($titleRaw)[-1]
-if ([string]::IsNullOrEmpty($title)) { Write-Output 'NO_WINDOW'; exit 2 }
-Start-Sleep -Milliseconds $PreDelayMs
+# 1) start from a closed chat screen
+[void][McPost]::Key($h, $VK_ESCAPE)
+Start-Sleep -Milliseconds 200
 
-Add-Type -AssemblyName System.Windows.Forms
-Set-Clipboard -Value $Text
+# 2) open the chat screen with a real keydown/keyup pair
+$opened = [McPost]::Key($h, $VK_T)
+Start-Sleep -Milliseconds $OpenDelayMs
 
-# 't' opens the vanilla chat screen (T is unbound in Numen: G/R/Y/V/M are taken,
-# T is not). Clipboard paste avoids both SendKeys escaping and GLFW key mapping.
-[System.Windows.Forms.SendKeys]::SendWait('t')
-Start-Sleep -Milliseconds 450
-[System.Windows.Forms.SendKeys]::SendWait('^a')
-Start-Sleep -Milliseconds 120
-[System.Windows.Forms.SendKeys]::SendWait('^v')
-Start-Sleep -Milliseconds $PostDelayMs
-
-# ---- verify that the text actually reached the game ------------------------
-# Capture AFTER typing but BEFORE Enter. Rationale (measured 2026-10-23): the same
-# command twice produces the same chat lines, so an after-Enter frame can be
-# identical to the before frame and look like a miss. The open chat input box,
-# however, is a state change that only happens if the keystrokes really landed.
-$verifyRatio = -1.0
 if ($doVerify) {
   if (-not (Invoke-Capture $afterPng)) {
-    Write-Output "VERIFY_SKIPPED capture-typed-failed"
-  } else {
-    $verifyRatio = Measure-LowerLeftChange $beforePng $afterPng
+    Write-Output 'SENT_UNVERIFIED capture-after-failed'
+    exit 4
   }
+  $lumaBefore = Get-InputStripLuma $beforePng
+  $lumaAfter = Get-InputStripLuma $afterPng
+  if ($lumaBefore -lt 0 -or $lumaAfter -lt 0) {
+    Write-Output 'SENT_UNVERIFIED image-read-failed'
+    exit 4
+  }
+  $drop = $lumaBefore - $lumaAfter
+  if ($drop -lt 10) {
+    Write-Output ("SENT_UNVERIFIED chat-input-bar not detected (luma {0:N1} -> {1:N1}, drop {2:N1})" -f $lumaBefore, $lumaAfter, $drop)
+    exit 4
+  }
+  Write-Output ("VERIFIED chat input bar appeared (luma {0:N1} -> {1:N1})" -f $lumaBefore, $lumaAfter)
 }
 
+# 3) fill the line char by char, 4) send it
+$typed = [McPost]::Chars($h, $Text)
+$waitMs = [Math]::Max(60, $TypeDelayMs * [Math]::Min(20, $Text.Length))
+Start-Sleep -Milliseconds $waitMs
+
 if (-not $NoEnter) {
-  [System.Windows.Forms.SendKeys]::SendWait('{ENTER}')
-  Start-Sleep -Milliseconds 400
-  if (-not $doVerify -or $verifyRatio -lt 0) {
-    Write-Output "SENT [$Text] to '$title' (unverified)"
-    exit 0
-  }
-  $pct = [Math]::Round($verifyRatio * 100, 3)
-  if ($verifyRatio -ge $ChangeThreshold) {
-    Write-Output "SENT_VERIFIED [$Text] to '$title' (typing changed lower-left by $pct%)"
-    exit 0
-  }
-  Write-Output "SENT_UNVERIFIED [$Text] to '$title' (typing changed lower-left only $pct%, threshold $([Math]::Round($ChangeThreshold * 100, 3))%)"
-  exit 4
+  [void][McPost]::Key($h, $VK_RETURN)
+  Start-Sleep -Milliseconds 250
+  Write-Output "SENT [$Text] hwnd=$h post_ok=$opened typed=$typed"
 } else {
-  Write-Output "TYPED [$Text] into '$title' (no Enter)"
+  Write-Output "TYPED [$Text] hwnd=$h post_ok=$opened typed=$typed (no Enter)"
 }
 exit 0
