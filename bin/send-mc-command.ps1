@@ -97,17 +97,20 @@ function Invoke-Capture([string]$Path) {
 
 # Mean brightness of the chat input strip (bottom centre). The open line draws a
 # dark translucent bar there, so "bar present" == mean brightness drops a lot.
-function Get-InputStripLuma([string]$Path) {
+# Two anchors (measured 2026-10-23, both stable at day and at night):
+#   * input line (bottom centre): the dark text bar appears  -> luma DROPS a lot
+#   * chat log  (lower left)    : the message text appears   -> luma RISES a lot
+# Using both makes the check independent of weather/lighting, which broke the
+# earlier "whole-frame difference" idea (rain alone moved 2.89% of the pixels).
+function Get-BandLuma([string]$Path, [double]$y0f, [double]$y1f, [double]$x0f, [double]$x1f) {
   Add-Type -AssemblyName System.Drawing
   $bmp = [System.Drawing.Bitmap]::FromFile($Path)
   try {
     $w = $bmp.Width
     $h2 = $bmp.Height
     if ($w -lt 100 -or $h2 -lt 100) { return -1.0 }
-    $x0 = [int]($w * 0.28)
-    $x1 = [int]($w * 0.72)
-    $y0 = [int]($h2 * 0.92)
-    $y1 = [int]($h2 * 0.965)
+    $x0 = [int]($w * $x0f); $x1 = [int]($w * $x1f)
+    $y0 = [int]($h2 * $y0f); $y1 = [int]($h2 * $y1f)
     $sum = 0.0
     $n = 0
     for ($y = $y0; $y -lt $y1; $y += 3) {
@@ -151,18 +154,21 @@ if ($doVerify) {
     Write-Output 'SENT_UNVERIFIED capture-after-failed'
     exit 4
   }
-  $lumaBefore = Get-InputStripLuma $beforePng
-  $lumaAfter = Get-InputStripLuma $afterPng
-  if ($lumaBefore -lt 0 -or $lumaAfter -lt 0) {
+  $barBefore = Get-BandLuma $beforePng 0.96 0.995 0.28 0.72
+  $barAfter = Get-BandLuma $afterPng 0.96 0.995 0.28 0.72
+  $logBefore = Get-BandLuma $beforePng 0.65 0.90 0.05 0.45
+  $logAfter = Get-BandLuma $afterPng 0.65 0.90 0.05 0.45
+  if ($barBefore -lt 0 -or $barAfter -lt 0 -or $logBefore -lt 0 -or $logAfter -lt 0) {
     Write-Output 'SENT_UNVERIFIED image-read-failed'
     exit 4
   }
-  $drop = $lumaBefore - $lumaAfter
-  if ($drop -lt 10) {
-    Write-Output ("SENT_UNVERIFIED chat-input-bar not detected (luma {0:N1} -> {1:N1}, drop {2:N1})" -f $lumaBefore, $lumaAfter, $drop)
+  $barDrop = $barBefore - $barAfter
+  $logRise = $logAfter - $logBefore
+  if ($barDrop -lt 15 -or $logRise -lt 10) {
+    Write-Output ("SENT_UNVERIFIED chat screen not detected (bar {0:N1}->{1:N1} drop {2:N1}; log {3:N1}->{4:N1} rise {5:N1})" -f $barBefore, $barAfter, $barDrop, $logBefore, $logAfter, $logRise)
     exit 4
   }
-  Write-Output ("VERIFIED chat input bar appeared (luma {0:N1} -> {1:N1})" -f $lumaBefore, $lumaAfter)
+  Write-Output ("VERIFIED chat screen opened (bar drop {0:N1}, log rise {1:N1})" -f $barDrop, $logRise)
 }
 
 # 3) fill the line char by char, 4) send it
