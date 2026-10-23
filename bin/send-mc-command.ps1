@@ -36,7 +36,8 @@ param(
   [int]$OpenDelayMs = 350,
   [int]$TypeDelayMs = 60,
   [switch]$NoEnter,
-  [switch]$Verify
+  [switch]$Verify,
+  [switch]$CloseFirst
 )
 
 $ErrorActionPreference = 'Stop'
@@ -141,9 +142,14 @@ if ($doVerify) {
   }
 }
 
-# 1) start from a closed chat screen
-[void][McPost]::Key($h, $VK_ESCAPE)
-Start-Sleep -Milliseconds 200
+# 1) optional: close whatever screen is open first.
+# Default OFF on purpose (2026-10-23): sending ESC when the chat is already closed
+# opens the Game Menu, and then T does nothing. Only opt in when you know a screen
+# is open (e.g. right after a previous -NoEnter run).
+if ($CloseFirst) {
+  [void][McPost]::Key($h, $VK_ESCAPE)
+  Start-Sleep -Milliseconds 250
+}
 
 # 2) open the chat screen with a real keydown/keyup pair
 $opened = [McPost]::Key($h, $VK_T)
