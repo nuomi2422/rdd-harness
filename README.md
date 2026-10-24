@@ -1,3 +1,21 @@
+> ## ⚠️ 本 harness 已半退役（2026-10-25 主人裁定）
+>
+> **不再作为新工程的默认门禁。所有 AI 暂时改用 Agene harness：`D:\Agene\harness\`**
+>
+> ```powershell
+> node D:\Agene\harness\bin\agene-harness.js doctor      # 先体检
+> node D:\Agene\harness\bin\agene-harness.js --help      # 子命令：begin/preflight/verify/postflight/experiment/record/ruleset
+> ```
+>
+> 本目录保留三种用途：
+> 1. **历史参照** —— 查"当年为什么这样设计"（`registry.json` 的 35 条门禁判据、`standards.md` 的 40 条规范）；
+> 2. **游戏域专用脚本** —— `bin\send-mc-command.ps1`、`bin\snapshot-world.js`、`bin\weekly-metrics.js`、`stager*`、`skills\`；
+> 3. **迁移对照** —— 哪些能力还没搬去 Agene，见
+>    `D:\rdd\docs\rdd-docs\rdd架构\harness对照-rdd-vs-agene-20261025.md`。
+>
+> 迁完之后本目录预期只剩"游戏域 + 历史"。**不要再往这里加新门禁/新台账。**
+
+---
 # RDD Harness
 
 > 「模型外面那层脚手架」—— 按 `minecraft-numen\api\docs\README_CN.md:46` 的定义，
