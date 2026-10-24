@@ -334,6 +334,15 @@
       "note": "E1 正确性半边（econ-report 管钱，它管合法性）：重放 llm_request.request.messages 结构校验，抓 2026-10-06 实机 400 的根因类（窗口以 tool 开头 = 孤儿 tool_result）。--selftest 7 用例合成自测；历史轮转文件 context-1791259005120.jsonl 抓到 30 处违规（全在 validTail 修复前，10/6 11:28 后清零）。"
     },
     {
+      "id": "gate.usageRecompute",
+      "name": "五态账离线复算（expmem usage_recorded 事件 → 账）",
+      "path": "rdd-selfcompile/scripts/verify-tools/usage-recompute.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "--since <ISO> | --file <jsonl> | --ref <exp:...> [--json] [--selftest]",
+      "note": "LC3（78号§7「日常样本能复算」）审查者侧：从 expmem.jsonl 的 usage_recorded 事件独立重算五态账（Java UsageEventCodec+UsageLedger.derive 的 JS 镜像：去重/别名归一/结论取最大attempt/跨版本分账/坏行容错）。--selftest 10 断言；部署前历史文件无该事件→如实报0条不算失败。事件是唯一真账，内存只是缓存。"
+    },
+    {
       "id": "gate.jarLang",
       "name": "查 jar 是否带翻译（datagen lang JSON）",
       "path": "rdd-selfcompile/scripts/verify-tools/check-jar-lang.js",
