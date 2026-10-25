@@ -146,7 +146,7 @@ function validateCard(card) {
   if (p.irreversible === true) need(!/^(无|n\/a|none)$/i.test(String(p.recovery || '').trim()), '不可逆实验必须给真实恢复方案');
   if (p.maxMinutes > 120) warns.push('maxMinutes>120：长跑请单独预算');
   const src = m.source || {};
-  need(src.kind === 'jsonl' || src.kind === 'json', 'measurement.source.kind 必须是 jsonl|json');
+  need(['jsonl', 'json', 'runs-dir'].includes(src.kind), 'measurement.source.kind 必须是 jsonl|json|runs-dir');
   if (src.kind === 'jsonl' && src.filter && src.filter.op && !OPS.includes(src.filter.op)) errors.push('source.filter.op 非法');
   if (m.aggregation !== 'count') need(typeof src.value === 'string' && src.value.length >= 1, '聚合非 count 时必须给 source.value（点路径）');
   return { errors, warns };
@@ -169,6 +169,33 @@ function splitJsonObjects(text) {
     if (ch === '}') { depth--; if (depth === 0 && start >= 0) { out.push(text.slice(start, i + 1)); start = -1; } }
   }
   return out;
+}
+
+function loadRuns(src, opts) {
+  const dir = resolveData(src.path);
+  if (!fs.existsSync(dir)) return { records: [], error: 'SOURCE_MISSING ' + rel(dir) };
+  const rows = [];
+  for (const d of fs.readdirSync(dir)) {
+    if (!d.startsWith('exp-')) continue;
+    const envP = path.join(dir, d, 'envelope.json');
+    const vP = path.join(dir, d, 'verdict.json');
+    if (!fs.existsSync(envP) || !fs.existsSync(vP)) continue;
+    const env = readJson(envP), v = readJson(vP);
+    const jarSig = sha((env.jarsAtPrepare || []).map((j) => j.file + ':' + j.sha256).sort().join('\n')).slice(0, 16);
+    const A = {};
+    for (const a of v.assertions || []) A[a.id] = a.verdict;
+    rows.push({ runId: d, label: env.label, createdAt: env.createdAt, jarSig, verdict: v.overall, assertions: A, watchSeconds: (env.timings && env.timings.watchSeconds) || null });
+  }
+  let recs = rows;
+  const m = src.match || {};
+  if (Array.isArray(m.verdictIn)) recs = recs.filter((r) => m.verdictIn.includes(r.verdict));
+  if (m.assertions) for (const [k, val] of Object.entries(m.assertions)) recs = recs.filter((r) => r.assertions[k] === val);
+  if (m.sinceFreeze && opts && opts.frozenAt) recs = recs.filter((r) => r.createdAt && Date.parse(r.createdAt) >= Date.parse(opts.frozenAt));
+  if (m.sameJarSig) {
+    const sigs = [...new Set(recs.map((r) => r.jarSig))];
+    if (sigs.length > 1) return { records: recs, error: 'MIXED_BUILD ' + sigs.join(',') + '（不是同一构建，不能算两轮）' };
+  }
+  return { records: recs };
 }
 
 function loadRecords(src) {
@@ -203,7 +230,7 @@ function conclude(card, sidecarPath, claim) {
   const nowSha = sha(canonical(card));
   if (nowSha !== sidecar.cardSha256) return { verdict: 'CARD_CHANGED', error: '冻结后卡片被改动（hash 不符）→ 必须新建版本，不能用旧冻结盖章' };
   const m = card.measurement;
-  const src = loadRecords(m.source);
+  const src = m.source.kind === 'runs-dir' ? loadRuns(m.source, { frozenAt: sidecar.frozenAt }) : loadRecords(m.source);
   if (src.error) return { verdict: 'INCONCLUSIVE', error: src.error, samples: src.records.length };
   const records = src.records;
   if (records.length < m.repeats) return { verdict: 'INCONCLUSIVE', error: 'samples=' + records.length + ' < repeats=' + m.repeats + '（证据不足）', samples: records.length };
@@ -346,7 +373,7 @@ function cmdList() {
 function selftest() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-card-'));
   const mk = (over) => Object.assign(JSON.parse(JSON.stringify(TEMPLATE)), over);
-  let pass = 0; const total = 10;
+  let pass = 0; const total = 12;
   const check = (name, cond, detail) => { if (cond) { pass++; console.log('  ✅ ' + name); } else console.log('  ❌ ' + name + ' — ' + (detail || '')); };
 
   const dataOk = path.join(tmp, 'data.json');
@@ -389,6 +416,25 @@ function selftest() {
   fs.writeFileSync(path.join(tmp, 'fail.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(failCard)), frozenAt: 't' }));
   const r5 = conclude(failCard, path.join(tmp, 'fail.freeze.json'), '这次实验成功了');
   check('claim 与数据矛盾 → REFUTES + 标记', r5.verdict === 'REFUTES' && r5.claimCheck && r5.claimCheck.code === 'CLAIM_CONTRADICTS_DATA');
+
+  const runsDir = path.join(tmp, 'runs');
+  const mkRun = (id, jar, at, verdict) => {
+    const d = path.join(runsDir, id);
+    fs.mkdirSync(d, { recursive: true });
+    fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify({ label: id, createdAt: at, jarsAtPrepare: [{ file: 'a.jar', sha256: jar }], timings: { watchSeconds: 40 } }));
+    fs.writeFileSync(path.join(d, 'verdict.json'), JSON.stringify({ overall: verdict, assertions: [{ id: 'S1', verdict: 'PASS' }, { id: 'S3', verdict: 'PASS' }, { id: 'S4', verdict: 'PASS' }] }));
+  };
+  mkRun('exp-r1', 'aaa', '2026-10-25T23:00:00Z', 'PASS');
+  mkRun('exp-r2', 'aaa', '2026-10-25T23:10:00Z', 'PASS');
+  const rc = mk({ id: 'exp-test-runs', claim: '两轮独立运行都通过（测试）', measurement: { source: { kind: 'runs-dir', path: runsDir, match: { verdictIn: ['PASS'], assertions: { S3: 'PASS', S4: 'PASS' }, sinceFreeze: true, sameJarSig: true } }, dataFields: ['runId'], aggregation: 'count', repeats: 1, stopRule: '冻结后', thresholds: { success: { operator: '>=', value: 2 }, failure: { operator: '<=', value: 1 } }, tolerance: 0 } });
+  fs.writeFileSync(path.join(tmp, 'runs.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(rc)), frozenAt: '2026-10-25T22:00:00Z' }));
+  check('runs-dir 两轮同构建→SUPPORTS', conclude(rc, path.join(tmp, 'runs.freeze.json')).verdict === 'SUPPORTS', JSON.stringify(conclude(rc, path.join(tmp, 'runs.freeze.json'))));
+
+  mkRun('exp-r3', 'bbb', '2026-10-25T23:20:00Z', 'PASS');
+  const rc2 = JSON.parse(JSON.stringify(rc));
+  rc2.id = 'exp-test-runs2';
+  fs.writeFileSync(path.join(tmp, 'runs2.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(rc2)), frozenAt: '2026-10-25T22:00:00Z' }));
+  check('runs-dir 混构建→INCONCLUSIVE', conclude(rc2, path.join(tmp, 'runs2.freeze.json')).verdict === 'INCONCLUSIVE');
 
   console.log('\nselftest: ' + pass + '/' + total + ' 通过');
   fs.rmSync(tmp, { recursive: true, force: true });

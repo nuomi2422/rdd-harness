@@ -1,0 +1,91 @@
+{
+  "apiVersion": "rdd.experiment/v1",
+  "id": "exp-20261025-two-green",
+  "title": "两轮独立冒烟都通过（同一构建、冻结之后）",
+  "vcard": "V-20261025-02（连续两轮绿）",
+  "claim": "当前构建下，冻结之后至少 2 个独立实验副本运行同时满足 S1/S3/S4 PASS（S2 允许 NOT_EXERCISED），且两轮来自同一 jar 构建",
+  "falsification": {
+    "successCondition": "匹配的 run 数 ≥2，且这些 run 的 jarSig 唯一",
+    "failureCondition": "冻结后出现 ≥1 个 run 但 S3 或 S4 不为 PASS；或 jarSig 不唯一（混构建）",
+    "inconclusiveCondition": "冻结后没有新的 run，或 runs/*/envelope.json 缺失"
+  },
+  "variables": {
+    "independent": [
+      "两次独立的副本运行（不同世界副本、不同时间）"
+    ],
+    "dependent": [
+      "S1/S3/S4 的裁决与 jarSig"
+    ],
+    "controlled": [
+      "同一构建的 mods jar 集合",
+      "同一母版世界",
+      "同一刺激文本"
+    ]
+  },
+  "controls": {
+    "positive": "冻结前已存在 C 轮 PASS（读取器能命中历史 run）；sinceFreeze 会把它排除，证明「只认新证据」生效",
+    "negative": "把阈值改成 ≥5 跑同一数据应 REFUTES（判据能拒绝，不会永远绿）"
+  },
+  "determinism": {
+    "kind": "deterministic",
+    "seed": ""
+  },
+  "replications": {
+    "N": 2,
+    "deterministic": true
+  },
+  "measurement": {
+    "source": {
+      "kind": "runs-dir",
+      "path": "harness/rdd-harness/runs",
+      "match": {
+        "verdictIn": [
+          "PASS",
+          "PASS_WITH_GAPS"
+        ],
+        "assertions": {
+          "S1": "PASS",
+          "S3": "PASS",
+          "S4": "PASS"
+        },
+        "sinceFreeze": true,
+        "sameJarSig": true
+      }
+    },
+    "dataFields": [
+      "runId",
+      "jarSig",
+      "verdict",
+      "assertions"
+    ],
+    "aggregation": "count",
+    "repeats": 1,
+    "stopRule": "只统计冻结之后开始的 run；S2 不参与（允许 NOT_EXERCISED）",
+    "thresholds": {
+      "success": {
+        "operator": ">=",
+        "value": 2
+      },
+      "failure": {
+        "operator": "<=",
+        "value": 1
+      }
+    },
+    "tolerance": 0
+  },
+  "permissions": {
+    "scopes": [
+      "只读 runs/*/envelope.json",
+      "只读 runs/*/verdict.json"
+    ],
+    "maxMinutes": 30,
+    "irreversible": false,
+    "recovery": "运行器自带受控复位（存档外状态整树还原）；失败保留复现包；不写 live 世界"
+  },
+  "deviationsAllowed": false,
+  "notes": [
+    "两轮必须有同一个 jarSig；换构建后旧 run 不算数（sameJarSig 会拒混构建）。",
+    "冻结前已存在的证据不计入（sinceFreeze），防止拿历史绿冒充本轮。",
+    "S2 允许 NOT_EXERCISED（首周已知观察点缺口），但 S1/S3/S4 必须 PASS。"
+  ]
+}
