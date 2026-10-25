@@ -1,0 +1,176 @@
+{
+  "prefix": "learn",
+  "rounds": [
+    {
+      "runId": "exp-learn-r1-20261026-002516",
+      "label": "learn-r1",
+      "createdAt": "2026-10-25T16:25:16.412Z",
+      "watchSeconds": 1502,
+      "stopReason": "wall 1500s",
+      "toolCalls": 78,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 99,
+        "2": 235
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 2,
+      "experience": {
+        "before": "91cb9e9679c8278b2e0869b8c4b7d6ca17870924fa07626f4530f35553845703",
+        "after": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c"
+      },
+      "finalItems": {
+        "minecraft:orange_terracotta": 1,
+        "minecraft:acacia_log": 5,
+        "minecraft:cobblestone": 1,
+        "minecraft:bread": 2,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:acacia_planks": 3
+      }
+    },
+    {
+      "runId": "exp-learn-r2-20261026-005147",
+      "label": "learn-r2",
+      "createdAt": "2026-10-25T16:51:47.094Z",
+      "watchSeconds": 1507,
+      "stopReason": "wall 1500s",
+      "toolCalls": 151,
+      "maxStage": 5,
+      "stageName": "S5 钻石套",
+      "stageSeconds": {
+        "1": 132,
+        "2": 196,
+        "3": 196,
+        "4": 493,
+        "5": 526
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 10,
+      "experience": {
+        "before": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c",
+        "after": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 2,
+        "minecraft:wheat": 1,
+        "minecraft:iron_sword": 1,
+        "minecraft:acacia_planks": 5,
+        "minecraft:bread": 8,
+        "minecraft:cobblestone": 83,
+        "minecraft:torch": 2,
+        "minecraft:iron_boots": 1,
+        "minecraft:iron_chestplate": 1,
+        "minecraft:diamond_pickaxe": 1,
+        "minecraft:iron_ingot": 13,
+        "minecraft:furnace": 1,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:diamond_boots": 1,
+        "minecraft:diamond_leggings": 1,
+        "minecraft:diamond_chestplate": 1,
+        "minecraft:diamond_helmet": 1,
+        "minecraft:shield": 1
+      }
+    },
+    {
+      "runId": "exp-learn-r3-20261026-011821",
+      "label": "learn-r3",
+      "createdAt": "2026-10-25T17:18:21.786Z",
+      "watchSeconds": 1502,
+      "stopReason": "wall 1500s",
+      "toolCalls": 118,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 101,
+        "2": 200
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 4,
+      "experience": {
+        "before": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c",
+        "after": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c"
+      },
+      "finalItems": {
+        "minecraft:orange_terracotta": 1,
+        "minecraft:acacia_log": 4,
+        "minecraft:stone_sword": 1,
+        "minecraft:stone_axe": 1,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:crafting_table": 1,
+        "minecraft:bread": 3,
+        "minecraft:acacia_planks": 21,
+        "minecraft:cobblestone": 1,
+        "minecraft:torch": 2,
+        "minecraft:leather_chestplate": 1,
+        "minecraft:dirt": 10,
+        "minecraft:coal": 1,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:stone": 8,
+        "minecraft:phantom_membrane": 2
+      }
+    },
+    {
+      "runId": "exp-learn-r4-20261026-014450",
+      "label": "learn-r4",
+      "createdAt": "2026-10-25T17:44:50.359Z",
+      "watchSeconds": 1505,
+      "stopReason": "wall 1500s",
+      "toolCalls": 157,
+      "maxStage": 3,
+      "stageName": "S3 铁器",
+      "stageSeconds": {
+        "1": 101,
+        "2": 35,
+        "3": 101
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 6,
+      "experience": {
+        "before": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c",
+        "after": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c"
+      },
+      "finalItems": {
+        "minecraft:orange_terracotta": 1,
+        "minecraft:acacia_log": 2,
+        "minecraft:leather_chestplate": 1,
+        "minecraft:dirt": 5,
+        "minecraft:stone_sword": 1,
+        "minecraft:bread": 8,
+        "minecraft:iron_pickaxe": 1,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:cobblestone": 56,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:stone_axe": 1,
+        "minecraft:acacia_planks": 8
+      }
+    }
+  ],
+  "marks": [
+    {
+      "runId": "exp-learn-r2-20261026-005147",
+      "better": true,
+      "faster": false,
+      "advanced": true
+    },
+    {
+      "runId": "exp-learn-r3-20261026-011821",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    },
+    {
+      "runId": "exp-learn-r4-20261026-014450",
+      "better": true,
+      "faster": false,
+      "advanced": true
+    }
+  ],
+  "improved": 2
+}

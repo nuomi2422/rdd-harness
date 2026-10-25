@@ -1,0 +1,30 @@
+{
+  "runId": "exp-learn-r1-20261026-002516",
+  "label": "learn-r1",
+  "createdAt": "2026-10-25T16:25:16.412Z",
+  "watchSeconds": 1502,
+  "stopReason": "wall 1500s",
+  "toolCalls": 78,
+  "maxStage": 2,
+  "stageName": "S2 石器",
+  "stageSeconds": {
+    "1": 99,
+    "2": 235
+  },
+  "deaths": 0,
+  "blockers": [],
+  "milestoneCount": 2,
+  "experience": {
+    "before": "91cb9e9679c8278b2e0869b8c4b7d6ca17870924fa07626f4530f35553845703",
+    "after": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c"
+  },
+  "finalItems": {
+    "minecraft:orange_terracotta": 1,
+    "minecraft:acacia_log": 5,
+    "minecraft:cobblestone": 1,
+    "minecraft:bread": 2,
+    "minecraft:stone_pickaxe": 1,
+    "minecraft:wooden_pickaxe": 1,
+    "minecraft:acacia_planks": 3
+  }
+}
