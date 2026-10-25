@@ -177,7 +177,13 @@ if ($doVerify) {
   Write-Output ("VERIFIED chat screen opened (bar drop {0:N1}, log rise {1:N1})" -f $barDrop, $logRise)
 }
 
-# 3) fill the line char by char, 4) send it
+# 3) clear any stray char left by the chat-open keypress (2026-10-25 实测:
+#    T 的 keydown 会在输入框里留下一个 't'，拼出 "tt/help"——斜杠没被吃，
+#    被吃的是命令本身变成了聊天)。退格一次即可清掉；退格对空输入框无害。
+[void][McPost]::Key($h, 0x08)
+Start-Sleep -Milliseconds 60
+
+# 4) fill the line char by char, 5) send it
 $typed = [McPost]::Chars($h, $Text)
 $waitMs = [Math]::Max(60, $TypeDelayMs * [Math]::Min(20, $Text.Length))
 Start-Sleep -Milliseconds $waitMs
