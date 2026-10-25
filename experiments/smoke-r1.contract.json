@@ -1,0 +1,118 @@
+{
+  "contractRevision": "SMOKE-r1",
+  "frozenAt": "2026-10-25",
+  "frozenBeforeRun": true,
+  "scenarioId": "live-log-delivery",
+  "mode": "autonomous-game",
+  "masterWorld": {
+    "id": "live",
+    "path": "D:/rdd/mc/The Best of Twilight Forest/saves/live",
+    "note": "母版=当前 live 存档整树复制；每次运行前计算文件清单 sha256 写进 envelope"
+  },
+  "runtimeProfile": {
+    "launch": "node D:/rdd/tools/mc-launch.mjs --instance \"D:/rdd/mc/The Best of Twilight Forest\" --level <world> --mem 4G",
+    "gameDir": "D:/rdd/mc/The Best of Twilight Forest",
+    "mcp": {
+      "port": 8765,
+      "config": "config/numen/mcp_server.json"
+    },
+    "monitorDir": "config/numen/monitor",
+    "prelaunch": "OpenClaw hub :8080 must listen (node server.js in mc-openclaw-controller/scripts)"
+  },
+  "resetScope": {
+    "saves": "saves/<world>/（全量复制；每次运行用新世界名）",
+    "outsideSave": [
+      "config/numen/rdd-tasks",
+      "config/numen/rdd-ledger",
+      "config/numen/rdd-facts",
+      "config/numen/rdd-assets",
+      "config/numen/rdd-history",
+      "config/numen/rdd-semantics",
+      "config/numen/rdd-side",
+      "config/numen/companions",
+      "config/numen/worldstate",
+      "config/numen/acx",
+      "config/numen/experience-*.jsonl",
+      "config/numen/learner-memos-*.json"
+    ],
+    "note": "运行前把上述路径快照到 run 目录；运行结束（游戏已停）整树还原 = 受控复位。monitor/ 不动，只归档本窗口。"
+  },
+  "preconditions": [
+    "companion online (list_companions returns >=1)",
+    "MCP 8765 reachable",
+    "java process count == 0 before launch"
+  ],
+  "stimulus": {
+    "kind": "normal_user_goal",
+    "text": "去采集4个橡木原木",
+    "channel": "mcp enqueue（主人说的话，不提示答案）",
+    "repeat": 1
+  },
+  "assertions": [
+    {
+      "id": "S1",
+      "required": true,
+      "source": "boot-log+jar-hash",
+      "predicate": "NeoForge 启动日志“Found mod file”列出本次 mods 目录的 numen jar；该 jar 文件 sha256 在 prepare 与 launch 前后一致；无 stale/duplicate 警告",
+      "coverage": "jar 级发现身份（JVM 实际扫描并加载该文件），非逐类来源证明；逐类证明列为后续只读证明点",
+      "onMissingEvidence": "INCONCLUSIVE"
+    },
+    {
+      "id": "S2",
+      "required": false,
+      "source": "monitor context.jsonl",
+      "predicate": "窗口内 >=1 条 budget_gate 且 trimmed>0（真实生产裁剪）；窗口内 ai.jsonl turn 事件 tools 字段不变",
+      "onMissingEvidence": "NOT_EXERCISED",
+      "note": "首周允许不绿；如实标 NOT_EXERCISED，不计入通过"
+    },
+    {
+      "id": "S3",
+      "required": true,
+      "source": "world-and-executor",
+      "predicate": "inventory oak_log 增量 >= 4（rdd_get_inventory 前/后）且窗口内 >=1 条真实内脑 tool_call（mine 族）且最终声明与事实对齐（声明完成⇔增量达标）",
+      "deadline": {
+        "decisionTurns": 12,
+        "wallSeconds": 600
+      },
+      "onMissingEvidence": "INCONCLUSIVE"
+    },
+    {
+      "id": "S4",
+      "required": true,
+      "source": "process-and-monitor",
+      "predicate": "停止后 60s 内无新的 llm_request 事件；java 进程已退出；证据已归档到 run 目录；世界副本按裁决清理或保留",
+      "onMissingEvidence": "INCONCLUSIVE"
+    }
+  ],
+  "budget": {
+    "maxWallClockMinutes": 15,
+    "stimulusWatchSeconds": 600,
+    "stallSeconds": 180,
+    "maxRequestsAllActors": 20,
+    "hardStops": [
+      "wall clock",
+      "stall",
+      "watchdog",
+      "java died"
+    ],
+    "note": "请求数从窗口内 context.jsonl llm_request 行数统计；费用由 budget-policy.json 影子模式记录"
+  },
+  "negativeControls": {
+    "judgeSelfTest": [
+      "wrong-load：envelope jarHash 与 boot.log 所列 jar 不一致 => S1 FAIL",
+      "missing-trim：无 budget_gate/trimmed => S2 NOT_EXERCISED（不得 PASS）",
+      "claim-only：声明完成但 oak_log 增量 <4 => S3 FAIL"
+    ]
+  },
+  "verdicts": [
+    "PASS",
+    "PASS_WITH_GAPS",
+    "FAIL",
+    "NOT_EXERCISED",
+    "INCONCLUSIVE",
+    "INVALID_ENV",
+    "ABORTED_BUDGET"
+  ],
+  "artifacts": "D:/rdd/harness/rdd-harness/runs/<runId>/（envelope.json, evidence/, verdict.json, verdict.md, cleanup.json）",
+  "cleanupPolicy": "PASS/PASS_WITH_GAPS → 删世界副本；FAIL/INCONCLUSIVE/INVALID_ENV → 保留复现包"
+}

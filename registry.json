@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
   "version": 2,
-  "updated": "2026-10-21",
+  "updated": "2026-10-25",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -724,6 +724,22 @@
       "side": "write",
       "needsGame": false,
       "note": "★ 快照是执行 AI 自己的工作副本，不是永久资产 —— 用完自己删。"
+    },
+    {
+      "id": "exp.runner",
+      "name": "游戏内实验运行器（复制母版→真实运行→观测→停机→受控复位→归档）",
+      "path": "harness/bin/exp-runner.js",
+      "side": "write",
+      "needsGame": true,
+      "note": "★ 79号 W1 冒烟；先 plan 干跑再 run；世界名 exp-* 绝不碰 live；失败保留复现包"
+    },
+    {
+      "id": "exp.judge",
+      "name": "游戏内实验机械裁判（只读证据出裁决，含假绿负例自测）",
+      "path": "harness/bin/exp-judge.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ 不认口头结论；--selftest 5 例（三种假绿必拒）"
     }
   ],
   "standards": {
