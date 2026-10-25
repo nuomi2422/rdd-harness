@@ -1,0 +1,28 @@
+{
+  "verdict": "SUPPORTS",
+  "samples": 2,
+  "aggregation": "count",
+  "value": 2,
+  "thresholds": {
+    "success": {
+      "operator": ">=",
+      "value": 2
+    },
+    "failure": {
+      "operator": "<=",
+      "value": 1
+    }
+  },
+  "tolerance": 0,
+  "claimCheck": null,
+  "source": {
+    "path": "harness\\rdd-harness\\runs",
+    "kind": "runs-dir",
+    "filter": null
+  },
+  "frozen": {
+    "at": "2026-10-25T14:34:02.350Z",
+    "cardSha256": "5e48e250f0d948e7553cf7eb5d6eade93889d79519fa89928805a8107253c4ce",
+    "commit": "3279fac"
+  }
+}
