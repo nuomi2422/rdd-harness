@@ -339,6 +339,13 @@ async function cmdRun(opts) {
     const da = spawnSync(process.execPath, [path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'drop-all.js'), companionName], { encoding: 'utf8', timeout: 90000 });
     log(runDir, 'zero-start', 'drop-all exit=' + da.status + (da.stderr ? ' ' + String(da.stderr).slice(0, 120) : ''));
     await sleep(1500);
+    // --night：质量触发环境。强制深夜刷怪，让「death」事件进 instrumentation（学习系统的食源）。
+    // 干净母版无床无掩体，她无法睡觉跳过；easy 下 mob 可战可不战，死亡是可控风险而非必死。
+    if (opts.night) {
+      const nt = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/time set midnight'], { encoding: 'utf8', timeout: 40000 });
+      log(runDir, 'zero-start', '/time set midnight exit=' + nt.status);
+      await sleep(800);
+    }
   }
 
   const invBefore = mcp('rdd_get_inventory', companionName, null, 25000);
@@ -624,6 +631,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--zero-start') opts.zeroStart = true;
   else if (argv[i] === '--no-delta-stop') opts.noDeltaStop = true;
   else if (argv[i] === '--master') opts.master = argv[++i];
+  else if (argv[i] === '--night') opts.night = true;
 }
 (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
