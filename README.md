@@ -1,6 +1,10 @@
-> ## ⚠️ 本 harness 已半退役（2026-10-25 主人裁定）
+> ## ⚠️ 半退役已解除（2026-10-25 夜 主人裁定）：本目录恢复为 RDD/MC 工作的默认门禁
 >
-> **不再作为新工程的默认门禁。所有 AI 暂时改用 Agene harness：`D:\Agene\harness\`**
+> 当前重点 = MC 项目：进/退游戏门禁、实验卡、游戏域脚本都走本目录。
+> Agene 侧只做多项目登记与它自己的 run（`agene-harness.js project show rdd.mc`），不代跑。
+> 下面这段「半退役」横幅保留为历史记录，不再是现行默认。
+>
+> （历史，已解除）**当时规定：不再作为新工程的默认门禁、改用 Agene harness**——2026-10-25 夜作废。
 >
 > ```powershell
 > node D:\Agene\harness\bin\agene-harness.js doctor      # 先体检
