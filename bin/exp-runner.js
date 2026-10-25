@@ -103,14 +103,26 @@ function mcp(tool, companion, args, timeoutMs) {
   const r = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: timeoutMs || 25000 });
   return { ok: r.status === 0, status: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
+function parseCompanions(raw) {
+  const out = [];
+  for (const line of String(raw || '').split(/\r?\n/)) {
+    const m = line.match(/^-\s+(.+?)\s+\(id:\s*([0-9a-fA-F-]+)\)/);
+    if (m) out.push({ name: m[1].trim(), id: m[2] });
+  }
+  return out;
+}
 function oakLogCount(raw) {
   if (!raw) return null;
-  const patterns = [
-    /"minecraft:oak_log"\s*:\s*(\d+)/,
-    /"oak_log"\s*:\s*(\d+)/,
-    /oak_log[^0-9]{0,80}?(\d+)/,
-  ];
-  for (const p of patterns) { const m = raw.match(p); if (m) return parseInt(m[1], 10); }
+  try {
+    const j = JSON.parse(String(raw));
+    const items = j && j.data && j.data.items;
+    if (items && typeof items === 'object') {
+      return Number(items['minecraft:oak_log'] || 0);
+    }
+  } catch { /* fall through to text scan */ }
+  for (const p of [/"minecraft:oak_log"\s*:\s*(\d+)/, /"oak_log"\s*:\s*(\d+)/, /oak_log[^0-9]{0,80}?(\d+)/]) {
+    const m = String(raw).match(p); if (m) return parseInt(m[1], 10);
+  }
   return null;
 }
 function log(runDir, phase, msg) {
@@ -118,8 +130,37 @@ function log(runDir, phase, msg) {
   fs.appendFileSync(path.join(runDir, 'events.log'), line);
   console.log(line.trim());
 }
+let CTX = null; // {runDir, env, worldPath, baseDir} —— 供失败时紧急清场
+function emergencyCleanup(reason) {
+  if (!CTX) return;
+  const { runDir, worldPath, baseDir } = CTX;
+  try {
+    const pids = javaProcs();
+    if (pids.length) ps('Get-CimInstance Win32_Process -Filter "Name=\'java.exe\' OR Name=\'javaw.exe\'" | Where-Object { $_.CommandLine -and $_.CommandLine -like \'*' + GAME.replace(/'/g, "''") + '*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }', 30000);
+    for (let i = 0; i < 30 && javaProcs().length; i++) { spawnSync('powershell.exe', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 500']); }
+    // 受控复位
+    if (baseDir && fs.existsSync(baseDir)) {
+      for (const d of NUMEN_STATE_DIRS) {
+        const target = path.join(NUMEN, d), backup = path.join(baseDir, d);
+        fs.rmSync(target, { recursive: true, force: true });
+        if (fs.existsSync(backup)) copyTree(backup, target);
+      }
+      const baseFiles = fs.readdirSync(baseDir).filter((f) => NUMEN_STATE_GLOBS.some((re) => re.test(f)));
+      for (const f of baseFiles) fs.copyFileSync(path.join(baseDir, f), path.join(NUMEN, f));
+      for (const e of fs.readdirSync(NUMEN)) if (NUMEN_STATE_GLOBS.some((re) => re.test(e)) && !baseFiles.includes(e)) fs.rmSync(path.join(NUMEN, e), { force: true });
+    }
+    if (worldPath && fs.existsSync(worldPath) && path.resolve(worldPath).startsWith(path.resolve(SAVES) + path.sep) && path.basename(worldPath).startsWith('exp-')) {
+      fs.rmSync(worldPath, { recursive: true, force: true });
+    }
+    fs.writeFileSync(path.join(runDir, 'cleanup.json'), JSON.stringify({ at: nowIso(), kept: false, reason: 'aborted: ' + reason }, null, 2));
+    log(runDir, 'cleanup', '紧急清场完成（开机状态已复原、世界副本已删）');
+  } catch (e) {
+    try { log(runDir, 'cleanup', '紧急清场失败: ' + e.message); } catch {}
+  }
+}
 function fail(runDir, phase, msg, code) {
   if (runDir) log(runDir, phase, 'FATAL ' + msg);
+  emergencyCleanup(phase + ': ' + msg);
   console.error('FATAL[' + phase + '] ' + msg);
   process.exit(code || 10);
 }
@@ -207,6 +248,7 @@ async function cmdRun(opts) {
   const modsDir = path.join(GAME, 'mods');
   const jars = fs.readdirSync(modsDir).filter((f) => f.endsWith('.jar')).map((f) => ({ file: f, sha256: sha256File(path.join(modsDir, f)) }));
   env.master = { source: contract.masterWorld.path, world, worldPath, manifest: masterManifest, baselineManifest };
+  CTX = { runDir, env, worldPath, baseDir };
   env.jarsAtPrepare = jars;
   env.saveEnvAt = nowIso();
   saveEnv();
@@ -222,34 +264,43 @@ async function cmdRun(opts) {
     { cwd: RDD, detached: true, stdio: ['ignore', launchLog, launchLog] }).unref();
   log(runDir, 'launch', '游戏已脱离启动（world=' + world + '），等待 MCP 8765…');
 
-  let ready = false;
-  let companions = null;
+  let companionsRaw = null;
   for (let i = 0; i < 120; i++) { // ≤ 300s
     if (javaProcs().length === 0 && i > 8) fail(runDir, 'launch', 'java 进程没起来（启动器日志见 evidence/launcher.log）', 3);
     if (await portOpen(8765)) {
       const r = mcp('list_companions', null, null, 20000);
-      if (r.ok) { companions = r.out; break; }
+      if (r.ok) { companionsRaw = r.out; break; }
     }
     await sleep(2500);
   }
-  if (!companions) fail(runDir, 'launch', '300s 内 MCP 未就绪', 3);
+  if (!companionsRaw) fail(runDir, 'launch', '300s 内 MCP 未就绪', 3);
+  log(runDir, 'launch', 'MCP 就绪，等待世界加载/同伴进场…');
+  let companions = parseCompanions(companionsRaw);
+  for (let i = 0; i < 72 && companions.length === 0; i++) { // 世界加载 ~2-3 分钟
+    await sleep(5000);
+    const r = mcp('list_companions', null, null, 20000);
+    if (r.ok) { companionsRaw = r.out; companions = parseCompanions(r.out); }
+  }
+  if (companions.length === 0) fail(runDir, 'launch', '世界加载后仍无同伴（list_companions: ' + String(companionsRaw).slice(0, 120) + '）', 10);
   env.timings.mcpReady = nowIso();
   log(runDir, 'launch', 'MCP 就绪');
 
   // 启动日志段（S1 证据）：从启动前 offset 到当前
-  const logBuf = fs.readFileSync(logPath).slice(logStart);
+  const logNow = fs.statSync(logPath).size;
+  const from = logNow < logStart ? 0 : logStart; // 新会话会截断 latest.log：变小=从 0 读
+  const logBuf = fs.readFileSync(logPath).slice(from);
   fs.writeFileSync(path.join(runDir, 'evidence', 'boot.log'), logBuf);
   const bootText = logBuf.toString('latin1');
   const foundMods = (bootText.match(/Found mod file "[^"]+"/g) || []);
   env.boot = { bytes: logBuf.length, foundMods: foundMods.slice(0, 40) };
   env.jarsAtLaunch = fs.readdirSync(modsDir).filter((f) => f.endsWith('.jar')).map((f) => ({ file: f, sha256: sha256File(path.join(modsDir, f)) }));
-  fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), companions);
+  fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   saveEnv();
 
   // ---------- stimulus ----------
   env.phase = 'stimulus';
-  const companionName = (companions.match(/"name"\s*:\s*"([^"]+)"/) || [])[1];
-  if (!companionName) fail(runDir, 'stimulus', 'list_companions 无同伴名', 10);
+  const companionName = companions[0].name;
+  fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
   const goalText = opts.goal || contract.stimulus.text;
   const stim = path.join(runDir, 'stimulus.json');
@@ -310,7 +361,18 @@ async function cmdRun(opts) {
     }
     const chunkCtx = pull('context.jsonl');
     for (const line of chunkCtx.split('\n')) if (line.includes('"type":"llm_request"')) llmRequests++;
-    pull('events.jsonl');
+    const chunkEv = pull('events.jsonl');
+    if (chunkEv && chunkEv.includes('"type":"task_finished"') && /oak_log|原木/.test(chunkEv)) {
+      stopReason.value = 'task_finished(oak_log)';
+      const fin = mcp('rdd_get_inventory', companionName, null, 25000);
+      if (fin.ok) {
+        invAfterRaw = fin.out;
+        const n = oakLogCount(fin.out);
+        if (n !== null) after = n;
+        fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-after.json'), fin.out);
+      }
+      break;
+    }
     pull('ai.jsonl');
     const chunkRdd = pull('rdd.jsonl');
     for (const line of chunkRdd.split('\n')) {
@@ -351,9 +413,18 @@ async function cmdRun(opts) {
   // ---------- stop ----------
   env.phase = 'stop';
   const stopOff = fs.statSync(path.join(MONITOR, 'context.jsonl')).size;
+  // 停机前最后一次背包采样（避免 30s 节奏错过交付瞬间）
+  const finInv = mcp('rdd_get_inventory', companionName, null, 25000);
+  if (finInv.ok) {
+    invAfterRaw = finInv.out;
+    const n2 = oakLogCount(finInv.out);
+    if (n2 !== null) after = n2;
+    fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-after.json'), finInv.out);
+  }
   const ts = mcp('task_stop', companionName, null, 20000);
-  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify(ts, null, 2));
-  log(runDir, 'stop', 'task_stop → ' + (ts.ok ? 'ok' : 'failed(记录)'));
+  const sb = mcp('rdd_standby', companionName, null, 20000);
+  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ task_stop: ts, rdd_standby: sb }, null, 2));
+  log(runDir, 'stop', 'task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_standby → ' + (sb.ok ? 'ok' : 'failed'));
   // 60s 宽限：数一数还有没有新的 llm_request
   let postStopRequests = 0;
   const graceEnd = Date.now() + 60000;
@@ -401,6 +472,7 @@ async function cmdRun(opts) {
     if (!NUMEN_STATE_GLOBS.some((re) => re.test(e))) continue;
     if (!baseFiles.includes(e)) fs.rmSync(path.join(NUMEN, e), { force: true });
   }
+  CTX = null;
   const restoredManifest = manifestOf(baseDir);
   log(runDir, 'restore', '存档外状态已还原（基线 ' + restoredManifest.sha256.slice(0, 16) + '…）');
 

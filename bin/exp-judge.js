@@ -24,14 +24,21 @@ function lines(buf) { return buf ? buf.toString('utf8').split('\n').filter(Boole
 function num(re, s) { const m = s.match(re); return m ? parseInt(m[1], 10) : null; }
 function oakLogCount(raw) {
   if (!raw) return null;
+  try {
+    const j = JSON.parse(String(raw));
+    const items = j && j.data && j.data.items;
+    if (items && typeof items === 'object') {
+      return Number(items['minecraft:oak_log'] || 0);
+    }
+  } catch { /* fall through to text scan */ }
   for (const p of [/"minecraft:oak_log"\s*:\s*(\d+)/, /"oak_log"\s*:\s*(\d+)/, /oak_log[^0-9]{0,80}?(\d+)/]) {
-    const m = raw.match(p); if (m) return parseInt(m[1], 10);
+    const m = String(raw).match(p); if (m) return parseInt(m[1], 10);
   }
   return null;
 }
 
 const ACTION_TOOLS = ['mine', 'craft', 'goto', 'attack', 'interact_at', 'place', 'build', 'collect_items', 'acx_execute'];
-const CLAIM_WORDS = ['完成', '搞定', '拿到了', '采集到', '做好了', '收到', '已交付'];
+const CLAIM_WORDS = ['完成', '搞定', '拿到了', '采集到', '做好了', '收到', '已交付', '砍到', '装进背包', '放进背包'];
 const realActionCalls = (toolLines) => toolLines.filter((l) => l.includes('"type":"tool_call"') && ACTION_TOOLS.some((t) => l.includes('"tool":"' + t + '"')));
 const claimIn = (s) => CLAIM_WORDS.some((w) => s.includes(w));
 
@@ -83,7 +90,8 @@ function evaluate(runDir) {
   // ---------- S3 ACT ----------
   {
     const invAfterRaw = ev('inventory-after.json') ? ev('inventory-after.json').toString('utf8') : '';
-    const before = env.inventory ? env.inventory.oakLogBefore : null;
+    const beforeRaw = ev('inventory-before.json') ? ev('inventory-before.json').toString('utf8') : '';
+    const before = beforeRaw ? oakLogCount(beforeRaw) : (env.inventory ? env.inventory.oakLogBefore : null);
     const after = oakLogCount(invAfterRaw);
     const toolLines = lines(ev('tools.jsonl'));
     const realCalls = realActionCalls(toolLines);
@@ -91,9 +99,14 @@ function evaluate(runDir) {
     const turns = new Set(aiLines.filter((l) => l.includes('"type":"turn"')).map((l) => num(/"turn":(\d+)/, l)).filter((n) => n !== null));
     const assistantText = aiLines.filter((l) => l.includes('"type":"assistant"')).join('\n');
     const chainBuf = ev('taskchain-final.json');
-    let chainStatus = null;
-    if (chainBuf) { try { const c = JSON.parse(chainBuf.toString('utf8')); chainStatus = c.data && c.data.taskChain ? c.data.taskChain.primaryStatus : null; } catch {} }
-    const claimDone = chainStatus === 'COMPLETED' || claimIn(assistantText);
+    let chainStatus = null, chainDesc = null;
+    if (chainBuf) { try { const c = JSON.parse(chainBuf.toString('utf8')); chainStatus = c.data && c.data.taskChain ? c.data.taskChain.primaryStatus : null; chainDesc = c.data && c.data.taskChain ? c.data.taskChain.description : null; } catch {} }
+    const evLines = lines(ev('events.jsonl'));
+    const finOk = evLines.some((l) => l.includes('"type":"task_finished"')
+      && /"status":"(done|success|completed)"/i.test(l)
+      && /oak_log|原木/i.test(l));
+    const chainRelevant = chainStatus === 'COMPLETED' && chainDesc && /(oak|原木|木材|log)/i.test(chainDesc);
+    const claimDone = finOk || chainRelevant || claimIn(assistantText);
     const wall = (env.timings && env.timings.watchSeconds) || null;
     const deadlineOk = turns.size <= 12 && wall !== null && wall <= 600;
 
