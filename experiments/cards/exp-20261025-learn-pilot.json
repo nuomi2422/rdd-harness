@@ -1,0 +1,85 @@
+{
+  "apiVersion": "rdd.experiment/v1",
+  "id": "exp-20261025-learn-pilot",
+  "title": "无人值守学习轮回：带经验与简报的后续轮次强于第 1 轮",
+  "vcard": "V-20261025-04",
+  "claim": "同一母版、同一开场任务、四轮各 25 分钟的轮回里，至少有一轮（第 2–4 轮）的最远阶段高于第 1 轮，或同阶段耗时 ≤ 第 1 轮的 80%",
+  "falsification": {
+    "successCondition": "learn-summary.json 的 improved ≥ 1，且该值能由同文件 rounds[] 按冻结规则手工复算出来",
+    "failureCondition": "4 轮全部跑完且 improved = 0（没有任何一轮强于第 1 轮）",
+    "inconclusiveCondition": "轮数 < 4 / summary 缺失 / 任一轮缺 maxStage 或 stageSeconds / 轮与轮之间 jar 构建不同"
+  },
+  "variables": {
+    "independent": [
+      "轮次（第 1 轮为基线，2–4 轮为处理组）"
+    ],
+    "dependent": [
+      "最远阶段 maxStage",
+      "同阶段耗时 stageSeconds",
+      "improved 计数"
+    ],
+    "controlled": [
+      "同一母版世界 saves/live 的副本（每轮复制）",
+      "同一开场任务文本（journal/learn-pilot.goal.txt）",
+      "同一 jar 构建",
+      "每轮 zero-start：difficulty easy + keepInventory + 清空同伴背包"
+    ]
+  },
+  "controls": {
+    "positive": "第 1 轮在 marks 里恒为 false（基线不自证）；把 rounds[1].maxStage 手工 +1 后按冻结规则应复算出 SUPPORTS，证明判据对真实差异有响应",
+    "negative": "把 4 轮 maxStage 全设为 1 且耗时不变 → improved=0 → REFUTES；把 success 阈值改成 ≥2 跑同一份数据也应 REFUTES（判据能拒绝）"
+  },
+  "determinism": {
+    "kind": "deterministic",
+    "seed": ""
+  },
+  "replications": {
+    "N": 1,
+    "deterministic": true
+  },
+  "measurement": {
+    "source": {
+      "kind": "json",
+      "path": "harness/rdd-harness/experiments/journal/learn-summary.json",
+      "value": "improved"
+    },
+    "dataFields": [
+      "runId",
+      "maxStage",
+      "stageSeconds",
+      "deaths",
+      "blockers",
+      "watchSeconds"
+    ],
+    "aggregation": "exact",
+    "repeats": 1,
+    "stopRule": "只读一次轮回的 learn-summary.json；rounds.length 必须 = 4（不足 4 轮不能判「4 轮内」）；冻结后不再改卡",
+    "thresholds": {
+      "success": {
+        "operator": ">=",
+        "value": 1
+      },
+      "failure": {
+        "operator": "<=",
+        "value": 0
+      }
+    },
+    "tolerance": 0
+  },
+  "permissions": {
+    "scopes": [
+      "只读 experiments/journal/learn-summary.json 与 runs/exp-learn-r*/",
+      "写：saves/exp-learn-* 副本、runs/、experiments/journal/"
+    ],
+    "maxMinutes": 150,
+    "irreversible": false,
+    "recovery": "每轮运行器自带受控复位（存档外状态整树还原）；只写 saves/exp-* 副本，绝不写 live；java 未退出不继续下一轮；失败保留复现包供复盘"
+  },
+  "deviationsAllowed": false,
+  "notes": [
+    "本卡只复算一次轮回的汇总；轮回内部 4 轮的随机性由 rounds[] 原样保留，pilot 不做统计推断（n=4，只能看方向）。",
+    "improved 的冻结规则（写在 exp-cycle.js，冻结时记录 commit）：第 2–4 轮中任一 round.maxStage > 第 1 轮 maxStage，或阶段相同且 stageSeconds ≤ 80%。",
+    "判据不看聊天措辞、不看 AI 自述完成；只看 monitor 派生的里程碑与背包快照。",
+    "S2 起的阶段由 records.jsonl 的 milestone 事件推导；没有里程碑就没有阶段，缺字段按 INCONCLUSIVE 处理。"
+  ]
+}

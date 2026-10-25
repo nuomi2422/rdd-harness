@@ -29,6 +29,7 @@ const path = require('path');
 const crypto = require('crypto');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
+const { readLevelInfo, patchLevel } = require('./lib/nbt');
 
 const RDD = 'D:/rdd';
 const RDD_ROOT = () => RDD;
@@ -232,6 +233,16 @@ async function cmdRun(opts) {
   if (copyManifest.sha256 !== masterManifest.sha256) fail(runDir, 'prepare', '世界副本与母版不一致（复制损坏）', 3);
   log(runDir, 'prepare', '世界副本校验通过 files=' + copyManifest.count);
 
+  // zero-start 的难度/keepInventory 直接写进副本 level.dat，不走聊天命令。
+  // 理由（2026-10-25 两次短测）：/save-all 的 RETURN 会丢（latest.log 留下 "save-all flush<--[此处]" 这种
+  // 没提交的输入），于是「命令没生效」和「没落盘」长得一模一样。NBT 是顺序结构、无绝对偏移，改副本文件是确定性的。
+  if (opts.zeroStart) {
+    const p = patchLevel(path.join(worldPath, 'level.dat'), { difficulty: 1, keepInventory: 'true' });
+    fs.writeFileSync(path.join(runDir, 'evidence', 'level-after-zero.json'), JSON.stringify(p, null, 2));
+    if (p.error) fail(runDir, 'prepare', 'zero-start 改 level.dat 失败: ' + p.error, 3);
+    log(runDir, 'prepare', 'zero-start：副本 level.dat → ' + JSON.stringify(p.changed.length ? p.changed : p.note));
+  }
+
   // 存档外状态快照（受控复位基线）
   env.experience = { before: expHash() };
   const baseDir = path.join(runDir, 'env-baseline');
@@ -315,15 +326,17 @@ async function cmdRun(opts) {
   fs.writeFileSync(stim, JSON.stringify({ text: goalText }, null, 2));
 
   if (opts.zeroStart) {
+    // 难度/keepInventory 已在 prepare 写进副本 level.dat，这里只清背包。
+    // /clear 的目标是「同伴」本身：它是服务端玩家实体，名字就是 list_companions 的 name。
+    // 2026-10-25 短测：清 RDDDev（客户端玩家、我们打字用的那个）时同伴背包分毫未动；
+    // 改清 RDD 后 latest.log 实测「已移除玩家RDD的192个物品」，背包归零。
     const SEND = path.join(HARNESS, 'bin', 'send-mc-command.ps1');
-    for (const c of ['/difficulty easy', '/gamerule keepInventory true', '/clear RDDDev']) {
-      const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', c], { encoding: 'utf8', timeout: 40000 });
-      log(runDir, 'zero-start', c + ' exit=' + r.status);
-      await sleep(1200);
-    }
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/clear ' + companionName], { encoding: 'utf8', timeout: 40000 });
+    log(runDir, 'zero-start', '/clear ' + companionName + ' exit=' + r.status);
+    await sleep(1500);
     const da = spawnSync(process.execPath, [path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'drop-all.js'), companionName], { encoding: 'utf8', timeout: 90000 });
     log(runDir, 'zero-start', 'drop-all exit=' + da.status + (da.stderr ? ' ' + String(da.stderr).slice(0, 120) : ''));
-    await sleep(2000);
+    await sleep(1500);
   }
 
   const invBefore = mcp('rdd_get_inventory', companionName, null, 25000);
@@ -407,7 +420,9 @@ async function cmdRun(opts) {
         rec('death', { message: m ? m[1] : '', at: Date.now() });
       }
     }
-    if (chunkEv && chunkEv.includes('"type":"task_finished"') && /oak_log|原木/.test(chunkEv)) {
+    // 学习轮回必须跑满时钟：任务一报告「原木采完」就停会把 25 分钟的实验截成 50 秒。
+    // --no-delta-stop 的语义就是「不提前停」，这里一并受它管辖。
+    if (!opts.noDeltaStop && chunkEv && chunkEv.includes('"type":"task_finished"') && /oak_log|原木/.test(chunkEv)) {
       stopReason.value = 'task_finished(oak_log)';
       const fin = mcp('rdd_get_inventory', companionName, null, 25000);
       if (fin.ok) {
