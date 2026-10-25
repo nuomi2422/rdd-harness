@@ -1,0 +1,83 @@
+{
+  "apiVersion": "rdd.experiment/v1",
+  "id": "exp-20261026-learn-clean2",
+  "title": "干净母版学习轮回·第二批（复现第一批的方向）",
+  "vcard": "V-20261026-02",
+  "claim": "同一干净母版、同一开场任务、四轮各 25 分钟的轮回里，至少有一轮（第 2–4 轮）的最远阶段高于第 1 轮，或同阶段耗时 ≤ 第 1 轮的 80%；阶段只按 craft 产出的物品计",
+  "falsification": {
+    "successCondition": "clean-summary.json 的 improved ≥ 1，且能由同文件 rounds[] 按冻结规则手工复算",
+    "failureCondition": "4 轮全部跑完且 improved = 0（没有任何一轮强于第 1 轮）",
+    "inconclusiveCondition": "轮数 < 4 / summary 缺失 / 任一轮缺 maxStage / 母版不是 exp-clean"
+  },
+  "variables": {
+    "independent": [
+      "轮次（第 1 轮为基线，2–4 轮为处理组）"
+    ],
+    "dependent": [
+      "最远阶段 maxStage（只认 craft）",
+      "同阶段耗时 stageSeconds"
+    ],
+    "controlled": [
+      "干净母版 saves/exp-clean（同一 seed、无玩家建筑、无箱子、无库存）",
+      "同一开场任务文本",
+      "同一 jar 构建",
+      "每轮 zero-start：difficulty easy + keepInventory + 清空同伴背包"
+    ]
+  },
+  "controls": {
+    "positive": "第 1 轮在 marks 里恒为 false（基线不自证）；把 rounds[1].maxStage 手工 +1 后按冻结规则应复算出 SUPPORTS",
+    "negative": "把 4 轮 maxStage 全设为 1 且耗时不变 → improved=0 → REFUTES；把 success 阈值改成 ≥2 跑同一份数据也应 REFUTES"
+  },
+  "determinism": {
+    "kind": "deterministic",
+    "seed": ""
+  },
+  "replications": {
+    "N": 1,
+    "deterministic": true
+  },
+  "measurement": {
+    "source": {
+      "kind": "json",
+      "path": "harness/rdd-harness/experiments/journal/clean2-summary.json",
+      "value": "improved"
+    },
+    "dataFields": [
+      "runId",
+      "maxStage",
+      "stageSeconds",
+      "deaths",
+      "blockers",
+      "watchSeconds"
+    ],
+    "aggregation": "exact",
+    "repeats": 1,
+    "stopRule": "只读一次轮回的 clean-summary.json；rounds.length 必须 = 4；冻结后不改卡",
+    "thresholds": {
+      "success": {
+        "operator": ">=",
+        "value": 1
+      },
+      "failure": {
+        "operator": "<=",
+        "value": 0
+      }
+    },
+    "tolerance": 0
+  },
+  "permissions": {
+    "scopes": [
+      "只读 experiments/journal/clean-summary.json 与 runs/exp-clean-r*/",
+      "写：saves/exp-clean-r* 副本、runs/、experiments/journal/"
+    ],
+    "maxMinutes": 150,
+    "irreversible": false,
+    "recovery": "每轮受控复位；只写 saves/exp-* 副本，绝不写 live 与 exp-clean；java 未退出不继续下一轮"
+  },
+  "deviationsAllowed": false,
+  "notes": [
+    "与 exp-20261026-learn-clean 判据完全相同，只是第二批独立运行（不同时间段、同一干净母版）。",
+    "目的：第一批 4 轮只有 1 轮强于基线，方向太弱；再跑 4 轮看是不是噪声。",
+    "两批合起来才是 8 轮样本，单批只能看方向。"
+  ]
+}
