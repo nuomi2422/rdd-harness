@@ -39,7 +39,7 @@ const AGG = ['count', 'sum', 'mean', 'median', 'min', 'max', 'rate', 'exact'];
 const OPS = ['>=', '<=', '==', '!=', '>', '<'];
 
 function sha(x) { return crypto.createHash('sha256').update(Buffer.from(String(x), 'utf8')).digest('hex'); }
-function readJson(p) { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\\uFEFF/, '')); }
+function readJson(p) { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); }
 function rel(p) { return path.relative(RDD_ROOT, p).replace(/\\\\/g, '/'); }
 function resolveData(p) { return path.isAbsolute(p) ? p : path.join(RDD_ROOT, p); }
 
@@ -201,7 +201,7 @@ function loadRuns(src, opts) {
 function loadRecords(src) {
   const p = resolveData(src.path);
   if (!fs.existsSync(p)) return { records: [], error: 'SOURCE_MISSING ' + rel(p) };
-  const text = fs.readFileSync(p, 'utf8').replace(/^\\uFEFF/, '');
+  const text = fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '');
   let records = [];
   let bad = 0;
   if (src.kind === 'json') {

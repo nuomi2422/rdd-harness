@@ -27,8 +27,8 @@ const RUNNER = path.join(__dirname, 'exp-runner.js');
 const STAGE_RANK = { S1_wood: 1, S2_stone: 2, S3_iron: 3, S4_diamond: 4, S5_armor: 5 };
 const STAGE_NAME = { 1: 'S1 木器', 2: 'S2 石器', 3: 'S3 铁器', 4: 'S4 钻石', 5: 'S5 钻石套' };
 
-function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\\uFEFF/, '')); } catch { return null; } }
-function readLines(p) { try { return fs.readFileSync(p, 'utf8').split(/\\r?\\n/).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { return []; } }
+function readJson(p) { try { return JSON.parse(fs.readFileSync(p, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; } }
+function readLines(p) { try { return fs.readFileSync(p, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean); } catch { return []; } }
 
 function analyzeRun(runDir) {
   const env = readJson(path.join(runDir, 'envelope.json')) || {};
