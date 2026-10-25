@@ -14,6 +14,11 @@
 >    `D:\rdd\docs\rdd-docs\rdd架构\harness对照-rdd-vs-agene-20261025.md`。
 >
 > 迁完之后本目录预期只剩"游戏域 + 历史"。**不要再往这里加新门禁/新台账。**
+>
+> **2026-10-25 口径更新**：上面的"半退役"不代表本目录资产被排除。按
+> [多项目 Harness 施工单](<D:/Agene/docs/harness-multi-project-construction-v0.1.md>)：Agene Harness 是多项目底座，
+> 本目录的工具/门禁/技能按 **rdd.mc 项目扩展**接入统一注册与按需展开——真源保留在这里与接入统一底座并不冲突；
+> "不搬进 core"指不硬编码进通用核心，不是"永不接入"。接入完成平价验证前，本目录门禁照常运行。
 
 ---
 # RDD Harness
