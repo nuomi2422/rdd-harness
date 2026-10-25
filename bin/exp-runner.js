@@ -195,6 +195,8 @@ async function cmdRun(opts) {
   const label = opts.label || 'smoke';
   const contract = JSON.parse(fs.readFileSync(CONTRACT_PATH, 'utf8'));
   const contractHash = sha256File(CONTRACT_PATH);
+  // --master 允许换母版（干净模板 saves/exp-clean：无基地无箱子）。默认仍用契约里的 saves/live。
+  const masterPath = opts.master ? path.resolve(opts.master) : contract.masterWorld.path;
   const runId = 'exp-' + label + '-' + stamp();
   const runDir = path.join(RUNS, runId);
   fs.mkdirSync(path.join(runDir, 'evidence'), { recursive: true });
@@ -210,7 +212,7 @@ async function cmdRun(opts) {
   const java0 = javaProcs();
   if (java0.length) fail(runDir, 'preflight', 'java already running: ' + java0.join(',') + ' — 实例被占用，拒绝抢跑', 10);
   if (await portOpen(8765)) fail(runDir, 'preflight', 'MCP 8765 already listening — 有实例在跑？', 10);
-  if (!fs.existsSync(contract.masterWorld.path)) fail(runDir, 'preflight', '母版存档不存在: ' + contract.masterWorld.path, 10);
+  if (!fs.existsSync(masterPath)) fail(runDir, 'preflight', '母版存档不存在: ' + masterPath, 10);
   if (!fs.existsSync(MC_LAUNCH)) fail(runDir, 'preflight', '启动器不存在: ' + MC_LAUNCH, 3);
   if (!(await portOpen(8080))) {
     log(runDir, 'preflight', 'OpenClaw 8080 未监听 → 拉起 server.js');
@@ -226,9 +228,9 @@ async function cmdRun(opts) {
   const world = 'exp-' + label + '-' + stamp().slice(9);
   const worldPath = path.join(SAVES, world);
   if (fs.existsSync(worldPath)) fail(runDir, 'prepare', '世界副本已存在，拒绝覆盖: ' + worldPath, 10);
-  const masterManifest = manifestOf(contract.masterWorld.path);
+  const masterManifest = manifestOf(masterPath);
   log(runDir, 'prepare', '母版清单 files=' + masterManifest.count + ' sha256=' + masterManifest.sha256.slice(0, 16) + '… → 复制到 ' + world);
-  copyTree(contract.masterWorld.path, worldPath);
+  copyTree(masterPath, worldPath);
   const copyManifest = manifestOf(worldPath);
   if (copyManifest.sha256 !== masterManifest.sha256) fail(runDir, 'prepare', '世界副本与母版不一致（复制损坏）', 3);
   log(runDir, 'prepare', '世界副本校验通过 files=' + copyManifest.count);
@@ -266,7 +268,7 @@ async function cmdRun(opts) {
   // mods jar 身份
   const modsDir = path.join(GAME, 'mods');
   const jars = fs.readdirSync(modsDir).filter((f) => f.endsWith('.jar')).map((f) => ({ file: f, sha256: sha256File(path.join(modsDir, f)) }));
-  env.master = { source: contract.masterWorld.path, world, worldPath, manifest: masterManifest, baselineManifest };
+  env.master = { source: masterPath, world, worldPath, manifest: masterManifest, baselineManifest };
   CTX = { runDir, env, worldPath, baseDir };
   env.jarsAtPrepare = jars;
   env.saveEnvAt = nowIso();
@@ -370,15 +372,18 @@ async function cmdRun(opts) {
   let invAfterRaw = '';
   const stopReason = { value: null };
   let nextInventoryAt = Date.now();
-  const ITEM_STAGES = [
-    ['minecraft:oak_log', 'S1_wood'], ['minecraft:crafting_table', 'S1_wood'], ['minecraft:wooden_pickaxe', 'S1_wood'],
-    ['minecraft:stone_pickaxe', 'S2_stone'], ['minecraft:stone_axe', 'S2_stone'],
-    ['minecraft:furnace', 'S3_iron'], ['minecraft:iron_ingot', 'S3_iron'], ['minecraft:iron_pickaxe', 'S3_iron'],
-    ['minecraft:diamond', 'S4_diamond'],
-    ['minecraft:diamond_helmet', 'S5_armor'], ['minecraft:diamond_chestplate', 'S5_armor'],
-    ['minecraft:diamond_leggings', 'S5_armor'], ['minecraft:diamond_boots', 'S5_armor'],
-  ];
-  const seenItems = new Set();
+  // 阶段里程碑只认「craft 出来的东西」（2026-10-26 改）：
+  // 旧版按背包出现即记里程碑，结果第 2 轮从箱子里取出 4 件钻石甲也算 S5 —— 测的是「记不记得箱子在哪」，
+  // 不是「会不会变强」。craft 结果文本里有 "crafted 1x stone_pickaxe"，是机器可复核的产出证明。
+  const CRAFT_STAGES = {
+    crafting_table: 'S1_wood', wooden_pickaxe: 'S1_wood',
+    stone_pickaxe: 'S2_stone',
+    iron_pickaxe: 'S3_iron',
+    diamond_pickaxe: 'S4_diamond',
+    diamond_helmet: 'S5_armor', diamond_chestplate: 'S5_armor',
+    diamond_leggings: 'S5_armor', diamond_boots: 'S5_armor',
+  };
+  const seenCrafted = new Set();
   const failCount = {};
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
   const pull = (f) => {
@@ -403,6 +408,17 @@ async function cmdRun(opts) {
       if (line.includes('"type":"tool_call"')) {
         toolCalls++;
         lastToolCallAt = Date.now();
+      }
+      if (line.includes('"type":"tool_result"') && line.includes('"tool":"craft"')) {
+        const cm = /crafted (\d+)x ([a-z_]+)/.exec(line);
+        if (cm) {
+          const it = cm[2];
+          const stage = CRAFT_STAGES[it];
+          if (stage && !seenCrafted.has(it)) {
+            seenCrafted.add(it);
+            rec('milestone', { item: 'minecraft:' + it, stage, count: Number(cm[1]), source: 'craft' });
+          }
+        }
       }
       if (line.includes('"type":"tool_result"') && /"success":false/i.test(line)) {
         const tm = line.match(/"tool":"([^"]+)"/);
@@ -459,9 +475,6 @@ async function cmdRun(opts) {
         try {
           const j = JSON.parse(r.out);
           const items = (j && j.data && j.data.items) || {};
-          for (const [item, stage] of ITEM_STAGES) {
-            if (items[item] && !seenItems.has(item)) { seenItems.add(item); rec('milestone', { item, stage, count: items[item] }); }
-          }
           rec('snapshot', { items, t: Date.now() });
         } catch { /* ignore */ }
         if (!opts.noDeltaStop && before !== null && after !== null && after - before >= 4) { stopReason.value = 'delta>=4'; break; }
@@ -610,6 +623,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--keep-experience') opts.keepExperience = true;
   else if (argv[i] === '--zero-start') opts.zeroStart = true;
   else if (argv[i] === '--no-delta-stop') opts.noDeltaStop = true;
+  else if (argv[i] === '--master') opts.master = argv[++i];
 }
 (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
