@@ -1,0 +1,28 @@
+{
+  "verdict": "SUPPORTS",
+  "samples": 1,
+  "aggregation": "exact",
+  "value": 1,
+  "thresholds": {
+    "success": {
+      "operator": ">=",
+      "value": 1
+    },
+    "failure": {
+      "operator": "<=",
+      "value": 0
+    }
+  },
+  "tolerance": 0,
+  "claimCheck": null,
+  "source": {
+    "path": "harness\\rdd-harness\\experiments\\journal\\clean-summary.json",
+    "kind": "json",
+    "filter": null
+  },
+  "frozen": {
+    "at": "2026-10-25T18:24:21.013Z",
+    "cardSha256": "dd40074a5f7db3ccd0eb2531b3b55f4ea6cd8d178ce3d355ba3233111461cda8",
+    "commit": "f3075f7"
+  }
+}

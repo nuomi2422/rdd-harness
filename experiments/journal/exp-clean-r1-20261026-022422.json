@@ -1,0 +1,32 @@
+{
+  "runId": "exp-clean-r1-20261026-022422",
+  "label": "clean-r1",
+  "createdAt": "2026-10-25T18:24:22.009Z",
+  "watchSeconds": 1504,
+  "stopReason": "wall 1500s",
+  "toolCalls": 157,
+  "maxStage": 2,
+  "stageName": "S2 石器",
+  "stageSeconds": {
+    "1": 59,
+    "2": 281
+  },
+  "deaths": 0,
+  "blockers": [],
+  "milestoneCount": 3,
+  "experience": {
+    "before": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c",
+    "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+  },
+  "finalItems": {
+    "minecraft:orange_terracotta": 1,
+    "minecraft:dirt": 20,
+    "minecraft:bone": 3,
+    "minecraft:wheat_seeds": 2,
+    "minecraft:stick": 1,
+    "minecraft:bread": 3,
+    "minecraft:bow": 1,
+    "minecraft:acacia_planks": 9,
+    "minecraft:cobblestone": 1
+  }
+}

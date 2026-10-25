@@ -1,0 +1,158 @@
+{
+  "prefix": "clean",
+  "rounds": [
+    {
+      "runId": "exp-clean-r1-20261026-022422",
+      "label": "clean-r1",
+      "createdAt": "2026-10-25T18:24:22.009Z",
+      "watchSeconds": 1504,
+      "stopReason": "wall 1500s",
+      "toolCalls": 157,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 59,
+        "2": 281
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "1cafcefea958922fa33b6895f590184090492710c82e23947eb5c4c1f485308c",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:orange_terracotta": 1,
+        "minecraft:dirt": 20,
+        "minecraft:bone": 3,
+        "minecraft:wheat_seeds": 2,
+        "minecraft:stick": 1,
+        "minecraft:bread": 3,
+        "minecraft:bow": 1,
+        "minecraft:acacia_planks": 9,
+        "minecraft:cobblestone": 1
+      }
+    },
+    {
+      "runId": "exp-clean-r2-20261026-025130",
+      "label": "clean-r2",
+      "createdAt": "2026-10-25T18:51:30.216Z",
+      "watchSeconds": 1504,
+      "stopReason": "wall 1500s",
+      "toolCalls": 212,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 58,
+        "2": 311
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:stick": 3,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:dirt": 11,
+        "minecraft:bread": 7,
+        "minecraft:cobblestone": 24,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:acacia_planks": 3,
+        "minecraft:granite": 9,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:hay_block": 9,
+        "minecraft:acacia_sapling": 1,
+        "minecraft:stone_sword": 1
+      }
+    },
+    {
+      "runId": "exp-clean-r3-20261026-031838",
+      "label": "clean-r3",
+      "createdAt": "2026-10-25T19:18:38.819Z",
+      "watchSeconds": 1504,
+      "stopReason": "wall 1500s",
+      "toolCalls": 213,
+      "maxStage": 3,
+      "stageName": "S3 铁器",
+      "stageSeconds": {
+        "1": 58,
+        "2": 237,
+        "3": 540
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 4,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:stone_sword": 1,
+        "minecraft:dirt": 9,
+        "minecraft:coal": 1,
+        "minecraft:cobblestone": 80,
+        "minecraft:iron_ingot": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:stick": 1,
+        "minecraft:acacia_planks": 3,
+        "minecraft:stone_axe": 1,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:iron_pickaxe": 1,
+        "minecraft:iron_sword": 1,
+        "minecraft:torch": 1,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:iron_boots": 1
+      }
+    },
+    {
+      "runId": "exp-clean-r4-20261026-034540",
+      "label": "clean-r4",
+      "createdAt": "2026-10-25T19:45:40.997Z",
+      "watchSeconds": 1502,
+      "stopReason": "wall 1500s",
+      "toolCalls": 93,
+      "maxStage": 1,
+      "stageName": "S1 木器",
+      "stageSeconds": {
+        "1": 58
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 2,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 6,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:stick": 2,
+        "minecraft:acacia_planks": 3
+      }
+    }
+  ],
+  "marks": [
+    {
+      "runId": "exp-clean-r2-20261026-025130",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    },
+    {
+      "runId": "exp-clean-r3-20261026-031838",
+      "better": true,
+      "faster": false,
+      "advanced": true
+    },
+    {
+      "runId": "exp-clean-r4-20261026-034540",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    }
+  ],
+  "improved": 1
+}

@@ -1,0 +1,26 @@
+{
+  "runId": "exp-clean-r4-20261026-034540",
+  "label": "clean-r4",
+  "createdAt": "2026-10-25T19:45:40.997Z",
+  "watchSeconds": 1502,
+  "stopReason": "wall 1500s",
+  "toolCalls": 93,
+  "maxStage": 1,
+  "stageName": "S1 木器",
+  "stageSeconds": {
+    "1": 58
+  },
+  "deaths": 0,
+  "blockers": [],
+  "milestoneCount": 2,
+  "experience": {
+    "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+    "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+  },
+  "finalItems": {
+    "minecraft:acacia_log": 6,
+    "minecraft:wooden_pickaxe": 1,
+    "minecraft:stick": 2,
+    "minecraft:acacia_planks": 3
+  }
+}
