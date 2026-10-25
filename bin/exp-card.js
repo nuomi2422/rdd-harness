@@ -152,6 +152,25 @@ function validateCard(card) {
   return { errors, warns };
 }
 
+/** 监控文件不是严格 ndjson：有些事件字符串里带真换行。按顶层花括号切对象（字符串/转义感知）。 */
+function splitJsonObjects(text) {
+  const out = [];
+  let depth = 0, inStr = false, esc = false, start = -1;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inStr) {
+      if (esc) esc = false;
+      else if (ch === '\\') esc = true;
+      else if (ch === '"') inStr = false;
+      continue;
+    }
+    if (ch === '"') { inStr = true; if (start < 0) start = i; continue; }
+    if (ch === '{') { if (depth === 0) start = i; depth++; continue; }
+    if (ch === '}') { depth--; if (depth === 0 && start >= 0) { out.push(text.slice(start, i + 1)); start = -1; } }
+  }
+  return out;
+}
+
 function loadRecords(src) {
   const p = resolveData(src.path);
   if (!fs.existsSync(p)) return { records: [], error: 'SOURCE_MISSING ' + rel(p) };
@@ -161,9 +180,8 @@ function loadRecords(src) {
   if (src.kind === 'json') {
     try { const j = JSON.parse(text); records = Array.isArray(j) ? j : [j]; } catch { bad = 1; }
   } else {
-    for (const line of text.split(/\\r?\\n/)) {
-      if (!line.trim()) continue;
-      try { records.push(JSON.parse(line)); } catch { bad++; }
+    for (const objText of splitJsonObjects(text)) {
+      try { records.push(JSON.parse(objText)); } catch { bad++; }
     }
   }
   if (bad) return { records, badLines: bad, error: 'BAD_LINES ' + bad };

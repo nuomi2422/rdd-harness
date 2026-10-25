@@ -1,0 +1,32 @@
+{
+  "verdict": "SUPPORTS",
+  "samples": 4,
+  "aggregation": "count",
+  "value": 4,
+  "thresholds": {
+    "success": {
+      "operator": ">=",
+      "value": 1
+    },
+    "failure": {
+      "operator": "<=",
+      "value": 0
+    }
+  },
+  "tolerance": 0,
+  "claimCheck": null,
+  "source": {
+    "path": "harness\\rdd-harness\\runs\\exp-c-20261025-113425\\evidence\\context.jsonl",
+    "kind": "jsonl",
+    "filter": {
+      "field": "data.trimmed",
+      "op": ">",
+      "value": 0
+    }
+  },
+  "frozen": {
+    "at": "2026-10-25T14:27:22.206Z",
+    "cardSha256": "7f504a7f29bd0d670248f8e9c32a8cda3201ca99f1a6f73d46769a3a13123de1",
+    "commit": "12e1107"
+  }
+}
