@@ -31,6 +31,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 
 const RDD = 'D:/rdd';
+const RDD_ROOT = () => RDD;
 const GAME = path.join(RDD, 'mc', 'The Best of Twilight Forest');
 const SAVES = path.join(GAME, 'saves');
 const NUMEN = path.join(GAME, 'config', 'numen');
@@ -65,6 +66,12 @@ function copyTree(src, dst) {
     const s = path.join(src, e.name), d = path.join(dst, e.name);
     if (e.isDirectory()) copyTree(s, d); else fs.copyFileSync(s, d);
   }
+}
+function expHash() {
+  try {
+    const files = fs.readdirSync(NUMEN).filter((f) => /^experience-.*\.jsonl$|^learner-memos-.*\.json$/.test(f)).sort();
+    return sha256(files.map((f) => f + ':' + sha256File(path.join(NUMEN, f))).join('\n'));
+  } catch { return null; }
 }
 function manifestOf(dir) {
   const items = [];
@@ -226,6 +233,7 @@ async function cmdRun(opts) {
   log(runDir, 'prepare', '世界副本校验通过 files=' + copyManifest.count);
 
   // 存档外状态快照（受控复位基线）
+  env.experience = { before: expHash() };
   const baseDir = path.join(runDir, 'env-baseline');
   fs.mkdirSync(baseDir, { recursive: true });
   const baselineManifests = {};
@@ -302,9 +310,21 @@ async function cmdRun(opts) {
   const companionName = companions[0].name;
   fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
-  const goalText = opts.goal || contract.stimulus.text;
+  const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
   const stim = path.join(runDir, 'stimulus.json');
   fs.writeFileSync(stim, JSON.stringify({ text: goalText }, null, 2));
+
+  if (opts.zeroStart) {
+    const SEND = path.join(HARNESS, 'bin', 'send-mc-command.ps1');
+    for (const c of ['/difficulty easy', '/gamerule keepInventory true', '/clear RDDDev']) {
+      const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', c], { encoding: 'utf8', timeout: 40000 });
+      log(runDir, 'zero-start', c + ' exit=' + r.status);
+      await sleep(1200);
+    }
+    const da = spawnSync(process.execPath, [path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'drop-all.js'), companionName], { encoding: 'utf8', timeout: 90000 });
+    log(runDir, 'zero-start', 'drop-all exit=' + da.status + (da.stderr ? ' ' + String(da.stderr).slice(0, 120) : ''));
+    await sleep(2000);
+  }
 
   const invBefore = mcp('rdd_get_inventory', companionName, null, 25000);
   fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-before.json'), invBefore.out || invBefore.err);
@@ -318,6 +338,8 @@ async function cmdRun(opts) {
     offsets[f] = fs.existsSync(p) ? fs.statSync(p).size : 0;
     fs.writeFileSync(path.join(runDir, 'evidence', f), '');
   }
+  const watchSec = opts.minutes ? opts.minutes * 60 : contract.budget.stimulusWatchSeconds;
+  const stallSec = opts.minutes ? Math.max(300, Math.min(900, Math.floor(watchSec / 3))) : contract.budget.stallSeconds;
   const t0 = Date.now();
   env.timings.stimulusSentAt = nowIso();
   const enq = mcp('enqueue', companionName, '@' + stim, 25000);
@@ -335,6 +357,17 @@ async function cmdRun(opts) {
   let invAfterRaw = '';
   const stopReason = { value: null };
   let nextInventoryAt = Date.now();
+  const ITEM_STAGES = [
+    ['minecraft:oak_log', 'S1_wood'], ['minecraft:crafting_table', 'S1_wood'], ['minecraft:wooden_pickaxe', 'S1_wood'],
+    ['minecraft:stone_pickaxe', 'S2_stone'], ['minecraft:stone_axe', 'S2_stone'],
+    ['minecraft:furnace', 'S3_iron'], ['minecraft:iron_ingot', 'S3_iron'], ['minecraft:iron_pickaxe', 'S3_iron'],
+    ['minecraft:diamond', 'S4_diamond'],
+    ['minecraft:diamond_helmet', 'S5_armor'], ['minecraft:diamond_chestplate', 'S5_armor'],
+    ['minecraft:diamond_leggings', 'S5_armor'], ['minecraft:diamond_boots', 'S5_armor'],
+  ];
+  const seenItems = new Set();
+  const failCount = {};
+  const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
   const pull = (f) => {
     const p = path.join(MONITOR, f);
     if (!fs.existsSync(p)) return '';
@@ -358,10 +391,22 @@ async function cmdRun(opts) {
         toolCalls++;
         lastToolCallAt = Date.now();
       }
+      if (line.includes('"type":"tool_result"') && /"success":false/i.test(line)) {
+        const tm = line.match(/"tool":"([^"]+)"/);
+        const tool = tm ? tm[1] : 'unknown';
+        failCount[tool] = (failCount[tool] || 0) + 1;
+        if (failCount[tool] === 3) rec('blocker', { tool, consecutive_failures: 3, note: '同一工具连续失败 3 次' });
+      }
     }
     const chunkCtx = pull('context.jsonl');
     for (const line of chunkCtx.split('\n')) if (line.includes('"type":"llm_request"')) llmRequests++;
     const chunkEv = pull('events.jsonl');
+    for (const line of (chunkEv || '').split('\n')) {
+      if (line.includes('"type":"task_finished"') && /(died|slain|死亡|被.*杀死|killed)/i.test(line)) {
+        const m = line.match(/"message":"([^"]{0,200})"/);
+        rec('death', { message: m ? m[1] : '', at: Date.now() });
+      }
+    }
     if (chunkEv && chunkEv.includes('"type":"task_finished"') && /oak_log|原木/.test(chunkEv)) {
       stopReason.value = 'task_finished(oak_log)';
       const fin = mcp('rdd_get_inventory', companionName, null, 25000);
@@ -380,11 +425,11 @@ async function cmdRun(opts) {
         try { chain = JSON.parse(line); } catch { /* ignore */ }
       }
     }
-    if ((Date.now() - lastToolCallAt) > contract.budget.stallSeconds * 1000) {
-      stopReason.value = 'stalled ' + contract.budget.stallSeconds + 's without tool_call';
+    if ((Date.now() - lastToolCallAt) > stallSec * 1000) {
+      stopReason.value = 'stalled ' + stallSec + 's without tool_call';
       break;
     }
-    if (elapsed > contract.budget.stimulusWatchSeconds * 1000) { stopReason.value = 'wall ' + contract.budget.stimulusWatchSeconds + 's'; break; }
+    if (elapsed > watchSec * 1000) { stopReason.value = 'wall ' + watchSec + 's'; break; }
     if (javaProcs().length === 0) { stopReason.value = 'java died'; break; }
 
     // 每 ~30s 采样一次背包
@@ -396,7 +441,15 @@ async function cmdRun(opts) {
         const n = oakLogCount(r.out);
         if (n !== null) after = n;
         fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-after.json'), r.out);
-        if (before !== null && after !== null && after - before >= 4) { stopReason.value = 'delta>=4'; break; }
+        try {
+          const j = JSON.parse(r.out);
+          const items = (j && j.data && j.data.items) || {};
+          for (const [item, stage] of ITEM_STAGES) {
+            if (items[item] && !seenItems.has(item)) { seenItems.add(item); rec('milestone', { item, stage, count: items[item] }); }
+          }
+          rec('snapshot', { items, t: Date.now() });
+        } catch { /* ignore */ }
+        if (!opts.noDeltaStop && before !== null && after !== null && after - before >= 4) { stopReason.value = 'delta>=4'; break; }
       }
     }
     await sleep(5000);
@@ -466,12 +519,17 @@ async function cmdRun(opts) {
     fs.rmSync(target, { recursive: true, force: true });
     if (fs.existsSync(backup)) copyTree(backup, target);
   }
-  for (const f of baseFiles) fs.copyFileSync(path.join(baseDir, f), path.join(NUMEN, f));
-  // 清掉运行中新建的同族文件（例如新的 experience-<uuid>.jsonl）
-  for (const e of fs.readdirSync(NUMEN)) {
-    if (!NUMEN_STATE_GLOBS.some((re) => re.test(e))) continue;
-    if (!baseFiles.includes(e)) fs.rmSync(path.join(NUMEN, e), { force: true });
+  if (!opts.keepExperience) {
+    for (const f of baseFiles) fs.copyFileSync(path.join(baseDir, f), path.join(NUMEN, f));
+    // 清掉运行中新建的同族文件（例如新的 experience-<uuid>.jsonl）
+    for (const e of fs.readdirSync(NUMEN)) {
+      if (!NUMEN_STATE_GLOBS.some((re) => re.test(e))) continue;
+      if (!baseFiles.includes(e)) fs.rmSync(path.join(NUMEN, e), { force: true });
+    }
+  } else {
+    log(runDir, 'restore', 'keep-experience：保留 experience/learner-memos（本轮记忆带入下一轮）');
   }
+  env.experience.after = expHash();
   CTX = null;
   const restoredManifest = manifestOf(baseDir);
   log(runDir, 'restore', '存档外状态已还原（基线 ' + restoredManifest.sha256.slice(0, 16) + '…）');
@@ -532,6 +590,11 @@ const opts = {};
 for (let i = 1; i < argv.length; i++) {
   if (argv[i] === '--label') opts.label = argv[++i];
   else if (argv[i] === '--goal') opts.goal = argv[++i];
+  else if (argv[i] === '--goal-file') opts.goalFile = argv[++i];
+  else if (argv[i] === '--minutes') opts.minutes = parseInt(argv[++i], 10);
+  else if (argv[i] === '--keep-experience') opts.keepExperience = true;
+  else if (argv[i] === '--zero-start') opts.zeroStart = true;
+  else if (argv[i] === '--no-delta-stop') opts.noDeltaStop = true;
 }
 (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
