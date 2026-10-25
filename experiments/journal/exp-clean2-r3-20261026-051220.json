@@ -1,0 +1,36 @@
+{
+  "runId": "exp-clean2-r3-20261026-051220",
+  "label": "clean2-r3",
+  "createdAt": "2026-10-25T21:12:20.956Z",
+  "watchSeconds": 1501,
+  "stopReason": "wall 1500s",
+  "toolCalls": 153,
+  "maxStage": 2,
+  "stageName": "S2 石器",
+  "stageSeconds": {
+    "1": 45,
+    "2": 368
+  },
+  "deaths": 0,
+  "blockers": [],
+  "milestoneCount": 3,
+  "experience": {
+    "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+    "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+  },
+  "finalItems": {
+    "minecraft:acacia_log": 1,
+    "minecraft:acacia_sapling": 1,
+    "minecraft:wheat_seeds": 1,
+    "minecraft:dirt": 22,
+    "minecraft:cobblestone": 69,
+    "minecraft:stick": 2,
+    "minecraft:stone_pickaxe": 1,
+    "minecraft:acacia_planks": 12,
+    "minecraft:gravel": 6,
+    "minecraft:diorite": 17,
+    "minecraft:stone_shovel": 1,
+    "minecraft:stone_sword": 1,
+    "minecraft:stone_axe": 1
+  }
+}

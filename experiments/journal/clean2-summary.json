@@ -1,0 +1,162 @@
+{
+  "prefix": "clean2",
+  "rounds": [
+    {
+      "runId": "exp-clean2-r1-20261026-041803",
+      "label": "clean2-r1",
+      "createdAt": "2026-10-25T20:18:03.674Z",
+      "watchSeconds": 1505,
+      "stopReason": "wall 1500s",
+      "toolCalls": 165,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 73,
+        "2": 253
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 2,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:stick": 4,
+        "minecraft:dirt": 12,
+        "minecraft:bone": 2,
+        "minecraft:granite": 32,
+        "minecraft:wheat_seeds": 2,
+        "minecraft:stone_axe": 1,
+        "minecraft:cooked_salmon": 3,
+        "minecraft:torch": 10,
+        "minecraft:acacia_planks": 5,
+        "minecraft:coal": 2,
+        "minecraft:bow": 1,
+        "minecraft:string": 1,
+        "minecraft:spider_eye": 1,
+        "minecraft:cobblestone": 1,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:stone_sword": 1
+      }
+    },
+    {
+      "runId": "exp-clean2-r2-20261026-044521",
+      "label": "clean2-r2",
+      "createdAt": "2026-10-25T20:45:21.802Z",
+      "watchSeconds": 1501,
+      "stopReason": "wall 1500s",
+      "toolCalls": 87,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 60,
+        "2": 309
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 2,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 3,
+        "minecraft:dirt": 16,
+        "minecraft:cobblestone": 5,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:stick": 2,
+        "minecraft:acacia_planks": 1
+      }
+    },
+    {
+      "runId": "exp-clean2-r3-20261026-051220",
+      "label": "clean2-r3",
+      "createdAt": "2026-10-25T21:12:20.956Z",
+      "watchSeconds": 1501,
+      "stopReason": "wall 1500s",
+      "toolCalls": 153,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 45,
+        "2": 368
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 1,
+        "minecraft:acacia_sapling": 1,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:dirt": 22,
+        "minecraft:cobblestone": 69,
+        "minecraft:stick": 2,
+        "minecraft:stone_pickaxe": 1,
+        "minecraft:acacia_planks": 12,
+        "minecraft:gravel": 6,
+        "minecraft:diorite": 17,
+        "minecraft:stone_shovel": 1,
+        "minecraft:stone_sword": 1,
+        "minecraft:stone_axe": 1
+      }
+    },
+    {
+      "runId": "exp-clean2-r4-20261026-053922",
+      "label": "clean2-r4",
+      "createdAt": "2026-10-25T21:39:22.634Z",
+      "watchSeconds": 2033,
+      "stopReason": "stalled 500s without tool_call",
+      "toolCalls": 130,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 58,
+        "2": 473
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550",
+        "after": "3a9125694a63082dc37998de1bfffdfc948344f3474b29447b30dfd903307550"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 3,
+        "minecraft:dirt": 18,
+        "minecraft:granite": 13,
+        "minecraft:gravel": 19,
+        "minecraft:cobblestone": 21,
+        "minecraft:crafting_table": 1,
+        "minecraft:stick": 2,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:acacia_planks": 1
+      }
+    }
+  ],
+  "marks": [
+    {
+      "runId": "exp-clean2-r2-20261026-044521",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    },
+    {
+      "runId": "exp-clean2-r3-20261026-051220",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    },
+    {
+      "runId": "exp-clean2-r4-20261026-053922",
+      "better": false,
+      "faster": false,
+      "advanced": false
+    }
+  ],
+  "improved": 0
+}
