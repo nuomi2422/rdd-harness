@@ -1,0 +1,75 @@
+{
+  "apiVersion": "rdd.experiment/v1",
+  "id": "exp-20261025-trim-count",
+  "title": "示例：从真实 monitor 复算「生产裁剪 ≥1 次」",
+  "vcard": "n/a（示例，不新增验证主张）",
+  "claim": "当前构建的 monitor 记录里，存在至少 1 条真实生产裁剪事件（budget_gate 且 trimmed>0）",
+  "falsification": {
+    "successCondition": "过滤后的 budget_gate(trimmed>0) 记录数 ≥1",
+    "failureCondition": "记录数 = 0（窗口内没有任何裁剪）",
+    "inconclusiveCondition": "文件缺失 / 有坏行 / 记录数不足 repeats"
+  },
+  "variables": {
+    "independent": [],
+    "dependent": [
+      "budget_gate.trimmed 计数"
+    ],
+    "controlled": [
+      "同一份 monitor 文件",
+      "同一过滤条件"
+    ]
+  },
+  "controls": {
+    "positive": "同一文件里 type=llm_usage 的记录也能数到 >0（证明读取与过滤链路能命中真实事件）",
+    "negative": "n/a: 只读历史证据，无法构造反例；反例校验见 exp-card --selftest 的 10 条"
+  },
+  "determinism": {
+    "kind": "deterministic",
+    "seed": ""
+  },
+  "replications": {
+    "N": 1,
+    "deterministic": true
+  },
+  "measurement": {
+    "source": {
+      "kind": "jsonl",
+      "path": "mc/The Best of Twilight Forest/config/numen/monitor/context.jsonl",
+      "filter": {
+        "field": "data.trimmed",
+        "op": ">",
+        "value": 0
+      },
+      "value": "data.trimmed"
+    },
+    "dataFields": [
+      "data.trimmed"
+    ],
+    "aggregation": "count",
+    "repeats": 1,
+    "stopRule": "全文件（示例：不做窗口裁剪）",
+    "thresholds": {
+      "success": {
+        "operator": ">=",
+        "value": 1
+      },
+      "failure": {
+        "operator": "<=",
+        "value": 0
+      }
+    },
+    "tolerance": 0
+  },
+  "permissions": {
+    "scopes": [
+      "只读 monitor/context.jsonl"
+    ],
+    "maxMinutes": 5,
+    "irreversible": false,
+    "recovery": "只读操作；不改任何文件，失败重跑即可"
+  },
+  "deviationsAllowed": false,
+  "notes": [
+    "示例卡：用来演示「冻结→复算→出结论」链路；不作为任何功能的验收依据。"
+  ]
+}

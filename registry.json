@@ -740,6 +740,14 @@
       "side": "read",
       "needsGame": false,
       "note": "★ 不认口头结论；--selftest 5 例（三种假绿必拒）"
+    },
+    {
+      "id": "exp.card",
+      "name": "实验卡（可证伪主张+冻结阈值+原始数据机械复算）",
+      "path": "harness/bin/exp-card.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ 验证环节先冻结实验卡再跑；conclude 只认原始数据；--selftest 10/10（阈值矛盾/无种子/缺理由/样本不足/改卡/claim 矛盾 必拒）"
     }
   ],
   "standards": {
