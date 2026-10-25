@@ -1,0 +1,76 @@
+{
+  "apiVersion": "rdd.experiment/v1",
+  "id": "exp-20261025-trim-count-v2",
+  "title": "真实裁剪计数（冻结证据切片）",
+  "vcard": "V-20261025-01（C 轮证据切片）",
+  "claim": "W1 冒烟 C 轮窗口内存在至少 1 条真实生产裁剪事件（budget_gate 且 trimmed>0）",
+  "falsification": {
+    "successCondition": "过滤后的 budget_gate(trimmed>0) 记录数 ≥1",
+    "failureCondition": "记录数 = 0（窗口内没有任何裁剪）",
+    "inconclusiveCondition": "文件缺失 / 有坏行 / 记录数不足 repeats"
+  },
+  "variables": {
+    "independent": [],
+    "dependent": [
+      "budget_gate.trimmed 计数"
+    ],
+    "controlled": [
+      "冻结的 C 轮证据切片",
+      "同一过滤条件"
+    ]
+  },
+  "controls": {
+    "positive": "同一切片里 type=llm_usage 的记录数 >0（证明读取与过滤链路能命中真实事件）",
+    "negative": "n/a: 历史切片无法构造反例；反例校验见 exp-card --selftest 的 10 条"
+  },
+  "determinism": {
+    "kind": "deterministic",
+    "seed": ""
+  },
+  "replications": {
+    "N": 1,
+    "deterministic": true
+  },
+  "measurement": {
+    "source": {
+      "kind": "jsonl",
+      "path": "harness/rdd-harness/runs/exp-c-20261025-113425/evidence/context.jsonl",
+      "filter": {
+        "field": "data.trimmed",
+        "op": ">",
+        "value": 0
+      },
+      "value": "data.trimmed"
+    },
+    "dataFields": [
+      "data.trimmed"
+    ],
+    "aggregation": "count",
+    "repeats": 1,
+    "stopRule": "全切片（C 轮窗口已由运行器截取）",
+    "thresholds": {
+      "success": {
+        "operator": ">=",
+        "value": 1
+      },
+      "failure": {
+        "operator": "<=",
+        "value": 0
+      }
+    },
+    "tolerance": 0
+  },
+  "permissions": {
+    "scopes": [
+      "只读 C 轮 evidence/context.jsonl"
+    ],
+    "maxMinutes": 5,
+    "irreversible": false,
+    "recovery": "只读操作；不改任何文件"
+  },
+  "deviationsAllowed": false,
+  "notes": [
+    "v1（exp-20261025-trim-count）从 live context.jsonl 读，结论 INCONCLUSIVE（BAD_LINES 4364，读到时会话正在重写该文件）——机制正确拒绝了不稳定来源。",
+    "v2 改用运行器冻结的证据切片，仍只作示例，不作为验收依据。"
+  ]
+}
