@@ -184,7 +184,8 @@ function loadRuns(src, opts) {
     const jarSig = sha((env.jarsAtPrepare || []).map((j) => j.file + ':' + j.sha256).sort().join('\n')).slice(0, 16);
     const A = {};
     for (const a of v.assertions || []) A[a.id] = a.verdict;
-    rows.push({ runId: d, label: env.label, createdAt: env.createdAt, jarSig, verdict: v.overall, assertions: A, watchSeconds: (env.timings && env.timings.watchSeconds) || null });
+    const wb = (env.world && env.world.before) || {};
+    rows.push({ runId: d, label: env.label, createdAt: env.createdAt, jarSig, verdict: v.overall, assertions: A, watchSeconds: (env.timings && env.timings.watchSeconds) || null, controlKey: wb.control_key || null, stableKey: wb.stable_key || null, worldComplete: wb.complete === true });
   }
   let recs = rows;
   const m = src.match || {};
@@ -234,6 +235,14 @@ function conclude(card, sidecarPath, claim) {
   if (src.error) return { verdict: 'INCONCLUSIVE', error: src.error, samples: src.records.length };
   const records = src.records;
   if (records.length < m.repeats) return { verdict: 'INCONCLUSIVE', error: 'samples=' + records.length + ' < repeats=' + m.repeats + '（证据不足）', samples: records.length };
+  let control = null;
+  if (m.source.kind === 'runs-dir') {
+    const keys = [...new Set(records.map((r) => r.controlKey || null))];
+    control = { keys, comparable: keys.length === 1 && !!keys[0] };
+    if (m.requireSameControl === true && !control.comparable) {
+      return { verdict: 'INCONCLUSIVE', error: 'MIXED_CONTROL ' + keys.map((k) => k || 'null').join(','), samples: records.length, control };
+    }
+  }
   let values = records;
   if (m.aggregation !== 'count') {
     const missing = records.filter((r) => getPath(r, m.source.value) === undefined || getPath(r, m.source.value) === null);
@@ -254,7 +263,7 @@ function conclude(card, sidecarPath, claim) {
   }
   return {
     verdict, samples: records.length, aggregation: m.aggregation, value: agg,
-    thresholds: m.thresholds, tolerance: tol, claimCheck,
+    thresholds: m.thresholds, tolerance: tol, claimCheck, control,
     source: { path: rel(resolveData(m.source.path)), kind: m.source.kind, filter: m.source.filter || null },
     frozen: { at: sidecar.frozenAt, cardSha256: sidecar.cardSha256, commit: sidecar.commit || null },
   };
@@ -280,6 +289,7 @@ const TEMPLATE = {
     dataFields: ['data.trimmed'],
     aggregation: 'count',
     repeats: 1,
+    requireSameControl: true,
     stopRule: '只统计本次验证窗口内的记录',
     thresholds: { success: { operator: '>=', value: 1 }, failure: { operator: '<=', value: 0 } },
     tolerance: 0,

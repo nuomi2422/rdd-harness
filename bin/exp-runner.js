@@ -111,6 +111,37 @@ function mcp(tool, companion, args, timeoutMs) {
   const r = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: timeoutMs || 25000 });
   return { ok: r.status === 0, status: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
+
+/**
+ * 世界侧控制变量快照（world_probe action=snapshot）。
+ * 原始回执落 evidence/world-<tag>.json，摘要进 envelope；失败不伪造默认值。
+ */
+function worldSnapshot(runDir, companion, tag) {
+  const r = mcp('world_probe', companion, '{"action":"snapshot"}', 45000);
+  const raw = r.out || r.err || '';
+  fs.writeFileSync(path.join(runDir, 'evidence', 'world-' + tag + '.json'), raw);
+  let parsed = null;
+  try { parsed = JSON.parse(raw); } catch { /* raw 已落盘，下面按失败记 */ }
+  const data = parsed && parsed.data ? parsed.data : null;
+  return {
+    ok: !!(r.ok && parsed && parsed.success !== false && data),
+    data,
+    raw,
+    sha256: sha256(raw),
+  };
+}
+
+function worldSummary(s) {
+  const d = (s && s.data) || {};
+  return {
+    ok: !!(s && s.ok),
+    complete: d.complete === true,
+    control_key: d.control_key || null,
+    stable_key: d.stable_key || null,
+    sha256: (s && s.sha256) || null,
+    errors: Array.isArray(d.errors) ? d.errors : [],
+  };
+}
 function parseCompanions(raw) {
   const out = [];
   for (const line of String(raw || '').split(/\r?\n/)) {
@@ -202,7 +233,7 @@ async function cmdRun(opts) {
   fs.mkdirSync(path.join(runDir, 'evidence'), { recursive: true });
   const env = {
     runId, label, createdAt: nowIso(), contract: { path: CONTRACT_PATH, sha256: contractHash, revision: contract.contractRevision, scenarioId: contract.scenarioId },
-    gameDir: GAME, phase: 'preflight', timings: {},
+    gameDir: GAME, phase: 'preflight', timings: {}, world: {},
   };
   const saveEnv = () => fs.writeFileSync(path.join(runDir, 'envelope.json'), JSON.stringify(env, null, 2));
   saveEnv();
@@ -356,6 +387,14 @@ async function cmdRun(opts) {
       log(runDir, 'zero-start', '--trigger-death 已排程（' + (delayMs / 1000) + 's 后 kill ' + companionName + '）');
     }
   }
+
+  // 世界侧控制变量：必须在 zero-start 改完难度/时间之后、派目标之前拍。
+  // 这张快照是两轮实验可比性的证据；失败也落 raw，不拿假值补。
+  const worldBefore = worldSnapshot(runDir, companionName, 'before');
+  env.world.before = worldSummary(worldBefore);
+  log(runDir, 'world', 'before complete=' + env.world.before.complete
+      + ' control_key=' + String(env.world.before.control_key).slice(0, 180));
+  saveEnv();
 
   const invBefore = mcp('rdd_get_inventory', companionName, null, 25000);
   fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-before.json'), invBefore.out || invBefore.err);
@@ -523,6 +562,15 @@ async function cmdRun(opts) {
     if (n2 !== null) after = n2;
     fs.writeFileSync(path.join(runDir, 'evidence', 'inventory-after.json'), finInv.out);
   }
+  // 停止前再拍一次：同一轮内的漂移（时间/天气/玩家变化）从这里看。
+  const worldAfter = worldSnapshot(runDir, companionName, 'after');
+  env.world.after = worldSummary(worldAfter);
+  const wb = env.world.before, wa = env.world.after;
+  env.world.drift = (wb && wa && wb.stable_key && wa.stable_key) ? wb.stable_key !== wa.stable_key : null;
+  log(runDir, 'world', 'after complete=' + wa.complete + ' control_key=' + String(wa.control_key).slice(0, 180)
+      + ' drift=' + env.world.drift);
+  saveEnv();
+
   const ts = mcp('task_stop', companionName, null, 20000);
   const sb = mcp('rdd_standby', companionName, null, 20000);
   fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ task_stop: ts, rdd_standby: sb }, null, 2));
