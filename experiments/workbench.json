@@ -1,0 +1,296 @@
+{
+  "schema": 1,
+  "updated_at": "2026-10-27T00:00:00+08:00",
+  "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
+  "probes": [
+    {
+      "id": "difficulty",
+      "title": "难度/硬核/默认模式",
+      "kind": "builtin",
+      "source": "world_probe.difficulty",
+      "fields": [
+        "difficulty",
+        "hardcore",
+        "difficulty_locked",
+        "default_game_mode"
+      ],
+      "note": "和平模式不刷怪；先查它再查代码"
+    },
+    {
+      "id": "gamerules",
+      "title": "指定游戏规则",
+      "kind": "builtin",
+      "source": "world_probe.gamerules",
+      "fields": [
+        "doMobSpawning",
+        "doDaylightCycle",
+        "keepInventory",
+        "playersSleepingPercentage",
+        "naturalRegeneration",
+        "doInsomnia"
+      ],
+      "note": "睡不跳夜先查 playersSleepingPercentage + players"
+    },
+    {
+      "id": "players",
+      "title": "在线玩家（模式/旁观/就寝）",
+      "kind": "builtin",
+      "source": "world_probe.players",
+      "fields": [
+        "name",
+        "mode",
+        "spectator",
+        "sleeping",
+        "op",
+        "dimension"
+      ],
+      "note": "观察者没睡会阻止跳夜"
+    },
+    {
+      "id": "time",
+      "title": "时间/天数/月相",
+      "kind": "builtin",
+      "source": "world_probe.time",
+      "fields": [
+        "day",
+        "time_of_day",
+        "time_bucket",
+        "is_day",
+        "moon_phase"
+      ],
+      "note": "短窗口实验用它确认入夜时点"
+    },
+    {
+      "id": "weather",
+      "title": "天气",
+      "kind": "builtin",
+      "source": "world_probe.weather",
+      "fields": [
+        "weather",
+        "raining",
+        "thundering"
+      ],
+      "note": "进 control_key"
+    },
+    {
+      "id": "entities",
+      "title": "实体计数（敌对/被动）",
+      "kind": "builtin",
+      "source": "world_probe.entities",
+      "fields": [
+        "total",
+        "hostile",
+        "passive",
+        "other",
+        "scanned_columns",
+        "skipped_columns"
+      ],
+      "note": "PARTIAL 只能当下限；无已加载列是 CHUNK_UNLOADED"
+    },
+    {
+      "id": "light",
+      "title": "光照（方块/天空/可见天空）",
+      "kind": "builtin",
+      "source": "world_probe.light",
+      "fields": [
+        "block_light",
+        "sky_light",
+        "can_see_sky"
+      ],
+      "note": "暗处刷怪与昼夜无关"
+    },
+    {
+      "id": "distances",
+      "title": "模拟/视距",
+      "kind": "builtin",
+      "source": "world_probe.distances",
+      "fields": [
+        "simulation_distance",
+        "view_distance"
+      ],
+      "note": "进 control_key"
+    },
+    {
+      "id": "self",
+      "title": "同伴自身（位置/血量/睡觉）",
+      "kind": "builtin",
+      "source": "world_probe.self",
+      "fields": [
+        "name",
+        "mode",
+        "hp",
+        "max_hp",
+        "food",
+        "armor",
+        "equipment",
+        "deaths",
+        "xp",
+        "x",
+        "y",
+        "z",
+        "sleeping"
+      ],
+      "note": "sleeping 是睡觉 A/B 的直接判据"
+    }
+  ],
+  "tips": [
+    {
+      "id": "TIP-20261026-01",
+      "kind": "pitfall",
+      "symptom": "母版 exp-clean 里 159,63,686 还残留工作台，基线不是无台环境",
+      "fake": "baseline 1 次失败 = 经验没用/有用",
+      "cause": "母版被上次实验改过；exp-clean 不是 clean",
+      "guard": "开跑前 world_probe/scan_blocks 确认 16 格内 crafting_table=0；或用 region-tables.py 剥掉",
+      "status": "open",
+      "link": "V-20261026-12",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-02",
+      "kind": "pitfall",
+      "symptom": "watch 因 java died 提前结束，after complete=false、control_key=null",
+      "fake": "仍然拿这轮当 baseline",
+      "cause": "实例崩溃/被杀，前后环境不可比",
+      "guard": "after complete=false 的 run 只作失败样本；A/B 两轮必须 after complete=true",
+      "status": "open",
+      "link": "V-20261026-12",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-03",
+      "kind": "pitfall",
+      "symptom": "auto_intake 报 storm_suppressed=1，床边死亡样本没进复盘",
+      "fake": "没复盘 = 模型没学会",
+      "cause": "StormGuard 10 分钟冷却，同指纹短时间多次死亡只放一条",
+      "guard": "关键样本单独跑一次，间隔 >10 分钟；先看 storm_suppressed 再下结论",
+      "status": "open",
+      "link": "V-20261026-10",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-04",
+      "kind": "pitfall",
+      "symptom": "A/B 把经验设 SUSPENDED，收工忘了恢复 TRIAL",
+      "fake": "下一轮经验没生效",
+      "cause": "publication 状态还停在 SUSPENDED",
+      "guard": "改 publication 前备份 .bak-ab-*；收工/交接读回当前值并恢复 TRIAL",
+      "status": "open",
+      "link": "V-20261026-12",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-05",
+      "kind": "pitfall",
+      "symptom": "baseline 2 次失败、treatment 1 次失败就写「学会了」",
+      "fake": "差异 = 因果",
+      "cause": "单对 run、LLM 采样、世界随机性；两轮经验可能都已进执行视图",
+      "guard": "要归因必须 SUSPENDED vs TRIAL 同目标 A/B；否则只写 pilot",
+      "status": "open",
+      "link": "V-20261026-11",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-06",
+      "kind": "pitfall",
+      "symptom": "runtime_state 正文出现 exp: ref 就写「已投送」",
+      "fake": "正文出现 = ExposureLedger 回执",
+      "cause": "渲染文本 vs 最终请求裁剪后的 REQUEST_DELIVERED 是两种证据等级",
+      "guard": "卡上分开写「正文证据」和「REQUEST_DELIVERED 账本」",
+      "status": "open",
+      "link": "V-20261026-11",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-07",
+      "kind": "pitfall",
+      "symptom": "用 summon 的怪/手动传送做「自然事件」",
+      "fake": "死亡链跑通 = 自然验证",
+      "cause": "事件源是夹具，只证明链路不证明自然频率",
+      "guard": "卡上写 fixture=true；自然事件必须无 summon、无手动伤害、无传送进战斗",
+      "status": "open",
+      "link": "V-20261026-10",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-08",
+      "kind": "pitfall",
+      "symptom": "tf- memo 轨迹显示「锚点 tools-… 在 instrumentation.jsonl 未找到」",
+      "fake": "轨迹为空 = 没有轨迹",
+      "cause": "window_first 是 tools.jsonl 事件，anchorTime 只查 instrumentation",
+      "guard": "TrajectorySlices 两处都查；review prompt 里看锚点前缀",
+      "status": "fixed",
+      "link": "c96c6bd11",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-26T23:20:00+08:00"
+    },
+    {
+      "id": "TIP-20261026-09",
+      "kind": "win",
+      "symptom": "world-view 离线渲染 real run world-before.json 出固定 8 行 md",
+      "fake": "—",
+      "cause": "—",
+      "guard": "world-view.js --render <snapshot> --run <id> --phase before；自测 4 例",
+      "status": "open",
+      "link": "84-环境工作台与世界源-20261026.md",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-27T00:30:00+08:00"
+    },
+    {
+      "id": "TIP-20261027-01",
+      "kind": "probe",
+      "symptom": "睡觉 A/B 需要「是否真的睡过」，world_probe snapshot 只在采集瞬间给 self.sleeping",
+      "fake": "after 快照 sleeping=false = 整轮没睡",
+      "cause": "snapshot 是单时点；睡眠发生在窗口中间就看不到",
+      "guard": "短窗 + 多时点（before/after 或 death/review）；judge 同时看 tools.jsonl sleep 调用与 state 快照",
+      "status": "open",
+      "link": "86 号 §7",
+      "added_by": "dsh-session",
+      "added_at": "2026-10-27T00:30:00+08:00"
+    }
+  ],
+  "signals": [
+    {
+      "exp_id": "V-20261026-11",
+      "note": "craft pilot：基线 2 次 3x3 失败 vs 处理 1 次 + 先做工作台；但两轮经验都在执行视图，未归因",
+      "run": "exp-clean-anchor / exp-craft-behave",
+      "by": "dsh-session",
+      "at": "2026-10-26T20:00:00+08:00"
+    }
+  ],
+  "verdicts": [
+    {
+      "exp_id": "V-20261026-12",
+      "card": "V-20261026-12",
+      "judge": "node bin/bench.js health runs/exp-craft-ab-base-20261026-200138",
+      "result": "INCONCLUSIVE",
+      "why": "母版残留工作台 + 基线 java died；baseline 不是无台环境，不能比较",
+      "by": "dsh-session",
+      "at": "2026-10-26T23:30:00+08:00"
+    },
+    {
+      "exp_id": "V-20261026-13",
+      "card": "V-20261026-13",
+      "judge": "node bin/exp-craft-ab.js runs/exp-craft-ab2-base-20261026-204037 runs/exp-craft-ab2-treat-20261026-205306",
+      "result": "INCONCLUSIVE",
+      "why": "craft 场景回执正文自带解法（4 秒照做），experience 无可归因增量；第 2 对 1 vs 1 不可重复",
+      "by": "dsh-session",
+      "at": "2026-10-26T23:30:00+08:00"
+    }
+  ],
+  "queue": [],
+  "masters": [
+    {
+      "name": "exp-clean3",
+      "sha": "d85ec7e8",
+      "notes": "空母版 900 区块，剥掉 chunk 9,42 的 crafting_table；37 files；正式母版（运维总览 §6.1）",
+      "added_at": "2026-10-26T21:00:00+08:00"
+    }
+  ]
+}

@@ -20,13 +20,28 @@
 
     TIP-YYYYMMDD-NN | 症状一句话 | 真因一句话 | 护栏一句话 | 链接 V-card/#NNN
 
-## 环境工作台（world-view）
+## 环境工作台（world-view）与实验台（bench）
 
-**现状：AI 仍在使用旧方式**——每个 AI 自己 `world_probe` 若干探针、自己读 `monitor/*.jsonl`/`latest.log`、用 sleep 等时序；`world-view.js` 尚未实现。
+**状态（2026-10-27）：v0 已写码、离线自测绿、未进游戏验证。**
 
-设计与验收（冻结）：`D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\84-环境工作台与世界源-20261026.md`。
+- `bin/world-view.js`：world_probe snapshot → `world-view-<phase>.md/.json`；`--render` 离线、无 `--render` 走 MCP 采集；自测 4/4。
+- `bin/bench.js`：共享账本（tips / signals / verdicts / queue / masters / health）；自测 6/6。
+- `experiments/workbench.json`：9 探针 + 10 tips + 1 signal + 2 verdicts + 1 master 种子。
+- 睡觉裁判 `bin/exp-night-ab.js` 由并行会话提供，本台只登记、不改。
 
-目标：harness 在 before/after/death/review 四个时点生成一份 `env/world-view.md` + `world-view.json`，所有 AI 只读这一份，不再逐探针重查。
+设计与验收（冻结）：
+- `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\84-环境工作台与世界源-20261026.md`（world-view 文件契约）
+- `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\87-实验台-架构与封存-v0-20261027.md`（实验台整体：共建规则 / 三乘数 / 封存与进游戏验收）
+
+常用：
+
+    node bin\world-view.js --run <runId> --phase before --out <runDir>\evidence
+    node bin\world-view.js --render <runDir>\evidence\world-before.json --run <runId> --phase before
+    node bin\bench.js catalog
+    node bin\bench.js tip list
+    node bin\bench.js health <runDir>
+
+**禁止**：把 fixture 标 natural；用 SUSPENDED 做 A/B 后不恢复；没冻结判据就写 verdict。
 
 ## 禁止
 
