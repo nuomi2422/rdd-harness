@@ -383,7 +383,7 @@ function cmdList() {
 function selftest() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-card-'));
   const mk = (over) => Object.assign(JSON.parse(JSON.stringify(TEMPLATE)), over);
-  let pass = 0; const total = 12;
+  let pass = 0; const total = 13;
   const check = (name, cond, detail) => { if (cond) { pass++; console.log('  ✅ ' + name); } else console.log('  ❌ ' + name + ' — ' + (detail || '')); };
 
   const dataOk = path.join(tmp, 'data.json');
@@ -428,15 +428,15 @@ function selftest() {
   check('claim 与数据矛盾 → REFUTES + 标记', r5.verdict === 'REFUTES' && r5.claimCheck && r5.claimCheck.code === 'CLAIM_CONTRADICTS_DATA');
 
   const runsDir = path.join(tmp, 'runs');
-  const mkRun = (id, jar, at, verdict) => {
-    const d = path.join(runsDir, id);
+  const mkRun = (id, jar, at, verdict, controlKey, dir = runsDir) => {
+    const d = path.join(dir, id);
     fs.mkdirSync(d, { recursive: true });
-    fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify({ label: id, createdAt: at, jarsAtPrepare: [{ file: 'a.jar', sha256: jar }], timings: { watchSeconds: 40 } }));
+    fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify({ label: id, createdAt: at, jarsAtPrepare: [{ file: 'a.jar', sha256: jar }], world: { before: { control_key: controlKey || null } }, timings: { watchSeconds: 40 } }));
     fs.writeFileSync(path.join(d, 'verdict.json'), JSON.stringify({ overall: verdict, assertions: [{ id: 'S1', verdict: 'PASS' }, { id: 'S3', verdict: 'PASS' }, { id: 'S4', verdict: 'PASS' }] }));
   };
   mkRun('exp-r1', 'aaa', '2026-10-25T23:00:00Z', 'PASS');
   mkRun('exp-r2', 'aaa', '2026-10-25T23:10:00Z', 'PASS');
-  const rc = mk({ id: 'exp-test-runs', claim: '两轮独立运行都通过（测试）', measurement: { source: { kind: 'runs-dir', path: runsDir, match: { verdictIn: ['PASS'], assertions: { S3: 'PASS', S4: 'PASS' }, sinceFreeze: true, sameJarSig: true } }, dataFields: ['runId'], aggregation: 'count', repeats: 1, stopRule: '冻结后', thresholds: { success: { operator: '>=', value: 2 }, failure: { operator: '<=', value: 1 } }, tolerance: 0 } });
+  const rc = mk({ id: 'exp-test-runs', claim: '两轮独立运行都通过（测试）', measurement: { source: { kind: 'runs-dir', path: runsDir, match: { verdictIn: ['PASS'], assertions: { S3: 'PASS', S4: 'PASS' }, sinceFreeze: true, sameJarSig: true } }, dataFields: ['runId'], aggregation: 'count', repeats: 1, requireSameControl: false, stopRule: '冻结后', thresholds: { success: { operator: '>=', value: 2 }, failure: { operator: '<=', value: 1 } }, tolerance: 0 } });
   fs.writeFileSync(path.join(tmp, 'runs.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(rc)), frozenAt: '2026-10-25T22:00:00Z' }));
   check('runs-dir 两轮同构建→SUPPORTS', conclude(rc, path.join(tmp, 'runs.freeze.json')).verdict === 'SUPPORTS', JSON.stringify(conclude(rc, path.join(tmp, 'runs.freeze.json'))));
 
@@ -445,6 +445,14 @@ function selftest() {
   rc2.id = 'exp-test-runs2';
   fs.writeFileSync(path.join(tmp, 'runs2.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(rc2)), frozenAt: '2026-10-25T22:00:00Z' }));
   check('runs-dir 混构建→INCONCLUSIVE', conclude(rc2, path.join(tmp, 'runs2.freeze.json')).verdict === 'INCONCLUSIVE');
+
+  const ctrlDir = path.join(tmp, 'runs-ctrl');
+  mkRun('exp-c1', 'ccc', '2026-10-25T23:30:00Z', 'PASS', 'v1|difficulty=easy|weather=clear', ctrlDir);
+  mkRun('exp-c2', 'ccc', '2026-10-25T23:40:00Z', 'PASS', 'v1|difficulty=peaceful|weather=rain', ctrlDir);
+  const rc3 = mk({ id: 'exp-test-control', claim: '两轮世界状态必须可比（测试）', measurement: { source: { kind: 'runs-dir', path: ctrlDir, match: { verdictIn: ['PASS'], sinceFreeze: true, sameJarSig: true } }, dataFields: ['runId'], aggregation: 'count', repeats: 1, requireSameControl: true, stopRule: '冻结后', thresholds: { success: { operator: '>=', value: 2 }, failure: { operator: '<=', value: 1 } }, tolerance: 0 } });
+  fs.writeFileSync(path.join(tmp, 'ctrl.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(rc3)), frozenAt: '2026-10-25T22:00:00Z' }));
+  const ctrlVerdict = conclude(rc3, path.join(tmp, 'ctrl.freeze.json'));
+  check('两轮 control_key 不同 → INCONCLUSIVE(MIXED_CONTROL)', ctrlVerdict.verdict === 'INCONCLUSIVE' && String(ctrlVerdict.error).startsWith('MIXED_CONTROL'), JSON.stringify(ctrlVerdict));
 
   console.log('\nselftest: ' + pass + '/' + total + ' 通过');
   fs.rmSync(tmp, { recursive: true, force: true });
