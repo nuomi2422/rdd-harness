@@ -326,6 +326,7 @@ async function cmdRun(opts) {
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
   const stim = path.join(runDir, 'stimulus.json');
   fs.writeFileSync(stim, JSON.stringify({ text: goalText }, null, 2));
+  let triggerDeathAt = null;
 
   if (opts.zeroStart) {
     // 难度/keepInventory 已在 prepare 写进副本 level.dat，这里只清背包。
@@ -380,7 +381,6 @@ async function cmdRun(opts) {
 
   // ---------- watch ----------
   env.phase = 'watch';
-  let triggerDeathAt = null;
   let lastToolCallAt = Date.now();
   let toolCalls = 0, llmRequests = 0;
   let chain = null;
