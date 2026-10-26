@@ -79,6 +79,8 @@ function cmdRun(args) {
     else if (args[i] === '--goal-file') opt.goal = fs.readFileSync(args[++i], 'utf8');
     else if (args[i] === '--zero-start') opt.zeroStart = true;
     else if (args[i] === '--master') opt.master = args[++i];
+    else if (args[i] === '--trigger-death') opt.triggerDeath = true;
+    else if (args[i] === '--trigger-death-delay') opt.triggerDeathDelay = parseInt(args[++i], 10);
   }
   fs.mkdirSync(JOURNAL, { recursive: true });
   const rounds = [];
@@ -94,7 +96,7 @@ function cmdRun(args) {
       return ds.length ? path.join(RUNS, ds[ds.length - 1]) : null;
     };
     const before = new Set(fs.existsSync(RUNS) ? fs.readdirSync(RUNS) : []);
-    const r = spawnSync(process.execPath, [RUNNER, 'run', '--label', label, '--minutes', String(opt.minutes), '--keep-experience', '--no-delta-stop', '--goal-file', goalFile, ...(opt.zeroStart ? ['--zero-start'] : []), ...(opt.master ? ['--master', opt.master] : [])], { encoding: 'utf8', timeout: (opt.minutes + 10) * 60000 });
+    const r = spawnSync(process.execPath, [RUNNER, 'run', '--label', label, '--minutes', String(opt.minutes), '--keep-experience', '--no-delta-stop', '--goal-file', goalFile, ...(opt.zeroStart ? ['--zero-start'] : []), ...(opt.master ? ['--master', opt.master] : []), ...(opt.triggerDeath ? ['--trigger-death', '--trigger-death-delay', String(opt.triggerDeathDelay || 90)] : [])], { encoding: 'utf8', timeout: (opt.minutes + 10) * 60000 });
     const after = fs.readdirSync(RUNS);
     const created = after.filter((d) => !before.has(d) && d.startsWith('exp-'));
     const runDir = created.length ? path.join(RUNS, created[created.length - 1]) : runDirGuess();
