@@ -122,6 +122,16 @@ function validateCard(card) {
   need(AGG.includes(m.aggregation), 'measurement.aggregation 必须是 ' + AGG.join('|'));
   need(Number.isInteger(m.repeats) && m.repeats >= 1, 'measurement.repeats 必须 ≥1');
   need(typeof m.stopRule === 'string' && m.stopRule.length >= 3, 'measurement.stopRule 必填');
+  const pp = spec.preRegisteredProbes;
+  if (pp !== undefined) {
+    need(pp && typeof pp.ifNot === 'string' && pp.ifNot.trim().length >= 4,
+      'preRegisteredProbes.ifNot 必填（预期不符时先查什么）');
+    need(pp && Array.isArray(pp.probes) && pp.probes.length >= 1
+      && pp.probes.every((x) => typeof x === 'string' && x.trim().length > 0),
+      'preRegisteredProbes.probes 至少 1 个非空探针 id');
+  } else {
+    warns.push('preRegisteredProbes 未填：实验卡缺「若不符先查哪几个探针」');
+  }
   const th = m.thresholds || {};
   for (const k of ['success', 'failure']) {
     const t = th[k] || {};
@@ -282,6 +292,10 @@ const TEMPLATE = {
   },
   variables: { independent: ['改了什么'], dependent: ['测什么'], controlled: ['保持不变的'] },
   controls: { positive: '正对照：证明采集器能测到预期信号', negative: '负对照：证明判据能拒绝错误结果（或 n/a: 理由）' },
+  preRegisteredProbes: {
+    ifNot: '预期结果不符时先查哪些世界侧探针',
+    probes: ['difficulty', 'gamerules', 'players'],
+  },
   determinism: { kind: 'deterministic', seed: '' },
   replications: { N: 1, deterministic: true },
   measurement: {
@@ -383,7 +397,7 @@ function cmdList() {
 function selftest() {
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'exp-card-'));
   const mk = (over) => Object.assign(JSON.parse(JSON.stringify(TEMPLATE)), over);
-  let pass = 0; const total = 13;
+  let pass = 0; const total = 14;
   const check = (name, cond, detail) => { if (cond) { pass++; console.log('  ✅ ' + name); } else console.log('  ❌ ' + name + ' — ' + (detail || '')); };
 
   const dataOk = path.join(tmp, 'data.json');
@@ -401,6 +415,9 @@ function selftest() {
 
   const bad4 = JSON.parse(JSON.stringify(good)); bad4.id = 'exp-test-bad4'; bad4.controls = { positive: 'n/a', negative: 'n/a: 无对照可用' };
   check('n/a 无理由被拒', validateCard(bad4).errors.some((e) => e.includes('必须给理由')));
+
+  const bad5 = JSON.parse(JSON.stringify(good)); bad5.id = 'exp-test-bad5'; bad5.preRegisteredProbes = { ifNot: '不符时', probes: [] };
+  check('预登记探针为空被拒', validateCard(bad5).errors.some((e) => e.includes('preRegisteredProbes.probes')));
 
   fs.writeFileSync(dataOk, JSON.stringify([{ v: 1 }, { v: 1 }]));
   fs.writeFileSync(path.join(tmp, 'good.freeze.json'), JSON.stringify({ cardSha256: sha(canonical(good)), frozenAt: 't', commit: 'abc' }));
