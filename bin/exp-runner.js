@@ -346,6 +346,14 @@ async function cmdRun(opts) {
       log(runDir, 'zero-start', '/time set midnight exit=' + nt.status);
       await sleep(800);
     }
+    // --trigger-death：管线冒烟专用。刺激后延迟 N 秒 kill 同伴一次，确定性地产生一条
+    // death 事件（keepInventory 保物品），用来验「death → instrumentation → auto_intake →
+    // 复盘 → 经验」整条链在真实数据上是不是通的。这是人为制造触发，不是测自然死亡率。
+    if (opts.triggerDeath) {
+      const delayMs = (opts.triggerDeathDelaySeconds || 90) * 1000;
+      triggerDeathAt = Date.now() + delayMs;
+      log(runDir, 'zero-start', '--trigger-death 已排程（' + (delayMs / 1000) + 's 后 kill ' + companionName + '）');
+    }
   }
 
   const invBefore = mcp('rdd_get_inventory', companionName, null, 25000);
@@ -372,6 +380,7 @@ async function cmdRun(opts) {
 
   // ---------- watch ----------
   env.phase = 'watch';
+  let triggerDeathAt = null;
   let lastToolCallAt = Date.now();
   let toolCalls = 0, llmRequests = 0;
   let chain = null;
@@ -410,6 +419,11 @@ async function cmdRun(opts) {
 
   for (;;) {
     const elapsed = Date.now() - t0;
+    if (triggerDeathAt && Date.now() >= triggerDeathAt) {
+      triggerDeathAt = null;
+      const kd = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(HARNESS, 'bin', 'send-mc-command.ps1'), '-Text', '/kill ' + companionName], { encoding: 'utf8', timeout: 40000 });
+      log(runDir, 'trigger-death', '/kill ' + companionName + ' exit=' + kd.status);
+    }
     const chunkTools = pull('tools.jsonl');
     for (const line of chunkTools.split('\n')) {
       if (line.includes('"type":"tool_call"')) {
@@ -632,6 +646,8 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--no-delta-stop') opts.noDeltaStop = true;
   else if (argv[i] === '--master') opts.master = argv[++i];
   else if (argv[i] === '--night') opts.night = true;
+  else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
+  else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
 }
 (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
