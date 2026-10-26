@@ -1237,6 +1237,16 @@
         "verifiedBy": "V-20261021-11/13 实机（成功/失败/槽占用三分支）；死亡分支暂无——此锁就是提醒它没验 ｜ 长跑 40 min（旧构建，261 轮，102 条完整 2-暂停；stale-null=2 均来自死亡）+ 修复后 15 min（窗口 B，109 轮，stale-null=0；死亡轮 FAIL + 「任务终态是 CANCELLED」）+ 离线 TaskTerminalRegistryTest 4/4。",
         "reviewBy": "2026-10-28",
         "status": "open"
+      },
+      {
+        "id": "TL-2026-10-26-01",
+        "title": "worldId 用 LevelName，exp 副本仍叫 live → 观测键跨副本不唯一",
+        "symptom": "exp-wp 副本的 level.dat LevelName 仍是 live；world_probe 回执 world_id=live；world_state 的观测键无法区分不同副本",
+        "impact": "两轮实验/两个副本的观测可能混在同一命名空间，A/B 对照被污染；探针快照本身不持久化，暂不受影响",
+        "guard": "探针快照只作控制变量；world_state 观测需把存档目录名并入 worldId（修好前不要把 exp 副本的 world_state 当跨副本可比）；新增 exp 运行在 envelope 里同时记 master.worldPath",
+        "verifiedBy": "V-20261026-08：exp-wp-20261026-162636 的 world_id=live，副本目录 exp-wp-162637",
+        "reviewBy": "2026-11-26",
+        "status": "open"
       }
     ]
   },
