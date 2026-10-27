@@ -1,0 +1,8 @@
+ea04e91 feat(gate): Q18 实验台提示（写新工具+写数据反思，ask 级，check-experiment-reflection 机检 severity）+ 两个只读实验台工具（check-fingerprint-binding 指纹?经验绑定核查、exp-session-stats 死亡与干活时长）。selftest FAIL=0，postflight 实测 Q18 出现
+e0ee11e feat(learn): exp-20261025-learn-pilot 复算 SUPPORTS——r2 达 S5 钻石套、r4 达 S3，improved=2
+7846ff6 fix(exp-runner): 复位范围两处纠偏——acx 是学习产物不进复位；learner-enqueued 必须随 memo 还原
+5cbc656 feat(mf): Mineflayer 观测器/驱动器进验证工具箱（npm 标准 4.39.0，无 fork）
+c512f5a feat(bench): v0.1 增量——brief 开工包 / timeline 时序直读 / probe 一等协议
+fa21f83 feat(harness): 实验台 v0 —— world-view 环境文件 + bench 共享账本
+00cfbcd docs(harness): 标记环境工作台未上线 + 实验失败坑入口
+806da1d feat(harness): exp-card 支持预登记失败探针
