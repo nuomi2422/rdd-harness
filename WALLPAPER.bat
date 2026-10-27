@@ -22,7 +22,9 @@ REM ============================================================
 
 set "HARNESS=%~dp0"
 set "PS1=%HARNESS%bin\set-wallpaper.ps1"
-set "SRC=C:\Users\admin\Pictures\Wallpapers-src"
+REM default wallpaper source now resolves relative to this drive; set WALLPAPER_SRC to override
+set "SRC=%~d0\Pictures\Wallpapers-src"
+if defined WALLPAPER_SRC set "SRC=%WALLPAPER_SRC%"
 
 if not exist "%PS1%" (
   echo [X] set-wallpaper.ps1 not found under "%HARNESS%bin" - folder is broken.

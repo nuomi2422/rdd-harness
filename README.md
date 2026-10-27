@@ -1,3 +1,7 @@
+> 🌍 **Open-source note**：new visitors start with [OSS-README.md](<OSS-README.md>) — quick start (selftest trio),
+> the frozen-criteria experiment-card workflow, and honest boundaries. License: MIT (see [LICENSE](<LICENSE>)).
+> 本 README 是内部工作台说明（含机器路径与内部文档指针），保留不动。
+>
 > ## ⚠️ 半退役已解除（2026-10-25 夜 主人裁定）：本目录恢复为 RDD/MC 工作的默认门禁
 >
 > 当前重点 = MC 项目：进/退游戏门禁、实验卡、游戏域脚本都走本目录。
