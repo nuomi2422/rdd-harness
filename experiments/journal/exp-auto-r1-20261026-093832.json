@@ -1,0 +1,30 @@
+{
+  "runId": "exp-auto-r1-20261026-093832",
+  "label": "auto-r1",
+  "createdAt": "2026-10-26T01:38:32.789Z",
+  "watchSeconds": 902,
+  "stopReason": "wall 900s",
+  "toolCalls": 99,
+  "maxStage": 1,
+  "stageName": "S1 木器",
+  "stageSeconds": {
+    "1": 123
+  },
+  "deaths": 1,
+  "blockers": [],
+  "milestoneCount": 1,
+  "experience": {
+    "before": "91cb9e9679c8278b2e0869b8c4b7d6ca17870924fa07626f4530f35553845703",
+    "after": "38c7f56da60699f179d80e634a3a3572604410ccf7dda1d301d52dbbe8aae0b8"
+  },
+  "finalItems": {
+    "minecraft:acacia_log": 2,
+    "minecraft:wheat_seeds": 1,
+    "minecraft:dirt": 3,
+    "minecraft:wooden_axe": 1,
+    "minecraft:wooden_pickaxe": 1,
+    "minecraft:wooden_sword": 1,
+    "minecraft:stick": 3,
+    "minecraft:acacia_planks": 8
+  }
+}

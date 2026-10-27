@@ -1,0 +1,123 @@
+{
+  "prefix": "auto",
+  "rounds": [
+    {
+      "runId": "exp-auto-r1-20261026-093832",
+      "label": "auto-r1",
+      "createdAt": "2026-10-26T01:38:32.789Z",
+      "watchSeconds": 902,
+      "stopReason": "wall 900s",
+      "toolCalls": 99,
+      "maxStage": 1,
+      "stageName": "S1 木器",
+      "stageSeconds": {
+        "1": 123
+      },
+      "deaths": 1,
+      "blockers": [],
+      "milestoneCount": 1,
+      "experience": {
+        "before": "91cb9e9679c8278b2e0869b8c4b7d6ca17870924fa07626f4530f35553845703",
+        "after": "38c7f56da60699f179d80e634a3a3572604410ccf7dda1d301d52dbbe8aae0b8"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 2,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:dirt": 3,
+        "minecraft:wooden_axe": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:wooden_sword": 1,
+        "minecraft:stick": 3,
+        "minecraft:acacia_planks": 8
+      }
+    },
+    {
+      "runId": "exp-auto-r2-20261026-095538",
+      "label": "auto-r2",
+      "createdAt": "2026-10-26T01:55:38.405Z",
+      "watchSeconds": 904,
+      "stopReason": "wall 900s",
+      "toolCalls": 130,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 131,
+        "2": 334
+      },
+      "deaths": 1,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "38c7f56da60699f179d80e634a3a3572604410ccf7dda1d301d52dbbe8aae0b8",
+        "after": "b70f27389fa8e72b77ef70b996cd731636ae59e3ac1fb7be0ba6f1dc170e38c8"
+      },
+      "finalItems": {
+        "minecraft:torch": 2,
+        "minecraft:dirt": 14,
+        "minecraft:acacia_fence": 1,
+        "minecraft:copper_ingot": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:wooden_sword": 1,
+        "minecraft:rotten_flesh": 1,
+        "minecraft:stone_pickaxe": 2,
+        "minecraft:acacia_planks": 5,
+        "minecraft:cobblestone": 30,
+        "minecraft:diorite": 25,
+        "minecraft:granite": 11,
+        "minecraft:stone_axe": 1,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:bone": 2,
+        "minecraft:stick": 1,
+        "minecraft:stone_sword": 1
+      }
+    },
+    {
+      "runId": "exp-auto-r3-20261026-101249",
+      "label": "auto-r3",
+      "createdAt": "2026-10-26T02:12:49.238Z",
+      "watchSeconds": 904,
+      "stopReason": "wall 900s",
+      "toolCalls": 137,
+      "maxStage": 2,
+      "stageName": "S2 石器",
+      "stageSeconds": {
+        "1": 128,
+        "2": 550
+      },
+      "deaths": 0,
+      "blockers": [],
+      "milestoneCount": 3,
+      "experience": {
+        "before": "b70f27389fa8e72b77ef70b996cd731636ae59e3ac1fb7be0ba6f1dc170e38c8",
+        "after": "831f598d8dd4267de28aafd56471398ad0f55ad3f27ea9874de2da0ef001f8f5"
+      },
+      "finalItems": {
+        "minecraft:acacia_log": 8,
+        "minecraft:dirt": 12,
+        "minecraft:cobblestone": 6,
+        "minecraft:wheat_seeds": 1,
+        "minecraft:crafting_table": 1,
+        "minecraft:wooden_sword": 1,
+        "minecraft:stick": 1,
+        "minecraft:wooden_pickaxe": 1,
+        "minecraft:acacia_planks": 3,
+        "minecraft:spider_eye": 1
+      }
+    }
+  ],
+  "marks": [
+    {
+      "runId": "exp-auto-r2-20261026-095538",
+      "better": true,
+      "faster": false,
+      "advanced": true
+    },
+    {
+      "runId": "exp-auto-r3-20261026-101249",
+      "better": true,
+      "faster": false,
+      "advanced": true
+    }
+  ],
+  "improved": 2
+}
