@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-27T00:00:00+08:00",
+  "updated_at": "2026-10-27T05:24:20.517Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -131,6 +131,22 @@
         "sleeping"
       ],
       "note": "sleeping 是睡觉 A/B 的直接判据"
+    },
+    {
+      "id": "sleep_success_window",
+      "title": "睡没睡成（跨时点，非单 snapshot）",
+      "kind": "requested",
+      "source": "tools.jsonl sleep 调用+monitor/instrumentation.jsonl+world_probe.self.sleeping",
+      "fields": [
+        "tool",
+        "result",
+        "sleeping",
+        "at"
+      ],
+      "note": "睡觉 A/B 的直接判据；snapshot 单时点看不到窗口中间的睡眠（TIP-20261027-01）",
+      "status": "requested",
+      "added_by": "dsh-bench-v01",
+      "added_at": "2026-10-27T05:24:20.515Z"
     }
   ],
   "tips": [

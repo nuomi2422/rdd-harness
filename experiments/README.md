@@ -39,6 +39,9 @@
     node bin\world-view.js --render <runDir>\evidence\world-before.json --run <runId> --phase before
     node bin\bench.js catalog
     node bin\bench.js tip list
+    node bin\bench.js brief [<runDir>]        # 下一个 AI 开工包：坑+前面结论+排队+母版+探针（带 runDir 再附该轮 health+时序摘要）
+    node bin\bench.js timeline <runDir>       # 完整时序一条命令读全（阶段/目标/回合/调用/结果/任务链/死亡）
+    node bin\bench.js probe add --id <id> --title "..." --source "..." --fields a,b,c --note "..."   # AI 自己登记要读的数据
     node bin\bench.js health <runDir>
 
 **禁止**：把 fixture 标 natural；用 SUSPENDED 做 A/B 后不恢复；没冻结判据就写 verdict。
