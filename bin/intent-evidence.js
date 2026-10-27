@@ -264,9 +264,65 @@ function main() {
     note: i6.length ? '' : '窗口内没有 verify 调用（工具已部署，链里还没人用它）',
   };
 
+  // ── I7：夜间提醒（CarrierAlarms.night 的三档文案进过请求正文）────────────
+  // 判据不是"代码里有这条 alarm"，而是**文案真的出现在给模型的请求里**。
+  // 三档文案来自 CarrierAlarms.night()：有敌对 / 有床可睡 / 没床撑过夜晚。
+  const NIGHT_NEEDLES = ['天黑了，附近还有敌对生物', '床就在附近', '没有床', '撑过这个夜晚'];
+  let i7 = [];
+  for (const f of ctxFiles) {
+    const { hits } = scan(f, NIGHT_NEEDLES, 24);
+    for (const h of hits) {
+      const t = tsOf(h.obj);
+      if (t && t < since) continue;
+      i7.push(`${path.basename(f)}:${h.lineNo}`);
+      if (i7.length >= 3) break;
+    }
+    if (i7.length >= 3) break;
+  }
+  const i7Out = {
+    id: 'I7',
+    intent: '晚上睡觉提醒（夜间三档文案进了请求正文）',
+    status: i7.length ? 'PASS' : 'NO_DATA',
+    chain: [`夜间提醒×${i7.length}`],
+    counterExamples: [],
+    evidence: i7,
+    note: i7.length ? '' : '窗口内没有夜间提醒（可能没到夜里、或载体闹钟没被采样）',
+  };
+
+  // ── I8：支线开关（配置事实，直接读文件）────────────────────────────────
+  // 主人要「支线任务全部开启」——这件事有唯一真相：config/numen/side-tasks.json。
+  // 缺文件 = 默认全开；文件里某条 false = 那条被关。不猜、不读内存开关。
+  const cfgFile = path.join(path.dirname(monitor), 'side-tasks.json');
+  let i8Status = 'NO_DATA';
+  let i8Chain = [];
+  let i8Note = '';
+  try {
+    if (!fs.existsSync(cfgFile)) {
+      i8Status = 'PASS';
+      i8Chain = ['没有 side-tasks.json = 全部默认开启'];
+    } else {
+      const cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8'));
+      const off = Object.entries(cfg).filter(([k, v]) => v === false).map(([k]) => k);
+      i8Chain = off.length ? off.map((k) => `${k}=false`) : ['全部为 true（或无 false 项）'];
+      i8Status = off.length ? 'PARTIAL' : 'PASS';
+      i8Note = off.length ? '这些支线被关着：' + off.join(', ') : '';
+    }
+  } catch (e) {
+    i8Note = '配置读不懂（' + (e && e.message ? e.message : e) + '）—— 不折成"全开"';
+  }
+  const i8Out = {
+    id: 'I8',
+    intent: '支线任务全部开启（配置事实）',
+    status: i8Status,
+    chain: i8Chain,
+    counterExamples: [],
+    evidence: [cfgFile.replace(/\\/g, '/').split('/').slice(-2).join('/')],
+    note: i8Note,
+  };
+
   const out = {
     scanned: { days, monitor, rddFiles: rddFiles.length, ctxFiles: ctxFiles.length, toolFiles: toolFiles.length },
-    intents: [i1, i2, i3, i4, i5Out, i6Out],
+    intents: [i1, i2, i3, i4, i5Out, i6Out, i7Out, i8Out],
   };
 
   if (json) {
