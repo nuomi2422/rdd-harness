@@ -58,8 +58,12 @@ function scan(file, needles, maxMB) {
     text = buf.toString('utf8')
       .replace(/\\u003c/g, '<').replace(/\\u003e/g, '>')
       .replace(/\\u0026/g, '&').replace(/\\u003d/g, '=');
-  } catch {
-    return { hits, missing: true };
+  } catch (e) {
+    // ★ 2026-10-28：Windows 上游戏进程正在写 jsonl 时，读会失败（EBUSY/EPERM）。
+    //   以前这里静默返回空命中 → 报告成 NO_DATA（「这段窗口没发生」），
+    //   与「文件读不了」混为一谈 —— 这是典型的假阴性。
+    //   现在把"读不了"显式带回调用方，由它报 UNREADABLE，不冒充 NO_DATA。
+    return { hits, missing: true, locked: e && (e.code === 'EBUSY' || e.code === 'EPERM' || e.code === 'EACCES') };
   }
   const lines = text.split(/\r?\n/);
   for (let i = 0; i < lines.length; i++) {
@@ -166,9 +170,10 @@ function main() {
   };
 
   // I3：题型骨架进规划 prompt（rdd 事件或 context 请求正文里出现 <stage_patterns>）
-  let i3Evidence = [];
-  for (const f of ctxFiles) {
-    const { hits } = scan(f, ['<stage_patterns>'], 24);
+    let i3Evidence = [];
+    // 2026-10-28: planner prompt lands in rdd.jsonl (planning_input_verbatim), not context.jsonl
+    for (const f of [...ctxFiles, ...rddFiles]) {
+      const { hits } = scan(f, ['<stage_patterns>'], 24);
     for (const h of hits) {
       const t = tsOf(h.obj);
       if (t && t < since) continue;
@@ -219,8 +224,10 @@ function main() {
 
   // I5：危险事实进执行上下文
   let i5 = [];
+  let i5Locked = 0;
   for (const f of ctxFiles) {
-    const { hits } = scan(f, ['<danger>'], 24);
+    const { hits, missing } = scan(f, ['<danger>'], 24);
+    if (missing) { i5Locked++; continue; }
     for (const h of hits) {
       const t = tsOf(h.obj);
       if (t && t < since) continue;
@@ -232,8 +239,10 @@ function main() {
   const i5Out = {
     id: 'I5',
     intent: '危险事实块 <danger> 进了执行上下文',
-    status: i5.length ? 'PASS' : 'NO_DATA',
-    chain: [`命中 ${i5.length}`],
+    // ★ 读不到文件 ≠ 没发生：游戏正在写 jsonl 时读会 EPERM/EBUSY。
+    //   以前这里把"读不了"报成 NO_DATA，等于用假阴性冒充"这段窗口没发生"。
+    status: i5.length ? 'PASS' : (i5Locked > 0 ? 'UNREADABLE' : 'NO_DATA'),
+    chain: [`命中 ${i5.length}` + (i5Locked ? `（${i5Locked} 个文件被占用读不到）` : '')],
     counterExamples: [],
     evidence: i5,
     note: i5.length ? '' : '窗口内没出现（本块只在有敌怪贴身或掉血时出现）',
