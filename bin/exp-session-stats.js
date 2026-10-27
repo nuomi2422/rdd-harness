@@ -62,6 +62,7 @@ function fmtDur(ms) {
 function main() {
   const monitor = arg('monitor', DEFAULT_MONITOR);
   const days = Number(arg('days', '3'));
+  const only = arg('companion', '');   // 2026-10-28: 只统计某个同伴(RDD 的 UUID)，实验用的一次性探针不混进死亡序列
   const json = process.argv.includes('--json');
   const since = Date.now() - days * 24 * 3600 * 1000;
 
@@ -74,6 +75,7 @@ function main() {
     try { o = JSON.parse(line); } catch { continue; }
     const t = parseTs(o.timestamp);
     if (t == null || t < since) continue;
+      if (only && String((o.data && o.data.companionId) || '') !== only) continue;   // 只看指定同伴
     const tool = o && o.data ? (o.data.tool || o.data.name) : null;
     if (o.type === 'tool_call' && tool) events.push({ t, kind: 'tool', detail: tool });
   }
@@ -87,6 +89,9 @@ function main() {
     const type = String(o.type || '');
     if (/death/i.test(type)) {
       const d = o.data || {};
+      // 2026-10-28: 一次性探针也会死（测 D-16 时熔岩/摔落死了好几只），
+      // 不能混进主线死亡序列 —— 否则「今天她死了 9 次」是假账。
+      if (only && String(d.companionId || '') !== only) continue;
       deaths.push({
         t,
         kind: String(d.deathKind || d.kind || type),
