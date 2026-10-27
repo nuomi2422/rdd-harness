@@ -1063,6 +1063,16 @@
           "why": "外部复审的诊断：decisions.jsonl 只是「止血记录层」，没有任何东西拦住一份报告把等主人拍板的事悄悄漏掉。报告一发出，主人看到的是「一切正常」，问题就从「等他拍板」退化成「没人知道」—— 比前者更糟。真正的修法是门禁层，不是再写一条纪律。",
           "verify": "node harness\\rdd-harness\\bin\\lib\\report-release.js（通过 exit 0）；--selftest 10/10 证明反例能打红、正例能放过",
           "tool": "gate.report"
+        },
+        {
+          "id": "Q18",
+          "name": "★ 实验台：写新工具 + 写数据反思",
+          "kind": "human",
+          "level": "ask",
+          "rule": "★ 2026-10-27 主人指示（原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，并且写实验台实验数据的反思和提醒」）。两件事必须在退游戏那一刻摆到人眼前：① 这轮实验缺的观测手段 → 补成实验台工具（harness/bin/exp-*、bench、mf-observer），一条命令复现、带 --help 与自测，不靠手工重复；② 这轮实验数据的反思 → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答「看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / 这轮证伪了什么假设」。为什么挂 postflight：实验产物（journal / verdict / learn-summary）都在退游戏时定稿，过夜就只剩数字、只剩「有效/无效」。级别 ask：机器判不了反思写得好不好；但「数据更新了而反思没落」是机检得出的，由 check-experiment-reflection.js 给 severity=warn 并在门禁里显眼提示（不 BLOCK：实验可能还在跑，假红比漏报更糟）。",
+          "why": "2026-10-27 主人观察：实验数据在涨、人话判断没跟上；缺的观测手段每次都靠手工临时拼，下一轮又重来。这两件事都是「退游戏时才想得起来」的那类，必须挂在门禁上而不是靠记性。",
+          "verify": "node workspace\\rdd-selfcompile\\scripts\\verify-tools\\check-experiment-reflection.js --json（severity=pass/warn/skip/unknown；warn 时门禁文案带「本轮产物 N 个 / 反思 0 篇」）",
+          "tool": "gate.experiment"
         }
       ]
     },

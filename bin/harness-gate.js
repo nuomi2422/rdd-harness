@@ -772,6 +772,42 @@ function postflight(ctx) {
     }
   }
 
+  {
+    // ★ Q18（2026-10-27 主人指示）：实验台「写新工具 + 写数据反思」提示。
+    //   主人原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，
+    //   并且写实验台实验数据的反思和提醒」。
+    //   为什么挂在 postflight：实验产物（journal / verdict / learn-summary）都在退游戏那一刻定稿，
+    //   此刻人还记着"这轮哪里反直觉"，过了夜就只剩数字。
+    //   级别 ASK：机器判不了反思写得好不好；但**数据更新了而反思没落**这种是机检得出的，
+    //   所以让检查器给 severity，门禁据此把提醒摆在最显眼处（不 BLOCK，没跑实验轮次不制造假红）。
+    {
+      const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools',
+        'check-experiment-reflection.js');
+      let r = null;
+      if (fs.existsSync(checker)) {
+        const out = require('child_process').spawnSync(process.execPath, [checker, '--json', '--since', ctx.since.toISOString().slice(0, 10)],
+          { encoding: 'utf8', timeout: 60000 });
+        try { r = JSON.parse(out.stdout || '{}'); } catch { r = null; }
+      }
+      const head = `★ 实验台两件事（退游戏时最容易漏）：\n` +
+        `       ① **这轮缺的观测手段 → 写成实验台工具**（harness/bin/exp-*、bench、mf-observer），\n` +
+        `          不要靠手工重复：新工具要能一条命令复现、带 --help 与自测；\n` +
+        `       ② **这轮实验数据的反思** → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答：\n` +
+        `          看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / **这轮证伪了什么假设**。`;
+      if (!r) {
+        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
+          head + `\n       （检查器缺失或输出不可解析：${path.basename(checker)}）`);
+      } else if (r.severity === 'warn') {
+        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
+          `⚠ ${r.why}（产物 ${r.freshArtifactCount} 个 / 反思 ${r.reflectionCount} 篇）\n` + head +
+          `\n       本轮产物：${(r.freshArtifacts || []).slice(0, 4).join('、')}`);
+      } else {
+        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
+          `${r.why}（实验台工具 ${r.benchTools} 个）\n` + head);
+      }
+    }
+  }
+
   builtinChecks(ctx, 'postflight');
 }
 
