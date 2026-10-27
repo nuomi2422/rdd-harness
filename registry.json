@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。",
   "version": 2,
-  "updated": "2026-10-25",
+  "updated": "2026-10-27",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -748,6 +748,14 @@
       "side": "read",
       "needsGame": false,
       "note": "★ 验证环节先冻结实验卡再跑；conclude 只认原始数据；--selftest 10/10（阈值矛盾/无种子/缺理由/样本不足/改卡/claim 矛盾 必拒）"
+    },
+    {
+      "id": "mf.observer",
+      "name": "Mineflayer 观测器/驱动器（标准开源 mineflayer@4.39.0，npm 原版）",
+      "path": "harness/bin/mf-observer.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "★ 验证环节外部编码工具：AI 用代码读游戏状态(位置/血量/背包/环境)并驱动角色——不预写游戏逻辑。只连原版协议服(worldgen-flat 1.21.1 offline 25565 实测通：登录/读状态/挖方块/事件流)；NeoForge 客户端被 FML 握手门挡(标准版无 FML 支持)。坑：bot.dig 是 async 无回调；登录 PartialReadError 是 protodef 误报不影响。例程 smoke-connect.js / observer-smoke.js；起停原版座位见 tools/mineflayer/README.md；入口 harness/bin/mf-observer.js（smoke | eval <file.js>），座位 D:/rdd/tools/mineflayer"
     }
   ],
   "standards": {
