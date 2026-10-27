@@ -47,11 +47,19 @@ const OC_DIR = path.join(RDD, 'workspace', 'mc-openclaw-controller', 'scripts');
 const GIT = 'C:/Users/admin/AppData/Local/Programs/MinGit/cmd/git.exe';
 
 // 受控复位的"存档外"状态（glob 展开后拷贝）
+// 2026-10-27：把 'acx' 从复位清单里摘了 —— ACX 版本库是**学习产物**（学习者写、人批准），
+// 复位它等于每轮把产物扔掉。实测：今晚批准的两个脚本（night_clear_then_sleep /
+// night_collect_then_sleep）在下一轮跑完后从 library.json 消失，而投递箱里那两条已标 ADOPTED、
+// 不会再被采纳 ⇒ 产物静默丢失。要清库请手动删 config/numen/acx，别靠复位。
 const NUMEN_STATE_DIRS = [
   'rdd-tasks', 'rdd-ledger', 'rdd-facts', 'rdd-assets', 'rdd-history',
-  'rdd-semantics', 'rdd-side', 'companions', 'worldstate', 'acx',
+  'rdd-semantics', 'rdd-side', 'companions', 'worldstate',
 ];
-const NUMEN_STATE_GLOBS = [/^experience-.*\.jsonl$/, /^learner-memos-.*\.json$/];
+// 2026-10-27：加了 learner-enqueued.jsonl —— 它是「这些事件已经入过队」的落盘去重日志。
+// 原来只还原 experience/learner-memos，不还原它 ⇒ 本轮入队的 memo 被还原冲掉，
+// 而去重日志仍记着「入过队」⇒ 同一批事件以后永远不再入队（样本静默丢失）。
+// 实测：夜间两轮 4 次死亡，跑完 memo 队列 0 条，就是这个原因。
+const NUMEN_STATE_GLOBS = [/^experience-.*\.jsonl$/, /^learner-memos-.*\.json$/, /^learner-enqueued\.jsonl$/];
 
 function nowIso() { return new Date().toISOString(); }
 function stamp() {
