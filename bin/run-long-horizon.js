@@ -24,6 +24,7 @@
  *   node run-long-horizon.js --objective "通关MC（干掉末影龙）" --minutes 40
  *   node run-long-horizon.js --dry-run            # 只打计划，不动实例
  *   node run-long-horizon.js --companion RDD --keep-running
+ *   node run-long-horizon.js --wait-clean 30   # 最多等 30 分钟，等工作区被别人收口后自动开始
  */
 
 'use strict';
@@ -125,10 +126,20 @@ async function main() {
     process.exit(0);
   }
 
-  // 1) 预检
+  // 1) 预检（--wait-clean N：最多等 N 分钟，等别人那批脏改动收口）
+  const waitCleanMin = Number(arg('wait-clean', '0'));
   console.log('\n[1/8] 预检 harness-gate preflight …');
-  const pf = preflightVerdict();
+  let pf = preflightVerdict();
   console.log(`      VERDICT=${pf.verdict}（PASS=${pf.pass} WARN=${pf.warn} BLOCK=${pf.block}）`);
+  if (pf.verdict !== 'PASS' && waitCleanMin > 0) {
+    const until = Date.now() + waitCleanMin * 60000;
+    console.log(`      未通过，按 --wait-clean 最多等 ${waitCleanMin} 分钟（每 60s 重试；别人收口后自动继续）`);
+    while (pf.verdict !== 'PASS' && Date.now() < until) {
+      await new Promise((r) => setTimeout(r, 60000));
+      pf = preflightVerdict();
+      console.log(`      [${new Date().toISOString().slice(11, 19)}] VERDICT=${pf.verdict}（BLOCK=${pf.block}）`);
+    }
+  }
   if (pf.verdict !== 'PASS') {
     console.error('✘ 预检没过，拒绝起实例（门禁是硬的，不绕）。先处理 BLOCK 项。');
     const blocks = (pf.text.match(/✘ [^\n]+/g) || []).slice(0, 5);
