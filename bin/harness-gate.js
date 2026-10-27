@@ -331,6 +331,32 @@ function preflight(ctx) {
         : '本轮没动接口类（若动了，下面这行会列出来）—— 仍要自己确认新增枚举值/方法名没有漏改 switch');
   }
   {
+    // P16 ★ 2026-10-28 用户定：让每个 AI 都知道「第二视角」（服务端观察者同伴）存在。
+    //   为什么要有这条：mineflayer 连不了 NeoForge（FML 握手门），create_companion 是唯一
+    //   能进主世界开创造的「另一个身体」。工具在 registry.tools[observer.loop]，造人脚本
+    //   在 workspace/scripts/spawn-observer.ps1。机器判不了「你有没有用它」，所以是 ASK。
+    const spawn = R('scripts/spawn-observer.ps1');
+    const loop = path.join(REG.roots.harness, 'bin', 'observer-loop.js');
+    const haveSpawn = isFile(spawn);
+    const haveLoop = isFile(loop);
+    record('P16', '★ 知道有「第二视角」（服务端观察者同伴）', 'ask', 'human',
+      haveSpawn && haveLoop ? ASK : WARN,
+      (haveSpawn && haveLoop)
+        ? '★ 看游戏内行为时，除了监测台还有一条路：造一个服务端观察者同伴（第二视角）。\n' +
+          '       为什么：mineflayer 连不了 NeoForge（FML 握手门），而 create_companion 能进主世界、\n' +
+          '       能开创造、能跟 RDD 并存 —— 这是唯一能拿到「另一个身体看到的」的路。\n' +
+          '       ① 造人（幂等）：powershell -NoProfile -ExecutionPolicy Bypass -File ' + spawn + '\n' +
+          '       ② 切创造：send-mc-command.ps1 -Text "/gamemode creative Observer"（MCP 无 gamemode）\n' +
+          '       ③ 贴过去：/tp Observer <x> <y> <z>（★ 地下 goto 到不了，必须 /tp）\n' +
+          '       ④ 持续落盘：node ' + loop + ' --interval 30 → monitor/observer.jsonl（监测台可读）\n' +
+          '       ⑤ 跟着谁：mcp-call.js follow Observer @follow.json\n' +
+          '       ★ 与监测台互补：监测台读 JSONL（事后/结构化），Observer 读实时世界（位置/实体/方块/血条）'
+        : '★ P16 环境不完整：' + (!haveSpawn ? '缺 ' + spawn + ' ' : '') + (!haveLoop ? '缺 ' + loop : '') +
+          ' —— 这条「第二视角」的路等于不存在，先补脚本',
+    );
+  }
+
+  {
     // P13 ★ 用户 2026-10-04 明确要的那一条：进游戏之前让 AI 过一遍游戏内能力清单
     const cl = path.join(REG.roots.harness, '进游戏前必读-游戏内能力清单.md');
     if (!isFile(cl)) {

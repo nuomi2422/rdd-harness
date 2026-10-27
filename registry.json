@@ -756,6 +756,14 @@
       "side": "read",
       "needsGame": true,
       "note": "★ 验证环节外部编码工具：AI 用代码读游戏状态(位置/血量/背包/环境)并驱动角色——不预写游戏逻辑。只连原版协议服(worldgen-flat 1.21.1 offline 25565 实测通：登录/读状态/挖方块/事件流)；NeoForge 客户端被 FML 握手门挡(标准版无 FML 支持)。坑：bot.dig 是 async 无回调；登录 PartialReadError 是 protodef 误报不影响。例程 smoke-connect.js / observer-smoke.js；起停原版座位见 tools/mineflayer/README.md；入口 harness/bin/mf-observer.js（smoke | eval <file.js>），座位 D:/rdd/tools/mineflayer"
+    },
+    {
+      "id": "observer.loop",
+      "name": "第二视角观测器（服务端同伴 Observer 按节拍写 monitor/observer.jsonl）",
+      "path": "harness/bin/observer-loop.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "★ 2026-10-28 用户下单：mineflayer 连不了 NeoForge（FML 握手门），改用 Numen 自己的 create_companion 造服务端玩家实体（Observer，creative）当第二视角。本脚本按 --interval 秒读 get_self_status/rdd_whereami/scan_nearby_entities，把「它眼里的世界 + 被观测者状态 + 距离」写进 config/numen/monitor/observer.jsonl（信封与 MonitoringJournal 对齐，监测台/离线分析可直接读）。只读不驱动、不改世界；单拍失败不退出循环；文件超 32MB 轮转 .1。造人用 workspace/scripts/spawn-observer.ps1（幂等）。实测：2026-10-28 Observer creative @(159,10,748) follow RDD @(159,9,746) 距 2 格，--once 落盘成功"
     }
   ],
   "standards": {
@@ -915,6 +923,15 @@
           "level": "ask",
           "rule": "★ 2026-10-21 用户定：进游戏前问一句「这次要不要先打存档快照」。★ 2026-10-21 用户纠正定性：快照是执行 AI 自己的工作副本，不是永久资产 —— 不是「问用户要不要」，是「告诉 AI 这是你的工具 + 你要负责删」。验证会破坏环境时先打一份（游戏必须已停），跑坏了回滚，用完自己删（默认 TTL 48 小时）。",
           "verify": "人工确认：node bin/snapshot-world.js --status 看过现状；--name before-<批次> --apply 打过快照；--prune --apply 清理过期。机器判不了「该不该用快照」，所以是 ASK 不是 BLOCK"
+        },
+        {
+          "id": "P16",
+          "name": "★ 知道有「第二视角」（服务端观察者同伴）",
+          "kind": "human",
+          "level": "ask",
+          "rule": "★ 2026-10-28 用户定：观察游戏内行为时，除了自己看监测台，还有一个现成的「第二视角」——用 create_companion 造一个服务端玩家实体（默认名 Observer），切 creative，站在被观察者旁边，用 get_self_status / rdd_whereami / scan_nearby_entities / scan_blocks / look_around 读它的世界。★ 为什么要有这条：mineflayer 连不了 NeoForge 实例（FML 握手门，实测见 tools/mineflayer/README.md），而 Numen 自己的 create_companion 能进主世界、能开创造、能跟 RDD 并存 —— 这是目前唯一能拿到「另一个身体看到的」的路。★ 不是替代监测台：监测台读 JSONL 埋点（事后、结构化、无位置语义），Observer 读实时世界（位置/实体/方块/血条）。两者互补。",
+          "verify": "人工确认（想用时照做，不想用不必）：\n  1) 造人（幂等，已在场不会重复造）：powershell -NoProfile -ExecutionPolicy Bypass -File D:\\rdd\\workspace\\scripts\\spawn-observer.ps1\n  2) 切创造：send-mc-command.ps1 -Text \"/gamemode creative Observer\"（MCP 无 gamemode 工具，必须走这条）\n  3) 贴到目标旁：/tp Observer <x> <y> <z>（★ 地下 goto 到不了，必须 /tp）\n  4) 持续落盘：node D:\\rdd\\harness\\rdd-harness\\bin\\observer-loop.js --interval 30（写 monitor/observer.jsonl，监测台可读）\n  5) 让它跟着某人：mcp-call.js follow Observer @follow.json（entity_id + distance + may_alter_terrain）\n  ★ 坑：goto 只走地面，地下目标一律 /tp；create_companion 同名幂等（实测 entity_id 不变）；同伴写进 saves/live/playerdata/<uuid>.dat，重启仍在",
+          "tool": "observer.loop"
         }
       ]
     },
