@@ -31,7 +31,7 @@
 
 const fs = require('fs');
 const path = require('path');
-const { spawnSync } = require('child_process');
+const { spawnSync, spawn } = require('child_process');
 
 const ROOT = 'D:\\rdd';
 const MCP = path.join(ROOT, 'workspace', 'rdd-selfcompile', 'scripts', 'mcp-call.js');
@@ -113,6 +113,7 @@ async function main() {
   const companion = arg('companion', '');
   const dry = has('dry-run');
   const keep = has('keep-running');
+  let forcedDirty = false;
 
   console.log('=== 超长线任务 runbook ===');
   console.log(`  目标：${objective}`);
@@ -141,22 +142,48 @@ async function main() {
     }
   }
   if (pf.verdict !== 'PASS') {
-    console.error('✘ 预检没过，拒绝起实例（门禁是硬的，不绕）。先处理 BLOCK 项。');
-    const blocks = (pf.text.match(/✘ [^\n]+/g) || []).slice(0, 5);
-    blocks.forEach((b) => console.error('   ' + b.trim()));
-    process.exit(3);
+    // ── 2026-10-27（主人当场授权）：只放行「工作区脏」这一类，且必须具名 ──────────
+    // 背景：P14 检查三个仓有没有未提交改动，但它分不清「谁的脏」。
+    // 学习线会话正在离线写代码（不用实例），于是实例是空的，却因为它的 23 处未提交被门禁挡住。
+    // 主人的裁定是「那边在离线写，可以启动」。所以这里给一条**窄口**：
+    //   · 只有 BLOCK 项**全部**是 P14 才放行；
+    //   · 必须传 --force-dirty "<授权原话>"，否则照旧拒绝；
+    //   · 放行会打印大字并在报告里落 forceDirty / forceReason 字段，事后能对账。
+    // 任何别的 BLOCK（P3 jar 内容、P4 重复 mixin 等）一律不放行 —— 那些是真缺陷，不是协调问题。
+    const forceReason = arg('force-dirty', '');
+    // 只取「✘ <门禁号> <名字>」这种行；尾部还有一行总结「✘ BLOCK 项必须处理完…」不带门禁号，
+    // 混进来会让 onlyP14 永远为 false（2026-10-27 本轮实测踩到）。
+    const blockLines = [...new Set((pf.text.match(/✘ [PQ][0-9]+[a-z]?[^\n]*/g) || []).map((s) => s.trim()))];
+    const onlyP14 = blockLines.length > 0 && blockLines.every((l) => /P14/.test(l));
+    if (forceReason && onlyP14) {
+      console.log('');
+      console.log('  ╔══════════════════════════════════════════════════════════════╗');
+      console.log('  ║ ⚠ 预检未过，但按主人授权放行「工作区脏(P14)」这一项            ║');
+      console.log('  ║   其余 BLOCK 项一概不放行。                                  ║');
+      console.log('  ╚══════════════════════════════════════════════════════════════╝');
+      console.log('      授权原话：' + forceReason);
+      blockLines.forEach((b) => console.log('      仍存在：' + b));
+      forcedDirty = true;
+    } else {
+      if (forceReason && !onlyP14) {
+        console.error('✘ --force-dirty 只对「工作区脏(P14)」有效；本轮的 BLOCK 里还有别的真缺陷，必须真修。');
+      }
+      console.error('✘ 预检没过，拒绝起实例（门禁是硬的，不绕）。先处理 BLOCK 项。');
+      blockLines.slice(0, 5).forEach((b) => console.error('   ' + b));
+      process.exit(3);
+    }
   }
 
   // 2) 实例
   let started = false;
   if (javaCount() === 0) {
-    console.log('[2/8] 起实例（start-rdd.ps1，约 150s）…');
-    const r = run('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', START], 600000);
+    console.log('[2/8] 起实例（start-rdd.ps1，脱离启动，约 150s）…');
+    // ★ 2026-10-27 实测坑：start-rdd.ps1 不会自己返回（它把游戏/监测台拉起后继续挂着），
+    //   spawnSync 等它会一直卡在 [2/8]，最后被超时杀掉，而后面的步骤一步都没跑。
+    //   正确做法是**脱离启动**，再用 MCP 端口就绪来判断"起好了"——这也是"以产物为准"的纪律。
+    const child = spawn(START, [], { detached: true, stdio: 'ignore', shell: true });
+    child.unref();
     started = true;
-    if (r.status !== 0) {
-      console.error('✘ 起实例失败：' + (r.stderr || '').slice(0, 400));
-      process.exit(4);
-    }
   } else {
     console.log('[2/8] 实例已在运行，跳过启动');
   }
@@ -216,6 +243,8 @@ async function main() {
     startedAt: new Date(startedAt).toISOString(),
     minutes,
     startedInstance: started,
+    forceDirty: forcedDirty,
+    forceReason: forcedDirty ? arg('force-dirty', '') : '',
     submitAccepted: accepted,
     samples: samples.slice(-40),
     events: {
