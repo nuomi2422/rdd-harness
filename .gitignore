@@ -10,3 +10,12 @@ experiments/live/
 
 # _待删除项备份 里放的是「待用户勾选才删」的原件备份 —— 有文件时会被提交（备份本身值得版本化），
 # 空目录靠 .gitkeep 保留。
+
+# ── 2026-10-29 清账：区分「工具」与「跑出来的数据」──
+# experiments/journal 下 *.json/*.md/*.txt 是实验记录（入仓）；
+# *.jsonl 是逐拍采样（observer-follow 之类每 30s 一行，一次跑几千行），属于运行数据。
+experiments/journal/*.jsonl
+
+# run-curve.ps1 是本机曲线循环驱动：默认 --Goal 指向会话 .tmp 下的 goal 文件，
+# 换台机器就跑不了。它是「本机启动脚本」，不是可移植工具 → 不入仓。
+bin/run-curve.ps1

@@ -796,6 +796,46 @@
       "side": "read",
       "needsGame": true,
       "note": "★ 84 号契约：一次采集一份文件，所有 AI 只读这一份。`--run <id> --phase before|after|death|review --out <dir>` 走 MCP 采；`--render <snapshot.json>` 离线渲染（无游戏可测）；失败写 world-view-<phase>.FAILED.json 不伪造。--self-test 4 例。★ 与 bench.watch 的分工：world-view 是「实验前后的对照快照」（进 envelope/evidence，给 control_key 与 A/B 用）；bench.watch 是「常驻滚动视图」（给人和 AI 现场读）。两者都不拥有世界数据。"
+    },
+    {
+      "id": "exp.craftAb",
+      "name": "craft 经验 A/B 的机械裁决（不认口头结论）",
+      "path": "harness/bin/exp-craft-ab.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ `node bin/exp-craft-ab.js <baseRunDir> <treatRunDir> [--json]`；`--self-test` 3 例。退出码 0 PASS / 1 INCONCLUSIVE / 2 INVALID / 3 用法或读盘错。★ 坑：它只读 runs 目录里的落盘证据，读不到就等于没跑；两轮判据不一致时它给 INCONCLUSIVE 而不是硬凑一个方向。"
+    },
+    {
+      "id": "exp.curve",
+      "name": "学习曲线读数器（run → 秒数/死亡/工具调用/里程碑）",
+      "path": "harness/bin/exp-curve.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ `node bin/exp-curve.js <runDir> [<runDir> ...] [--json]`；`--self-test`。★ 坑：里程碑时间是首次达成的采样时刻，采样间隔 30s 级 → 秒数精度就是 30s，别当精确值报。"
+    },
+    {
+      "id": "exp.nightAb",
+      "name": "夜间规避经验 A/B 判读（二值 + 首次动作时间）",
+      "path": "harness/bin/exp-night-ab.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ `node bin/exp-night-ab.js <runDir> [...] [--json]`；`--self-test` 3 例。★ 为什么单写一个：#369 曾把「送达 2/2 vs 未送达 0/3」判成成立，全过一遍其实是 2/2 vs 2/4 —— 手判会挑样本，这个脚本不会。"
+    },
+    {
+      "id": "learner.drain",
+      "name": "学习者 SELF_COMPILE_REQUEST 取件入口 v2（写 ack，不动产物档案）",
+      "path": "harness/bin/selfcompile-drain.js",
+      "side": "write",
+      "needsGame": false,
+      "note": "★ `--take` / `--resolve --note <提交号>` / `--status` / `--self-test`。★ 坑：产物档案是 append-only，v1 直改 outbox status 是错的；v2 只写 ack 文件。无参数时列当前待取件清单（不是用法错）。"
+    },
+    {
+      "id": "region.tables",
+      "name": "存档 region 的方块级盘点/替换（离线，不依赖游戏）",
+      "path": "harness/bin/region-tables.py",
+      "side": "write",
+      "needsGame": false,
+      "note": "★ `python region-tables.py check|strip <worldDir> [--block minecraft:crafting_table] [--to minecraft:air]`。母版 exp-clean3 剥工作台就是它干的（运维 §6.1）。★ 坑：`strip` 不替你备份，先自己复制整个存档目录；重写后要跑 `check` 逐块解 NBT，900/900 可解析才算过。"
     }
   ],
   "standards": {
