@@ -147,6 +147,23 @@ function normalize(file, ev) {
     if (type === 'runtime_state') return { kind: 'ctx', rec: { t, type, who: 'runtime', text: d.context || d.text || '', companion: d.companionId } };
     if (type === 'requirement_manifest') return { kind: 'chain', rec: { t, type, manifest: d, companion: d.companionId } };
     if (type === 'requirement_gaps_changed') return { kind: 'chain', rec: { t, type, gaps: d.gaps, companion: d.companionId } };
+    // ★ 方块面：journal 里真正落盘的「方块级」事实是 asset_snapshot 的 facilities（如 minecraft:chest@117,62,703）。
+    //   逐格网格（blockUpdate → grid）服务端日志里没有，别在这里假装有；真网格走 world_probe/scan_blocks。
+    if (type === 'asset_snapshot') {
+      const fac = [], missing = [];
+      let dim = null;
+      for (const a of (d.assets || [])) {
+        const v = a && a.observation && a.observation.value;
+        if (!v) continue;
+        if (v.dimension) dim = v.dimension;
+        for (const f of (v.facilities || [])) {
+          const s = String(f);
+          if (/@-?\d+,-?\d+,-?\d+$/.test(s)) fac.push(s);
+          else missing.push(s);
+        }
+      }
+      return { kind: 'chain', rec: { t, type, assets: { dim, facilities: fac, missing }, brief: 'facilities=' + fac.length + (dim ? ' dim=' + dim : ''), companion: d.companionId } };
+    }
     if (type === 'subtask_stalled' || type === 'subtask_resumed' || type === 'subtask_stall_escalated') {
       return { kind: 'chain', rec: { t, type, brief: 'source=' + (d.source || '?') + ' reason=' + clip(d.reason || '', 60) + ' subtask=' + (d.subtask || '?'), companion: d.companionId } };
     }
@@ -219,6 +236,7 @@ function apply(state, file, items, nowMs) {
     if (it.kind === 'chain' && it.rec.chain) state.last.chain = it.rec;
     if (it.kind === 'chain' && it.rec.manifest) state.last.manifest = it.rec.manifest;
     if (it.kind === 'chain' && it.rec.gaps) state.last.gaps = it.rec.gaps;
+    if (it.kind === 'chain' && it.rec.assets) state.last.assets = it.rec;
     if (it.kind === 'ctx') {
       if (it.rec.type === 'numen_context') state.last.numen = it.rec;
       else if (it.rec.type === 'supervisor_output') state.last.supervisorOut = it.rec;
@@ -281,6 +299,21 @@ function renderSnapshot(state, meta) {
     L.push('样本时间 ' + ts(state.last.observer.t) + '（' + ago(state.last.observer.t, now) + '）' + (obs.nearby_count == null ? '' : '  nearby=' + obs.nearby_count));
   } else {
     L.push('未观测到 observer_tick —— 第二视角没在跑（node bin/observer-loop.js --interval 30）。');
+  }
+  L.push('');
+  L.push('## 方块 / 设施（asset_snapshot，方块级坐标）');
+  const as = state.last.assets;
+  if (as) {
+    const fac = (as.assets && as.assets.facilities) || [];
+    const miss = (as.assets && as.assets.missing) || [];
+    L.push('dim=' + ((as.assets && as.assets.dim) || '?') + '  共 ' + fac.length + ' 个' +
+      (miss.length ? '（另有 ' + miss.length + ' 条「没有」事实）' : '') + '  样本 ' + ts(as.t) + '（' + ago(as.t, now) + '）');
+    for (const f of fac.slice(0, 12)) L.push('- ' + f);
+    if (fac.length > 12) L.push('…（还有 ' + (fac.length - 12) + ' 个，读 monitor/rdd.jsonl 的 asset_snapshot）');
+    for (const m of miss.slice(0, 2)) L.push('- ✘ ' + clip(m.replace(/^\(missing\)\s*/, ''), 80));
+    L.push('注：这是设施级坐标，不是逐格网格；逐格要 world_probe/scan_blocks（未接常驻）。');
+  } else {
+    L.push('未观测到 asset_snapshot（方块级事实还没出现）。');
   }
   L.push('');
   L.push('## 流');
