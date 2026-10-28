@@ -226,6 +226,57 @@ async function craft(bot, itemName, count = 1, timeoutSec = 90) {
   });
 }
 
+/**
+ * 保证身边有一个可用的工作台（没有就做一个并放下）。
+ *
+ * 为什么需要：craft() 只会**找**现成工作台，不会**造并放**。
+ * 于是「木板 → 工作台 → 木镐」这条最基础的链会卡在第二步：
+ * 工作台合出来了，却因为它躺在地上而 3x3 配方永远 no-recipe。
+ *
+ * 做法：① 16 格内有工作台 → 直接用；② 没有 → 用 4 木板合一个；
+ * ③ 合出来但没放 → 挑一个「目标格是空气、下面有实心块」的相邻格，放上去。
+ */
+async function ensureTable(bot, opts = {}) {
+  const Vec3 = require('vec3');
+  const mcData = require(path.join(NM, 'minecraft-data'))(bot.version);
+  const tableId = mcData.blocksByName.crafting_table.id;
+
+  const near = bot.findBlock({ matching: tableId, maxDistance: opts.maxDistance ?? 16 });
+  if (near) {
+    return { ok: true, existing: true, pos: { x: near.position.x, y: near.position.y, z: near.position.z } };
+  }
+
+  if (!countOf(bot, 'crafting_table')) {
+    const r = await craft(bot, 'crafting_table', 1, opts.timeoutSec ?? 60);
+    if (!r.ok) return { ok: false, reason: 'cannot-craft-table', detail: r };
+  }
+
+  const item = bot.inventory.items().find((i) => i.name === 'crafting_table');
+  if (!item) return { ok: false, reason: 'table-not-in-inventory' };
+
+  try { await bot.equip(item, 'hand'); } catch (e) {
+    return { ok: false, reason: 'equip-failed', error: String(e.message).slice(0, 120) };
+  }
+
+  const base = bot.entity.position.floored();
+  const dirs = [[1, 0], [-1, 0], [0, 1], [0, -1]];
+  for (const [dx, dz] of dirs) {
+    const targetPos = base.offset(dx, 0, dz);
+    const target = bot.blockAt(targetPos);
+    const under = bot.blockAt(base.offset(dx, -1, dz));
+    if (!target || target.name !== 'air') continue;
+    if (!under || under.name === 'air' || under.boundingBox !== 'block') continue;
+    try {
+      await bot.placeBlock(under, new Vec3(0, 1, 0));
+      await new Promise((r) => setTimeout(r, 400));
+      return { ok: true, placed: true, pos: { x: targetPos.x, y: targetPos.y, z: targetPos.z } };
+    } catch (e) {
+      return { ok: false, reason: 'place-failed', error: String(e.message).slice(0, 120) };
+    }
+  }
+  return { ok: false, reason: 'no-placement-spot' };
+}
+
 /** 饿了就吃（auto-eat 的显式版，模型可直接调）。 */
 async function eatIfHungry(bot, threshold = 16) {
   if (bot.food > threshold) return { ok: true, skipped: true, food: bot.food };
@@ -322,5 +373,5 @@ function countOf(bot, name) {
 
 module.exports = {
   setup, plugins, state, goto, collect, mine, findBlock, craft,
-  eatIfHungry, attackNearest, drop, digDown, countOf, blockIds, withTimeout,
+  eatIfHungry, attackNearest, drop, digDown, ensureTable, countOf, blockIds, withTimeout,
 };
