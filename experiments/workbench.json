@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-28T15:15:55.738Z",
+  "updated_at": "2026-10-28T15:44:53.233Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -313,6 +313,30 @@
       "link": "Q18 / 87 §12",
       "added_by": "dsh-20261028-live",
       "added_at": "2026-10-28T15:15:55.553Z"
+    },
+    {
+      "id": "TIP-20261028-03",
+      "kind": "pitfall",
+      "symptom": "夜里没跳夜、睡觉支线像坏了：RDD 躺下了天还是黑的",
+      "fake": "「睡觉功能失效」或「她没去睡」",
+      "cause": "多玩家同服时 playersSleepingPercentage 默认 100 = 所有玩家都要睡；Observer / mineflayer bot / 第二实例只要有一个没睡，夜就跳不了",
+      "guard": "做睡眠实验前只留一个玩家（撤 Observer/bot，或让它们也睡）；要留多人就显式把 gamerule playersSleepingPercentage 调低并在卡上写清改了什么；live snapshot 的「身体」节会报同服玩家数",
+      "status": "open",
+      "link": "87 §3.5 / P17",
+      "added_by": "dsh-20261028-live",
+      "added_at": "2026-10-28T15:44:52.723Z"
+    },
+    {
+      "id": "TIP-20261028-04",
+      "kind": "tool",
+      "symptom": "外部编程 AI 只有「看」（监测台/live 视图），想「动手」时又从零写寻路与采集",
+      "fake": "「AI 只能观察，不能自己玩」",
+      "cause": "mf-observer 只给了连接与 eval，每个动作仍要自己拼插件；没人把 pathfinder/collectblock/pvp/auto-eat/armor/blockfinder 拼成一行动作",
+      "guard": "用 bin/mf-kit.js：setup(goto/collect/mine/craft/attackNearest/eatIfHungry/findBlock/state)，全部返回 ok/reason 带超时；进主世界开创造走 Observer（P16），两条路别混",
+      "status": "open",
+      "link": "P17 / mf.kit",
+      "added_by": "dsh-20261028-live",
+      "added_at": "2026-10-28T15:44:53.233Z"
     }
   ],
   "signals": [

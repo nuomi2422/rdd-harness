@@ -297,6 +297,12 @@ function renderSnapshot(state, meta) {
       '  mode=' + (w.game_mode || '?') + '  backpack=' + (w.backpack_used == null ? '?' : w.backpack_used) +
       '  dist=' + (obs.distance_to_watched == null ? '?' : obs.distance_to_watched));
     L.push('样本时间 ' + ts(state.last.observer.t) + '（' + ago(state.last.observer.t, now) + '）' + (obs.nearby_count == null ? '' : '  nearby=' + obs.nearby_count));
+    // ★ 2026-10-28 用户提醒：多玩家同服时睡觉跳夜要所有人睡，bot/Observer 不睡会卡夜 —— 摆在「身体」这一节。
+    //   规则常显（它是常识，不依赖数据）；只有样本新鲜时才敢报「当前有几个人」。
+    const fresh = (now - state.last.observer.t) < 10 * 60 * 1000;
+    const others = (obs.nearby || []).filter((e) => e && e.category === 'player').length;
+    L.push('睡觉注意：多人同服跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot / Observer 不睡会卡夜；' +
+      '睡眠 A/B 前只留一个玩家。' + (fresh && others > 0 ? '（本样本视野内另有 ' + others + ' 个玩家）' : ''));
   } else {
     L.push('未观测到 observer_tick —— 第二视角没在跑（node bin/observer-loop.js --interval 30）。');
   }

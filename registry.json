@@ -964,6 +964,15 @@
           "rule": "★ 2026-10-28 用户定：观察游戏内行为时，除了自己看监测台，还有一个现成的「第二视角」——用 create_companion 造一个服务端玩家实体（默认名 Observer），切 creative，站在被观察者旁边，用 get_self_status / rdd_whereami / scan_nearby_entities / scan_blocks / look_around 读它的世界。★ 为什么要有这条：mineflayer 连不了 NeoForge 实例（FML 握手门，实测见 tools/mineflayer/README.md），而 Numen 自己的 create_companion 能进主世界、能开创造、能跟 RDD 并存 —— 这是目前唯一能拿到「另一个身体看到的」的路。★ 不是替代监测台：监测台读 JSONL 埋点（事后、结构化、无位置语义），Observer 读实时世界（位置/实体/方块/血条）。两者互补。",
           "verify": "人工确认（想用时照做，不想用不必）：\n  1) 造人（幂等，已在场不会重复造）：powershell -NoProfile -ExecutionPolicy Bypass -File D:\\rdd\\workspace\\scripts\\spawn-observer.ps1\n  2) 切创造：send-mc-command.ps1 -Text \"/gamemode creative Observer\"（MCP 无 gamemode 工具，必须走这条）\n  3) 贴到目标旁：/tp Observer <x> <y> <z>（★ 地下 goto 到不了，必须 /tp）\n  4) 持续落盘：node D:\\rdd\\harness\\rdd-harness\\bin\\observer-loop.js --interval 30（写 monitor/observer.jsonl，监测台可读）\n  5) 让它跟着某人：mcp-call.js follow Observer @follow.json（entity_id + distance + may_alter_terrain）\n  ★ 坑：goto 只走地面，地下目标一律 /tp；create_companion 同名幂等（实测 entity_id 不变）；同伴写进 saves/live/playerdata/<uuid>.dat，重启仍在",
           "tool": "observer.loop"
+        },
+        {
+          "id": "P17",
+          "name": "★ 你有第二具身体：mineflayer + mf-kit（能干活，能开创造）",
+          "kind": "human",
+          "level": "ask",
+          "rule": "★ 2026-10-28 用户定：外部编程 AI 不只有「看」，它自己也能有一具身体 —— tools/mineflayer（标准 PrismarineJS 4.39.0，npm 原版）+ harness/bin/mf-kit.js 把生态拼成一行能调的动作（寻路 pathfinder / 采集 collectblock / 合成 / 战斗 pvp / 吃饭 auto-eat / 穿甲 armor-manager / 找方块 blockfinder / tool 自动选工具），入口 harness/bin/mf-observer.js（smoke | eval <file.js>）。它连不了 NeoForge 实机（FML 握手门），所以「身体」开在原版协议服座位上；要进主世界看 RDD，走 P16 的 Observer（那条能开创造、能飞、能 /tp）。两件事分开记：mf-kit = 用代码干活的手；Observer = 另一个身体的眼睛。",
+          "verify": "人工确认（想用代码干活时）：\n  0) 座位：D:/rdd/tools/mineflayer（node_modules 里插件齐全）\n  1) 冒烟：node harness/bin/mf-observer.js smoke --port 25565\n  2) 跑脚本：node harness/bin/mf-observer.js eval <你的.js>（导出 async ({bot, mineflayer}) => {}）\n  3) 动作库：const kit = require('D:/rdd/harness/rdd-harness/bin/mf-kit.js'); await kit.setup(bot); await kit.collect(bot, 'oak_log', 4)\n  ★ 坑：findBlocks 只认方块 ID（传名字静默空）；collectBlock 只吃 Block 对象；collectblock 必须 load mineflayer-tool；别自己逐格 blockAt 全图扫（16 万次被服务器踢，EXP-R01-C-0001）\n  ★ 睡觉：多玩家同服时跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜，做睡眠实验前先只留一个玩家",
+          "tool": "mf.kit"
         }
       ]
     },

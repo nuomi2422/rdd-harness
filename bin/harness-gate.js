@@ -507,6 +507,31 @@ function preflight(ctx) {
     }
   }
 
+  {
+    // P17 ★ 2026-10-28 用户定：外部编程 AI 自己也有一具身体（mineflayer + mf-kit），
+    //   而且它「能干活」不只「能看」——寻路/采集/合成/战斗/吃饭/穿甲/找方块都有一行动作。
+    //   机器判不了「你有没有用它」，所以 ASK；环境缺件才 WARN。
+    const mfObs = path.join(REG.roots.harness, 'bin', 'mf-observer.js');
+    const mfKit = path.join(REG.roots.harness, 'bin', 'mf-kit.js');
+    const seat = path.join('D:\\rdd\\tools\\mineflayer', 'node_modules');
+    const have = isFile(mfObs) && isFile(mfKit) && fs.existsSync(seat);
+    record('P17', '★ 你有第二具身体（mineflayer + mf-kit）', 'ask', 'human',
+      have ? ASK : WARN,
+      have
+        ? '★ 你也能「用手」干活：不只是看监测台。\n' +
+          '       · 身体：tools\\mineflayer（标准 PrismarineJS 4.39.0）+ bin\\mf-kit.js 的组合层\n' +
+          '         —— goto / collect / mine / craft / attackNearest / eatIfHungry / findBlock / state，全部一行动作、带超时、返回 ok/reason。\n' +
+          '       · 入口：node bin\\mf-observer.js smoke ｜ eval <你的.js>（导出 async ({bot, mineflayer}) => {}）\n' +
+          '       · 想进主世界看 RDD / 开创造 / 飞：走 P16 的 Observer（create_companion + /gamemode creative + /tp）。\n' +
+          '       · 边界：mf-kit 连不了 NeoForge 实机（FML 握手门）—— 它开在原版协议服座位上；\n' +
+          '         进主世界那条路是 P16，不是 mineflayer。两者别混。\n' +
+          '       ★ 睡觉：多玩家同服时跳夜要所有人睡（playersSleepingPercentage 默认 100），\n' +
+          '         bot / Observer 不睡会卡夜 —— 做睡眠实验前只留一个玩家。'
+        : '★ P17 环境不完整：' + (!isFile(mfObs) ? '缺 ' + mfObs + ' ' : '') + (!isFile(mfKit) ? '缺 ' + mfKit + ' ' : '') +
+          (!fs.existsSync(seat) ? '缺座位 ' + seat : '') + ' —— 「自己有身体」这条路等于不存在，先补',
+    );
+  }
+
   builtinChecks(ctx, 'preflight');
 }
 
@@ -1147,6 +1172,25 @@ function printHeader(phase) {
   console.log('');
 }
 
+/**
+ * ★ 2026-10-28 用户定：「门禁前面给一个提醒即可」。
+ *   把实验台那件事压成门禁最上面的两行 —— 不用翻到 ASK 段才看见。
+ *   只提醒、不判定：判据仍在 Q18（postflight）与 bench live。
+ */
+function printBenchReminder() {
+  const liveDir = path.join(REG.roots.harness, 'experiments', 'live');
+  const hasLive = isFile(path.join(liveDir, 'snapshot.md'));
+  console.log('┌─ 实验台（先看这条，再看门禁）──────────────────────────────');
+  console.log('│ 现场：' + (hasLive
+    ? 'experiments\\live\\snapshot.md 在（bench live status / show chain）'
+    : 'live 视图没起 → node bin\\bench.js live start'));
+  console.log('│ 收工：缺的手段→写成 bench 工具 · 数据→bench tip/probe/signal/verdict add · 反思→rdd存放 一页纸（四问）');
+  console.log('│ 身体：mineflayer + mf-kit 能干活（寻路/采集/合成/战斗/吃/护甲/找方块，P17）；进主世界开创造用 Observer（P16）');
+  console.log('│ 睡觉：多人同服跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜');
+  console.log('└──────────────────────────────────────────────────────────');
+  console.log('');
+}
+
 function printResults() {
   const ICON = { PASS: '✔', WARN: '!', BLOCK: '✘', SKIP: '-', ASK: '☞' };
   for (const r of results) {
@@ -1244,6 +1288,7 @@ function main() {
     .filter((f) => freshEnough(f, since)).map((f) => readText(f)).join('\n');
 
   printHeader(mode);
+  printBenchReminder();
   if (mode === 'preflight') preflight(ctx); else postflight(ctx);
   printResults();
   return verdict();
