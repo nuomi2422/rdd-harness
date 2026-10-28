@@ -532,6 +532,51 @@ function preflight(ctx) {
     );
   }
 
+  {
+    // ★★ P18（2026-10-29 主人指示）：**建链必须经过规划者**。
+    //   主人原话：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用
+    //   规划者的……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了」。
+    //
+    //   为什么这条能机检（而不是又一句 ASK 提醒）：两个工具留下的事件**不一样**。
+    //     rdd_supervisor_submit → beginPlanning → publish('supervisor_input')
+    //     rdd_submit            → RddPlugin.bind   → publishTaskSnapshot('task_bound')
+    //   所以「本轮有没有 supervisor_input」就是「有没有经过规划者」的硬证据。
+    //   详见 bin/lib/planner-entry.js 头注释（含代码行号）。
+    //
+    //   级别：BYPASSED 是 BLOCK（建了链却绕过规划者 = 主人指出的那个错，必须当场改）；
+    //         NO_CHAIN 是 SKIP（这轮没建链，不该被钉死 —— 同 P10/P10c 的教训）；
+    //         NO_DATA  是 WARN（读不到日志，环境问题不是债）。
+    const pe = require('./lib/planner-entry.js');
+    let pr = null;
+    try {
+      pr = pe.scan(since);
+    } catch (e) {
+      pr = null;
+    }
+    if (!pr) {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, WARN,
+        '★ 读 planner-entry.js 出错，无法判定 —— 这不是债，是门禁环境问题');
+    } else if (pr.verdict === 'PLANNED') {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, PASS,
+        pe.summaryLine(pr) + '\n' +
+        '       证据：' + pr.planned.map((p) => p.source + ' @ ' + p.at).join(' ; '));
+    } else if (pr.verdict === 'BYPASSED') {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, BLOCK,
+        pe.summaryLine(pr) + '\n' +
+        '       ★ 你（或上一个干活的 AI）用了 rdd_submit —— 它只绑一条硬编码子任务，\n' +
+        '         不经过 Stage-A，不会分多级，也不会出现在 supervisor 的规划账上。\n' +
+        '       改法：重发一条 rdd_supervisor_submit {"objective":"<同一个目标>","register":true}\n' +
+        '             （beginPlanning 会顶掉旧链，不用先清）\n' +
+        '       绕过的绑定：' + pr.bypassed.slice(0, 3).map((b) => b.at + ' ' + b.description).join(' ; '));
+    } else if (pr.verdict === 'NO_CHAIN') {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, SKIP,
+        '本轮没建过任务链（不拦）。要建就用 rdd_supervisor_submit，别用 rdd_submit');
+    } else {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, WARN,
+        pe.summaryLine(pr) + '（环境问题，不是债）');
+    }
+  }
+
   builtinChecks(ctx, 'preflight');
 }
 
@@ -867,6 +912,37 @@ function postflight(ctx) {
     }
   }
 
+  {
+    // ★ Q19（2026-10-29 主人指示）：退游戏时复盘「这一轮的链是怎么建的」。
+    //   与 P18 同一判据、同一份证据（bin/lib/planner-entry.js），但问法不同：
+    //     P18 问「进场前你建对了吗」（BYPASSED 直接 BLOCK，逼你当场重发）；
+    //     Q19 问「这一轮到底有没有经过规划者」（BYPASSED 是 WARN —— 已经干完了，
+    //         此时 BLOCK 只会让 postflight 永远过不去；要的是记账 + 下一轮别再犯）。
+    const pe2 = require('./lib/planner-entry.js');
+    let pr2 = null;
+    try {
+      pr2 = pe2.scan(since);
+    } catch (e) {
+      pr2 = null;
+    }
+    const name19 = '★ 任务链走的是规划者，不是 rdd_submit';
+    if (!pr2) {
+      record('Q19', name19, 'trace', WARN, WARN, '★ 读 planner-entry.js 出错，无法判定（环境问题）');
+    } else if (pr2.verdict === 'PLANNED') {
+      record('Q19', name19, 'trace', WARN, PASS, pe2.summaryLine(pr2));
+    } else if (pr2.verdict === 'BYPASSED') {
+      record('Q19', name19, 'trace', WARN, WARN,
+        pe2.summaryLine(pr2) + '\n' +
+        '       ★ 这一轮是 rdd_submit 建的链（单目标、绕过 Stage-A）。已经干完的活不算白干，\n' +
+        '         但**下一轮建链请用 rdd_supervisor_submit** —— 否则规划者永远没参与过，\n' +
+        '         主人要的「任务链由规划者触发」这件事从头到尾没发生过。');
+    } else if (pr2.verdict === 'NO_CHAIN') {
+      record('Q19', name19, 'trace', WARN, SKIP, '本轮没建过任务链（不拦）');
+    } else {
+      record('Q19', name19, 'trace', WARN, WARN, pe2.summaryLine(pr2) + '（环境问题，不是债）');
+    }
+  }
+
   builtinChecks(ctx, 'postflight');
 }
 
@@ -1142,6 +1218,37 @@ function runSelftest() {
   const seen = [...fake.matchAll(/frame=\s*(\d+)/g)].map((m) => +m[1]);
   chk('ffmpeg frame= 取最大值而非第一个', Math.max(...seen) === 160, `读到 ${JSON.stringify(seen)}`);
 
+  // 7. ★ 2026-10-29：planner-entry 的四种判定都必须真能判出来。
+  //    为什么进 selftest：P18/Q19 的全部价值就是「能把 rdd_submit 绕路抓出来」，
+  //    而这个判据依赖事件名（supervisor_input / task_bound）。哪天有人改了
+  //    RddPlugin 里的事件名，planner-entry 会静默变成永远 NO_CHAIN —— 门禁照样绿，
+  //    但「忘了用规划者」这件事再也抓不到了。那是 bug-10 那一族（纪律看起来在守，其实从没执行过）。
+  {
+    const os = require('os');
+    const pe = require('./lib/planner-entry.js');
+    const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-planner-'));
+    const tmpFile = path.join(tmpDir, 'rdd.jsonl');
+    const iso = new Date().toISOString();
+    const mk = (type, data) => JSON.stringify({ schema_version: 1, timestamp: iso, type, data });
+    const since = new Date(Date.now() - 3600e3);
+    const writeCase = (lines) => fs.writeFileSync(tmpFile, lines.join('\n') + '\n', 'utf8');
+    const verdictOf = (lines) => { writeCase(lines); return pe.scan(since, { dir: tmpDir }).verdict; };
+
+    chk('planner-entry: 走规划者 → PLANNED',
+      verdictOf([mk('supervisor_input', { source: 'rdd_supervisor_submit' })]) === 'PLANNED');
+    chk('planner-entry: /goal(goal_sink) 也算规划者',
+      verdictOf([mk('supervisor_input', { source: 'goal_sink' })]) === 'PLANNED');
+    chk('planner-entry: 只有 task_bound → BYPASSED（抓得到 rdd_submit）',
+      verdictOf([mk('taskchain_snapshot', { reason: 'task_bound', taskChain: { description: 'd' } })]) === 'BYPASSED');
+    chk('planner-entry: 没建链 → NO_CHAIN（不误判成绕过）',
+      verdictOf([mk('taskchain_snapshot', { reason: 'periodic_observation' })]) === 'NO_CHAIN');
+    chk('planner-entry: 缺文件 → NO_DATA',
+      pe.scan(since, { dir: path.join(tmpDir, 'nope') }).verdict === 'NO_DATA');
+    chk('planner-entry: 坏行不崩',
+      verdictOf(['{"broken": ', mk('supervisor_input', { source: 'rdd_supervisor_submit' })]) === 'PLANNED');
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
   console.log('══════════ RDD harness 门禁 · SELFTEST（体检门禁自身）═══════════');
   // ★ 2026-10-22：selftest 绿 ≠ 门禁绿，两个必须在输出里分清。
   //   用户原话：「体检和日报里每个『绿』必须注明是 selftest 绿还是 实跑绿。」
@@ -1188,6 +1295,45 @@ function printBenchReminder() {
   console.log('│ 身体：mineflayer + mf-kit 能干活（寻路/采集/合成/战斗/吃/护甲/找方块，P17）；进主世界开创造用 Observer（P16）');
   console.log('│ 睡觉：多人同服跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜');
   console.log('└──────────────────────────────────────────────────────────');
+  console.log('');
+}
+
+/**
+ * ★ 2026-10-29 主人指示：「任务链的触发要有一个特殊的工具……这个东西好像写出来了，
+ *   但是 AI 都忘记用了，干活的 AI 忘记用了 —— 直接在门禁上面打一个显眼的标记啊」。
+ *
+ * 所以这段**永远打印在门禁最上面**（同 printBenchReminder 的位置与理由：
+ * 压到最显眼处，不用翻到 ASK 段才看见）。它同时是：
+ *   ① 一张「正确入口 / 错误入口」的对照卡（不用去翻文档）；
+ *   ② 一个**实时状态**——本轮到底走没走规划者，机读 rdd.jsonl 得出。
+ *
+ * 判据来源见 bin/lib/planner-entry.js 的头注释（代码路径 + 事件名都写了）。
+ */
+function printPlannerBanner(ctx) {
+  let r = null;
+  try {
+    r = require('./lib/planner-entry.js').scan(ctx.since);
+  } catch (e) {
+    r = null;
+  }
+  const W = '──────────────────────────────────────────────────────────';
+  console.log('┌─ ★ 任务链入口（建链只看这条）' + W.slice(34));
+  console.log('│ ✔ 正确：rdd_supervisor_submit {"objective":"...","register":true}');
+  console.log('│         → 直通 Stage-A 规划者（与 /goal 同一段 beginPlanning，会分多级）');
+  console.log('│ ✘ 错误：rdd_submit  → 只绑一条硬编码子任务，**完全绕过规划者**（主人 2026-10-29 指出的就是它）');
+  if (!r) {
+    console.log('│ 本轮：? 读不到 monitor/rdd.jsonl（无法判定，见 P18/Q19）');
+  } else if (r.verdict === 'PLANNED') {
+    console.log('│ 本轮：✔ 走了规划者 —— ' + r.note);
+  } else if (r.verdict === 'BYPASSED') {
+    console.log('│ 本轮：✘ **建了链但绕过了规划者** —— ' + r.note);
+    console.log('│       改法：重发一条 rdd_supervisor_submit（旧链会被 beginPlanning 顶掉）');
+  } else if (r.verdict === 'NO_CHAIN') {
+    console.log('│ 本轮：还没有链 —— 要建链就用上面那个 ✔ 的工具，别用 rdd_submit');
+  } else {
+    console.log('│ 本轮：? ' + r.note);
+  }
+  console.log('└' + W);
   console.log('');
 }
 
@@ -1289,6 +1435,7 @@ function main() {
 
   printHeader(mode);
   printBenchReminder();
+  printPlannerBanner(ctx);
   if (mode === 'preflight') preflight(ctx); else postflight(ctx);
   printResults();
   return verdict();

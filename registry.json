@@ -710,6 +710,16 @@
       "usage": "node harness/bin/goal.js ..."
     },
     {
+      "id": "planner.entry",
+      "name": "★ 任务链入口检测：这一轮的链是规划者建的，还是 rdd_submit 绕过去的",
+      "path": "rddharness/bin/lib/planner-entry.js",
+      "side": "read",
+      "needsGame": false,
+      "whenToUse": "怀疑「AI 建链时用了 rdd_submit 而不是 rdd_supervisor_submit」时；或想知道本轮链有没有经过 Stage-A。已接进门禁：preflight P18 + postflight Q19 + 门禁顶部常驻横幅，一般不用手动跑。",
+      "usage": "node -e \"const p=require('./bin/lib/planner-entry.js');const r=p.scan(new Date('2026-10-29'));console.log(p.summaryLine(r))\"",
+      "note": "★ 2026-10-29 主人指示建。判据是代码事实不是约定：rdd_supervisor_submit → submitSupervisorGoal → beginPlanning → publish('supervisor_input')（再由 RddStagePlanner 分多级，goal_staged{stages}）；rdd_submit → RddPlugin.bind → 只 publishTaskSnapshot('task_bound')，完全绕过规划者。所以「本轮 rdd.jsonl 里有没有 supervisor_input」就是硬证据。★ /goal（source=goal_sink）与 rdd_supervisor_submit 是同一段 beginPlanning，都算走规划者；这条只抓 rdd_submit 那种绕路。★ 边界：只读 monitor/rdd.jsonl 尾 8MB；不判定「该不该建链」（没链 = SKIP，不 BLOCK）；monitor 目录从 registry roots.live 推导，可用 NUMEN_MONITOR_DIR 覆盖。"
+    },
+    {
       "id": "harness.orFreeModels",
       "name": "维护 OpenRouter 免费模型清单",
       "path": "harness/bin/or-free-models.js",
@@ -1013,6 +1023,15 @@
           "rule": "★ 2026-10-28 用户定：外部编程 AI 不只有「看」，它自己也能有一具身体 —— tools/mineflayer（标准 PrismarineJS 4.39.0，npm 原版）+ harness/bin/mf-kit.js 把生态拼成一行能调的动作（寻路 pathfinder / 采集 collectblock / 合成 / 战斗 pvp / 吃饭 auto-eat / 穿甲 armor-manager / 找方块 blockfinder / tool 自动选工具），入口 harness/bin/mf-observer.js（smoke | eval <file.js>）。它连不了 NeoForge 实机（FML 握手门），所以「身体」开在原版协议服座位上；要进主世界看 RDD，走 P16 的 Observer（那条能开创造、能飞、能 /tp）。两件事分开记：mf-kit = 用代码干活的手；Observer = 另一个身体的眼睛。",
           "verify": "人工确认（想用代码干活时）：\n  0) 座位：D:/rdd/tools/mineflayer（node_modules 里插件齐全）\n  1) 冒烟：node harness/bin/mf-observer.js smoke --port 25565\n  2) 跑脚本：node harness/bin/mf-observer.js eval <你的.js>（导出 async ({bot, mineflayer}) => {}）\n  3) 动作库：const kit = require('D:/rdd/harness/rdd-harness/bin/mf-kit.js'); await kit.setup(bot); await kit.collect(bot, 'oak_log', 4)\n  ★ 坑：findBlocks 只认方块 ID（传名字静默空）；collectBlock 只吃 Block 对象；collectblock 必须 load mineflayer-tool；别自己逐格 blockAt 全图扫（16 万次被服务器踢，EXP-R01-C-0001）\n  ★ 睡觉：多玩家同服时跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜，做睡眠实验前先只留一个玩家",
           "tool": "mf.kit"
+        },
+        {
+          "id": "P18",
+          "name": "★ 建链经过规划者（rdd_supervisor_submit，不是 rdd_submit）",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "★ 2026-10-29 主人指示：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用规划者的这个东西……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了，直接在门禁上面打一个显眼的标记」。主人随后指出正确入口：`rdd_supervisor_submit` 直通 Stage-A 规划者；`rdd_submit` 只建单目标。★ 代码事实（不是约定）：`rdd_supervisor_submit` → RddPlugin.submitSupervisorGoal → beginPlanning → publish('supervisor_input')，再由 RddStagePlanner.planStages 分出多级（goal_staged{stages}）；`rdd_submit` → RddPlugin.bind → publishTaskSnapshot('task_bound')，完全不经过规划者。★ 所以判据是机读 monitor/rdd.jsonl：本轮有没有 type=supervisor_input 的事件。★ `/goal`（source=goal_sink）与 rdd_supervisor_submit 是同一段 beginPlanning 代码，两者都算「走了规划者」——这条只抓 rdd_submit 那种绕路。★ 级别：建了链却绕过 = BLOCK（当场重发即可顶掉旧链）；本轮没建链 = SKIP（不制造假红）；读不到日志 = WARN（环境问题不是债）。",
+          "verify": "机器判据：node bin/harness-gate.js preflight 的 P18 行（读 monitor/rdd.jsonl 尾 8MB，找 supervisor_input）。单独查：node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')).verdict)\" —— PLANNED / BYPASSED / NO_CHAIN / NO_DATA。门禁最上面还有一条常驻横幅（printPlannerBanner）把「正确工具 vs 错误工具」+ 本轮实际状态直接打出来，不用翻到 ASK 段。",
+          "tool": "planner.entry"
         }
       ]
     },
@@ -1171,6 +1190,15 @@
           "why": "2026-10-27 主人观察：实验数据在涨、人话判断没跟上；缺的观测手段每次都靠手工临时拼，下一轮又重来。这两件事都是「退游戏时才想得起来」的那类，必须挂在门禁上而不是靠记性。2026-10-28 复验发现两个假绿：架构文档被当反思、账本 0 新增也报 pass —— 已改为内容判据 + 账本新鲜度。",
           "verify": "node workspace\\rdd-selfcompile\\scripts\\verify-tools\\check-experiment-reflection.js --json（severity=pass/warn/skip/unknown；warn 时点名缺的是反思还是账本；reflectionHits 列出命中哪几问）",
           "tool": "gate.experiment"
+        },
+        {
+          "id": "Q19",
+          "name": "★ 任务链走的是规划者，不是 rdd_submit",
+          "kind": "trace",
+          "level": "warn",
+          "rule": "★ 2026-10-29 主人指示（与 P18 同一判据、同一份证据 bin/lib/planner-entry.js，问法不同）：P18 问「进场前你建对了吗」（绕过 = BLOCK，逼当场重发 rdd_supervisor_submit）；Q19 问「这一轮到底有没有经过规划者」（绕过 = WARN —— 活已经干完，此时 BLOCK 只会让 postflight 永远过不去，要的是记账 + 下一轮别再犯）。★ 为什么必须记这一笔：主人要的是「任务链由规划者触发」，如果整轮都用的 rdd_submit，那规划者从头到尾没参与过，而账面上链是建成了的 —— 这正是主人说的「东西好像写出来了，但是 AI 都忘记用了」。级别 warn 的另一半理由与 Q13/Q14 同口径：不制造假红，本轮没建链就 SKIP。",
+          "verify": "机器判据：node bin/harness-gate.js postflight 的 Q19 行；单独查 node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')))\" 看 verdict 与 planned/bypassed 明细。",
+          "tool": "planner.entry"
         }
       ]
     },
@@ -1184,6 +1212,18 @@
       "复核动作：验证 guard 仍然有效；失效就重写 guard 并写新 reviewBy；问题彻底不存在了才允许 status=done。"
     ],
     "locks": [
+      {
+        "id": "TL-2026-10-29-01",
+        "title": "「忘了用规划者」的标记可能被静默移除：P18/Q19 依赖的事件名一变就永远绿",
+        "class": "静默失效",
+        "detected": "2026-10-29",
+        "rootCause": "P18/Q19 与顶部横幅的判据是「rdd.jsonl 里有没有 type=supervisor_input」。这个事件名来自 RddPlugin.beginPlanning() 的 publish 调用。如果哪天有人重命名/挪走这个 publish（或 rdd_submit 也改成走 beginPlanning），planner-entry 会静默退化成永远 NO_CHAIN，门禁照样绿 —— 而主人 2026-10-29 指出的「AI 忘了用规划者」这件事再也抓不到。这是 bug-10 那一族：纪律看起来在守，其实从没执行过。",
+        "impact": "「门禁上有标记」变成一句空话；最坏情况是有人为了让它变绿而删掉 P18 的 record()，selftest 的『声明≠接线』能抓到删 record，但抓不到『事件名变了』。",
+        "guard": "harness-gate.js selftest 里有 6 条 planner-entry 用例（PLANNED / goal_sink / BYPASSED / NO_CHAIN / NO_DATA / 坏行不崩），**用合成日志而不是真实日志**，所以事件名一改就会 FAIL。复核动作：跑 node bin/harness-gate.js selftest，确认 6 条 planner-entry 全绿。",
+        "verifiedBy": "2026-10-29 selftest FAIL=0，6 条 planner-entry 用例全过；模拟 task_bound 数据 → P18 BLOCK",
+        "reviewBy": "2026-11-29",
+        "status": "open"
+      },
       {
         "id": "TL-2026-10-03-01",
         "title": "cam.json 的 target 写 'RDD' 永远匹配不到真实同伴",
