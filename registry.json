@@ -764,6 +764,14 @@
       "side": "read",
       "needsGame": true,
       "note": "★ 2026-10-28 用户下单：mineflayer 连不了 NeoForge（FML 握手门），改用 Numen 自己的 create_companion 造服务端玩家实体（Observer，creative）当第二视角。本脚本按 --interval 秒读 get_self_status/rdd_whereami/scan_nearby_entities，把「它眼里的世界 + 被观测者状态 + 距离」写进 config/numen/monitor/observer.jsonl（信封与 MonitoringJournal 对齐，监测台/离线分析可直接读）。只读不驱动、不改世界；单拍失败不退出循环；文件超 32MB 轮转 .1。造人用 workspace/scripts/spawn-observer.ps1（幂等）。实测：2026-10-28 Observer creative @(159,10,748) follow RDD @(159,9,746) 距 2 格，--once 落盘成功"
+    },
+    {
+      "id": "mf.kit",
+      "name": "MF 基础函数库（组合层：pathfinder/collectblock/pvp/auto-eat/armor/tool 拼成一行动作）",
+      "path": "harness/bin/mf-kit.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "★ 2026-10-28 用户下单：写代码的 AI 直接进 MC 干活（不是驱动 RDD 同伴）。定位=组合层，不重写底层——寻路/挖/战斗/吃饭全用 npm 现成插件。已装（tools/mineflayer）：mineflayer@4.39.0 + pathfinder 2.4.5 + collectblock 1.6.0 + pvp 1.3.2 + auto-eat 5.0.3 + armor-manager 2.0.1 + blockfinder 0.0.7 + tool。导出：setup/state/goto/collect/mine/findBlock/craft/eatIfHungry/attackNearest/drop/digDown/blockIds；全部返回 {ok,reason,...} 不抛裸异常、全部带超时。★ 四个实测坑：① findBlocks({matching}) 只认方块 ID，传名字字符串静默返回空；② collectBlock.collect() 只吃 Block 对象（传 Vec3 报 distanceTo of undefined）；③ collectblock 硬依赖 mineflayer-tool，不 load 会抛 UnresolvedDependency；④ auto-eat 导出 {loader}、armor-manager 直接是函数、其余 {plugin}。实机（worldgen-flat 25565）：setup ok / goto ok / collect(dirt) gained=10 / mine dug=1 / attackNearest 追到僵尸 ok / 失败一律给明确 reason。★ 未验：完整合成链——flat 世界地表无树，木头全在 y≈0 矿井，pathfinder 穿不过实心岩，需 digDown 或换有树的世界"
     }
   ],
   "standards": {
