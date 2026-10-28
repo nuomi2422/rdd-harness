@@ -31,8 +31,13 @@
  *   node bench.js probe list [--status all|requested|custom|builtin]
  *   node bench.js probe add --id <snake_id> --title "..." --source "world_probe.xxx|tools.jsonl|monitor/..." --fields a,b,c --note "..." [--status requested|custom] [--by ...]
  *   node bench.js brief [<runDir>] [--json]     ← 下一个 AI 开工包：坑+前面结论+排队+母版+探针（带 runDir 再附该轮 health+时序摘要）
- *   node bench.js timeline <runDir> [--limit N]  ← 完整时序一条命令读全（阶段/目标/回合/调用/结果/任务链/死亡）
+ *   node bench.js timeline <runDir> [--limit N] [--tag chain,ctx,chat]
+ *                                                ← 完整时序一条命令读全（阶段/目标/回合/调用/结果/任务链/死亡）
+ *                                                  --tag 显式打开被默认折叠的流（chain=任务链帧 ctx=numen/supervisor 上下文
+ *                                                  chat=对话 llm=请求与预算 snap=事实/资产快照 all=全部）
  *   node bench.js health <runDir>
+ *   node bench.js live [status|start|stop|on|off|only <views>|interval <s>|show [view]|selftest]
+ *                                                ← 常驻视图开关（引擎 bin/bench-watch.js，视图落在 experiments/live/）
  *   node bench.js selftest
  *
  * 退出码：0 成功 / 1 校验失败或 health 不健康 / 2 用法错 / 3 读盘错
@@ -209,6 +214,51 @@ function readJsonl(p) {
   for (const l of fs.readFileSync(p, 'utf8').split(/\r?\n/)) { if (!l.trim()) continue; try { out.push(JSON.parse(l)); } catch {} }
   return out;
 }
+
+/**
+ * ★ 2026-10-28（还 #381 债②）：原来这里有一个硬 SKIP，把 taskchain_snapshot / numen_context
+ * 等五类「周期快照」直接扔掉 —— 于是 timeline 号称「完整时序」，实际看不到任务链和上下文。
+ * 现在改成「默认折叠 + --tag 显式打开」：帧还在，但默认不刷屏。
+ */
+const TAG_BY_TYPE = {
+  taskchain_snapshot: 'chain', requirement_manifest: 'chain', requirement_gaps_changed: 'chain',
+  goal_kickoff: 'chain', subtask_stalled: 'chain', subtask_resumed: 'chain', subtask_stall_escalated: 'chain',
+  chain_recovering: 'chain', loss_impact_recomputed: 'chain', recovery_named_from_needs: 'chain',
+  manifest_rebuilt_for_recompute: 'chain', carrier_alarm: 'chain', llm_activity_stale: 'chain',
+  side_task_skipped_occurrence: 'chain', side_task_due: 'chain',
+  numen_context: 'ctx', supervisor_input: 'ctx', supervisor_context: 'ctx', supervisor_output: 'ctx',
+  runtime_state: 'ctx', planning_input_verbatim: 'ctx',
+  fact_snapshot: 'snap', asset_snapshot: 'snap', asset_retention: 'snap',
+  llm_request: 'llm', llm_response: 'llm', llm_usage: 'llm', retrieval_snapshot: 'llm',
+  budget_gate: 'llm', budget_settle: 'llm', budget_reserve: 'llm',
+};
+/** 默认折叠（要看必须 --tag）；其余类型默认显示，和以前一致。 */
+const NOISY_TYPES = new Set([
+  'taskchain_snapshot', 'numen_context', 'fact_snapshot', 'asset_snapshot', 'asset_retention',
+  'runtime_state', 'supervisor_input', 'supervisor_context',
+  'llm_request', 'llm_response', 'llm_usage', 'retrieval_snapshot', 'budget_gate', 'budget_settle', 'budget_reserve',
+]);
+
+/** 把 rdd.jsonl 的事件压成一行可读；长 JSON 不刷屏。 */
+function chainText(type, d) {
+  d = d || {};
+  if (type === 'taskchain_snapshot') {
+    let c = d.taskChain;
+    if (typeof c === 'string') { try { c = JSON.parse(c); } catch { c = {}; } }
+    c = c || {};
+    return 'v=' + (c.stateVersion == null ? '?' : c.stateVersion) + ' status=' + (c.primaryStatus || '?') +
+      ' stage=' + (c.currentSubtaskId || '?') + ' reason=' + (d.reason || '?');
+  }
+  if (type === 'numen_context') {
+    const m = String(d.context || '').match(/<current_task>([\s\S]*?)<\/current_task>/);
+    return m ? 'current_task=' + m[1].replace(/\s+/g, ' ').slice(0, 100) : String(d.context || '').replace(/\s+/g, ' ').slice(0, 90);
+  }
+  if (type === 'supervisor_output') return '规划回话: ' + String(d.message || '').replace(/\s+/g, ' ').slice(0, 120);
+  if (type === 'requirement_manifest') return 'requirements=' + (d.requirements == null ? '?' : d.requirements) + ' critical=' + (d.critical == null ? '?' : d.critical);
+  if (type === 'requirement_gaps_changed') return String(d.gaps || '').slice(0, 130);
+  return JSON.stringify(d).slice(0, 120);
+}
+
 function buildTimeline(runDir) {
   const envPath = path.join(runDir, 'envelope.json');
   if (!fs.existsSync(envPath)) die(3, 'no envelope.json: ' + runDir);
@@ -219,15 +269,33 @@ function buildTimeline(runDir) {
   const rel = (ts) => (ts == null || isNaN(Date.parse(ts))) ? null : ((Date.parse(ts) - t0) / 1000);
   const fmt = (s) => (s == null) ? 'T+????s' : (s >= 0 ? 'T+' : 'T-') + Math.abs(s).toFixed(1) + 's';
   const evs = [];
-  const push = (ts, tag, text) => { const s = rel(ts); if (s != null) evs.push({ s, tag, text: String(text).replace(/\s+/g, ' ').slice(0, 140) }); };
+  const push = (ts, tag, text, type) => { const s = rel(ts); if (s != null) evs.push({ s, tag, type: type || null, text: String(text).replace(/\s+/g, ' ').slice(0, 140) }); };
   for (const k of ['launchStart', 'mcpReady', 'stimulusSentAt', 'watchEnd', 'gameExited']) {
     if (!T[k]) continue;
     const label = k === 'mcpReady' ? ' —— MCP 就绪' : k === 'stimulusSentAt' ? ' —— 派目标' : k === 'watchEnd' ? ' —— 观察结束' : k === 'gameExited' ? ' —— 游戏退出' : ' —— 启动';
     push(T[k], 'phase', k + label);
   }
-  const ctx = readJsonl(path.join(ev, 'context.jsonl')).find(e => e.type === 'user_prompt');
+  const ctxEvents = readJsonl(path.join(ev, 'context.jsonl'));
+  const ctx = ctxEvents.find(e => e.type === 'user_prompt');
   if (ctx && ctx.data) push(ctx.timestamp, 'goal', '目标: ' + (ctx.data.text || '') + ' (' + (ctx.data.chars || 0) + ' 字)');
-  for (const e of readJsonl(path.join(ev, 'ai.jsonl'))) if (e.type === 'turn') push(e.timestamp, 'turn', '回合 ' + ((e.data || {}).turn) + '  tools=' + ((e.data || {}).tools) + '  msgs=' + ((e.data || {}).convo_msgs));
+  for (const e of readJsonl(path.join(ev, 'ai.jsonl'))) {
+    const d = e.data || {};
+    if (e.type === 'turn') push(e.timestamp, 'turn', '回合 ' + d.turn + '  tools=' + d.tools + '  msgs=' + d.convo_msgs);
+    else if (e.type === 'assistant') push(e.timestamp, 'chat', '她说: ' + (d.text || ''));   // ★ 对话进时序
+  }
+  // ★ 2026-10-28：上下文流压成一行（默认折叠，--tag llm 打开）——以前这里整条流都没人读
+  for (const e of ctxEvents) {
+    const d = e.data || {};
+    if (e.type === 'llm_request') {
+      const n = ((d.request || {}).messages || []).length;
+      push(e.timestamp, 'llm', '请求 ' + (d.actor || '?') + '/' + (d.phase || '?') + '  msgs=' + n + '  prompt=' + (d.promptTokens == null ? '?' : d.promptTokens) + '  model=' + (d.model || '?'), e.type);
+    } else if (e.type === 'llm_response') {
+      const r = d.response || {};
+      push(e.timestamp, 'llm', '回应 ' + (d.actor || '?') + '/' + (d.phase || '?') + '  ' + (r.content || '').slice(0, 90), e.type);
+    } else if (e.type === 'retrieval_snapshot') {
+      push(e.timestamp, 'llm', '检索 entries=' + (d.entries == null ? '?' : d.entries) + ' status=' + (d.status || '?') + ' chars=' + (d.chars == null ? '?' : d.chars), e.type);
+    }
+  }
   const nameById = {};
   let calls = 0, oks = 0, fails = 0;
   for (const e of readJsonl(path.join(ev, 'tools.jsonl'))) {
@@ -241,11 +309,9 @@ function buildTimeline(runDir) {
     }
   }
   for (const e of readJsonl(path.join(ev, 'events.jsonl'))) push(e.timestamp, e.type === 'task_finished' ? 'done' : 'event', ((e.data && (e.data.message || e.data.description)) || e.type));
-  const SKIP = new Set(['taskchain_snapshot', 'numen_context', 'fact_snapshot', 'asset_snapshot', 'asset_retention']);
-  for (const e of readJsonl(path.join(ev, 'rdd.jsonl'))) {
-    if (SKIP.has(e.type)) continue;
-    const d = e.data || {};
-    push(e.timestamp, 'chain', e.type + '  ' + (d.message || d.description || d.status || JSON.stringify(d).slice(0, 80)));
+  const rddEvents = readJsonl(path.join(ev, 'rdd.jsonl'));
+  for (const e of rddEvents) {
+    push(e.timestamp, TAG_BY_TYPE[e.type] || 'chain', e.type + '  ' + chainText(e.type, e.data), e.type);
   }
   let deaths = 0, deathsScanned = false;
   const numenDir = process.env.RDD_NUMEN_DIR || 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen';
@@ -260,7 +326,7 @@ function buildTimeline(runDir) {
         if (!(t >= winS && (winE == null || t <= winE + 60000))) continue;
         if (/death|died|死亡|was slain|killed by/i.test(e.type || '') || /death|died|死亡|was slain|killed by/i.test(JSON.stringify(e.data || {}))) {
           deaths++;
-          push(e.timestamp, 'death', ((e.data && (e.data.message || e.data.cause)) || e.type || 'death'));
+          push(e.timestamp, 'death', ((e.data && (e.data.message || e.data.cause)) || e.type || 'death'), e.type);
         }
       }
     }
@@ -268,6 +334,17 @@ function buildTimeline(runDir) {
   evs.sort((a, b) => a.s - b.s);
   const watch = env.watch || {};
   const winEnd = rel(T.gameExited || T.watchEnd), winStart = rel(T.launchStart);
+  // ★ 链状态：取最后一帧 taskchain_snapshot（帧本身默认折叠，--tag chain 看全帧）
+  let lastChain = null, chainFrames = 0;
+  for (const e of rddEvents) {
+    if (e.type !== 'taskchain_snapshot') continue;
+    chainFrames++;
+    let c = (e.data || {}).taskChain;
+    if (typeof c === 'string') { try { c = JSON.parse(c); } catch { c = null; } }
+    if (c) lastChain = c;
+  }
+  const tagCount = {};
+  for (const e of evs) tagCount[e.tag] = (tagCount[e.tag] || 0) + 1;
   const summary = {
     run: env.runId || path.basename(runDir), label: env.label || '',
     master: ((env.master || {}).manifest || {}).sha256 ? String(env.master.manifest.sha256).slice(0, 8) : null,
@@ -277,21 +354,53 @@ function buildTimeline(runDir) {
     evidence_calls: calls, evidence_ok: oks, evidence_fail: fails,
     deaths, deathsScanned, drift: env.world ? env.world.drift : null,
     goal: (ctx && ctx.data && ctx.data.text) || watch.description || null,
+    chain: lastChain ? {
+      goalId: lastChain.goalId || null,
+      status: lastChain.primaryStatus || null,
+      version: lastChain.stateVersion == null ? null : lastChain.stateVersion,
+      stage: lastChain.currentSubtaskId || null,
+      description: lastChain.description || null,
+      primaryIndex: lastChain.primaryIndex == null ? null : lastChain.primaryIndex + 1,
+      primaryTotal: Array.isArray(lastChain.primaries) ? lastChain.primaries.length : null,
+    } : null,
+    chainFrames, tagCount,
   };
   return { env, summary, evs, fmt };
 }
+
 function timeline(argv) {
-  const rd = argv.filter(a => !a.startsWith('--'))[1];
-  if (!rd) die(2, 'usage: bench.js timeline <runDir> [--limit N]');
+  const pos = argv.filter(a => !a.startsWith('--'));
+  const rd = pos[1];
+  if (!rd) die(2, 'usage: bench.js timeline <runDir> [--limit N] [--tag chain,ctx,chat,llm,snap,all]');
   const limit = parseInt(arg(argv, '--limit') || '400', 10);
+  const tagArg = arg(argv, '--tag');
+  const tags = tagArg ? tagArg.split(',').map(s => s.trim()).filter(Boolean) : null;
+  if (tags && !tags.length) die(2, 'bad --tag');
   const { summary, evs, fmt } = buildTimeline(path.resolve(rd));
+  const all = !!tags && tags.includes('all');
+  const want = tags ? new Set(tags) : null;
+  const shownEvs = evs.filter((e) => {
+    if (all) return true;
+    if (want) return want.has(e.tag);
+    return !NOISY_TYPES.has(e.type);   // 默认折叠周期快照，屏幕留给可读事件
+  });
   console.log('# 时序 · ' + summary.run + (summary.label ? ' (' + summary.label + ')' : ''));
   console.log('母版=' + (summary.master || '?') + '  窗口=' + (summary.window_s != null ? summary.window_s + 's' : '?') + '  停因=' + summary.stopReason + '  调用=' + summary.evidence_calls + '（OK ' + summary.evidence_ok + ' / FAIL ' + summary.evidence_fail + '）  回合=' + summary.llmRequests + '  死亡=' + summary.deaths + (summary.deathsScanned ? '' : '（未扫描：设 RDD_NUMEN_DIR=<numen 配置目录> 可并入死亡时点）') + '  drift=' + summary.drift);
   if (summary.goal) console.log('目标: ' + summary.goal);
-  const shown = evs.slice(0, Math.max(0, limit));
+  if (summary.chain) {
+    const c = summary.chain;
+    console.log('任务链: goal=' + c.goalId + '  status=' + c.status + '  v=' + c.version + '  stage=' + c.stage +
+      '  主目标 ' + (c.primaryIndex == null ? '?' : c.primaryIndex) + '/' + (c.primaryTotal == null ? '?' : c.primaryTotal) +
+      '（' + summary.chainFrames + ' 帧快照，最后 1 帧）');
+  } else {
+    console.log('任务链: 本轮没有 taskchain_snapshot（未观测到，不是「没任务」）');
+  }
+  const folded = Object.entries(summary.tagCount).filter(([t]) => ['chain', 'ctx', 'llm', 'snap'].includes(t));
+  if (!tags && folded.length) console.log('已折叠: ' + folded.map(([t, n]) => t + ' ' + n).join(' / ') + '  —— 用 --tag chain,ctx,llm,snap 打开');
+  const shown = shownEvs.slice(0, Math.max(0, limit));
   for (const e of shown) console.log(fmt(e.s).padStart(12) + '  [' + e.tag + '] ' + e.text);
-  if (evs.length > shown.length) console.log('…（共 ' + evs.length + ' 条，已显示 ' + shown.length + '；--limit 调整）');
-  console.log('共 ' + evs.length + ' 条事件');
+  if (shownEvs.length > shown.length) console.log('…（共 ' + shownEvs.length + ' 条，已显示 ' + shown.length + '；--limit 调整）');
+  console.log('共 ' + shownEvs.length + ' 条事件' + (tags ? '（--tag ' + tags.join(',') + '）' : '（默认视图）'));
 }
 
 /** 开工包：下一个 AI 一条命令拿到「要注意什么 + 前面结论 + 排队 + 母版 + 探针 +（可选）本轮 health 与时序摘要」（v0.1）。 */
@@ -388,6 +497,130 @@ function health(runDir) {
   process.exit(out.problems.length ? 1 : 0);
 }
 
+// ── 常驻视图（bench live） ────────────────────────────────────────────────
+/**
+ * ★ 2026-10-28 用户下单：「常驻在那里实时拿快照，方便 AI 直接读，并且可以自己开关」。
+ * 引擎是 bin/bench-watch.js（独立进程，只读 monitor、只写 experiments/live/）；
+ * 这里只做开关与查看，不自己跑循环 —— 开关写进 live/watch.json，引擎每拍重读。
+ */
+const LIVE_DIR = path.join(HARNESS, 'experiments', 'live');
+function liveStatusOf() {
+  try { return JSON.parse(fs.readFileSync(path.join(LIVE_DIR, 'status.json'), 'utf8')); } catch { return null; }
+}
+function pidAlive(pid) {
+  if (!pid) return false;
+  try { process.kill(pid, 0); return true; } catch (e) { return !!(e && e.code === 'EPERM'); }
+}
+function liveMain(argv) {
+  const sub = argv[1] || 'status';
+  const LB = require(path.join(__dirname, 'lib', 'bench-live.js'));
+  const { spawn, spawnSync } = require('child_process');
+  const engine = path.join(__dirname, 'bench-watch.js');
+  const ctl = LB.loadControl(LIVE_DIR);
+  const block = (ms) => spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},' + ms + ')'], { stdio: 'ignore' });
+
+  if (sub === 'status') {
+    const st = liveStatusOf();
+    const alive = !!(st && pidAlive(st.pid));
+    console.log('# 实验台常驻视图 · status');
+    console.log('开关文件: ' + path.join(LIVE_DIR, 'watch.json'));
+    console.log('enabled=' + ctl.enabled + '  views=' + ctl.views.join(',') + '  interval=' + ctl.interval_s + 's  by=' + ctl.by + (ctl.updated_at ? ' @ ' + ctl.updated_at : ''));
+    if (!st) console.log('进程: 没跑过 —— node bin/bench.js live start');
+    else {
+      console.log('进程: pid=' + st.pid + ' ' + (alive ? '运行中' : '已退出') + '  started=' + st.started_at + '  last_tick=' + st.last_tick_at + '  ticks=' + st.ticks + (st.paused ? '  (paused)' : ''));
+      if (st.counters) {
+        const pick = ['taskchain_snapshot', 'numen_context', 'supervisor_output', 'llm_request', 'tool_call', 'tool_result', 'assistant', 'death'];
+        console.log('计数: ' + (pick.map((k) => k + '=' + (st.counters[k] || 0)).join(' ')));
+      }
+    }
+    for (const v of LB.VIEWS) {
+      const p = path.join(LIVE_DIR, v + '.md');
+      if (!fs.existsSync(p)) { console.log('  ' + v + '.md  —— 还没有'); continue; }
+      const s = fs.statSync(p);
+      console.log('  ' + v + '.md  ' + (s.size / 1024).toFixed(1) + ' KB  ' + new Date(s.mtimeMs).toISOString().slice(0, 19) + '  → ' + p);
+    }
+    console.log('读法: node bin/bench.js live show chain');
+    return 0;
+  }
+
+  if (sub === 'start') {
+    const st = liveStatusOf();
+    if (st && pidAlive(st.pid)) { console.log('已在跑 pid=' + st.pid + '（要换参数先 live stop）'); return 0; }
+    if (!fs.existsSync(path.join(LIVE_DIR, 'watch.json'))) LB.saveControl(LIVE_DIR, {}, 'bench live start');
+    const iv = parseInt(arg(argv, '--interval') || '0', 10);
+    if (iv >= 5) LB.saveControl(LIVE_DIR, { interval_s: iv }, 'bench');
+    const args = [engine, '--out', LIVE_DIR];
+    if (arg(argv, '--monitor')) args.push('--monitor', arg(argv, '--monitor'));
+    const child = spawn(process.execPath, args, { detached: true, stdio: 'ignore', windowsHide: true, cwd: HARNESS });
+    child.unref();
+    let s2 = null;
+    for (let i = 0; i < 40; i++) { block(200); s2 = liveStatusOf(); if (s2 && s2.pid) break; }
+    if (!s2 || !pidAlive(s2.pid)) die(1, '启动后 8s 内没写出 status.json —— 手动跑一遍看报错：node ' + engine + ' --once');
+    if (!s2.last_tick_at || s2.starting) block(2500);
+    const s3 = liveStatusOf() || s2;
+    console.log('已启动 pid=' + s3.pid + '  interval=' + LB.loadControl(LIVE_DIR).interval_s + 's  首拍=' + (s3.ticks || 0) + '  视图在 ' + LIVE_DIR);
+    return 0;
+  }
+
+  if (sub === 'stop') {
+    const st = liveStatusOf();
+    if (!st || !pidAlive(st.pid)) { console.log('没在跑'); return 0; }
+    try { process.kill(st.pid, 'SIGTERM'); } catch { /* ignore */ }
+    block(700);
+    if (pidAlive(st.pid)) { try { process.kill(st.pid, 'SIGKILL'); } catch { /* ignore */ } block(300); }
+    // Windows 下 SIGTERM 可能不走 handler：把状态显式标成已停，避免下次 status 说谎
+    try {
+      const cur = JSON.parse(fs.readFileSync(path.join(LIVE_DIR, 'status.json'), 'utf8'));
+      cur.running = false; cur.stopped_at = new Date().toISOString(); cur.stopped_reason = 'bench live stop';
+      fs.writeFileSync(path.join(LIVE_DIR, 'status.json'), JSON.stringify(cur, null, 2) + '\n');
+    } catch { /* ignore */ }
+    console.log('已停 pid=' + st.pid);
+    return 0;
+  }
+
+  if (sub === 'on' || sub === 'off') {
+    LB.saveControl(LIVE_DIR, { enabled: sub === 'on' }, 'bench live ' + sub);
+    const st = liveStatusOf();
+    const alive = !!(st && pidAlive(st.pid));
+    console.log('enabled=' + (sub === 'on') + (alive ? '（下一拍生效，不用重启）' : '（进程没跑，start 后生效）'));
+    return 0;
+  }
+
+  if (sub === 'only') {
+    const list = String(argv[2] || '').split(',').map((s) => s.trim()).filter(Boolean);
+    if (!list.length) die(2, 'usage: bench live only snapshot,chain,chat,context');
+    const bad = list.filter((v) => !LB.VIEWS.includes(v));
+    if (bad.length) die(2, '未知视图：' + bad.join(',') + '（只认 ' + LB.VIEWS.join('|') + '）');
+    LB.saveControl(LIVE_DIR, { views: list }, 'bench live only');
+    console.log('views=' + list.join(',') + '（下一拍生效）');
+    return 0;
+  }
+
+  if (sub === 'interval') {
+    const n = parseInt(argv[2], 10);
+    if (!(n >= 5)) die(2, 'usage: bench live interval <秒>（最小 5）');
+    LB.saveControl(LIVE_DIR, { interval_s: n }, 'bench live interval');
+    console.log('interval=' + n + 's（下一拍生效）');
+    return 0;
+  }
+
+  if (sub === 'show') {
+    const v = argv[2] || 'snapshot';
+    if (!LB.VIEWS.includes(v)) die(2, '未知视图：' + v + '（只认 ' + LB.VIEWS.join('|') + '）');
+    const p = path.join(LIVE_DIR, v + '.md');
+    if (!fs.existsSync(p)) die(1, '还没有 ' + p + '（bench live status 看哪份在；或 live start）');
+    console.log(fs.readFileSync(p, 'utf8'));
+    return 0;
+  }
+
+  if (sub === 'selftest') {
+    const r = spawnSync(process.execPath, [engine, '--self-test'], { stdio: 'inherit' });
+    return r.status == null ? 1 : r.status;
+  }
+
+  die(2, 'usage: bench live [status|start|stop|on|off|only <views>|interval <s>|show [view]|selftest]');
+}
+
 function selfTest() {
   const os = require('os');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-'));
@@ -431,6 +664,23 @@ function selfTest() {
   cases.push(['brief with run dir', c12.code === 0 && c12.out.includes('开工包'), c12.out.trim().slice(0, 80)]);
   const c13 = run(['brief']);
   cases.push(['brief ledger only', c13.code === 0 && c13.out.includes('实验台 brief'), c13.out.trim().slice(0, 60)]);
+  // v0.2（2026-10-28）：折叠的链/上下文能 --tag 打开；对话进时序；live 开关可查
+  fs.writeFileSync(path.join(rd, 'evidence', 'rdd.jsonl'),
+    JSON.stringify({ timestamp: '2026-10-26T14:02:50.000Z', type: 'taskchain_snapshot', data: { reason: 'periodic_observation', taskChain: { goalId: 'goal-x', primaryStatus: 'STALLED', stateVersion: 9, currentSubtaskId: 'p1-r2', description: '测试链', primaries: [{ id: 'p0' }, { id: 'p1' }] } } }) + '\n' +
+    JSON.stringify({ timestamp: '2026-10-26T14:02:51.000Z', type: 'numen_context', data: { context: '<rdd><current_task>挖黑曜石</current_task></rdd>' } }) + '\n');
+  fs.writeFileSync(path.join(rd, 'evidence', 'ai.jsonl'),
+    JSON.stringify({ timestamp: '2026-10-26T14:02:52.000Z', type: 'assistant', data: { text: '我去砍树' } }) + '\n');
+  const c14 = run(['timeline', rd]);
+  cases.push(['timeline 默认折叠链帧但给出链摘要',
+    c14.code === 0 && c14.out.includes('任务链: goal=goal-x') && !c14.out.includes('[chain] taskchain_snapshot v=9'), c14.out.trim().slice(0, 160)]);
+  const c15 = run(['timeline', rd, '--tag', 'chain']);
+  cases.push(['timeline --tag chain 打开链帧',
+    c15.code === 0 && c15.out.includes('[chain] taskchain_snapshot v=9 status=STALLED'), c15.out.trim().slice(0, 160)]);
+  const c16 = run(['timeline', rd, '--tag', 'chat,ctx']);
+  cases.push(['timeline --tag chat,ctx 打开对话与上下文',
+    c16.code === 0 && c16.out.includes('我去砍树') && c16.out.includes('挖黑曜石'), c16.out.trim().slice(0, 160)]);
+  const c17 = run(['live', 'status']);
+  cases.push(['live status 可跑（没进程也不崩）', c17.code === 0 && c17.out.includes('watch.json'), c17.out.trim().slice(0, 160)]);
   let ok = true;
   for (const [name, pass, msg] of cases) { console.log((pass ? 'PASS' : 'FAIL') + '  ' + name + (pass ? '' : '  -> ' + msg)); if (!pass) ok = false; }
   console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: cases.length }));
@@ -450,7 +700,8 @@ function main() {
   if (cmd === 'probe') return argv[1] === 'add' ? probeAdd(argv) : probeList(argv);
   if (cmd === 'brief') return brief(argv);
   if (cmd === 'timeline') return timeline(argv);
+  if (cmd === 'live' || cmd === 'watch') process.exit(liveMain(argv));
   if (cmd === 'health') { const rd = argv[1]; if (!rd) die(2, 'usage: bench.js health <runDir>'); return health(path.resolve(rd)); }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|timeline|health|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|timeline|health|live|selftest');
 }
 main();

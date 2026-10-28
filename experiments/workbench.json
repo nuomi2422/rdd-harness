@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-27T05:24:20.517Z",
+  "updated_at": "2026-10-28T15:15:55.738Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -147,6 +147,26 @@
       "status": "requested",
       "added_by": "dsh-bench-v01",
       "added_at": "2026-10-27T05:24:20.515Z"
+    },
+    {
+      "id": "live_stream_views",
+      "title": "常驻四视图：任务链 / 对话 / numen+supervisor 上下文 / 一屏快照",
+      "kind": "custom",
+      "source": "monitor/rdd.jsonl,ai.jsonl,context.jsonl,tools.jsonl,instrumentation.jsonl,observer.jsonl",
+      "fields": [
+        "goalId",
+        "primaryStatus",
+        "stateVersion",
+        "currentSubtaskId",
+        "assistant_text",
+        "supervisor_message",
+        "numen_context",
+        "stream_age"
+      ],
+      "note": "bench-watch.js 每 15s 增量尾读并渲染 experiments/live/*.md；开关 live/watch.json 热读。已实现（status=custom），不再是「待实现」",
+      "status": "custom",
+      "added_by": "dsh-20261028-live",
+      "added_at": "2026-10-28T15:15:55.736Z"
     }
   ],
   "tips": [
@@ -269,6 +289,30 @@
       "link": "86 号 §7",
       "added_by": "dsh-session",
       "added_at": "2026-10-27T00:30:00+08:00"
+    },
+    {
+      "id": "TIP-20261028-01",
+      "kind": "tool",
+      "symptom": "实验台只有「一次性拉取」：world-view 采一份就结束，没人常驻；监看任务链/对话/上下文只能翻 monitor 或 13MB 的 /api/snapshot",
+      "fake": "以为「实验台已封存 = 已可用」，于是每轮还是手工 grep 日志",
+      "cause": "world-view 是实验前后的对照快照（evidence），不是滚动视图；monitor 六条流各自为政，没有统一出口",
+      "guard": "node bin/bench.js live start → experiments/live/{snapshot,chain,chat,context}.md，15s 一拍、热开关；要读就 Read 这四份，别再 parse 原始 jsonl",
+      "status": "open",
+      "link": "87 §3.5",
+      "added_by": "dsh-20261028-live",
+      "added_at": "2026-10-28T15:15:55.403Z"
+    },
+    {
+      "id": "TIP-20261028-02",
+      "kind": "pitfall",
+      "symptom": "Q18 在 10-28 全天报 pass：反思 1 篇（实际是 87 号架构文档）、实验台工具 12 个（实际漏掉了本轮新写的 world-view/observer-loop/observer-follow/mf-kit）",
+      "fake": "门禁绿 = 反思写了、账本在用",
+      "cause": "反思只按文件名匹配（含「实验」就算）；工具清单是文件名前缀白名单；账本（workbench.json）根本没进判据",
+      "guard": "check-experiment-reflection.js 已改内容判据（四问≥2 且含证伪/反直觉）+ 账本新鲜度；改口径后同一天立刻从 pass 变 warn",
+      "status": "open",
+      "link": "Q18 / 87 §12",
+      "added_by": "dsh-20261028-live",
+      "added_at": "2026-10-28T15:15:55.553Z"
     }
   ],
   "signals": [

@@ -772,6 +772,30 @@
       "side": "read",
       "needsGame": true,
       "note": "★ 2026-10-28 用户下单：写代码的 AI 直接进 MC 干活（不是驱动 RDD 同伴）。定位=组合层，不重写底层——寻路/挖/战斗/吃饭全用 npm 现成插件。已装（tools/mineflayer）：mineflayer@4.39.0 + pathfinder 2.4.5 + collectblock 1.6.0 + pvp 1.3.2 + auto-eat 5.0.3 + armor-manager 2.0.1 + blockfinder 0.0.7 + tool。导出：setup/state/goto/collect/mine/findBlock/craft/ensureTable/eatIfHungry/attackNearest/drop/digDown/blockIds；全部返回 {ok,reason,...} 不抛裸异常、全部带超时。★ 四个实测坑：① findBlocks({matching}) 只认方块 ID，传名字字符串静默返回空；② collectBlock.collect() 只吃 Block 对象（传 Vec3 报 distanceTo of undefined）；③ collectblock 硬依赖 mineflayer-tool，不 load 会抛 UnresolvedDependency；④ auto-eat 导出 {loader}、armor-manager 直接是函数、其余 {plugin}。实机（worldgen-flat 25565）：setup ok / goto ok / collect(dirt) gained=10 / mine dug=1 / attackNearest 追到僵尸 ok / 失败一律给明确 reason。★ 未验：完整合成链——flat 世界地表无树，木头全在 y≈0 矿井，pathfinder 穿不过实心岩，需 digDown 或换有树的世界 ★ 2026-10-28 补 ensureTable：craft() 只会【找】现成工作台不会【造并放】，所以「木板→工作台→3x3」会假失败；ensureTable 负责 16 格内复用 / 没有就用 4 木板合一个 / 合出来没放就挑「目标格空气+下面实心」的相邻格放上去。★ 第五个坑：mf-kit 住在 harness/bin，依赖在 tools/mineflayer/node_modules —— 裸 require('vec3')/require('minecraft-data') 会 Cannot find module，一律走文件内的 req() 助手。 ★ 另：别自己写逐格 blockAt 全图扫描——mc3 会话实测 16 万次 blockAt 被服务器踢（EXP-R01-C-0001）；kit 内部全走 findBlocks(区块缓存)+有界数量，只在拿到坐标后取一次 Block 对象。"
+    },
+    {
+      "id": "bench",
+      "name": "实验台（共享账本 + 开工包 + 时序直读 + 常驻视图开关）",
+      "path": "harness/bin/bench.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "★ 实验台 CLI（87 号）。子命令：catalog / tip add|list / signal / verdict（必须 --card+--judge）/ queue / master / probe add|list / brief [runDir] / timeline [runDir] / health / live（常驻视图开关）/ selftest 17 例。★ 2026-10-28 v0.2：timeline 不再硬 SKIP 任务链与上下文（还 #381 债②）——默认折叠周期快照但打一行「任务链: goal/status/v/stage」摘要，`--tag chain,ctx,chat,llm,snap,all` 显式打开；ai.jsonl 的 assistant 正文与 supervisor 回应进时序（tag chat）。★ 入口口径：任何 AI 开工先 `bench brief`，跑完 `bench health`，要读时序 `bench timeline <runDir>`。"
+    },
+    {
+      "id": "bench.watch",
+      "name": "实验台常驻视图引擎（monitor 六条流 → experiments/live 四份 md，热开关）",
+      "path": "harness/bin/bench-watch.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "★ 2026-10-28 用户下单：「常驻在那里实时拿快照，方便 AI 直接读，并且可以自己开关」。默认 15s 一拍，按 offset 尾读 monitor/rdd|ai|context|tools|instrumentation|observer.jsonl（不调 /api/snapshot —— 那个一次 13MB），渲染 experiments/live/：snapshot.md（一屏：任务链状态/第二视角身体/各流数据年龄/计数/告警）、chain.md（goal+7 个一级目标+需求清单+缺口+最近链事件，连续同状态快照自动折叠）、chat.md（assistant 自述 + 用户派单 + 规划 AI 回应，回合边界单独计数）、context.md（numen_context 的 <rdd> 块 / supervisor 输入输出 / runtime_state / 检索面）。开关写 live/watch.json（enabled / views / interval_s），引擎每拍重读 ⇒ `bench live on|off|only chat,chain|interval 30` 不用重启。边界：只读、不派工、不改世界；ring 400 条/流；文件轮转自动重灌。自测 15 例（落盘/增量/轮转/开关/status）。实测 2026-10-28 23:08 对活实例一拍吃 12912 事件、四份视图 1.8–10KB。"
+    },
+    {
+      "id": "exp.worldview",
+      "name": "环境工作台（world_probe snapshot → world-view.md/json）",
+      "path": "harness/bin/world-view.js",
+      "side": "read",
+      "needsGame": true,
+      "note": "★ 84 号契约：一次采集一份文件，所有 AI 只读这一份。`--run <id> --phase before|after|death|review --out <dir>` 走 MCP 采；`--render <snapshot.json>` 离线渲染（无游戏可测）；失败写 world-view-<phase>.FAILED.json 不伪造。--self-test 4 例。★ 与 bench.watch 的分工：world-view 是「实验前后的对照快照」（进 envelope/evidence，给 control_key 与 A/B 用）；bench.watch 是「常驻滚动视图」（给人和 AI 现场读）。两者都不拥有世界数据。"
     }
   ],
   "standards": {
@@ -1091,12 +1115,12 @@
         },
         {
           "id": "Q18",
-          "name": "★ 实验台：写新工具 + 写数据反思",
+          "name": "★ 实验台：写新工具 + 写数据反思 + 数据进账本",
           "kind": "human",
           "level": "ask",
-          "rule": "★ 2026-10-27 主人指示（原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，并且写实验台实验数据的反思和提醒」）。两件事必须在退游戏那一刻摆到人眼前：① 这轮实验缺的观测手段 → 补成实验台工具（harness/bin/exp-*、bench、mf-observer），一条命令复现、带 --help 与自测，不靠手工重复；② 这轮实验数据的反思 → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答「看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / 这轮证伪了什么假设」。为什么挂 postflight：实验产物（journal / verdict / learn-summary）都在退游戏时定稿，过夜就只剩数字、只剩「有效/无效」。级别 ask：机器判不了反思写得好不好；但「数据更新了而反思没落」是机检得出的，由 check-experiment-reflection.js 给 severity=warn 并在门禁里显眼提示（不 BLOCK：实验可能还在跑，假红比漏报更糟）。",
-          "why": "2026-10-27 主人观察：实验数据在涨、人话判断没跟上；缺的观测手段每次都靠手工临时拼，下一轮又重来。这两件事都是「退游戏时才想得起来」的那类，必须挂在门禁上而不是靠记性。",
-          "verify": "node workspace\\rdd-selfcompile\\scripts\\verify-tools\\check-experiment-reflection.js --json（severity=pass/warn/skip/unknown；warn 时门禁文案带「本轮产物 N 个 / 反思 0 篇」）",
+          "rule": "★ 2026-10-27 主人指示（原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，并且写实验台实验数据的反思和提醒」）。三件事必须在退游戏那一刻摆到人眼前：① 这轮实验缺的观测手段 → 补成实验台工具（harness/bin/exp-*、bench、bench-watch、world-view、mf-*、observer-*），一条命令复现、带 --help 与自测，不靠手工重复；② 这轮实验数据的反思 → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答「看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / 这轮证伪了什么假设」；③ 数据要进账本（bench tip add / probe add / signal add / verdict add），只写在聊天里等于没写。为什么挂 postflight：实验产物（journal / verdict / learn-summary）都在退游戏时定稿，过夜就只剩数字、只剩「有效/无效」。级别 ask：机器判不了反思写得好不好；但「数据更新了而反思没落」「反思写了而账本没进」都是机检得出的（2026-10-28 收紧：反思按内容四问判、不再按文件名；账本查 workbench.json 新增），由 check-experiment-reflection.js 给 severity=warn 并在门禁里显眼提示（不 BLOCK：实验可能还在跑，假红比漏报更糟）。",
+          "why": "2026-10-27 主人观察：实验数据在涨、人话判断没跟上；缺的观测手段每次都靠手工临时拼，下一轮又重来。这两件事都是「退游戏时才想得起来」的那类，必须挂在门禁上而不是靠记性。2026-10-28 复验发现两个假绿：架构文档被当反思、账本 0 新增也报 pass —— 已改为内容判据 + 账本新鲜度。",
+          "verify": "node workspace\\rdd-selfcompile\\scripts\\verify-tools\\check-experiment-reflection.js --json（severity=pass/warn/skip/unknown；warn 时点名缺的是反思还是账本；reflectionHits 列出命中哪几问）",
           "tool": "gate.experiment"
         }
       ]

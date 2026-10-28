@@ -799,9 +799,10 @@ function postflight(ctx) {
   }
 
   {
-    // ★ Q18（2026-10-27 主人指示）：实验台「写新工具 + 写数据反思」提示。
+    // ★ Q18（2026-10-27 主人指示）：实验台「写新工具 + 写数据反思 + 数据进账本」提示。
     //   主人原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，
     //   并且写实验台实验数据的反思和提醒」。
+    //   2026-10-28 复验补第三件：反思写了但账本 0 新增也算漏（用户问「实验台 AI 到底有没有在用」）。
     //   为什么挂在 postflight：实验产物（journal / verdict / learn-summary）都在退游戏那一刻定稿，
     //   此刻人还记着"这轮哪里反直觉"，过了夜就只剩数字。
     //   级别 ASK：机器判不了反思写得好不好；但**数据更新了而反思没落**这种是机检得出的，
@@ -811,24 +812,31 @@ function postflight(ctx) {
         'check-experiment-reflection.js');
       let r = null;
       if (fs.existsSync(checker)) {
-        const out = require('child_process').spawnSync(process.execPath, [checker, '--json', '--since', ctx.since.toISOString().slice(0, 10)],
+        // ★ 2026-10-28 修时区：ctx.since 是本地零点，直接 toISOString() 会退到前一天（UTC+8），
+        //   于是「本轮」变成跨两天，Q18 的产物/账本条数虚高。按本地日期传。
+        const localDay = ctx.since.getFullYear() + '-' + String(ctx.since.getMonth() + 1).padStart(2, '0') + '-' + String(ctx.since.getDate()).padStart(2, '0');
+        const out = require('child_process').spawnSync(process.execPath, [checker, '--json', '--since', localDay],
           { encoding: 'utf8', timeout: 60000 });
         try { r = JSON.parse(out.stdout || '{}'); } catch { r = null; }
       }
-      const head = `★ 实验台两件事（退游戏时最容易漏）：\n` +
-        `       ① **这轮缺的观测手段 → 写成实验台工具**（harness/bin/exp-*、bench、mf-observer），\n` +
-        `          不要靠手工重复：新工具要能一条命令复现、带 --help 与自测；\n` +
+      const head = `★ 实验台三件事（退游戏时最容易漏）：\n` +
+        `       ① **这轮缺的观测手段 → 写成实验台工具**（harness/bin/exp-*、bench、bench-watch、world-view、\n` +
+        `          mf-*、observer-*），不要靠手工重复：新工具要能一条命令复现、带 --help 与自测；\n` +
         `       ② **这轮实验数据的反思** → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答：\n` +
-        `          看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / **这轮证伪了什么假设**。`;
+        `          看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / **这轮证伪了什么假设**。\n` +
+        `       ③ **数据要进账本** → node bin\\bench.js tip add / probe add / signal add / verdict add；\n` +
+        `          只写在聊天里等于没写（下一轮的人还得考古）。\n` +
+        `       ★ 现场看结果别翻 13MB 的 /api/snapshot：experiments\\live\\{snapshot,chain,chat,context}.md\n` +
+        `         是常驻视图（node bin\\bench.js live status / show chain）。`;
       if (!r) {
-        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
+        record('Q18', '实验台：新工具 + 数据反思 + 账本', 'ask', 'human', ASK,
           head + `\n       （检查器缺失或输出不可解析：${path.basename(checker)}）`);
       } else if (r.severity === 'warn') {
-        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
-          `⚠ ${r.why}（产物 ${r.freshArtifactCount} 个 / 反思 ${r.reflectionCount} 篇）\n` + head +
+        record('Q18', '实验台：新工具 + 数据反思 + 账本', 'ask', 'human', ASK,
+          `⚠ ${r.why}（产物 ${r.dataArtifactCount == null ? r.freshArtifactCount : r.dataArtifactCount} 个 / 账本新增 ${r.ledgerFresh == null ? '?' : r.ledgerFresh} 条 / 反思 ${r.reflectionCount} 篇）\n` + head +
           `\n       本轮产物：${(r.freshArtifacts || []).slice(0, 4).join('、')}`);
       } else {
-        record('Q18', '实验台：新工具 + 数据反思', 'ask', 'human', ASK,
+        record('Q18', '实验台：新工具 + 数据反思 + 账本', 'ask', 'human', ASK,
           `${r.why}（实验台工具 ${r.benchTools} 个）\n` + head);
       }
     }
