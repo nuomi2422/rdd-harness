@@ -207,7 +207,7 @@ function findBlock(bot, blockName, maxDistance = 32) {
 
 /** 合成一个物品（自动处理工作台）。 */
 async function craft(bot, itemName, count = 1, timeoutSec = 90) {
-  const mcData = require(path.join(NM, 'minecraft-data'))(bot.version);
+  const mcData = req('minecraft-data')(bot.version);
   const item = mcData.itemsByName[itemName];
   if (!item) return { ok: false, reason: 'unknown-item', itemName };
   return withTimeout(timeoutSec, async () => {
@@ -237,8 +237,10 @@ async function craft(bot, itemName, count = 1, timeoutSec = 90) {
  * ③ 合出来但没放 → 挑一个「目标格是空气、下面有实心块」的相邻格，放上去。
  */
 async function ensureTable(bot, opts = {}) {
-  const Vec3 = require('vec3');
-  const mcData = require(path.join(NM, 'minecraft-data'))(bot.version);
+  // ★ 必须走 req()：本文件住在 harness/bin，Node 的 require 只按**本文件位置**找
+  //   node_modules；直接 require('vec3') 会 Cannot find module（座位在 tools/mineflayer）。
+  const Vec3 = req('vec3');
+  const mcData = req('minecraft-data')(bot.version);
   const tableId = mcData.blocksByName.crafting_table.id;
 
   const near = bot.findBlock({ matching: tableId, maxDistance: opts.maxDistance ?? 16 });
