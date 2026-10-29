@@ -290,7 +290,7 @@ const TAG_BY_TYPE = {
   taskchain_snapshot: 'chain', requirement_manifest: 'chain', requirement_gaps_changed: 'chain',
   goal_kickoff: 'chain', subtask_stalled: 'chain', subtask_resumed: 'chain', subtask_stall_escalated: 'chain',
   chain_recovering: 'chain', loss_impact_recomputed: 'chain', recovery_named_from_needs: 'chain',
-  manifest_rebuilt_for_recompute: 'chain', carrier_alarm: 'chain', llm_activity_stale: 'chain',
+  manifest_rebuilt_for_recompute: 'chain', carrier_alarm: 'alarm', llm_activity_stale: 'chain',
   side_task_skipped_occurrence: 'chain', side_task_due: 'chain',
   numen_context: 'ctx', supervisor_input: 'ctx', supervisor_context: 'ctx', supervisor_output: 'ctx',
   runtime_state: 'ctx', planning_input_verbatim: 'ctx',
