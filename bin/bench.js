@@ -377,7 +377,18 @@ function buildTimeline(runDir) {
   for (const e of readJsonl(path.join(ev, 'events.jsonl'))) push(e.timestamp, e.type === 'task_finished' ? 'done' : 'event', ((e.data && (e.data.message || e.data.description)) || e.type));
   const rddEvents = readJsonl(path.join(ev, 'rdd.jsonl'));
   for (const e of rddEvents) {
-    push(e.timestamp, TAG_BY_TYPE[e.type] || 'chain', e.type + '  ' + chainText(e.type, e.data), e.type);
+    let tag = TAG_BY_TYPE[e.type] || 'chain';
+    let text = e.type + '  ' + chainText(e.type, e.data);
+    // A3（95 号）：situation_event 按 data.layer 分成 [fact]/[cap]/[prog]/[tool]，
+    // 不把四层混成一个 tag（判据⑦）。
+    if (e.type === 'situation_event' && e.data && e.data.layer) {
+      const l = e.data.layer;
+      tag = l === 'progress' ? 'prog' : (l === 'capability' ? 'cap' : (l === 'tool' ? 'tool' : 'fact'));
+      text = l + ':' + (e.data.kind || '?') + '  subject=' + String(e.data.subject || '?').slice(0, 8)
+        + (e.data.suppressed ? '  suppressed=' + e.data.suppressed : '')
+        + (e.data.pos ? '  pos=' + e.data.pos : '');
+    }
+    push(e.timestamp, tag, text, e.type);
   }
   let deaths = 0, deathsScanned = false;
   // A1（93 号）：run 归档里已有 deaths（PRESENT/NONE，带 seq/kind）时不再扫全局 instrumentation ——
