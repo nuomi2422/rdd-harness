@@ -8,7 +8,7 @@
 
 | 部件 | 作用 | 入口 |
 |---|---|---|
-| `registry.json` | 单一真源：87 工具、35 门禁（preflight 18 / postflight 17）、9 条根路径、时间锁 | `bin/harness-gate.js registry` |
+| `registry.json` | 单一真源：98 工具、40 门禁（preflight 21 / postflight 19）、10 条根路径、17 条时间锁 | `bin/harness-gate.js registry` |
 | 门禁 | 进游戏前 `preflight` / 退游戏后 `postflight`；`selftest` 自检接线 | `bin/harness-gate.js selftest` |
 | 实验卡 | 可证伪主张 + 成功/失败双阈值 + 正负对照 + 冻结 hash + 原始数据复算 | `bin/exp-card.js new/validate/freeze/conclude` |
 | 运行器 | 复制母版世界 → 起停游戏 → 派活 → 观测 → 受控复位 → 归档 | `bin/exp-runner.js run --label x --minutes N` |
@@ -49,7 +49,7 @@ node bin/exp-card.js conclude experiments/cards/exp-demo.json
 
 - 本仓只是「脚手架」：Minecraft 实例、mods、存档、JDK/Gradle/Node、模型 API 都不在仓里，按部署文档自建。
 - `multimodel/` 是多模型适配层（OpenRouter 免费表只含定价信息，无 key）；任何密钥都不入库。
-- 门禁里的路径真源在 `registry.json` 的 `roots`，换机改那 9 条即可。
+- 门禁里的路径真源在 `registry.json` 的 `roots`，换机改那 10 条即可。
 - 实验结论的样本量都很小（pilot），只能看方向；我们不夸大「越玩越聪明」。
 
 ## License

@@ -1,168 +1,116 @@
-> 🌍 **Open-source note**：new visitors start with [OSS-README.md](<OSS-README.md>) — quick start (selftest trio),
-> the frozen-criteria experiment-card workflow, and honest boundaries. License: MIT (see [LICENSE](<LICENSE>)).
-> 本 README 是内部工作台说明（含机器路径与内部文档指针），保留不动。
->
-> ## ⚠️ 半退役已解除（2026-10-25 夜 主人裁定）：本目录恢复为 RDD/MC 工作的默认门禁
->
-> 当前重点 = MC 项目：进/退游戏门禁、实验卡、游戏域脚本都走本目录。
-> Agene 侧只做多项目登记与它自己的 run（`agene-harness.js project show rdd.mc`），不代跑。
-> 下面这段「半退役」横幅保留为历史记录，不再是现行默认。
->
-> （历史，已解除）**当时规定：不再作为新工程的默认门禁、改用 Agene harness**——2026-10-25 夜作废。
->
-> ```powershell
-> node D:\Agene\harness\bin\agene-harness.js doctor      # 先体检
-> node D:\Agene\harness\bin\agene-harness.js --help      # 子命令：begin/preflight/verify/postflight/experiment/record/ruleset
-> ```
->
-> 本目录保留三种用途：
-> 1. **历史参照** —— 查"当年为什么这样设计"（`registry.json` 的 35 条门禁判据、`standards.md` 的 40 条规范）；
-> 2. **游戏域专用脚本** —— `bin\send-mc-command.ps1`、`bin\snapshot-world.js`、`bin\weekly-metrics.js`、`stager*`、`skills\`；
-> 3. **迁移对照** —— 哪些能力还没搬去 Agene，见
->    `D:\rdd\docs\rdd-docs\rdd架构\harness对照-rdd-vs-agene-20261025.md`。
->
-> 迁完之后本目录预期只剩"游戏域 + 历史"。**不要再往这里加新门禁/新台账。**
->
-> **2026-10-25 口径更新**：上面的"半退役"不代表本目录资产被排除。按
-> [多项目 Harness 施工单](<D:/Agene/docs/harness-multi-project-construction-v0.1.md>)：Agene Harness 是多项目底座，
-> 本目录的工具/门禁/技能按 **rdd.mc 项目扩展**接入统一注册与按需展开——真源保留在这里与接入统一底座并不冲突；
-> "不搬进 core"指不硬编码进通用核心，不是"永不接入"。接入完成平价验证前，本目录门禁照常运行。
-
----
 # RDD Harness
 
-> 「模型外面那层脚手架」—— 按 `minecraft-numen\api\docs\README_CN.md:46` 的定义，
-> **Numen 本身**是给 Minecraft 造的那层；这个目录是**给 AI 造的那层**：工具注册表 +
-> 编程规范 + 两段门禁 + 六条时间锁。
+当前阶段：门禁、实验卡、裁判、无人值守轮回四条线已可用，离线自测全绿；实机轮回仍依赖本地 Minecraft 实例。下一阶段是让「经验真的改写了行为」变成可重复的最小实验。更新日期：2026-10-29（Asia/Shanghai）。
 
-📦 **本目录已入 git**（2026-10-04）：独立仓库，远程 `nuomi2422/rdd-harness`（**私有**，与 `rdd-docs` 同 owner），
-分支 `main`，root commit `0876af7`（20 文件 +3764）。改完请 commit —— 这一层原来一次磁盘故障就全没。
+这是给「AI 在 Minecraft 里自主干活」配的一层**工程脚手架**。宿主 AI 会说自己做到了，工具会回 `success: true`，但世界可能什么都没变——这套东西存在的唯一目的，就是让这些说法**没法蒙混过关**。它分三部分：**门禁**（进游戏前 21 项、退游戏后 19 项，查实物与痕迹，不查文档声明）、**实验台**（事前冻结判据的实验卡 + 只读证据的机械裁判 + 无人值守连跑轮回）、**注册表**（98 个工具、10 条根路径、17 条时间锁的单一真源）。近期目标是让每一次「变强了」的结论都能从原始数据复算出来，包括那些**跑输的**。远期愿景是让这套判定方式脱离 Minecraft，本阶段不展开。
 
-⚠️ **消歧**（先读完再动手）：本工作区里 `harness` 有 4 个互不相干的含义。
-本目录**只**指第 1 个，其余三个是噪音：
-1. ✅ **`D:\rdd\harness\rdd-harness\`** = 本目录（AI 工程脚手架 + 用户面启动台）
-2. ❌ `rdd-selfcompile\scripts\opencode-harness.ps1` = headless opencode CLI 跑批器，**无人调用**
-3. ❌ `minecraft-numen\...\core\pathing\execute\ExecHarness.java` = 移动执行层
-4. ❌ `plugins\selfcompile\...\HarnessWriteLocks.java` = 写锁，**0 处引用、从未接线**
+**日常使用：`harness-gate.js` 两段门禁卡住进/退游戏；能力扩展：实验卡冻结判据 → 连跑轮回 → 机械裁判出裁决。** 门禁拥有放行权（退出码 0/1/3），实验卡拥有判据所有权（冻结后改卡即拒绝出结论），裁判拥有裁决权（只读证据，不认口头结论）——三者互不越界。
 
-## 目录里有什么
+## 从这里读
 
-| 路径 | 是什么 | 性质 |
+- **[三分钟自证](#快速开始三分钟自证)** —— 先跑三条离线自测，证明「裁判不撒谎」，再谈跑实验。不碰游戏、不需要任何 API key。
+- **[实验台怎么保证不说谎](#实验台怎么保证不说谎)** —— 这套东西的核心。想看设计态度，直接跳这节。
+- **[真实实验长什么样](#真实实验长什么样)** —— 我们跑过的四组学习轮回，**包括那组四轮全无进步的**。
+- **[诚实的边界](#诚实的边界)** —— 我们不主张什么。比上面那节更重要。
+- **[部署到新机器](#部署到新机器)** —— 618 行实测迁移记录，约 40 条坑的症状→根因→修法。
+- **[内部工作台说明](README-内部工作台.md)** —— 目录逐项说明、路由铁律、路径约定、门禁逐项判据。
+
+## 独立建设边界
+
+> 「**先证明裁判不撒谎，再谈跑实验。**」（本项目的第一条铁律）
+
+- 本仓**只是脚手架**。Minecraft 实例、mods、存档、JDK/Gradle/Node、模型 API 都不在仓里，按部署文档自建。
+- **任何密钥都不入库。** `multimodel/` 只含 OpenRouter 免费模型的定价信息，不含 key。
+- 本仓**不追求跑出漂亮数字**。判据先冻结、数据赢——这两条是唯一不可让步的部分。
+- **不主张「越玩越聪明」。** 现有实验是小样本 pilot，只能看方向。
+- 三态纪律：✅ 已完成（有证据）／ 🟡 已写码未实测 ／ ⬜ 计划中。**编译成功 ≠ 已完成。**
+
+## 文档状态
+
+| 类别 | 状态 | 说明 |
 |---|---|---|
-| **`registry.json`** | ★ **唯一真源**：相对 RDD 根的 10 条根路径 + 4 条路由铁律 + 72 个工具 + 12/11 项门禁 + **10 条时间锁** + 编号台账 + **10 条 bug** | 机器可读，门禁全读它 |
-| **`bin\lib\registry.js`** | ★ **唯一路径解析层**：把 registry 的相对路径解析成绝对路径（`RDD_ROOT` 环境变量可整体搬家） | 只读，别绕过它自己拼路径 |
-| **`multimodel\`** | **多模型协同 + 实机验证闭环（按需索引，默认不读）** —— M1 离线骨架：测试卡/证据/裁决/路由/预算/RunStore | 只在无人值守或要做实机取证时打开；`multimodel\README.md` |
-| **`standards.md`** | ★ **编程规范唯一真源**：8 域 40 条，每条带稳定 id（`S-BUILD-03` 这种） | 人读 + 机器读（有 id 才能进门禁） |
-| **`bin\harness-gate.js`** | 门禁执行器，`preflight` / `postflight` / `registry` / `selftest` | 只读，唯一入口 |
-| **`bin\send-mc-command.ps1`** | 把斜杠指令送进游戏聊天框 | 唯一可行路径 |
-| **`skills\numen-cam\SKILL.md`** | /cam 用法 | 指针 |
-| **`工具总索引-20261003\`** | 全工具实测记录（811 行） | 只读档案 |
-| `*.bat` + `stage.md` | 用户面启动台（`build-harness-folder.js` 的复制品） | 原件在 `stager\` / `rdd-selfcompile\` |
+| 门禁（preflight 21 / postflight 19） | 已实现 | `selftest` 全绿；退出码 0 全过 / 1 有 BLOCK / 3 环境错 |
+| 实验卡（冻结判据 / 正负对照） | 已实现 | 离线自测 12/12：判据矛盾、无种子、缺理由、样本不足、改卡、claim 矛盾均必拒 |
+| 机械裁判 | 已实现 | 离线自测 5/5，拒三种假绿（加载错 / 缺裁剪 / 只回成功无产物） |
+| 无人值守轮回 | 已实现 | 连跑 N 轮，轮末简报带进下一轮，机械判定 improved |
+| 观测器 | 已实现 | 标准开源 mineflayer@4.39.0，无 fork |
+| 实机轮回 | 依赖本地环境 | 需要 Minecraft 实例；本仓不含实例与 mods |
 
-## ★ 4 条路由铁律（`registry.json` → `routing`）
+---
 
-1. **总结 / 复盘 / 经验文档一律写 `docs`（`D:\rdd\docs\rdd-docs\rdd架构\`），
-   绝不写进 harness 目录。** harness 只放：工具注册表 / 门禁 / 规则 / skill。
-2. 改码只走 `scripts\run-mutation.ps1`（唯一通道）。
-3. 起游戏只走 `scripts\mc-start.js gpt <分钟>`。
-4. 规范条目**必须带 id**——没 id 就没法进门禁，也就等于没有。
+## 这是什么
 
-## ★ 路径约定（2026-10-19 起：全部相对化）
+| 部件 | 作用 | 入口 |
+|---|---|---|
+| `registry.json` | 单一真源：98 工具、40 门禁（preflight 21 / postflight 19）、10 条根路径、17 条时间锁 | `bin/harness-gate.js registry` |
+| 门禁 | 进游戏前 `preflight` / 退游戏后 `postflight`；`selftest` 自检接线 | `bin/harness-gate.js selftest` |
+| 实验卡 | 可证伪主张 + 成功/失败双阈值 + 正负对照 + 冻结 hash + 原始数据复算 | `bin/exp-card.js new/validate/freeze/conclude` |
+| 运行器 | 复制母版世界 → 起停游戏 → 派活 → 观测 → 受控复位 → 归档 | `bin/exp-runner.js run --label x --minutes N` |
+| 裁判 | 只读证据出裁决，不认口头结论（离线自测 5/5 拒三种假绿） | `bin/exp-judge.js <runDir>` |
+| 轮回 | 连跑 N 轮、轮末简报带进下一轮、机械判定 improved | `bin/exp-cycle.js run --prefix learn --rounds 4` |
+| 观测器 | 标准开源 mineflayer@4.39.0（无 fork）；`eval <file.js>` 让 AI 用代码玩游戏 | `bin/mf-observer.js smoke/eval` |
 
-**注册表里所有路径都相对「RDD 根」，RDD 根相对 `registry.json` 自己**（`paths.rootAnchor` 默认 `../..`）：
-
-```text
-<RDD 根>/                      ← registry.json 的上一级目录的上一级
-  harness/rdd-harness/        ← 本目录（roots.harness = "harness/rdd-harness"）
-  workspace/  docs/  mc/      ← 其余 roots 同理
-```
-
-- 换机器 / 换目录 / 拷一份临时副本：只改 `paths.rootAnchor`，或设环境变量 `RDD_ROOT`。
-- 解析**只有一处**：`bin/lib/registry.js`。门禁、面板、脚本都走它；绝对路径仍兼容但 `selftest` 会报 FAIL。
-- `.bat` / `.ps1` 入口用 `%~dp0..\..`（或 `$PSScriptRoot\..\..\..`）自己算根，不再写死 `D:\rdd`。
-- `selftest` 的「registry roots 已相对化」是这条约定唯一的机器判据（时间锁 `TL-2026-10-19-01`）。
-
-## 两段门禁
+## 快速开始（三分钟自证）
 
 ```powershell
-# ① 进游戏之前：查工程纪律 / 补测试 / 补规范
-node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" preflight --since 2026-10-04 --keyword camera --head a91f2710
-
-# ② 出游戏之后：查标记 / 文档 / 总结 / 记忆图谱 / 产物 / 时间锁 / 编号 / 游戏是否关
-node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" postflight --since 2026-10-04 --keyword camera --head a91f2710
-
-# 只看注册表 / 自检执行器自身
-node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" registry
-node "D:\rdd\harness\rdd-harness\bin\harness-gate.js" selftest
+node bin/harness-gate.js selftest   # 门禁接线全 ✔（FAIL=0）
+node bin/exp-card.js selftest       # 12/12（判据矛盾/无种子/缺理由/样本不足/改卡/claim 矛盾 必拒）
+node bin/exp-judge.js --selftest    # 5/5（加载错/缺裁剪/只回成功无产物 必拒）
 ```
 
-退出码：`0` 全过 ／ `1` 有 BLOCK ／ `3` 环境错（不是债）。
+这三条不碰游戏、不需要任何 API key——先证明「裁判不撒谎」，再谈跑实验。
 
-**三类检查项**（`kind`）：
-- `artifact` **查实物** —— 文件在不在、jar 里有没有、sha 对不对。AI 编不出来。
-- `trace` **查痕迹** —— 本轮产出（mtime + 内容签名，防「只改 mtime 骗过」）。
-- `human` **人工** —— AI 自己判不了，标出来让人做。
+## 实验台怎么保证不说谎
 
-### preflight 12 项（进游戏前）
+一套实验要过四道关，任何一道过不去，结论就不成立：
 
-P1 编译通道合规 ／ **P2 jar 不落后于源码** ／ P3 jar 内容自检（ZipFile 列 entries +
-mods.toml + mixins.json）／ P4 无重复 mixin 注入 ／ P5 本轮有按模块 commit ／
-**P6 测试 0 失败**（扫 `TEST-*.xml` 累加 failures+errors）／ **P7 规范索引已补** ／
-P8 不回退清单对照过 ／ P9 时间锁未到期 ／ P10 系列文档编号 ／ P11 规则没打架 ／
-P12 改接口先查消费者（人工）
+1. **判据先冻结**。开跑之前把「什么算成功、什么算失败」写死，连同 git commit 一起冻成一个 hash。跑完再改判据 → 直接拒绝出结论。
+2. **成功与失败双阈值**。不能只写「≥N 就成功」，必须同时写「≤M 就失败」。中间地带判 INCONCLUSIVE，**不制造显著性**。
+3. **正负对照**。正向对照证明实验能跑出成功（不是环境坏了），负向对照证明裁判能判失败（不是永远给绿灯）。两个都要有。
+4. **只从原始数据复算**。裁判读证据文件，不读总结、不读聊天记录。样本不足、字段缺失 → INCONCLUSIVE。
 
-### postflight 11 项（出游戏后）
+还有一条：**冻结之后改卡，拒绝出结论**。口头 claim 与数据矛盾时，**数据赢**。
 
-Q1 有标记（`.stager/active.json`）／ Q2 evidence 已落 ／ Q3 总结已写 ／
-**Q4 总结写到了正确位置**（harness 里新建的总结类 md → BLOCK）／ Q5 记忆图谱已灌 ／
-Q6 三个机器门结果被记录 ／ **Q7 产物真的落地**（录音录像要验 `ffmpeg.log` 的 `frame=`
-等于 PNG 张数，**回执 success ≠ 东西存在**）／ **Q8 时间锁已更新**（没有新锁也没写
-「无新的智能性错误」→ BLOCK）／ Q9 编号登记三处 ／ Q10 游戏已关 ／ Q11 提交精确没卷别人（人工）
+## 真实实验长什么样
 
-## ★ 时间锁（`registry.json` → `timeLocks`）
+我们跑了四组无人值守学习轮回，每组 3–4 轮，每轮约 900–2033 秒，记录六项指标：最远阶段、阶段耗时、死亡、卡点、墙钟、经验变化。
 
-**「有些时候文档会有智慧性」= 智能性错误**：一个错的东西在某次运行里恰好对了，
-于是没人发现，然后规则慢慢烂掉，半年后集体崩。
+「变强了没有」只看**最远阶段 + 同阶段耗时**，不看聊天措辞。
 
-**policy（写在 registry 里）：**
-1. 每个智能性错误必须留一条**带 `guard` 的锁**。没有 guard 的锁等于没有锁，只是抱怨。
-2. `reviewBy` 到期必须复核，状态从 `open` 走成 `verified` 或 `refuted`。
-3. guard 必须是**可执行的检查**，不是一句提醒。
-
-| 锁 | 类型 | guard | reviewBy |
+| 组 | 轮数 | 结果 | 机械判定 |
 |---|---|---|---|
-| TL-2026-10-03-01 `cam.json target:"RDD"` 静默失效 | 静默失效 | 相机 status 打印 `（渲染范围内）`／不在就明确说匹配不到 | 2026-11-03 |
-| TL-2026-10-03-02 `watch-ai.js --from-rdd` 假成功 | 假成功 | 跑一次不带 `--from-rdd`，exit≠0 就报警 | 2026-11-03 |
-| TL-2026-10-03-03 openclaw `keyDown` 只认 7 键 | 静默失效 | 发一个 `escape`/`t`，看收据里有没有真发生 | 2026-11-03 |
-| TL-2026-10-04-01 ffmpeg `%05d` 遇缺口就停 | 隐蔽 | 验录像看 `ffmpeg.log` 的 `frame=` == PNG 张数 | 2026-11-04 |
-| TL-2026-10-04-02 `Map.of` 键序随机化 | 隐蔽 | 任何解析上游 JSON 的脚本都要按 key 取，不按位置 | 2026-11-04 |
-| TL-2026-10-04-03 两份 AGENTS.md 漂移丢 182 行 | 规则丢失 | `check-global.js` 必须 exit 0 | 2026-11-04 |
+| **learn** | 4 | 第 2 轮冲到钻石套，第 4 轮冲到铁器，其余两轮石器 | 有 2 轮更强 |
+| **clean2** | 4 | **四轮全停在石器**，无死亡 | **没有轮次强于第 1 轮 → REFUTES** |
+| **auto** | 3 | 第 1 轮木器（死 1 次），第 2/3 轮石器 | 有 2 轮更强 |
 
-## 编号统一
+**clean2 那组是关键。** 四轮跑完什么都没长进，机器判了 REFUTES，这条负面结论原样留在仓库里。如果删掉它，我们就变成在自证；留着，才叫实验。
 
-- 真源目录 `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\`
-- 现状：**最大号 69 → 下一个 70**。缺号 29/49（不必补）。
-- **新文档接最大号往后排，并同时登记 3 处**：① `README.md` §二目录表
-  ② `09-更新日志.md` ③ `50-按主题导航.md`
-- 旧撞号 44/45/48/52/53/54 已登记 → **WARN**（旧债不钉死门禁）
-- 65/66 未登记台账 → WARN + 提示补登记
-- ⚠️ `55自主寻找bug和修改的特殊执行.md` **缺连字符**，逃过 `^(\d{2})-` 正则 → 建议改名 `55-…`
+每组原始数据都在 `experiments/journal/`，判决在 `experiments/cards/`。每一份都带同一句告示：**小样本 pilot，只能看方向，不能下「越玩越聪明」结论。**
 
-## 规范契约（两份，同一 id 对账）
+## 跑一次真实轮回（需要 Minecraft 实例）
 
-- **真源**：`D:\rdd\harness\rdd-harness\standards.md`（带 id）
-- **镜像**：`D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`（人读长文）
-- **改一处必须同步另一边**；postflight 的对账项按 id 比对。
-- **为什么两份**：门禁只能引用稳定 id，而写给人读的规范不该被 id 淹没。
+```powershell
+node bin/exp-card.js new exp-demo --title "两轮独立冒烟都通过"
+# 编辑 experiments/cards/exp-demo.json：claim / 阈值 / 对照 / 数据源
+node bin/exp-card.js validate experiments/cards/exp-demo.json
+node bin/exp-card.js freeze experiments/cards/exp-demo.json --commit <git sha> --apply
+node bin/exp-cycle.js run --prefix demo --rounds 4 --minutes 25 --zero-start --goal-file <开场任务.txt>
+node bin/exp-card.js conclude experiments/cards/exp-demo.json
+```
 
-## 已知真债（门禁会一直 BLOCK，不是 bug）
+## 部署到新机器
 
-- `numen-plugin-experience` jar 落后源码 4 小时、`numen-plugin-learner` 落后 9 小时
-  → P2 BLOCK。修法：`run-mutation.ps1 -Module plugins:learner|plugins:experience`。
-- `06-检查清单.md` 只有 95 字节，却被 `stages.json` + 两份 AGENTS.md + loop-gate 6 处当权威用。
-- `check-global.js` 现在必然 FAIL（全局 AGENTS.md 缺 7 条 H2，见 TL-2026-10-04-03）。
+看 `package/README-自动harness包-20261027.md` + `package/74-新机安装与迁移指南-20261019.md`
+（618 行实测迁移记录：0–8 阶段顺序、约 40 条坑的症状→根因→修法、验收清单）。
 
-## 想改流程？
+## 诚实的边界
 
-`stager\core\stages.json` 是数据驱动的（阶段 / 门禁 / 必读 / 文档类型全在里面），
-**改那个文件就改了流程，不用动 `stager.js`**。改完跑 `node stager\bin\stager.js self-check`。
+- 本仓只是「脚手架」：Minecraft 实例、mods、存档、JDK/Gradle/Node、模型 API 都不在仓里，按部署文档自建。
+- `multimodel/` 是多模型适配层（OpenRouter 免费表只含定价信息，无 key）；任何密钥都不入库。
+- 门禁里的路径真源在 `registry.json` 的 `roots`，换机改那 10 条即可。
+- 实验结论的样本量都很小（pilot），只能看方向；我们不夸大「越玩越聪明」。
+- 时间锁是「这个坑我们决定这一轮不修，但写了到期日」的账本——**「不修」也是一种要记账的决定**。
+
+## License
+
+MIT。用的时候请保留「判据先冻结、数据赢」这两条精神——那是这套东西唯一不可让步的部分。
