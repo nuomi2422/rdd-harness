@@ -732,9 +732,10 @@ function computeHealth(runDir) {
     const d = env.context_delivery || {};
     if (d.status === 'UNKNOWN') a0.reasons.push('delivery:UNKNOWN');
     if (d.truncatedCountedAsDelivered) a0.reasons.push('delivery:截断条目被当成送达');
-    if ((d.delivered || {}).refs && (d.rendered || {}).refs
-        && d.delivered.refs.length > d.rendered.refs.length) {
-      a0.reasons.push('delivery:delivered > rendered（口径矛盾，应查账本来源）');
+    // delivered 可以多于 rendered：执行视图直接注入正文，不经过逐条 expanded（2026-10-29 实测）。
+    // 这不是矛盾，单列给审计看，不进 problems。
+    if (d.deliveredWithoutRender && d.deliveredWithoutRender.count > 0) {
+      a0.reasons.push('delivery:deliveredWithoutRender=' + d.deliveredWithoutRender.count + '（直接注入，非异常）');
     }
   }
   if (a0.reasons.some((r) => /DIRTY|截断|矛盾/.test(r))) problems.push(...a0.reasons.filter((r) => /DIRTY|截断|矛盾/.test(r)));

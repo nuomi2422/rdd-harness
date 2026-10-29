@@ -157,7 +157,7 @@ function classifySession({ chatRows, firstRequest, runStartAt }) {
 
 // -------------------------------------------------------- 人工介入 ----
 
-/** 从一条 monitor 事件推介入类别；认不出返回 null（由调用方决定 OTHER）。 */
+/** 从一条 monitor 事件推介入类别。 */
 function kindOf(data) {
   data = data || {};
   const mode = typeof data.mode === 'string' ? data.mode : '';
@@ -166,7 +166,9 @@ function kindOf(data) {
   const verb = cmd.split(/\s+/)[0];
   if (verb === 'give') return 'GIVE';
   if (verb === 'tp' || verb === 'teleport') return 'TP';
-  return null;
+  // 通用命令路径（setblock / fill / summon / gamemode / time / weather …）没有 mode，
+  // 但**它仍然是一次介入**（改动世界或前置）。归 OTHER，不丢事件 —— 丢证据比分类粗糙更糟。
+  return cmd ? 'OTHER' : null;
 }
 
 /**
@@ -287,6 +289,9 @@ function collectDelivery({ contextRows, expmemRows }) {
 
   // 渲染过但最终请求里没有 = 被预算裁掉（可审计的"没送到"）
   const droppedRefs = renderedRefs.filter((r) => !deliveredRefs.includes(r));
+  // 反向：最终请求里有、但没见过 expanded —— 这是**正常**的（执行视图直接注入正文，
+  // 不一定经过逐条 expanded）。不能当成矛盾，但要单列出来供审计。
+  const deliveredWithoutRender = deliveredRefs.filter((r) => !renderedRefs.includes(r));
   // 截断的条目即便出现在 delivered 里也只能算"半截"，单独列出
   const truncatedDelivered = truncatedRefs.filter((r) => deliveredRefs.includes(r));
 
@@ -320,6 +325,8 @@ function collectDelivery({ contextRows, expmemRows }) {
       deliveredAnyway: truncatedDelivered,
     },
     dropped: { refs: droppedRefs, count: droppedRefs.length },
+    // 最终请求里有、但没有逐条 expanded 的 ref（执行视图直接注入）——不是矛盾
+    deliveredWithoutRender: { refs: deliveredWithoutRender, count: deliveredWithoutRender.length },
     // 判据：任何"截断却算送达"都要在结论侧拦住
     truncatedCountedAsDelivered: truncatedDelivered.length > 0,
   };
@@ -560,15 +567,17 @@ function selftest() {
     assert(JSON.parse(JSON.stringify(merged)).a0.version === A0_VERSION, '① 三态不可序列化', fails);
   }
 
-  // ② 介入缺字段拒收
+  // ② 介入缺字段拒收 + 通用命令归 OTHER（不丢事件）
   {
     const noTs = ev({ event_id: 'e1', type: 'admin_command_used', timestamp: undefined, data: { mode: 'direct-give' } });
     const noId = ev({ event_id: undefined, type: 'admin_command_used', data: { mode: 'direct-give' } });
     const ok = ev({ event_id: 'e2', type: 'admin_command_used', data: { mode: 'direct-teleport' } });
-    const r = collectInterventions([noTs, noId, ok]);
-    assert(r.count === 1, '② 只应剩 1 条合法介入，实得 ' + r.count, fails);
+    const other = ev({ event_id: 'e3', type: 'admin_command_used', data: { command: 'setblock 1 2 3 minecraft:stone' } });
+    const r = collectInterventions([noTs, noId, ok, other]);
+    assert(r.count === 2, '② 应有 2 条合法介入（1 映射 + 1 OTHER），实得 ' + r.count, fails);
     assert(r.rejected.length === 2, '② 缺字段必须被拒收并留痕，rejected=' + r.rejected.length, fails);
     assert(r.entries[0].kind === 'TP', '② mode→kind 映射错', fails);
+    assert(r.byKind.OTHER === 1, '② 通用命令（setblock）必须记成 OTHER 而不是被丢掉，实得 ' + JSON.stringify(r.byKind), fails);
     assert(r.entries[0].actor === 'UNKNOWN' && r.entries[0].actor_evidence === 'not-recorded', '② 无 actor 字段时不得猜成 HUMAN', fails);
     assert(r.entries[0].autonomous_attributable === false, '② 介入不得标为可自主归因', fails);
   }
@@ -607,7 +616,7 @@ function selftest() {
     assert(noClear.status === 'UNKNOWN', '④ 无 clear 且无法确认时必须 UNKNOWN，实得 ' + noClear.status, fails);
   }
 
-  // ⑤ rendered / kept / delivered 不混淆 + 截断不算送达
+  // ⑤ rendered / kept / delivered 不混淆 + 截断不算送达 + delivered 可多于 rendered（直接注入）
   {
     const ctxRows = [
       ev({ type: 'retrieval_snapshot', data: { entries: 5, truncationReasons: ['budget'] } }),
@@ -615,12 +624,14 @@ function selftest() {
     const memRows = [
       ev({ type: 'expanded', data: { ref: 'exp:a', version: 'v1', truncated: false } }),
       ev({ type: 'expanded', data: { ref: 'exp:b', version: 'v1', truncated: true } }),
-      ev({ type: 'request_delivered', data: { count: 1, refs: ['exp:a'] } }),
+      ev({ type: 'request_delivered', data: { count: 2, refs: ['exp:a', 'exp:c'] } }),
     ];
     const d = collectDelivery({ contextRows: ctxRows, expmemRows: memRows });
     assert(d.rendered.refs.length === 2, '⑤ rendered 应 2 条，实得 ' + d.rendered.refs.length, fails);
-    assert(d.delivered.refs.length === 1 && d.delivered.refs[0] === 'exp:a', '⑤ delivered 应只有 exp:a', fails);
+    assert(d.delivered.refs.length === 2 && d.delivered.refs[0] === 'exp:a', '⑤ delivered 应 exp:a + exp:c', fails);
     assert(d.dropped.refs.length === 1 && d.dropped.refs[0] === 'exp:b', '⑤ 被裁条目必须进 dropped，实得 ' + JSON.stringify(d.dropped.refs), fails);
+    assert(d.deliveredWithoutRender.count === 1 && d.deliveredWithoutRender.refs[0] === 'exp:c',
+      '⑤ 直接注入的 ref 要单列成 deliveredWithoutRender（不是矛盾）', fails);
     assert(d.truncated.refs.length === 1, '⑤ 截断必须单独记账', fails);
     assert(d.recalled.refs === null && d.recalled.refs_status === 'AGGREGATE_ONLY', '⑤ recalled 无 per-ref 时必须如实标聚合口径', fails);
     assert(d.truncatedCountedAsDelivered === false, '⑤ 本例截断条目未送达，不应报错', fails);
