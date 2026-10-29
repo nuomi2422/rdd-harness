@@ -424,6 +424,20 @@ async function cmdRun(opts) {
   }
   fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
+
+  // H1（103 号）：起跑前虚空体检 —— 同伴若在末地虚空/虚空层，这一轮测到的是
+  // 环境逼出来的 tp/setblock 自救，不是能力。命中即拒绝，除非显式 --allow-void。
+  if (opts.allowVoid) {
+    log(runDir, 'preflight', '虚空体检被 --allow-void 跳过');
+  } else {
+    const st = mcp('get_self_status', companionName, undefined, 30000);
+    const g = require('./lib/guard').voidProblem(st.ok ? st.out : '');
+    if (g) {
+      log(runDir, 'preflight', '虚空体检命中：' + g.kind + ' ' + g.dim + ' (' + g.x + ',' + g.y + ',' + g.z + ')');
+      fail(runDir, 'preflight', g.message, 5);
+    }
+    log(runDir, 'preflight', '虚空体检通过（未命中）');
+  }
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
   env.goal = goalText;              // A7：写进信封，compare 才能判「同条件」
   env.master = env.master || null;
@@ -833,6 +847,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--master') opts.master = argv[++i];
   else if (argv[i] === '--companion') opts.companion = argv[++i];
   else if (argv[i] === '--night') opts.night = true;
+  else if (argv[i] === '--allow-void') opts.allowVoid = true;
   else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
 }
