@@ -562,6 +562,21 @@ function liveEntryState() {
   return out;
 }
 
+/** 从 live/snapshot.md 抠「当前任务链」几行；没有就返回 null，不编。 */
+function liveChainLines() {
+  const p = path.join(HARNESS, 'experiments', 'live', 'snapshot.md');
+  if (!fs.existsSync(p)) return null;
+  const lines = fs.readFileSync(p, 'utf8').split(/\r?\n/);
+  const i = lines.findIndex((l) => /^## 当前任务链/.test(l));
+  if (i < 0) return null;
+  const out = [];
+  for (let j = i + 1; j < lines.length && out.length < 4; j++) {
+    if (/^## /.test(lines[j])) break;
+    if (lines[j].trim()) out.push(lines[j].trim());
+  }
+  return out.length ? out : null;
+}
+
 function entryPackage(argv) {
   const TL = require('./lib/tool-layers.js');
   const view = TL.load();
@@ -572,6 +587,7 @@ function entryPackage(argv) {
   const boundary = arg(argv, '--boundary') || '未声明（brief 不知道本轮主人边界；按最保守走，不要顺手扩大范围）';
   const next = arg(argv, '--next') || (cp && cp.fields['下一步']) || null;
   const live = liveEntryState();
+  live.chain = liveChainLines();
   const limits = [
     'registry ' + view.counts.registry + ' 项是**目录数量**，不是每轮模型收到的工具定义数；实际请求暴露面本机未核实（unverified）',
     'mf-kit / mf-observer 只连原版协议服，不能证明 NeoForge live 行为；Observer 是独立只读眼，不是外部 AI 身体',
@@ -637,6 +653,7 @@ function brief(argv) {
     console.log('状态: ' + state + '  pid=' + L.pid + '  enabled=' + L.enabled + '  ticks=' + L.ticks + '  最后 tick=' + L.last_tick_at + '（' + fmtAgeSec(L.age_s) + ' 前）');
     console.log('视图: ' + L.views.map((v) => v.name + '=' + (v.missing ? 'missing' : fmtAgeSec(v.age_s) + '前')).join('  '));
     console.log('Observer: ' + (L.observer_age_s == null ? 'unknown' : fmtAgeSec(L.observer_age_s) + ' 前' + (L.observer_age_s > 600 ? '（STALE）' : '')));
+    if (L.chain) console.log('任务链（live/snapshot.md，新鲜度见上）:\n  ' + L.chain.join('\n  '));
     for (const p of L.problems) console.log('⚠ ' + p);
   }
   console.log('\n## 0.3 · 要进游戏才做的前置（纯文档/单测任务跳过）');
