@@ -1076,9 +1076,15 @@ function compareManyCmd(argv) {
   const E = require('./lib/experiment');
   const ai = argv.indexOf('--a');
   const bi = argv.indexOf('--b');
-  if (ai < 0 || bi < 0) die(2, 'usage: bench.js compare-many --a <dir1,dir2,...> --b <dir1,dir2,...>');
+  const gi = argv.indexOf('--goal');
+  const goalOverride = gi >= 0 ? argv[gi + 1] : null;
+  if (ai < 0 || bi < 0) die(2, 'usage: bench.js compare-many --a <dir1,dir2,...> --b <dir1,dir2,...> [--goal "<实验目标>"]');
   const load = (d) => JSON.parse(fs.readFileSync(path.join(path.resolve(d), 'envelope.json'), 'utf8'));
-  const list = (s) => s.split(',').map((x) => x.trim()).filter(Boolean).map(load);
+  const list = (s) => s.split(',').map((x) => x.trim()).filter(Boolean).map((d) => {
+    const e = load(d);
+    if (!e.goal && goalOverride) e.goal = goalOverride;   // 老 run 没存 goal 时由实验者显式声明
+    return e;
+  });
   const r = E.compareGroups(list(argv[ai + 1]), list(argv[bi + 1]));
   console.log('verdict: ' + r.verdict + '  sample A=' + r.sample.a + ' B=' + r.sample.b
     + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : ''));

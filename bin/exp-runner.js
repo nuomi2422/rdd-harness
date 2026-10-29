@@ -260,6 +260,8 @@ async function cmdRun(opts) {
   const env = {
     runId, label, createdAt: nowIso(), contract: { path: CONTRACT_PATH, sha256: contractHash, revision: contract.contractRevision, scenarioId: contract.scenarioId },
     gameDir: GAME, phase: 'preflight', timings: {}, world: {},
+    // A7（99 号）：实验条件必须可读——compare 用 goal+master 判「同条件」；goal 在 stimulus 段填。
+    goal: null,
   };
   const saveEnv = () => fs.writeFileSync(path.join(runDir, 'envelope.json'), JSON.stringify(env, null, 2));
   saveEnv();
@@ -408,6 +410,9 @@ async function cmdRun(opts) {
   fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
+  env.goal = goalText;              // A7：写进信封，compare 才能判「同条件」
+  env.master = env.master || null;
+  saveEnv();
   const stim = path.join(runDir, 'stimulus.json');
   fs.writeFileSync(stim, JSON.stringify({ text: goalText }, null, 2));
   let triggerDeathAt = null;
