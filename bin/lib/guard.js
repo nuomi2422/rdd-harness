@@ -41,6 +41,39 @@ function voidProblem(text) {
   };
 }
 
+/**
+ * H1.1（104 号）：重生点判据。
+ * @param {{bound?:boolean, dimension?:string, x?:number, y?:number, z?:number}} info
+ * @returns {null | {kind:string, dim:string, x?:number, y:number, z?:number, message:string}}
+ */
+function respawnProblem(info) {
+  if (!info || typeof info !== "object") return null;
+  if (!info.bound) return null;                       // 没绑床 ≠ 虚空
+  const dim = String(info.dimension || "").toLowerCase();
+  const y = Number(info.y);
+  if (!Number.isFinite(y)) return null;
+  const endVoid = dim === "the_end" && y < 0;
+  const belowVoid = y <= -64;
+  if (!endVoid && !belowVoid) return null;
+  return {
+    kind: endVoid ? "respawn_in_end_void" : "respawn_below_void",
+    dim, x: Number(info.x), y, z: Number(info.z),
+    message: "同伴的重生点绑在" + (endVoid ? "末地虚空" : "虚空层") + " (" + info.x + "," + y + "," + info.z
+      + ")；一死就掉进虚空，实验会变成 tp/setblock 自救。先重绑重生点（或加 --allow-void 显式放行）。",
+  };
+}
+
+/** 从 rdd_respawn_info 的回执文本里取 data 再判（取不到返回 null，不猜）。 */
+function respawnProblemFromText(text) {
+  try {
+    const j = JSON.parse(String(text || ""));
+    const d = (j && j.data) ? j.data : j;
+    return respawnProblem(d);
+  } catch {
+    return null;
+  }
+}
+
 function selftest() {
   const fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); };
@@ -60,11 +93,17 @@ function selftest() {
   ok(voidProblem('') === null, '⑤ 空文本不猜');
   ok(voidProblem('no coordinates here') === null, '⑥ 读不到坐标不猜');
 
-  console.log(fails.length ? 'guard selftest FAIL: ' + fails.join(' | ') : 'guard selftest PASS（6 组）');
+  // H1.1：重生点
+  ok(respawnProblem({ bound: true, dimension: "the_end", x: 163, y: -269, z: 681 })?.kind === "respawn_in_end_void", "⑦ 重生点绑在末地虚空必须命中");
+  ok(respawnProblem({ bound: true, dimension: "overworld", x: 100, y: 64, z: 100 }) === null, "⑧ 主世界重生点不命中");
+  ok(respawnProblem({ bound: false }) === null, "⑨ 未绑床不命中（无床 ≠ 虚空）");
+  ok(respawnProblemFromText(JSON.stringify({ success: true, data: { bound: true, dimension: "the_end", x: 1, y: -70, z: 2 } }))?.kind === "respawn_in_end_void", "⑩ 回执文本解析命中");
+  ok(respawnProblemFromText("not json") === null, "⑪ 解析失败不猜");
+  console.log(fails.length ? 'guard selftest FAIL: ' + fails.join(' | ') : 'guard selftest PASS（11 组）');
   return fails.length ? 1 : 0;
 }
 
-module.exports = { voidProblem, isVoid, selftest };
+module.exports = { voidProblem, respawnProblem, respawnProblemFromText, isVoid, selftest };
 
 if (require.main === module) {
   if (process.argv[2] === 'selftest') process.exit(selftest());

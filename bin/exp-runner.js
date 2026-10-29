@@ -437,6 +437,16 @@ async function cmdRun(opts) {
       fail(runDir, 'preflight', g.message, 5);
     }
     log(runDir, 'preflight', '虚空体检通过（未命中）');
+
+    // H1.1（104 号）：位置正常不代表不会死进虚空——上一轮的事故是「人站在 y=64，
+    // 但重生点绑在末地虚空」。再查一次重生点（床锚）维度+坐标。
+    const rs = mcp('rdd_respawn_info', companionName, undefined, 30000);
+    const rp = rs.ok ? require('./lib/guard').respawnProblemFromText(rs.out) : null;
+    if (rp) {
+      log(runDir, 'preflight', '重生点体检命中：' + rp.kind + ' ' + rp.dim + ' (' + rp.x + ',' + rp.y + ',' + rp.z + ')');
+      fail(runDir, 'preflight', rp.message, 6);
+    }
+    log(runDir, 'preflight', '重生点体检通过（未命中）');
   }
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
   env.goal = goalText;              // A7：写进信封，compare 才能判「同条件」
