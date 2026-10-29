@@ -360,7 +360,20 @@ async function cmdRun(opts) {
 
   // ---------- stimulus ----------
   env.phase = 'stimulus';
-  const companionName = companions[0].name;
+  // ★ 2026-10-29（A0）：原来无条件取 companions[0] —— 自从 P16 造了观察者同伴 OBS，
+  //   她的名字排在 RDD 前面，于是每一轮实验都在驱 OBS 而不是主体（实测 run-a0-clean 命中 OBS）。
+  //   现在允许 --companion 指定；指定的名字不在场就**直接失败**，不许静默换成别人。
+  let companionName;
+  if (opts.companion) {
+    const hit = companions.find((c) => c.name === opts.companion);
+    if (!hit) fail(runDir, 'stimulus', '指定的同伴不在场: ' + opts.companion + '（在场: ' + companions.map((c) => c.name).join(',') + '）', 10);
+    companionName = hit.name;
+    log(runDir, 'stimulus', '同伴已显式指定 = ' + companionName);
+  } else {
+    companionName = companions[0].name;
+    log(runDir, 'stimulus', '未指定 --companion，按 list_companions 顺序取第一个 = ' + companionName
+      + '（在场: ' + companions.map((c) => c.name).join(',') + '）');
+  }
   fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
@@ -739,6 +752,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--zero-start') opts.zeroStart = true;
   else if (argv[i] === '--no-delta-stop') opts.noDeltaStop = true;
   else if (argv[i] === '--master') opts.master = argv[++i];
+  else if (argv[i] === '--companion') opts.companion = argv[++i];
   else if (argv[i] === '--night') opts.night = true;
   else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
@@ -748,6 +762,6 @@ for (let i = 1; i < argv.length; i++) {
   if (cmd === 'run') return cmdRun(opts);
   if (cmd === 'cleanup') return cmdCleanup(argv[1]);
   if (cmd === 'status') return cmdStatus();
-  console.log('usage: node exp-runner.js plan|run|cleanup|status [--label x] [--goal "…"]');
+  console.log('usage: node exp-runner.js plan|run|cleanup|status [--label x] [--goal "…"] [--companion RDD] [--minutes N] [--master <worldDir>]');
   process.exit(2);
 })();
