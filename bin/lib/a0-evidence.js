@@ -478,7 +478,9 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   let chatRows = null;
   let chatArchive = null;
   try {
-    const dirs = fs.existsSync(companionsDir) ? fs.readdirSync(companionsDir, { withFileTypes: true }).filter((d) => d.isDirectory()) : [];
+    const dirs = (companionsDir && fs.existsSync(companionsDir))
+      ? fs.readdirSync(companionsDir, { withFileTypes: true }).filter((d) => d.isDirectory())
+      : [];
     let best = { score: -1, uuid: null, rows: null, text: null, file: null };
     for (const d of dirs) {
       const p = path.join(companionsDir, d.name, 'chat.jsonl');
@@ -677,11 +679,13 @@ function cmdBackfill(runDir) {
   if (!fs.existsSync(envP)) { console.error('no envelope.json: ' + rd); return 2; }
   const env = JSON.parse(fs.readFileSync(envP, 'utf8'));
   if (env.a0) { console.log('已有 A0 块，不覆盖: ' + env.a0.version); return 0; }
-  // 老 run 的 chat 已被 restore 冲掉 → chat 缺失只能 UNKNOWN，这正是要看的诚实结果
+  // 老 run 的 chat 已被 restore 冲掉；不猜路径，默认不读。
+  // 要强行用当前实例的 companions 目录，显式给 RDD_NUMEN_DIR（并自己确认归属）。
+  const numenDir = process.env.RDD_NUMEN_DIR || null;
   const p = collect({
     runDir: rd,
     monitorDir: null,
-    companionsDir: path.join(path.dirname(path.dirname(path.dirname(rd))), 'config', 'numen', 'companions'),
+    companionsDir: numenDir ? path.join(numenDir, 'companions') : null,
     launchStart: (env.timings && env.timings.launchStart) || env.createdAt,
   });
   const merged = applyToEnvelope(env, p);
