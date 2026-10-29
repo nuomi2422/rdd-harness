@@ -74,6 +74,48 @@ function respawnProblemFromText(text) {
   }
 }
 
+/**
+ * H7（118 号）：母版世界体检——从 rdd_nearby_entities 的回执里读末影龙。
+ *
+ * <p>为什么：exp-loop-r8 里母版有 8 只龙卡在 (0,0,0)，AI 花 8 分钟去猜「数据是不是假的」。
+ * 该轮目标本可完成，但它不在主世界。起跑前断言一次，比跑完再归因便宜得多。
+ *
+ * <p>只读断言：不杀龙、不改母版、不加新工具（复用已有 rdd_nearby_entities）。
+ *
+ * @param {string} text rdd_nearby_entities 的回执（JSON）
+ * @returns {null | {count:number, atOrigin:boolean, message:string}}
+ */
+function worldSanity(text) {
+  let j;
+  try { j = JSON.parse(String(text || "")); } catch { return null; }
+  const d = (j && j.data) || {};
+  // count_only 形态：{total, by_type:{...}}；清单形态：{count, entities:[...]}
+  let count = 0;
+  let atOrigin = false;
+  if (d.by_type && typeof d.by_type === "object") {
+    count = Number(d.by_type["minecraft:ender_dragon"] || 0);
+  } else if (Array.isArray(d.entities)) {
+    for (const e of d.entities) {
+      if (String(e && e.type) !== "minecraft:ender_dragon") continue;
+      count++;
+      if (Math.abs(Number(e.x)) < 0.5 && Math.abs(Number(e.y)) < 0.5 && Math.abs(Number(e.z)) < 0.5) {
+        atOrigin = true;
+      }
+    }
+  } else {
+    return null;                       // 读不到就不猜
+  }
+  if (!count) return null;
+  const dirty = count > 1 || atOrigin;
+  if (!dirty) return null;
+  return {
+    count, atOrigin,
+    message: "母版末地有 " + count + " 只末影龙" + (atOrigin ? "（至少一只卡在原点 0,0,0）" : "")
+      + "；这是母版素材污染，不是 AI 能力问题。跑下去只会让它反复猜「数据是不是假的」。"
+      + "清母版或加 --allow-dirty-world 显式放行。",
+  };
+}
+
 function selftest() {
   const fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); };
@@ -99,11 +141,17 @@ function selftest() {
   ok(respawnProblem({ bound: false }) === null, "⑨ 未绑床不命中（无床 ≠ 虚空）");
   ok(respawnProblemFromText(JSON.stringify({ success: true, data: { bound: true, dimension: "the_end", x: 1, y: -70, z: 2 } }))?.kind === "respawn_in_end_void", "⑩ 回执文本解析命中");
   ok(respawnProblemFromText("not json") === null, "⑪ 解析失败不猜");
-  console.log(fails.length ? 'guard selftest FAIL: ' + fails.join(' | ') : 'guard selftest PASS（11 组）');
+  // H7：母版世界体检
+  ok(worldSanity(JSON.stringify({ success: true, data: { by_type: { "minecraft:ender_dragon": 8 } } }))?.count === 8, "⑫ 8 只龙必须命中");
+  ok(worldSanity(JSON.stringify({ success: true, data: { by_type: { "minecraft:ender_dragon": 1 } } })) === null, "⑬ 正常 1 只龙不误伤");
+  ok(worldSanity(JSON.stringify({ success: true, data: { entities: [{ type: "minecraft:ender_dragon", x: 0, y: 0, z: 0 }] } }))?.atOrigin === true, "⑭ 单只但在原点也命中");
+  ok(worldSanity(JSON.stringify({ success: true, data: { entities: [{ type: "minecraft:ender_dragon", x: 12, y: 60, z: -8 }] } })) === null, "⑮ 单只且不在原点放行");
+  ok(worldSanity("not json") === null, "⑯ 解析失败不猜");
+  console.log(fails.length ? 'guard selftest FAIL: ' + fails.join(' | ') : 'guard selftest PASS（16 组）');
   return fails.length ? 1 : 0;
 }
 
-module.exports = { voidProblem, respawnProblem, respawnProblemFromText, isVoid, selftest };
+module.exports = { voidProblem, respawnProblem, respawnProblemFromText, worldSanity, isVoid, selftest };
 
 if (require.main === module) {
   if (process.argv[2] === 'selftest') process.exit(selftest());

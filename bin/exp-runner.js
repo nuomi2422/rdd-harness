@@ -447,6 +447,22 @@ async function cmdRun(opts) {
       fail(runDir, 'preflight', rp.message, 6);
     }
     log(runDir, 'preflight', '重生点体检通过（未命中）');
+
+    // H7（118 号）：母版世界体检 —— 末地若有多只末影龙（或龙卡在原点），这一轮测到的
+    // 不是 AI 能力，是素材污染（exp-loop-r8：8 只龙卡 (0,0,0)，白跑 8 分钟）。
+    // 复用已有 rdd_nearby_entities，不新增观测通道。
+    if (opts.allowDirtyWorld) {
+      log(runDir, 'preflight', '世界体检被 --allow-dirty-world 跳过');
+    } else {
+      const ents = mcp('rdd_nearby_entities', companionName,
+        JSON.stringify({ radius: 128, count_only: true }), 30000);
+      const ws = ents.ok ? require('./lib/guard').worldSanity(ents.out) : null;
+      if (ws) {
+        log(runDir, 'preflight', '世界体检命中：末影龙 ' + ws.count + ' 只 atOrigin=' + ws.atOrigin);
+        fail(runDir, 'preflight', ws.message, 7);
+      }
+      log(runDir, 'preflight', '世界体检通过（未命中）');
+    }
   }
   const goalText = opts.goalFile ? fs.readFileSync(opts.goalFile, 'utf8').trim() : (opts.goal || contract.stimulus.text);
   env.goal = goalText;              // A7：写进信封，compare 才能判「同条件」
@@ -857,6 +873,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--master') opts.master = argv[++i];
   else if (argv[i] === '--companion') opts.companion = argv[++i];
   else if (argv[i] === '--night') opts.night = true;
+  else if (argv[i] === '--allow-dirty-world') opts.allowDirtyWorld = true;
   else if (argv[i] === '--allow-void') opts.allowVoid = true;
   else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
