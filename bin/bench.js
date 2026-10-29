@@ -1049,6 +1049,44 @@ function main() {
   if (cmd === 'timeline') return timeline(argv);
   if (cmd === 'live' || cmd === 'watch') process.exit(liveMain(argv));
   if (cmd === 'health') { const rd = argv[1]; if (!rd) die(2, 'usage: bench.js health <runDir>'); return health(path.resolve(rd)); }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|live|selftest');
+  // A7（99 号）：两臂对比与周指标（只读 envelope，不改行为）
+  if (cmd === 'compare') return compareCmd(argv);
+  if (cmd === 'report') return reportCmd(argv);
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|report|live|selftest');
+}
+
+/** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */
+function compareCmd(argv) {
+  const [a, b] = argv.slice(1);
+  if (!a || !b) die(2, 'usage: bench.js compare <runA> <runB>');
+  const E = require('./lib/experiment');
+  const load = (d) => JSON.parse(fs.readFileSync(path.join(path.resolve(d), 'envelope.json'), 'utf8'));
+  const r = E.compare(load(a), load(b));
+  console.log('verdict: ' + r.verdict + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : ''));
+  for (const row of r.rows) {
+    console.log('  ' + String(row.metric).padEnd(14) + ' A=' + String(row.a).padEnd(6) + ' B=' + String(row.b).padEnd(6) + ' delta=' + row.delta);
+  }
+  console.log('note: 单轮只能 DIRECTIONAL/INCONCLUSIVE；≥3 轮才算一轮实验，≥5 轮且跨噪声带才 SUPPORTED（99 号 §5）');
+  return 0;
+}
+
+/** A7：`bench report [--since YYYY-MM-DD]` —— 周指标，缺字段 UNKNOWN 不补 0。 */
+function reportCmd(argv) {
+  const E = require('./lib/experiment');
+  const i = argv.indexOf('--since');
+  const since = i >= 0 ? Date.parse(argv[i + 1]) : Date.now() - 7 * 86400000;
+  const runsRoot = path.join(HARNESS, 'runs');
+  const envs = [];
+  if (fs.existsSync(runsRoot)) {
+    for (const n of fs.readdirSync(runsRoot)) {
+      const f = path.join(runsRoot, n, 'envelope.json');
+      try {
+        if (fs.statSync(f).mtimeMs < since) continue;
+        envs.push(JSON.parse(fs.readFileSync(f, 'utf8')));
+      } catch { /* 没有 envelope 的目录不算样本 */ }
+    }
+  }
+  console.log(JSON.stringify(E.weekly(envs), null, 2));
+  return 0;
 }
 main();
