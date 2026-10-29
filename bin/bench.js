@@ -419,6 +419,16 @@ function buildTimeline(runDir) {
   // ★ A0（90 号）：会话边界 / world-view 四相位 / 人工介入 / 投送四阶段。
   //   行只来自 envelope 的 A0 块（run 时采好），这里不重扫日志、不造事件；
   //   envelope 没有 a0 块时整段不出现（老 run 不伪造）。
+  // A3（95 号）：capability / tool 两层（run 归档后处理，realtime=false —— 别当成实时事件）
+  const st = env.situations;
+  if (st && st.status === 'PRESENT' && Array.isArray(st.entries)) {
+    for (const e of st.entries) {
+      const tag = e.layer === 'capability' ? 'cap' : 'tool';
+      push(e.at, tag, (e.kind || '?') + '  subject=' + String(e.subject || '?')
+        + (e.count ? '  count=' + e.count : '')
+        + (e.reason ? '  ' + String(e.reason).slice(0, 60) : ''));
+    }
+  }
   for (const row of A0.timelineEntries(env)) push(row.at, row.tag, row.text);
   // 最终裁决（verdict.json 是机械裁判的落盘，读不到就不写这一行）
   try {
@@ -741,6 +751,9 @@ function computeHealth(runDir) {
     // A1（93 号）：死亡事实。老 run 没有这个键 = 未采集，不是「没死」。
     deaths: env.deaths ? env.deaths.status : null,
     deathCount: env.deaths && env.deaths.count != null ? env.deaths.count : null,
+    // A3（95 号）：capability/tool 两层（归档后处理，realtime=false）。
+    situations: env.situations ? env.situations.status : null,
+    situationCount: env.situations && Array.isArray(env.situations.entries) ? env.situations.entries.length : null,
     reasons: [],
   };
   if (!env.a0) a0.reasons.push('a0:missing（老 run 或采集失败，不是「干净」）');

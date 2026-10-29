@@ -687,6 +687,19 @@ async function cmdRun(opts) {
     env.interventions = merged.interventions;
     env.context_delivery = merged.context_delivery;
     env.deaths = merged.deaths;
+    // A3（95 号）：capability/tool 两层用 run 归档的 tools.jsonl 做**后处理**（非实时，realtime:false），
+    // 因为 rdd 插件没有工具回执钩子；实时事件要改 api/common 的 dispatcher（另开一批）。
+    try {
+      const situation = require('./lib/situation');
+      const toolsPath = path.join(runDir, 'evidence', 'tools.jsonl');
+      const toolsRows = fs.existsSync(toolsPath)
+        ? fs.readFileSync(toolsPath, 'utf8').split('\n').filter(Boolean)
+          .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
+        : null;
+      env.situations = situation.classify({ toolsRows });
+    } catch (e) {
+      env.situations = { status: 'UNKNOWN', realtime: false, entries: [], reasons: ['classify-failed:' + String(e.message).slice(0, 80)] };
+    }
     env.world_views = merged.world_views;
     env.a0 = merged.a0;
     env.a0.sources = a0.sources;
@@ -695,13 +708,15 @@ async function cmdRun(opts) {
       + ' delivery=' + env.context_delivery.status
       + ' rendered=' + (env.context_delivery.rendered ? env.context_delivery.rendered.refs.length : '?')
       + ' delivered=' + (env.context_delivery.delivered ? env.context_delivery.delivered.refs.length : '?')
-      + ' deaths=' + (env.deaths ? env.deaths.status + '(' + env.deaths.count + ')' : '?'));
+      + ' deaths=' + (env.deaths ? env.deaths.status + '(' + env.deaths.count + ')' : '?')
+      + ' situations=' + (env.situations ? env.situations.status + '(' + env.situations.entries.length + ')' : '?'));
   } catch (e) {
     // 证据缺失照实记 UNKNOWN，不拿默认值补成功
     env.session = { status: 'UNKNOWN', reasons: ['a0-collect-failed: ' + String(e.message).slice(0, 200)] };
     env.interventions = { count: 0, ids: [], status: 'UNKNOWN', entries: [], rejected: [] };
     env.context_delivery = { status: 'UNKNOWN' };
     env.deaths = { status: 'UNKNOWN', count: null, entries: [], reasons: ['collect-failed'] };
+    env.situations = { status: 'UNKNOWN', realtime: false, entries: [], reasons: ['collect-failed'] };
     env.a0 = { version: A0.A0_VERSION, collected_at: nowIso(), error: String(e.message).slice(0, 400) };
     log(runDir, 'a0', 'A0 采集失败（照实记 UNKNOWN）: ' + e.message);
   }
