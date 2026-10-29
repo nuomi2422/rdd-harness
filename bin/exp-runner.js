@@ -431,14 +431,18 @@ async function cmdRun(opts) {
       log(runDir, 'zero-start', '/time set midnight exit=' + nt.status);
       await sleep(800);
     }
-    // --trigger-death：管线冒烟专用。刺激后延迟 N 秒 kill 同伴一次，确定性地产生一条
-    // death 事件（keepInventory 保物品），用来验「death → instrumentation → auto_intake →
-    // 复盘 → 经验」整条链在真实数据上是不是通的。这是人为制造触发，不是测自然死亡率。
-    if (opts.triggerDeath) {
-      const delayMs = (opts.triggerDeathDelaySeconds || 90) * 1000;
-      triggerDeathAt = Date.now() + delayMs;
-      log(runDir, 'zero-start', '--trigger-death 已排程（' + (delayMs / 1000) + 's 后 kill ' + companionName + '）');
-    }
+  }
+
+  // --trigger-death：管线冒烟专用。刺激后延迟 N 秒 kill 同伴一次，确定性地产生一条 death 事件，
+  // 用来验「death → instrumentation → auto_intake → 复盘 → 经验」整条链在真实数据上是不是通的。
+  // 2026-10-29（A1 实测）：原来写死只在 `--zero-start` 分支里 —— 于是不加 zero-start 时
+  // `--trigger-death` 被**静默忽略**（a1-drops 轮 deaths=NONE，白跑 8 分钟）。触发死亡是测试工具，
+  // 不该依赖清档。注意：zero-start 会强制 keepInventory=true ⇒ 掉落清单为空 ⇒ 重算不会触发；
+  // 要验「掉落 + 重算」就必须**不加** zero-start（用母版原值 keepInventory=false）。
+  if (opts.triggerDeath) {
+    const delayMs = (opts.triggerDeathDelaySeconds || 90) * 1000;
+    triggerDeathAt = Date.now() + delayMs;
+    log(runDir, 'trigger-death', '已排程（' + (delayMs / 1000) + 's 后 kill ' + companionName + '）');
   }
 
   // 世界侧控制变量：必须在 zero-start 改完难度/时间之后、派目标之前拍。
