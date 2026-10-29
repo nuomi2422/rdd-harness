@@ -380,19 +380,27 @@ function buildTimeline(runDir) {
     push(e.timestamp, TAG_BY_TYPE[e.type] || 'chain', e.type + '  ' + chainText(e.type, e.data), e.type);
   }
   let deaths = 0, deathsScanned = false;
-  const numenDir = process.env.RDD_NUMEN_DIR || 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen';
-  if (numenDir) {
+  // A1（93 号）：run 归档里已有 deaths（PRESENT/NONE，带 seq/kind）时不再扫全局 instrumentation ——
+  // 否则同一次死亡会出两行 [death]（一行来自归档、一行来自旧扫描）。老 run 没有 deaths 键才走旧扫描。
+  const hasA1Deaths = env.deaths && (env.deaths.status === 'PRESENT' || env.deaths.status === 'NONE');
+  if (hasA1Deaths) {
+    deaths = env.deaths.count || 0;
     deathsScanned = true;
-    const inst = path.join(numenDir, 'monitor', 'instrumentation.jsonl');
-    const winS = Date.parse(T.stimulusSentAt || '') || null;
-    const winE = Date.parse(T.watchEnd || '') || null;
-    if (fs.existsSync(inst) && winS != null) {
-      for (const e of readJsonl(inst)) {
-        const t = Date.parse(e.timestamp);
-        if (!(t >= winS && (winE == null || t <= winE + 60000))) continue;
-        if (/death|died|死亡|was slain|killed by/i.test(e.type || '') || /death|died|死亡|was slain|killed by/i.test(JSON.stringify(e.data || {}))) {
-          deaths++;
-          push(e.timestamp, 'death', ((e.data && (e.data.message || e.data.cause)) || e.type || 'death'), e.type);
+  } else {
+    const numenDir = process.env.RDD_NUMEN_DIR || 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen';
+    if (numenDir) {
+      deathsScanned = true;
+      const inst = path.join(numenDir, 'monitor', 'instrumentation.jsonl');
+      const winS = Date.parse(T.stimulusSentAt || '') || null;
+      const winE = Date.parse(T.watchEnd || '') || null;
+      if (fs.existsSync(inst) && winS != null) {
+        for (const e of readJsonl(inst)) {
+          const t = Date.parse(e.timestamp);
+          if (!(t >= winS && (winE == null || t <= winE + 60000))) continue;
+          if (/death|died|死亡|was slain|killed by/i.test(e.type || '') || /death|died|死亡|was slain|killed by/i.test(JSON.stringify(e.data || {}))) {
+            deaths++;
+            push(e.timestamp, 'death', ((e.data && (e.data.message || e.data.cause)) || e.type || 'death'), e.type);
+          }
         }
       }
     }
