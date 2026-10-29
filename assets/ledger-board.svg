@@ -1,0 +1,69 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="300" viewBox="0 0 1280 300" role="img" aria-label="RDD Harness 台账看板：门禁与实验台真实数据">
+  <title>RDD Harness 台账看板</title>
+  <style>
+    .ui{font-family:"Saira","Noto Sans SC",system-ui,-apple-system,sans-serif}
+    .txt{font-family:"Noto Sans SC",system-ui,-apple-system,sans-serif}
+    .en{letter-spacing:.14em;text-transform:uppercase}
+    .num{font-variant-numeric:tabular-nums}
+  </style>
+
+  <rect width="1280" height="300" fill="#eef0f1"/>
+
+  <!-- panel 1: 大数字 -->
+  <rect x="40" y="24" width="580" height="150" fill="#ffffff" stroke="#d5d8da"/>
+  <rect x="40" y="24" width="580" height="3" fill="#161616"/>
+  <text x="60" y="56" class="ui en" font-size="11" font-weight="600" fill="#5c5c5c">// REGISTRY</text>
+  <text x="60" y="78" class="txt" font-size="18" font-weight="800" fill="#161616">注册表现状</text>
+  <text x="600" y="56" text-anchor="end" class="ui en" font-size="10" fill="#a3a3a3">SINGLE SOURCE</text>
+  <line x1="60" y1="90" x2="600" y2="90" stroke="#d5d8da"/>
+
+  <text x="60" y="132" class="ui num" font-size="38" font-weight="800" fill="#161616">98</text>
+  <text x="60" y="154" class="txt" font-size="12" fill="#5c5c5c">工具</text>
+
+  <text x="205" y="132" class="ui num" font-size="38" font-weight="800" fill="#161616">40</text>
+  <text x="205" y="154" class="txt" font-size="12" fill="#5c5c5c">门禁（进 21 / 退 19）</text>
+
+  <text x="390" y="132" class="ui num" font-size="38" font-weight="800" fill="#161616">17</text>
+  <text x="390" y="154" class="txt" font-size="12" fill="#5c5c5c">时间锁</text>
+
+  <text x="500" y="132" class="ui num" font-size="38" font-weight="800" fill="#161616">10</text>
+  <text x="500" y="154" class="txt" font-size="12" fill="#5c5c5c">根路径</text>
+
+  <!-- panel 2: 自测状态 -->
+  <rect x="650" y="24" width="590" height="150" fill="#ffffff" stroke="#d5d8da"/>
+  <rect x="650" y="24" width="590" height="3" fill="#161616"/>
+  <text x="670" y="56" class="ui en" font-size="11" font-weight="600" fill="#5c5c5c">// SELFTEST</text>
+  <text x="670" y="78" class="txt" font-size="18" font-weight="800" fill="#161616">三分钟自证</text>
+  <line x1="670" y1="90" x2="1220" y2="90" stroke="#d5d8da"/>
+
+  <text x="670" y="114" class="ui en" font-size="11" font-weight="700" fill="#5c5c5c">GATE</text>
+  <text x="760" y="114" class="txt" font-size="13" fill="#161616">门禁接线自检</text>
+  <rect x="1010" y="103" width="92" height="16" fill="#7de6ff" stroke="#7de6ff"/>
+  <text x="1056" y="115" text-anchor="middle" class="ui en" font-size="10" font-weight="700" fill="#161616">FAIL=0</text>
+
+  <text x="670" y="140" class="ui en" font-size="11" font-weight="700" fill="#5c5c5c">CARD</text>
+  <text x="760" y="140" class="txt" font-size="13" fill="#161616">实验卡判据自检</text>
+  <rect x="1010" y="129" width="92" height="16" fill="none" stroke="#161616"/>
+  <text x="1056" y="141" text-anchor="middle" class="ui en" font-size="10" font-weight="700" fill="#161616">12 / 12</text>
+
+  <text x="670" y="166" class="ui en" font-size="11" font-weight="700" fill="#5c5c5c">JUDGE</text>
+  <text x="760" y="166" class="txt" font-size="13" fill="#161616">裁判拒假绿</text>
+  <rect x="1010" y="155" width="92" height="16" fill="none" stroke="#161616"/>
+  <text x="1056" y="167" text-anchor="middle" class="ui en" font-size="10" font-weight="700" fill="#161616">5 / 5</text>
+
+  <text x="1120" y="140" class="txt" font-size="11" fill="#5c5c5c">不碰游戏</text>
+
+  <!-- panel 3: 三行 -->
+  <rect x="40" y="198" width="1200" height="78" fill="#ffffff" stroke="#d5d8da"/>
+  <rect x="40" y="198" width="1200" height="3" fill="#161616"/>
+  <text x="60" y="228" class="ui en" font-size="11" font-weight="600" fill="#5c5c5c">// BRIEFING</text>
+  <text x="60" y="250" class="txt" font-size="18" font-weight="800" fill="#161616">三行简报</text>
+  <line x1="230" y1="216" x2="230" y2="262" stroke="#d5d8da"/>
+
+  <text x="252" y="226" class="ui" font-size="13" font-weight="800" fill="#5c5c5c">①</text>
+  <text x="278" y="226" class="txt" font-size="12.5" fill="#161616">AI 会说自己做到了，工具会回 success——这套东西让这些说法没法蒙混过关。</text>
+  <text x="252" y="244" class="ui" font-size="13" font-weight="800" fill="#5c5c5c">②</text>
+  <text x="278" y="244" class="txt" font-size="12.5" fill="#161616">判据先冻结再开跑，机械裁判只读证据；冻结后改卡 → 拒绝出结论。</text>
+  <text x="252" y="262" class="ui" font-size="13" font-weight="800" fill="#5c5c5c">③</text>
+  <text x="278" y="262" class="txt" font-size="12.5" fill="#161616">跑输的那组（四轮全无进步）照样留在仓里，机器判 REFUTES。</text>
+</svg>
