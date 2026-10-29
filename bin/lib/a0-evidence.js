@@ -155,6 +155,38 @@ function classifySession({ chatRows, firstRequest, runStartAt }) {
   return out;
 }
 
+// -------------------------------------------------------- 会话边界注入 ----
+
+/**
+ * 给本轮要跑的同伴 chat.jsonl 追加一条 append-only clear 边界（zero-start 的“清会话”步骤）。
+ *
+ * 为什么：`zero-start` 原来只清背包/难度，不清会话；每轮 restore 把 `companions/` 还原成基线后，
+ * 历史 chat.jsonl（实测 28~29 条）会被 `ConvoLog.load` 回放进首个请求，于是 clean run 被判 DIRTY
+ * （V-20261029-01 判据①）。做法与 83 号 §3 一致：只追加一行 `{"type":"clear","ts":…}`，不删历史。
+ *
+ * 必须在本轮 launch 之前调用（游戏还没打开文件，追加不会和写入交错）。
+ * 返回注入清单，供 envelope.sessionClear / evidence/session-clear.json 审计。
+ */
+function appendClearBoundary(companionsDir, opts) {
+  opts = opts || {};
+  const out = { at: new Date().toISOString(), reason: opts.reason || 'unspecified', injected: 0, files: [], skipped: [] };
+  if (!companionsDir || !fs.existsSync(companionsDir)) { out.skipped.push('no-companions-dir'); return out; }
+  for (const d of fs.readdirSync(companionsDir, { withFileTypes: true })) {
+    if (!d.isDirectory()) continue;
+    const p = path.join(companionsDir, d.name, 'chat.jsonl');
+    if (!fs.existsSync(p)) { out.skipped.push(d.name + ':no-chat'); continue; }
+    const rec = JSON.stringify({ type: 'clear', ts: Date.now() });
+    try {
+      fs.appendFileSync(p, rec + '\n');
+      out.files.push({ uuid: d.name, file: p, record: rec });
+      out.injected += 1;
+    } catch (e) {
+      out.skipped.push(d.name + ':' + String(e.message).slice(0, 80));
+    }
+  }
+  return out;
+}
+
 // -------------------------------------------------------- 人工介入 ----
 
 /** 从一条 monitor 事件推介入类别。 */
@@ -623,6 +655,29 @@ function selftest() {
       firstRequest: { at: iso(T0 + 5000), messageCount: 2, eventId: 'c3' }, runStartAt: iso(T0),
     });
     assert(noClear.status === 'UNKNOWN', '④ 无 clear 且无法确认时必须 UNKNOWN，实得 ' + noClear.status, fails);
+
+    // ④b zero-start 注入 clear 后：历史仍留在文件里，但边界早于首请求、首请求只有 2 条 → CLEAN。
+    //    这是 exp-runner#appendClearBoundary 的对应判据（V-20261029-01 判据①的修复路径）。
+    const injected = classifySession({
+      chatRows: [
+        { role: 'user', ts: T0 - 60000 },
+        { role: 'assistant', ts: T0 - 50000 },
+        { type: 'clear', ts: T0 + 1000 },
+      ],
+      firstRequest: { at: iso(T0 + 5000), messageCount: 2, eventId: 'c4' }, runStartAt: iso(T0),
+    });
+    assert(injected.status === 'CLEAN', '④b zero-start 注入 clear 后应判 CLEAN，实得 ' + injected.status, fails);
+    assert(injected.clear_boundary_at === iso(T0 + 1000), '④b clear_boundary_at 应取最后一条 clear，实得 ' + injected.clear_boundary_at, fails);
+
+    // ④c 反过来：clear 晚于首请求（运行中才清）不能追认本轮干净 → UNKNOWN，不得 CLEAN。
+    const lateClear = classifySession({
+      chatRows: [
+        { role: 'user', ts: T0 - 60000 },
+        { type: 'clear', ts: T0 + 9000 },
+      ],
+      firstRequest: { at: iso(T0 + 5000), messageCount: 2, eventId: 'c5' }, runStartAt: iso(T0),
+    });
+    assert(lateClear.status === 'UNKNOWN', '④c clear 晚于首请求必须 UNKNOWN，实得 ' + lateClear.status, fails);
   }
 
   // ⑤ rendered / kept / delivered 不混淆 + 截断不算送达 + delivered 可多于 rendered（直接注入）
@@ -683,8 +738,33 @@ function selftest() {
     assert(wv.drift === false, '⑨ drift 透传错', fails);
   }
 
+  // ⑩ zero-start 注入 clear：append-only、历史一条不丢、注入后判 CLEAN
+  {
+    const os = require('os');
+    const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'a0-selftest-'));
+    const cmp = path.join(tmp, 'companions');
+    fs.mkdirSync(path.join(cmp, 'u1'), { recursive: true });
+    const chat = path.join(cmp, 'u1', 'chat.jsonl');
+    const nowMs = Date.now();
+    const before = [{ role: 'user', ts: nowMs - 60000 }, { role: 'assistant', ts: nowMs - 50000 }];
+    fs.writeFileSync(chat, before.map((r) => JSON.stringify(r)).join('\n') + '\n');
+    const inj = appendClearBoundary(cmp, { reason: 'selftest' });
+    assert(inj.injected === 1 && inj.files[0].uuid === 'u1', '⑩ 注入应命中 1 个 chat.jsonl，实得 ' + inj.injected, fails);
+    const rows = parseJsonl(fs.readFileSync(chat, 'utf8')).rows;
+    assert(rows.length === 3 && rows[0].role === 'user', '⑩ 注入必须 append-only（历史一条不丢）', fails);
+    assert(rows[2] && rows[2].type === 'clear', '⑩ 最后一行应为 clear 边界', fails);
+    const injTs = JSON.parse(inj.files[0].record).ts;
+    const s = classifySession({
+      chatRows: rows,
+      firstRequest: { at: new Date(injTs + 5000).toISOString(), messageCount: 2, eventId: 'c6' },
+      runStartAt: new Date(nowMs - 10000).toISOString(),
+    });
+    assert(s.status === 'CLEAN', '⑩ 注入 clear 后（边界在首请求前）应判 CLEAN，实得 ' + s.status, fails);
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+
   const lines = [];
-  lines.push('A0 selftest · 9 组判据');
+  lines.push('A0 selftest · 10 组判据');
   lines.push(fails.length ? ('FAIL ' + fails.length + ' 项:') : 'PASS 全过');
   for (const f of fails) lines.push('  ✗ ' + f);
   console.log(lines.join('\n'));
@@ -727,7 +807,7 @@ if (require.main === module) {
 
 module.exports = {
   A0_VERSION, KINDS, ACTORS, SOURCES,
-  parseJsonl, classifySession, normalizeIntervention, collectInterventions,
+  parseJsonl, classifySession, appendClearBoundary, normalizeIntervention, collectInterventions,
   collectDelivery, worldViewsFromEnvelope, applyToEnvelope, gateVerdict, timelineEntries,
   firstLlmRequestFromJsonl, collect, selftest,
 };
