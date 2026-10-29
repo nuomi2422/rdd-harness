@@ -719,6 +719,9 @@ function computeHealth(runDir) {
     interventions: (env.interventions || {}).status || 'UNKNOWN',
     interventionCount: (env.interventions || {}).count == null ? null : env.interventions.count,
     delivery: (env.context_delivery || {}).status || 'UNKNOWN',
+    // A1（93 号）：死亡事实。老 run 没有这个键 = 未采集，不是「没死」。
+    deaths: env.deaths ? env.deaths.status : null,
+    deathCount: env.deaths && env.deaths.count != null ? env.deaths.count : null,
     reasons: [],
   };
   if (!env.a0) a0.reasons.push('a0:missing（老 run 或采集失败，不是「干净」）');
@@ -737,8 +740,14 @@ function computeHealth(runDir) {
     if (d.deliveredWithoutRender && d.deliveredWithoutRender.count > 0) {
       a0.reasons.push('delivery:deliveredWithoutRender=' + d.deliveredWithoutRender.count + '（直接注入，非异常）');
     }
+    // A1：有 deaths 键却 UNKNOWN = 拿不到 instrumentation，必须显式报，不得当成没死。
+    if (env.deaths && env.deaths.status === 'UNKNOWN') {
+      a0.reasons.push('deaths:UNKNOWN(' + ((env.deaths.reasons || []).join(',') || 'no-reason') + ')');
+    }
   }
-  if (a0.reasons.some((r) => /DIRTY|截断|矛盾/.test(r))) problems.push(...a0.reasons.filter((r) => /DIRTY|截断|矛盾/.test(r)));
+  // A1：deaths:UNKNOWN 和 DIRTY 同级——拿不到死亡证据时不能把这一轮当健康样本。
+  const blockingA0 = a0.reasons.filter((r) => /DIRTY|截断|矛盾|deaths:UNKNOWN/.test(r));
+  if (blockingA0.length) problems.push(...blockingA0);
   const out = { run: path.basename(runDir), healthy: problems.length === 0, problems, stopReason: (env.watch || {}).stopReason || null, drift: env.world ? env.world.drift : null, complete: { before: before.complete, after: after.complete }, postStopRequests: (env.stop || {}).postStopRequests, a0 };
   return out;
 }

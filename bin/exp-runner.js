@@ -458,7 +458,9 @@ async function cmdRun(opts) {
   const offsets = {};
   // A0（90 号）：expmem.jsonl 里才有 expanded/auto_expanded/request_delivered，
   // 不归档它就无法区分「渲染过」和「最终请求里真的有」。
-  for (const f of ['tools.jsonl', 'context.jsonl', 'events.jsonl', 'ai.jsonl', 'rdd.jsonl', 'expmem.jsonl']) {
+  // A1（93 号）：instrumentation.jsonl 里才有 death / starvation_death —— 88 §7.5 说
+  // 「monitor 没有 death 事件」是只看了 rdd.jsonl；不拉这个文件，死亡就永远只能靠人记。
+  for (const f of ['tools.jsonl', 'context.jsonl', 'events.jsonl', 'ai.jsonl', 'rdd.jsonl', 'expmem.jsonl', 'instrumentation.jsonl']) {
     const p = path.join(MONITOR, f);
     offsets[f] = fs.existsSync(p) ? fs.statSync(p).size : 0;
     fs.writeFileSync(path.join(runDir, 'evidence', f), '');
@@ -669,6 +671,7 @@ async function cmdRun(opts) {
   env.phase = 'a0';
   try {
     pull('expmem.jsonl'); // 收尾再拉一次：expanded / request_delivered 都在这里
+    pull('instrumentation.jsonl'); // A1：死亡事件（death / starvation_death）只在这条流
     const a0 = A0.collect({
       runDir,
       monitorDir: MONITOR,
@@ -679,6 +682,7 @@ async function cmdRun(opts) {
     env.session = merged.session;
     env.interventions = merged.interventions;
     env.context_delivery = merged.context_delivery;
+    env.deaths = merged.deaths;
     env.world_views = merged.world_views;
     env.a0 = merged.a0;
     env.a0.sources = a0.sources;
@@ -686,12 +690,14 @@ async function cmdRun(opts) {
       + ' interventions=' + env.interventions.status + '(' + env.interventions.count + ')'
       + ' delivery=' + env.context_delivery.status
       + ' rendered=' + (env.context_delivery.rendered ? env.context_delivery.rendered.refs.length : '?')
-      + ' delivered=' + (env.context_delivery.delivered ? env.context_delivery.delivered.refs.length : '?'));
+      + ' delivered=' + (env.context_delivery.delivered ? env.context_delivery.delivered.refs.length : '?')
+      + ' deaths=' + (env.deaths ? env.deaths.status + '(' + env.deaths.count + ')' : '?'));
   } catch (e) {
     // 证据缺失照实记 UNKNOWN，不拿默认值补成功
     env.session = { status: 'UNKNOWN', reasons: ['a0-collect-failed: ' + String(e.message).slice(0, 200)] };
     env.interventions = { count: 0, ids: [], status: 'UNKNOWN', entries: [], rejected: [] };
     env.context_delivery = { status: 'UNKNOWN' };
+    env.deaths = { status: 'UNKNOWN', count: null, entries: [], reasons: ['collect-failed'] };
     env.a0 = { version: A0.A0_VERSION, collected_at: nowIso(), error: String(e.message).slice(0, 400) };
     log(runDir, 'a0', 'A0 采集失败（照实记 UNKNOWN）: ' + e.message);
   }

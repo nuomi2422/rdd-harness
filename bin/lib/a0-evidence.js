@@ -396,6 +396,54 @@ function collectDelivery({ contextRows, expmemRows }) {
   };
 }
 
+// ------------------------------------------------------ 死亡事实 ----
+
+/**
+ * A1（93 号）：只读 `instrumentation.jsonl` 里的 `death` / `starvation_death`。
+ *
+ * 为什么不是从 rdd.jsonl 数：`repeat_death_nearby` / `companion_assets_invalidated`
+ * 只是旁证（同点连死、资产失效），拿它们当死亡总数会把 8 次数成 6 次（88 §7.5）。
+ * 真正的死亡事件在 instrumentation 流，且必须带 `deathSeq` 才能和台账/重算对账。
+ *
+ * 缺失 = UNKNOWN（拿不到 ≠ 没死）；文件在但 0 条 = NONE。
+ * 同一 `deathSeq` 只留第一条（重发/重放不重复计数）。
+ */
+function collectDeaths({ instrumentationText, windowStartAt }) {
+  const out = { status: 'UNKNOWN', count: null, entries: [], reasons: [] };
+  if (instrumentationText == null) { out.reasons.push('no-instrumentation-archive'); return out; }
+  const parsed = parseJsonl(instrumentationText);
+  if (parsed.bad.length) out.reasons.push('unparsable-lines=' + parsed.bad.length);
+  const startMs = toMs(windowStartAt);
+  const seen = new Set();
+  for (const e of parsed.rows) {
+    if (!e) continue;
+    const type = (e.type === 'death' || e.type === 'starvation_death') ? e.type : null;
+    if (!type) continue;
+    const d = e.data || {};
+    const seq = (typeof d.deathSeq === 'number' && d.deathSeq >= 0) ? d.deathSeq : null;
+    const at = e.timestamp || e.at || null;
+    const atMs = toMs(at);
+    if (startMs != null && atMs != null && atMs < startMs) continue; // 只认 run 窗口
+    const key = seq == null ? ('e:' + (e.event_id || at || '')) : ('s:' + seq);
+    if (seen.has(key)) continue;
+    seen.add(key);
+    out.entries.push({
+      seq,
+      at,
+      kind: type,
+      deathKind: d.deathKind || d.reason || null,
+      // 台账三态（UNVERIFIED/CONFIRMED_LOST/RECOVERED）不在死亡事件里：
+      // A1 只读事件，不猜状态；要状态就去读 RddDeathLedger 的渲染，不在这里补。
+      state: 'UNKNOWN',
+      dropsLeftSeconds: null,
+      evidence: 'evidence/instrumentation.jsonl#' + (e.event_id || at || ''),
+    });
+  }
+  out.count = out.entries.length;
+  out.status = out.count > 0 ? 'PRESENT' : 'NONE';
+  return out;
+}
+
 // ------------------------------------------------------ 世界视图 ----
 
 /** 从 envelope.world + evidence/world-view-<phase>.json 汇总四相位视图关联。 */
@@ -424,19 +472,21 @@ function worldViewsFromEnvelope(env, readJson) {
 
 // ------------------------------------------------- envelope 接线 ----
 
-/** 把三段并进 envelope：只加键，不改/不删旧键（离线判据要断言这点）。 */
-function applyToEnvelope(env, { session, interventions, delivery, worldViews }) {
+/** 把各段并进 envelope：只加键，不改/不删旧键（离线判据要断言这点）。 */
+function applyToEnvelope(env, { session, interventions, delivery, worldViews, deaths }) {
   const out = Object.assign({}, env); // 浅拷贝：旧键原样
   out.session = session || { status: 'UNKNOWN', reasons: ['not-collected'] };
   out.interventions = interventions || { count: 0, ids: [], status: 'UNKNOWN', entries: [], rejected: [] };
   out.context_delivery = delivery || { status: 'UNKNOWN' };
   if (worldViews) out.world_views = worldViews;
+  if (deaths) out.deaths = deaths;
   out.a0 = {
     version: A0_VERSION,
     collected_at: new Date().toISOString(),
     session_status: out.session.status,
     interventions_status: out.interventions.status,
     delivery_status: out.context_delivery.status,
+    deaths_status: out.deaths ? out.deaths.status : 'UNKNOWN',
   };
   return out;
 }
@@ -513,10 +563,26 @@ function timelineEntries(env) {
         + '  truncated=' + (d.truncated ? d.truncated.refs.length : '?'),
     });
   }
+  // A1（93 号）：死亡事实。PRESENT 才逐条出行；NONE 不造行；UNKNOWN 显式出行（不是假事件）。
+  const dd = env.deaths;
+  if (dd && dd.status === 'PRESENT' && Array.isArray(dd.entries)) {
+    for (const e of dd.entries) {
+      out.push({
+        at: e.at,
+        tag: 'death',
+        text: '死亡 seq=' + (e.seq == null ? '?' : e.seq) + '  ' + e.kind + '  deathKind=' + (e.deathKind || '?')
+          + (e.state && e.state !== 'UNKNOWN' ? '  state=' + e.state : ''),
+      });
+    }
+  } else if (dd && dd.status === 'UNKNOWN') {
+    out.push({
+      at: (env.timings && env.timings.stimulusSentAt) || null,
+      tag: 'death',
+      text: '死亡事实 UNKNOWN（' + ((dd.reasons || []).join(',') || 'no-reason') + '）',
+    });
+  }
   return out;
 }
-
-// -------------------------------------------------------- 落盘采集 ----
 
 function firstLlmRequestFromJsonl(text) {
   const { rows } = parseJsonl(text);
@@ -613,7 +679,12 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   const expmemRows = expmemText != null ? parseJsonl(expmemText).rows : null;
   const delivery = collectDelivery({ contextRows, expmemRows });
 
-  // 4) 世界视图字段（envelope.world 已有；没用 world-view 文件也不猜）
+  // 4) 死亡事实（A1，93 号）：只读 instrumentation 切片；缺失 UNKNOWN，不当 0
+  const insText = readIfExists(ev('instrumentation.jsonl'));
+  sources.instrumentation = insText != null;
+  const deaths = collectDeaths({ instrumentationText: insText, windowStartAt: launchStart });
+
+  // 5) 世界视图字段（envelope.world 已有；没用 world-view 文件也不猜）
   const envText = readIfExists(path.join(runDir, 'envelope.json'));
   const env = envText ? JSON.parse(envText) : {};
   const worldViews = worldViewsFromEnvelope(env, (rel) => {
@@ -622,7 +693,7 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
     try { return JSON.parse(t); } catch (e) { return null; }
   });
 
-  return { session, interventions, delivery, worldViews, sources: Object.assign(sources, { collected_at: nowIso }) };
+  return { session, interventions, delivery, deaths, worldViews, sources: Object.assign(sources, { collected_at: nowIso }) };
 }
 
 // --------------------------------------------------------- selftest ----
@@ -834,8 +905,30 @@ function selftest() {
     fs.rmSync(tmp, { recursive: true, force: true });
   }
 
+  // ⑪ 死亡事实：PRESENT/NONE/UNKNOWN + 同 seq 去重 + 缺 seq 不编
+  {
+    const mk = (type, data) => JSON.stringify(ev({ type, timestamp: iso(T0 + 1000), event_id: 'd' + Math.random(), data }));
+    const present = collectDeaths({
+      instrumentationText: [
+        mk('death', { deathSeq: 41, deathKind: 'fall' }),
+        mk('death', { deathSeq: 41, deathKind: 'fall' }),      // 重放/重发：不得重复计数
+        mk('starvation_death', { deathSeq: 42 }),
+      ].join('\n'),
+      windowStartAt: iso(T0),
+    });
+    assert(present.status === 'PRESENT' && present.count === 2, '⑪ 同 seq 去重后应 2 条，实得 ' + present.count, fails);
+    assert(present.entries[0].seq === 41 && present.entries[1].kind === 'starvation_death', '⑪ seq/kind 映射错', fails);
+    assert(present.entries[0].state === 'UNKNOWN', '⑪ 台账状态不在事件里，不得编成 RECOVERED/LOST', fails);
+    const none = collectDeaths({ instrumentationText: '', windowStartAt: iso(T0) });
+    assert(none.status === 'NONE' && none.count === 0, '⑪ 文件在但 0 条应判 NONE，实得 ' + none.status, fails);
+    const unknown = collectDeaths({ instrumentationText: null });
+    assert(unknown.status === 'UNKNOWN' && unknown.count === null, '⑪ 缺 instrumentation 必须 UNKNOWN（不得写 NONE/0）', fails);
+    const noSeq = collectDeaths({ instrumentationText: mk('death', { deathKind: 'lava' }), windowStartAt: iso(T0) });
+    assert(noSeq.entries[0] && noSeq.entries[0].seq === null, '⑪ 缺 deathSeq 不得编一个 seq 出来', fails);
+  }
+
   const lines = [];
-  lines.push('A0 selftest · 10 组判据');
+  lines.push('A0 selftest · 11 组判据');
   lines.push(fails.length ? ('FAIL ' + fails.length + ' 项:') : 'PASS 全过');
   for (const f of fails) lines.push('  ✗ ' + f);
   console.log(lines.join('\n'));
@@ -879,6 +972,6 @@ if (require.main === module) {
 module.exports = {
   A0_VERSION, KINDS, ACTORS, SOURCES,
   parseJsonl, classifySession, appendClearBoundary, normalizeIntervention, collectInterventions,
-  collectDelivery, worldViewsFromEnvelope, applyToEnvelope, gateVerdict, timelineEntries,
+  collectDelivery, collectDeaths, worldViewsFromEnvelope, applyToEnvelope, gateVerdict, timelineEntries,
   firstLlmRequestFromJsonl, collect, selftest,
 };
