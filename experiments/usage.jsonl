@@ -3,3 +3,4 @@
 {"at":"2026-10-29T05:17:19.445Z","session":"session-98aedef1-d4da-499a-b3fa-b11c460e9414","source":"dsh","cmd":"bench health","run":"exp-craft-ab2-base-20261026-204037","card":null,"status":"ok"}
 {"at":"2026-10-29T05:18:25.298Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"run-clean","card":null,"status":"unhealthy"}
 {"at":"2026-10-29T05:22:35.292Z","session":"session-98aedef1-d4da-499a-b3fa-b11c460e9414","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-29T05:27:11.491Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"run-copy","card":null,"status":"unhealthy"}
