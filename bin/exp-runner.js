@@ -137,11 +137,24 @@ function worldSnapshot(runDir, companion, tag) {
     data,
     raw,
     sha256: sha256(raw),
+    // A0：view_id 需要「哪一轮 / 哪个相位 / 何时」
+    runId: path.basename(runDir),
+    phase: tag,
+    finishedAt: new Date().toISOString(),
   };
 }
 
 function worldSummary(s) {
   const d = (s && s.data) || {};
+  // A0（90 号 §2 第 3 条）：把 world-view 的三元字段（view_id / control_key / captured_at）
+  // 挂到 envelope 上，供 bench timeline 与后续复盘按 id 关联。
+  // view_id 的构造与 bin/world-view.js:74 同形（runId + phase + 采集时刻），不另造编号体系；
+  // captured_at 优先用探针自己的 at，没有就用落盘时刻并标 inferred。
+  const at = d.at || d.captured_at || null;
+  const capturedAt = at || (s && s.finishedAt) || null;
+  const viewId = (s && s.runId && s.phase && capturedAt)
+    ? s.runId + '-' + s.phase + '-' + String(capturedAt).replace(/[:.]/g, '-')
+    : null;
   return {
     ok: !!(s && s.ok),
     complete: d.complete === true,
@@ -149,6 +162,10 @@ function worldSummary(s) {
     stable_key: d.stable_key || null,
     sha256: (s && s.sha256) || null,
     errors: Array.isArray(d.errors) ? d.errors : [],
+    view_id: viewId,
+    captured_at: capturedAt,
+    captured_at_inferred: !at,
+    coverage: d.complete === true ? 'COMPLETE' : 'PARTIAL',
   };
 }
 function parseCompanions(raw) {

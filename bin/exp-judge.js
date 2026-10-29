@@ -142,29 +142,33 @@ function evaluate(runDir) {
   // ---------- S5 A0 EVIDENCE ----------
   // 90 号 §8/§9：A0 不证明能力，只决定「这轮的结论能不能算自主」。
   // 缺 A0 块 → INCONCLUSIVE 而不是 FAIL（老 run 没这条证据，不能倒推它有罪）。
+  // ★ 2026-10-29 实机后改：原来按 if/else 只报**第一条**命中的问题，
+  //   于是「会话 DIRTY + 有 1 次人工给物」的 run 只显示 DIRTY，介入被吞掉。
+  //   现在把所有命中项都列进 detail，严重度取最坏的（截断>DIRTY>介入/UNKNOWN>PASS）。
   {
     const s = env.session;
     const itv = env.interventions;
     const dl = env.context_delivery;
     if (!env.a0) {
       add('S5', 'INCONCLUSIVE', '缺 A0 证据块（老 run 或采集失败）：会话/介入/投送都无法判定', ['envelope.json#a0']);
-    } else if (dl && dl.truncatedCountedAsDelivered) {
-      add('S5', 'FAIL', '截断条目被当成 REQUEST_DELIVERED（投送账本口径矛盾）', ['envelope.json#context_delivery']);
-    } else if (s && s.status === 'DIRTY') {
-      add('S5', 'FAIL', '会话上下文 DIRTY：首请求已带历史（msgs=' + s.first_request_message_count + '），本轮材料不干净',
-        ['envelope.json#session']);
-    } else if (s && s.status === 'UNKNOWN') {
-      add('S5', 'INCONCLUSIVE', '会话洁净度 UNKNOWN（' + ((s.reasons || []).join(',') || 'no-reason') + '）：不能当 CLEAN',
-        ['envelope.json#session']);
-    } else if (itv && itv.status === 'PRESENT') {
-      add('S5', 'INCONCLUSIVE', '人工介入 ' + itv.count + ' 条（' + JSON.stringify(itv.byKind || {}) + '）：本轮结果只能算「人工介入后结果」',
-        ['envelope.json#interventions']);
-    } else if (itv && itv.status === 'UNKNOWN') {
-      add('S5', 'INCONCLUSIVE', '人工介入 UNKNOWN（拿不到监控事件流）：不能声称「无介入」', ['envelope.json#interventions']);
     } else {
-      add('S5', 'PASS', '会话 CLEAN（msgs=' + (s ? s.first_request_message_count : '?') + '）、无人工介入、投送账本一致'
-        + (dl && dl.delivered ? '（delivered=' + dl.delivered.refs.length + '，dropped=' + (dl.dropped ? dl.dropped.count : '?') + '）' : ''),
-        ['envelope.json#session', 'envelope.json#interventions', 'envelope.json#context_delivery']);
+      const bad = [];
+      if (s && s.status === 'DIRTY') bad.push('会话 DIRTY（首请求 msgs=' + s.first_request_message_count + '，带历史）');
+      if (s && s.status === 'UNKNOWN') bad.push('会话 UNKNOWN（' + ((s.reasons || []).join(',') || 'no-reason') + '）');
+      if (itv && itv.status === 'PRESENT') bad.push('人工介入 ' + itv.count + ' 条 ' + JSON.stringify(itv.byKind || {}) + '（只能算「介入后结果」）');
+      if (itv && itv.status === 'UNKNOWN') bad.push('人工介入 UNKNOWN（拿不到事件流，不能声称无介入）');
+      if (dl && dl.status === 'UNKNOWN') bad.push('投送 UNKNOWN');
+      const fatal = dl && dl.truncatedCountedAsDelivered;
+      let verdict;
+      if (fatal) verdict = 'FAIL';
+      else if (s && s.status === 'DIRTY') verdict = 'FAIL';
+      else if (bad.length) verdict = 'INCONCLUSIVE';
+      else verdict = 'PASS';
+      const detail = verdict === 'PASS'
+        ? ('会话 CLEAN（msgs=' + (s ? s.first_request_message_count : '?') + '）、无人工介入、投送账本一致'
+          + (dl && dl.delivered ? '（delivered=' + dl.delivered.refs.length + '，dropped=' + (dl.dropped ? dl.dropped.count : '?') + '）' : ''))
+        : (fatal ? '截断条目被当成 REQUEST_DELIVERED；' : '') + bad.join('；');
+      add('S5', verdict, detail, ['envelope.json#session', 'envelope.json#interventions', 'envelope.json#context_delivery']);
     }
   }
 

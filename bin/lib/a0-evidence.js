@@ -404,9 +404,11 @@ function timelineEntries(env) {
   const out = [];
   if (!env) return out;
   const s = env.session;
-  if (s && (s.clear_boundary_at || s.status)) {
+  if (s && (s.first_request_at || s.status)) {
     out.push({
-      at: s.clear_boundary_at || (env.timings && env.timings.stimulusSentAt) || null,
+      // ★ 用**首请求时刻**做这条线的时间戳：clear_boundary 可能是几天前（陈旧 clear），
+      //   拿它当 at 会把「会话边界」画到 run 之前几十万秒处（实测 T-229841s）。
+      at: s.first_request_at || (env.timings && env.timings.stimulusSentAt) || null,
       tag: 'a0',
       text: '会话边界 ' + s.status + '  首请求msgs=' + (s.first_request_message_count == null ? '?' : s.first_request_message_count)
         + '  clear=' + (s.clear_boundary_at || 'none') + (s.reasons && s.reasons.length ? '  ' + s.reasons.join(',') : ''),
@@ -525,6 +527,13 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   sources.rdd = rddText != null;
   const rddRows = rddText != null ? parseJsonl(rddText).rows : [];
   const interventions = collectInterventions(rddRows, { eventsAvailable: sources.rdd });
+  // 事件本身不带 runId；这些行来自**本轮窗口切片**（evidence/rdd.jsonl 只装了本 run 的增量），
+  // 所以按 run 补 runId 是事实，不是猜。补不上的（没有 envelope）保持 null。
+  const envEarlyText = readIfExists(path.join(runDir, 'envelope.json'));
+  const envEarly = envEarlyText ? JSON.parse(envEarlyText) : null;
+  if (envEarly && envEarly.runId) {
+    for (const e2 of interventions.entries) if (!e2.runId) e2.runId = envEarly.runId;
+  }
 
   // 3) 投送：context.jsonl（recalled/budget）+ expmem.jsonl（rendered/delivered）
   const expmemText = readIfExists(ev('expmem.jsonl'));
