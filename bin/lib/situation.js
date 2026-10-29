@@ -18,6 +18,15 @@ const CAP_PATTERNS = [
   /无效/, /没有目标/, /够不到|打不到|无法攻击/, /no\s*such\s*entity/i,
 ];
 
+// 2026-10-29 实测：`attack`/`mine` 的失败不一定进 tool_result（异步任务），
+// 但 `task_negotiation` 的 COUNTER 会写出**具体能力边界**（例如
+// "mine 回执明确 can't harvest end_stone with the current tools"）。
+// 这里只认「明确的能力不可能」，不把普通策略分歧算成 capability_gap。
+const CAP_PATTERNS_NEGOTIATION = [
+  /can'?t\s+harvest/i, /requires?\s+(a\s+)?(diamond|iron)\s+pickaxe/i,
+  /物理上做不到/, /拿不到|做不出|凑不到/, /没有可用的?工具/, /空手.*挖不到/, /can'?t\s+mine/i,
+];
+
 function norm(s) {
   return String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
 }
@@ -35,15 +44,16 @@ function toMs(v) {
  * @param {number} [p.windowMs]     重复查询窗口，默认 60s
  * @param {number} [p.minRepeat]    同工具同参数长度几次算重复，默认 3
  */
-function classify({ toolsRows, windowMs = 60000, minRepeat = 3 } = {}) {
+function classify({ toolsRows, rddRows, windowMs = 60000, minRepeat = 3 } = {}) {
   const out = { status: 'UNKNOWN', realtime: false, entries: [], reasons: [] };
-  if (!Array.isArray(toolsRows)) {
+  if (!Array.isArray(toolsRows) && !Array.isArray(rddRows)) {
     out.reasons.push('no-tools-archive');
     return out;
   }
   const calls = [];
   const caps = [];
-  for (const e of toolsRows) {
+  const toolRows = Array.isArray(toolsRows) ? toolsRows : [];
+  for (const e of toolRows) {
     if (!e || typeof e !== 'object') continue;
     const d = e.data || {};
     if (e.type === 'tool_call') {
@@ -71,6 +81,25 @@ function classify({ toolsRows, windowMs = 60000, minRepeat = 3 } = {}) {
     }
   }
 
+  // capability（补充数据源）：task_negotiation 的 COUNTER 写出能力边界；同 subject 只留第一条。
+  const rdd = Array.isArray(rddRows) ? rddRows : [];
+  const capSeen = new Set();
+  for (const e of rdd) {
+    if (!e || e.type !== 'task_negotiation') continue;
+    const d = e.data || {};
+    if (d.kind !== 'COUNTER') continue;
+    const reason = norm(d.reason || '');
+    if (!reason) continue;
+    if (!CAP_PATTERNS_NEGOTIATION.some((re) => re.test(reason))) continue;
+    const subject = d.taskId || 'task';
+    if (capSeen.has(subject)) continue;
+    capSeen.add(subject);
+    caps.push({
+      layer: 'capability', kind: 'capability_gap', subject,
+      at: e.timestamp || null, reason: reason.slice(0, 140),
+      evidence: 'evidence/rdd.jsonl#task_negotiation',
+    });
+  }
   // 重复查询：同一 tool + 同 args_chars，窗口内 ≥ minRepeat
   const redundant = [];
   const byKey = new Map();
@@ -146,7 +175,20 @@ function selftest() {
   });
   ok(slow.entries.filter((e) => e.kind === 'redundant_query').length === 0, '⑥ 超出 60s 窗口不算重复');
 
-  console.log(fails.length ? ('situation selftest FAIL: ' + fails.join(' | ')) : 'situation selftest PASS（6 组）');
+  // ⑦ 能力边界：task_negotiation 的 COUNTER 明确写出「做不到」→ capability_gap
+  const neg = (taskId, reason) => ({ type: 'task_negotiation', timestamp: '2026-10-29T08:20:00Z', data: { kind: 'COUNTER', taskId, reason } });
+  const cap2 = classify({
+    toolsRows: [],
+    rddRows: [
+      neg('t1', "mine 回执明确 can't harvest end_stone with the current tools，做不到"),
+      neg('t1', '重复的同一条'),
+      neg('t2', '这个策略我不太喜欢，换一条'),
+    ],
+  });
+  const gaps = cap2.entries.filter((e) => e.kind === 'capability_gap');
+  ok(gaps.length === 1 && gaps[0].subject === 't1', '⑦ 能力边界只认明确「做不到」且同 subject 去重');
+
+  console.log(fails.length ? ('situation selftest FAIL: ' + fails.join(' | ')) : 'situation selftest PASS（7 组）');
   return fails.length ? 1 : 0;
 }
 

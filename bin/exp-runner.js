@@ -692,11 +692,13 @@ async function cmdRun(opts) {
     try {
       const situation = require('./lib/situation');
       const toolsPath = path.join(runDir, 'evidence', 'tools.jsonl');
-      const toolsRows = fs.existsSync(toolsPath)
-        ? fs.readFileSync(toolsPath, 'utf8').split('\n').filter(Boolean)
+      const rddPath = path.join(runDir, 'evidence', 'rdd.jsonl');
+      const readJsonl = (p) => (fs.existsSync(p)
+        ? fs.readFileSync(p, 'utf8').split('\n').filter(Boolean)
           .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean)
-        : null;
-      env.situations = situation.classify({ toolsRows });
+        : null);
+      // capability 的补充源是 rdd.jsonl 的 task_negotiation COUNTER（attack/mine 失败不一定进 tool_result）
+      env.situations = situation.classify({ toolsRows: readJsonl(toolsPath), rddRows: readJsonl(rddPath) });
     } catch (e) {
       env.situations = { status: 'UNKNOWN', realtime: false, entries: [], reasons: ['classify-failed:' + String(e.message).slice(0, 80)] };
     }
