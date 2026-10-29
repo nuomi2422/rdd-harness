@@ -282,6 +282,21 @@ async function cmdRun(opts) {
   }
   log(runDir, 'preflight', '实例空闲，母版存在，OpenClaw 就绪');
 
+  // 磁盘余量：每个 run 约 130MB（env-baseline 77MB + evidence 55MB）。
+  // 2026-10-29 实测 ENOSPC 会让「世界加载超慢 / 同伴不进场」看起来像别的问题，必须提前挡。
+  try {
+    const st = fs.statfsSync ? fs.statfsSync(GAME) : null;
+    if (st) {
+      const freeGB = (st.bavail * st.bsize) / 1024 / 1024 / 1024;
+      if (freeGB < 2) {
+        fail(runDir, 'preflight', '磁盘余量不足 ' + freeGB.toFixed(2) + 'GB（<2GB）——先清旧 run 的 env-baseline', 4);
+      }
+      log(runDir, 'preflight', '磁盘余量 ' + freeGB.toFixed(1) + 'GB');
+    }
+  } catch (e) {
+    log(runDir, 'preflight', '磁盘余量检查跳过：' + String(e.message).slice(0, 60));
+  }
+
   // ---------- prepare ----------
   env.phase = 'prepare';
   const world = 'exp-' + label + '-' + stamp().slice(9);
