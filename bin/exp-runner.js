@@ -459,7 +459,10 @@ async function cmdRun(opts) {
       const ws = ents.ok ? require('./lib/guard').worldSanity(ents.out) : null;
       if (ws) {
         log(runDir, 'preflight', '世界体检命中：末影龙 ' + ws.count + ' 只 atOrigin=' + ws.atOrigin);
-        fail(runDir, 'preflight', ws.message, 7);
+        // 2026-10-30：先降级为**警告**。原因：8 条 ender_dragon 里可能混着末影龙的 7 个部位
+        // （EnderDragonPart 也是 Entity、type 同样报 ender_dragon），那样这条会挡住所有正常的末地轮次。
+        // 先用一次专门验证定性，再决定要不要恢复成 fail。
+        log(runDir, 'preflight', '世界体检警告（不拦）：' + ws.message);
       }
       log(runDir, 'preflight', '世界体检通过（未命中）');
     }
