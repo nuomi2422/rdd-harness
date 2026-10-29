@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-28T15:44:53.233Z",
+  "updated_at": "2026-10-29T06:38:59.694Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -337,6 +337,18 @@
       "link": "P17 / mf.kit",
       "added_by": "dsh-20261028-live",
       "added_at": "2026-10-28T15:44:53.233Z"
+    },
+    {
+      "id": "TIP-20261029-01",
+      "kind": "pitfall",
+      "symptom": "A0 明明注入了 clear 边界，会话仍被判 DIRTY",
+      "fake": "首请求消息数 >2 就断定「上一轮历史被带回来了」",
+      "cause": "开局自查（scan_entities/get_self/inventory/death_ledger）与 <known_blocks> 注入让干净轮首请求也会到 9~10 条；旧判据 msgs<=2 把干净轮误杀（V-20261029-01 判据①）",
+      "guard": "判据看两件事：clear 边界早于首请求 + 首请求里不得出现 clear 之前「非 <模板>」的 user 正文；不数条数。模板指 <known_blocks>/<runtime_state> 这类每轮注入",
+      "status": "open",
+      "link": "V-20261029-01",
+      "added_by": "session-77aa68cf",
+      "added_at": "2026-10-29T06:38:59.694Z"
     }
   ],
   "signals": [
