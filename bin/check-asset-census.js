@@ -64,6 +64,20 @@ const CENSUS = [
 
 const EXIT_OK = 0, EXIT_BAD = 2, EXIT_USAGE = 3;
 
+/**
+ * ★ 2026-10-29（A0 批次）：显式豁免 —— 「清单说必须入库」与「.gitignore 明确不入库」打架时，
+ *   不许任何一边静默生效。豁免必须带理由，而且**每次输出都打印**（不是藏起来）。
+ *   为什么不做成「自动跟随 .gitignore」：那等于让 .gitignore 一句话就能让治理资产零机检，
+ *   正是这份普查存在的理由（见文件头 26 项 / 44 文件）。
+ */
+const EXEMPT = [
+  {
+    repo: 'HARNESS', p: 'bin/run-curve.ps1',
+    why: '.gitignore:19-21 明确「本机启动脚本，默认 --Goal 指向会话 .tmp，换机就跑不了 → 不入库」；'
+      + '与 bin/ 全跟踪冲突。豁免而非隐藏：每次普查都打印这一条。',
+  },
+];
+
 // ★ git ls-files 默认把非 ASCII 路径转义成八进制（"rdd\346\250..."），
 //   跟磁盘上的真实路径比不上 —— 这是个假阳性陷阱（实测踩过）。
 //   必须 -c core.quotepath=false 拿真实路径。
@@ -117,16 +131,21 @@ function run() {
     const disk = walkDisk(c.repo, c.p.replace(/\/$/, ''));
     if (disk === null) { results.push({ ...c, status: 'MISSING', count: 0, bare: [], detail: '磁盘上不存在' }); continue }
     const trackedSet = new Set(files);
-    const bare = disk.filter((f) => !trackedSet.has(f)).sort();
+    const bareAll = disk.filter((f) => !trackedSet.has(f)).sort();
+    // 显式豁免（带理由，逐次打印），其余裸奔一律照报
+    const exemptHits = bareAll.filter((f) => EXEMPT.some((e) => e.p === f
+      && (e.repo === 'HARNESS' ? c.repo === HARNESS : c.repo === DOCS)));
+    const bare = bareAll.filter((f) => !exemptHits.includes(f));
     // git 里跟踪了但磁盘上已经没了 —— 反向缺口，报出来（但不判裸奔）
     const diskSet = new Set(disk);
     const missing = files.filter((f) => !diskSet.has(f)).sort();
     const detail = `${disk.length} 个文件在盘上，${files.length} 个已跟踪` +
       (missing.length ? `；${missing.length} 个已跟踪但盘上没了` : '') +
-      (bare.length ? `；★ ${bare.length} 个裸奔` : '');
+      (bare.length ? `；★ ${bare.length} 个裸奔` : '') +
+      (exemptHits.length ? `；豁免 ${exemptHits.length} 项（显式，见输出）` : '');
     results.push({
       ...c, status: bare.length ? 'UNTRACKED' : 'OK', count: files.length,
-      bare, missing, detail,
+      bare, exempt: exemptHits, missing, detail,
     });
   }
   return results;
@@ -208,6 +227,10 @@ function main() {
       if (x.status !== 'OK') console.log(`      ↳ ${x.why}`);
       // ★ 逐文件裸奔：把具体文件名列出来 —— 只说「有裸奔」没人知道该 git add 什么
       for (const b of (x.bare || [])) console.log(`      ✘ 裸奔: ${b}`);
+      for (const e of (x.exempt || [])) {
+        const info = EXEMPT.find((z) => z.p === e);
+        console.log(`      ⊘ 显式豁免: ${e}` + (info ? ` —— ${info.why}` : ''));
+      }
       for (const m of (x.missing || [])) console.log(`      ⚠ 已跟踪但盘上没了: ${m}`);
     }
     console.log('');
