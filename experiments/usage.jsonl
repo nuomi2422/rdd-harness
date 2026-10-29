@@ -4,3 +4,8 @@
 {"at":"2026-10-29T05:18:25.298Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"run-clean","card":null,"status":"unhealthy"}
 {"at":"2026-10-29T05:22:35.292Z","session":"session-98aedef1-d4da-499a-b3fa-b11c460e9414","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-29T05:27:11.491Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"run-copy","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T05:50:40.071Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"exp-a0-clean-20261029-134447","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T05:55:45.080Z","session":"session-98aedef1-d4da-499a-b3fa-b11c460e9414","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-29T05:55:54.534Z","session":"session-98aedef1-d4da-499a-b3fa-b11c460e9414","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-29T06:04:13.960Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"exp-a0-invalid2-20261029-140102","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T06:11:07.517Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"exp-a0-final-20261029-140526","card":null,"status":"unhealthy"}
