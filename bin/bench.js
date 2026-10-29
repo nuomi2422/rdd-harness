@@ -67,6 +67,71 @@ function has(argv, k) { return argv.includes(k); }
 function need(argv, k, label) { const v = arg(argv, k); if (!v || !String(v).trim()) die(2, 'missing ' + (label || k)); return String(v).trim(); }
 function who(argv) { return arg(argv, '--by') || 'unknown'; }
 
+// ── 使用证据（2026-10-29 施工单第 4 阶段） ─────────────────────────────────
+/**
+ * 为什么存在：registry 有目录、bench 有 brief，但「外部 AI 到底读没读」以前只能靠人回忆。
+ * 这里只记**最小、非敏感**的调用证据：时间 / session / 命令 / run / card / 结果。
+ * 不记 prompt 正文、不记源码内容、不记 token。
+ *
+ * ★ 测量边界：
+ *   - session 来自 DSH_SESSION_ID 环境变量（DSH 的 shell 会注入）或 --session；拿不到就写 unknown，
+ *     不编一个「已采用率」。
+ *   - 这是「命令被执行过」的证据，不等于「AI 读了并照做」；后者要看会话里有没有据此行动。
+ *   - 并发写：append-only 追加单行；不重写账本，避免覆盖并行会话。
+ */
+const USAGE_FILE = process.env.BENCH_USAGE_FILE || path.join(HARNESS, 'experiments', 'usage.jsonl');
+function sessionOf(argv) {
+  return (argv && arg(argv, '--session')) || process.env.DSH_SESSION_ID || process.env.CLAUDE_SESSION_ID || 'unknown';
+}
+function sourceOf() {
+  if (process.env.DSH_SESSION_ID) return 'dsh';
+  if (process.env.CLAUDE_SESSION_ID) return 'claude';
+  return 'unknown';
+}
+function logUsage(argv, cmd, opts) {
+  opts = opts || {};
+  const row = {
+    at: now(),
+    session: sessionOf(argv),
+    source: opts.source || sourceOf(),
+    cmd,
+    run: opts.run || null,
+    card: opts.card || null,
+    status: opts.status || 'ok',
+  };
+  try {
+    fs.mkdirSync(path.dirname(USAGE_FILE), { recursive: true });
+    fs.appendFileSync(USAGE_FILE, JSON.stringify(row) + '\n');
+    return true;
+  } catch (e) {
+    if (!opts.quiet) console.error('[usage] 写不进使用账本（' + USAGE_FILE + '）：' + e.message);
+    return false;
+  }
+}
+function readUsage(limit) {
+  if (!fs.existsSync(USAGE_FILE)) return [];
+  const rows = [];
+  for (const l of fs.readFileSync(USAGE_FILE, 'utf8').split(/\r?\n/)) {
+    if (!l.trim()) continue;
+    try { rows.push(JSON.parse(l)); } catch { /* 坏行跳过：并行写坏一行不该毁全账 */ }
+  }
+  return limit > 0 ? rows.slice(-limit) : rows;
+}
+function usage(argv) {
+  const limit = parseInt(arg(argv, '--limit') || '20', 10);
+  const rows = readUsage(limit);
+  if (has(argv, '--json')) { console.log(JSON.stringify({ file: USAGE_FILE, total: readUsage(0).length, rows }, null, 2)); return; }
+  console.log('# 实验台使用证据（append-only）');
+  console.log('账本: ' + USAGE_FILE + '  总行数 ' + readUsage(0).length + '  （只显示最近 ' + rows.length + '）');
+  for (const r of rows) {
+    console.log(r.at + '  ' + (r.source || '?') + '/' + (r.session || 'unknown') + '  ' + r.cmd +
+      (r.run ? '  run=' + r.run : '') + (r.card ? '  card=' + r.card : '') + '  ' + (r.status || '?'));
+  }
+  console.log('\n边界：session 取自 DSH_SESSION_ID（或 --session）；拿不到写 unknown。');
+  console.log('      「命令被执行」≠「AI 读了并照做」；selftest 的调用不计入业务使用（走临时账本）。');
+}
+
+
 function catalog() {
   const w = load();
   console.log('# 实验台 catalog');
@@ -403,12 +468,90 @@ function timeline(argv) {
   console.log('共 ' + shownEvs.length + ' 条事件' + (tags ? '（--tag ' + tags.join(',') + '）' : '（默认视图）'));
 }
 
+// ── 开工包首屏（2026-10-29 施工单第 3 阶段） ──────────────────────────────
+/**
+ * 为什么存在：brief 以前只有「坑 + 旧结论 + 探针」，没有「本轮目标 / live 新鲜度 / core 入口 / 限制」。
+ * 外部 AI 于是要么漏读 bench，要么读完还得自己 grep monitor。这里把开工要的东西一次给全。
+ *
+ * ★ 不填造：没有样本就写 unknown / stale；registry 的 98 项不冒充「每轮工具定义数」。
+ */
+const CHECKPOINT_MD = process.env.RDD_CHECKPOINT || path.join('D:\\rdd', 'docs', 'rdd-docs', 'rdd架构', '_memory', 'CHECKPOINT.md');
+
+function fmtAgeSec(s) {
+  if (s == null || !isFinite(s)) return 'unknown';
+  if (s < 90) return Math.round(s) + 's';
+  if (s < 5400) return (s / 60).toFixed(0) + 'm';
+  return (s / 3600).toFixed(1) + 'h';
+}
+
+function readCheckpoint() {
+  if (!fs.existsSync(CHECKPOINT_MD)) return null;
+  const text = fs.readFileSync(CHECKPOINT_MD, 'utf8');
+  const fields = {};
+  for (const line of text.split(/\r?\n/)) {
+    const m = /^- \*\*(.+?)\*\*[:：]\s*(.*)$/.exec(line);
+    if (m) fields[m[1].trim()] = m[2].trim();
+  }
+  const at = (/写入时间[:：]\s*(.+)/.exec(text) || [])[1] || null;
+  return { file: CHECKPOINT_MD, writtenAt: at ? at.trim() : null, fields };
+}
+
+/** 只看 live/ 的落盘事实与 pid 存活；不信任 status.json 的 running 字段。 */
+function liveEntryState() {
+  const dir = path.join(HARNESS, 'experiments', 'live');
+  const sp = path.join(dir, 'status.json');
+  const out = { known: false, alive: false, enabled: null, pid: null, last_tick_at: null, age_s: null, ticks: null, views: [], observer_age_s: null, problems: [] };
+  if (!fs.existsSync(sp)) { out.problems.push('没跑过 bench live（没有 status.json）'); return out; }
+  let st;
+  try { st = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { out.problems.push('status.json 读不了：' + e.message); return out; }
+  out.known = true;
+  out.pid = st.pid;
+  out.alive = pidAlive(st.pid);
+  out.enabled = st.enabled;
+  out.ticks = st.ticks;
+  const t = Date.parse(st.last_tick_at) || (typeof st.last_tick_at === 'number' ? st.last_tick_at : NaN);
+  out.last_tick_at = isNaN(t) ? null : new Date(t).toISOString();
+  out.age_s = isNaN(t) ? null : Math.max(0, (Date.now() - t) / 1000);
+  for (const v of ['snapshot', 'chain', 'chat', 'context']) {
+    const p = path.join(dir, v + '.md');
+    if (!fs.existsSync(p)) { out.views.push({ name: v, age_s: null, missing: true }); continue; }
+    out.views.push({ name: v, age_s: (Date.now() - fs.statSync(p).mtimeMs) / 1000 });
+  }
+  const ob = st.files && st.files['observer.jsonl'];
+  if (ob && ob.lastEventAt) out.observer_age_s = Math.max(0, (Date.now() - ob.lastEventAt) / 1000);
+  if (out.known && !out.alive) out.problems.push('status.json 说 running=' + st.running + '，但 pid=' + st.pid + ' 已退出');
+  if (out.age_s != null && out.age_s > 120) out.problems.push('最后 tick 在 ' + fmtAgeSec(out.age_s) + ' 前');
+  if (out.observer_age_s != null && out.observer_age_s > 600) out.problems.push('Observer 样本 ' + fmtAgeSec(out.observer_age_s) + ' 前（stale，不能当健康观察源）');
+  return out;
+}
+
+function entryPackage(argv) {
+  const TL = require('./lib/tool-layers.js');
+  const view = TL.load();
+  const cp = readCheckpoint();
+  const goalArg = arg(argv, '--goal');
+  const goal = goalArg || (cp && cp.fields['主线目标']) || null;
+  const goalSource = goalArg ? '--goal 参数' : (cp && cp.fields['主线目标'] ? 'CHECKPOINT' + (cp.writtenAt ? '（写入 ' + cp.writtenAt + '）' : '') : 'none');
+  const boundary = arg(argv, '--boundary') || '未声明（brief 不知道本轮主人边界；按最保守走，不要顺手扩大范围）';
+  const next = arg(argv, '--next') || (cp && cp.fields['下一步']) || null;
+  const live = liveEntryState();
+  const limits = [
+    'registry ' + view.counts.registry + ' 项是**目录数量**，不是每轮模型收到的工具定义数；实际请求暴露面本机未核实（unverified）',
+    'mf-kit / mf-observer 只连原版协议服，不能证明 NeoForge live 行为；Observer 是独立只读眼，不是外部 AI 身体',
+  ];
+  if (!live.known) limits.push('live 没有任何样本 → unknown（不是 0）；先 bench live status，别把「没观测到」写成「没发生」');
+  else if (!live.alive) limits.push('live 进程已退出（最后 tick ' + fmtAgeSec(live.age_s) + ' 前）→ 现场是 stale 快照，不是实时');
+  else if (live.age_s != null && live.age_s > 120) limits.push('live 最后 tick ' + fmtAgeSec(live.age_s) + ' 前 → 数据已 stale');
+  if (live.observer_age_s != null && live.observer_age_s > 600) limits.push('Observer 样本 ' + fmtAgeSec(live.observer_age_s) + ' 前且身体字段可能为 ?（stale）');
+  return { goal, goalSource, boundary, next, core: view.coreOverlay, live, limits, layerCounts: view.counts };
+}
+
 /** 开工包：下一个 AI 一条命令拿到「要注意什么 + 前面结论 + 排队 + 母版 + 探针 +（可选）本轮 health 与时序摘要」（v0.1）。 */
 function brief(argv) {
-  const pos = argv.filter(a => !a.startsWith('--'));
-  const runDirArg = pos[1] || null;
+  const runDirArg = argv[1] && !argv[1].startsWith('--') ? argv[1] : null;
   const asJson = has(argv, '--json');
   const w = load();
+  const ep = entryPackage(argv);
   const openTips = w.tips.filter(t => t.status === 'open');
   const pending = w.queue.filter(q => q.status === 'pending');
   const reqProbes = w.probes.filter(p => p.kind === 'requested' || p.kind === 'custom');
@@ -437,9 +580,34 @@ function brief(argv) {
     const line = (e) => fmt(e.s) + ' [' + e.tag + '] ' + e.text;
     runBlock = { health: h, summary, head: evs.slice(0, 8).map(line), tail: evs.slice(-8).map(line), events: evs.length };
   }
-  if (asJson) { console.log(JSON.stringify({ updated_at: w.updated_at, openTips, verdicts: w.verdicts, pending, masters: w.masters, requestedProbes: reqProbes, builtinProbeIds: builtin.map(p => p.id), recentRuns, run: runBlock }, null, 2)); return; }
-  console.log('# 实验台 brief —— 下一个 AI 开工包（先读这份，再动手）');
+  if (asJson) { console.log(JSON.stringify({ updated_at: w.updated_at, entry: ep, openTips, verdicts: w.verdicts, pending, masters: w.masters, requestedProbes: reqProbes, builtinProbeIds: builtin.map(p => p.id), recentRuns, run: runBlock }, null, 2)); return; }
+  console.log('# 实验台 brief —— 外部编码 AI 的开工包（先读这份，再动手）');
+  console.log('开工: ' + now() + '   读的人: ' + sourceOf() + '/' + sessionOf(argv));
   console.log('账本: ' + FILE + '  更新于 ' + w.updated_at);
+  console.log('\n## 0 · 本轮目标与边界');
+  console.log('目标: ' + (ep.goal || 'unknown（没写 CHECKPOINT，也没给 --goal）'));
+  console.log('来源: ' + ep.goalSource);
+  console.log('边界: ' + ep.boundary);
+  if (ep.next) console.log('CHECKPOINT 下一步: ' + ep.next);
+  console.log('\n## 0.1 · core 入口（默认只用这 ' + ep.core.length + ' 项；其余用 `node bin/bench.js layers` 按需展开）');
+  for (const c of ep.core) console.log('- ' + (c.cmd || c.id) + '\n  ' + (c.why || ''));
+  console.log('\n## 0.2 · 现场（live）');
+  const L = ep.live;
+  if (!L.known) {
+    console.log('状态: unknown —— ' + L.problems.join('；'));
+  } else {
+    const state = !L.alive ? 'STALE（进程已退出）' : (L.age_s != null && L.age_s > 120 ? 'STALE（' + fmtAgeSec(L.age_s) + ' 没更新）' : 'LIVE');
+    console.log('状态: ' + state + '  pid=' + L.pid + '  enabled=' + L.enabled + '  ticks=' + L.ticks + '  最后 tick=' + L.last_tick_at + '（' + fmtAgeSec(L.age_s) + ' 前）');
+    console.log('视图: ' + L.views.map((v) => v.name + '=' + (v.missing ? 'missing' : fmtAgeSec(v.age_s) + '前')).join('  '));
+    console.log('Observer: ' + (L.observer_age_s == null ? 'unknown' : fmtAgeSec(L.observer_age_s) + ' 前' + (L.observer_age_s > 600 ? '（STALE）' : '')));
+    for (const p of L.problems) console.log('⚠ ' + p);
+  }
+  console.log('\n## 0.3 · 要进游戏才做的前置（纯文档/单测任务跳过）');
+  console.log('1) 读 harness/进游戏前必读-游戏内能力清单.md；2) preflight → BLOCK=0；3) 先把判据写死建验证卡（实机验证/YYYY-MM.md）；');
+  console.log('4) 起游戏只走 start-rdd.ps1 或 run-mutation.ps1；5) 进游戏前把 card/runId 绑到本轮，收工用 bench health <runDir>。');
+  console.log('\n## 0.4 · 已知限制（别把 unknown 当 0）');
+  for (const x of ep.limits) console.log('- ' + x);
+  console.log('\n## 账本概况');
   console.log('tips ' + w.tips.length + '（open ' + openTips.length + '）  verdicts ' + w.verdicts.length + '  queue pending ' + pending.length + '  masters ' + w.masters.length + '  probes ' + w.probes.length + '（待实现 ' + reqProbes.length + '）');
   if (runBlock) {
     console.log('\n## 本轮 run：' + runBlock.health.run);
@@ -470,6 +638,7 @@ function brief(argv) {
   if (!recentRuns.length) console.log('（无）');
   for (const r of recentRuns) console.log('- ' + r.run + (r.label ? ' (' + r.label + ')' : '') + '  停因=' + r.stopReason + '  ' + (r.at || '').slice(0, 19) + (r.goal ? '\n  目标: ' + r.goal : ''));
   console.log('\n共建入口: bench tip add / bench probe add / bench verdict add（要卡+judge）/ bench queue add');
+  logUsage(argv, 'bench brief', { run: runDirArg ? path.basename(path.resolve(runDirArg)) : null, status: 'ok' });
 }
 
 /** 健康哨：跑完/中断后先判「这轮材料能不能用」，坏实验早熔断。 */
@@ -494,7 +663,18 @@ function computeHealth(runDir) {
 function health(runDir) {
   const out = computeHealth(runDir);
   console.log(JSON.stringify(out, null, 2));
+  logUsage(null, 'bench health', { run: path.basename(runDir), status: out.problems.length ? 'unhealthy' : 'ok' });
   process.exit(out.problems.length ? 1 : 0);
+}
+
+/** 工具分层视图（生成，不手写第二份真源）。 */
+function layers(argv) {
+  const TL = require('./lib/tool-layers.js');
+  const view = TL.load();
+  if (has(argv, '--json')) console.log(JSON.stringify(TL.renderJson(view), null, 2));
+  else console.log(TL.renderText(view));
+  if (view.problems.length) console.error('\n[warn] ' + view.problems.join('\n[warn] '));
+  logUsage(argv, 'bench layers', { status: 'ok' });
 }
 
 // ── 常驻视图（bench live） ────────────────────────────────────────────────
@@ -540,6 +720,7 @@ function liveMain(argv) {
       console.log('  ' + v + '.md  ' + (s.size / 1024).toFixed(1) + ' KB  ' + new Date(s.mtimeMs).toISOString().slice(0, 19) + '  → ' + p);
     }
     console.log('读法: node bin/bench.js live show chain');
+    logUsage(argv, 'bench live status', { status: 'ok' });
     return 0;
   }
 
@@ -610,6 +791,7 @@ function liveMain(argv) {
     const p = path.join(LIVE_DIR, v + '.md');
     if (!fs.existsSync(p)) die(1, '还没有 ' + p + '（bench live status 看哪份在；或 live start）');
     console.log(fs.readFileSync(p, 'utf8'));
+    logUsage(argv, 'bench live show ' + v, { status: 'ok' });
     return 0;
   }
 
@@ -625,8 +807,17 @@ function selfTest() {
   const os = require('os');
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-'));
   const f = path.join(tmp, 'workbench.json');
+  const usageF = path.join(tmp, 'usage.jsonl');
+  const checkpointF = path.join(tmp, 'CHECKPOINT.md');
   fs.writeFileSync(f, JSON.stringify({ schema: 1, updated_at: '', probes: [], tips: [], signals: [], verdicts: [], queue: [], masters: [] }));
-  const run = (args) => { const r = require('child_process').spawnSync(process.execPath, [__filename].concat(args), { encoding: 'utf8', env: Object.assign({}, process.env, { BENCH_FILE: f }) }); return { code: r.status, out: (r.stdout || '') + (r.stderr || '') }; };
+  fs.writeFileSync(checkpointF, '# CHECKPOINT\n\n> 写入时间：2026-10-29 13:00\n\n- **主线目标**：测试目标\n- **下一步**：测试下一步\n');
+  const run = (args) => {
+    const r = require('child_process').spawnSync(process.execPath, [__filename].concat(args), {
+      encoding: 'utf8',
+      env: Object.assign({}, process.env, { BENCH_FILE: f, BENCH_USAGE_FILE: usageF, RDD_CHECKPOINT: checkpointF, DSH_SESSION_ID: '' }),
+    });
+    return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
+  };
   // 注意：FILE 在模块顶层算死；测试子进程用 BENCH_FILE 覆盖
   const cases = [];
   const c1 = run(['tip', 'add', '--kind', 'pitfall', '--symptom', 's', '--fake', 'f', '--cause', 'c', '--guard', 'g']);
@@ -681,6 +872,37 @@ function selfTest() {
     c16.code === 0 && c16.out.includes('我去砍树') && c16.out.includes('挖黑曜石'), c16.out.trim().slice(0, 160)]);
   const c17 = run(['live', 'status']);
   cases.push(['live status 可跑（没进程也不崩）', c17.code === 0 && c17.out.includes('watch.json'), c17.out.trim().slice(0, 160)]);
+  // 2026-10-29：分层视图 + 开工包首屏 + 使用证据（施工单第 2/3/4 阶段）
+  const c18 = run(['layers', '--json']);
+  let layersJson = null;
+  try { layersJson = JSON.parse(c18.out.slice(c18.out.indexOf('{'))); } catch {}
+  cases.push(['layers 生成四层，core ≤5',
+    c18.code === 0 && layersJson && layersJson.core.length <= 5 && layersJson.counts.registry >= 90 && layersJson.operator.length > 0,
+    c18.out.trim().slice(0, 160)]);
+  const c19 = run(['brief', '--session', 'selftest-session']);
+  cases.push(['brief 首屏有目标/边界/live/core/限制',
+    c19.code === 0 && c19.out.includes('本轮目标与边界') && c19.out.includes('测试目标') && c19.out.includes('core 入口') && c19.out.includes('已知限制') && c19.out.includes('不是每轮模型收到的工具定义数'),
+    c19.out.trim().slice(0, 200)]);
+  let usageLines = [];
+  try { usageLines = fs.readFileSync(usageF, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l)); } catch {}
+  const briefUsage = usageLines.filter((r) => r.cmd === 'bench brief').pop();
+  cases.push(['brief 写使用证据（session 可识别）',
+    !!briefUsage && briefUsage.session === 'selftest-session' && briefUsage.source === 'unknown' && briefUsage.run === null,
+    JSON.stringify(usageLines.slice(-2))]);
+  const c20 = run(['usage', '--json']);
+  let usageJson = null;
+  try { usageJson = JSON.parse(c20.out.slice(c20.out.indexOf('{'))); } catch {}
+  cases.push(['usage 能读回账本', c20.code === 0 && usageJson && usageJson.total >= 1, c20.out.trim().slice(0, 160)]);
+  const c21 = run(['layers', '--json']);
+  let opRisk = null;
+  try { opRisk = JSON.parse(c21.out.slice(c21.out.indexOf('{'))).operator.find((x) => x.id === 'compile.entry'); } catch {}
+  cases.push(['operator 带显式风险文案', !!opRisk && !!opRisk.risk && /run-mutation|部署/.test(opRisk.risk), JSON.stringify(opRisk)]);
+  const c22 = run(['brief', '--json', '--session', 'selftest-session']);
+  let briefJson = null;
+  try { briefJson = JSON.parse(c22.out.slice(c22.out.indexOf('{'))); } catch {}
+  cases.push(['brief --json 带 entry（目标/live/限制）',
+    c22.code === 0 && briefJson && briefJson.entry && briefJson.entry.limits.length >= 2 && typeof briefJson.entry.live.known === 'boolean',
+    c22.out.trim().slice(0, 120)]);
   let ok = true;
   for (const [name, pass, msg] of cases) { console.log((pass ? 'PASS' : 'FAIL') + '  ' + name + (pass ? '' : '  -> ' + msg)); if (!pass) ok = false; }
   console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: cases.length }));
@@ -699,9 +921,11 @@ function main() {
   if (cmd === 'master') return argv[1] === 'add' ? masterAdd(argv) : masterList();
   if (cmd === 'probe') return argv[1] === 'add' ? probeAdd(argv) : probeList(argv);
   if (cmd === 'brief') return brief(argv);
+  if (cmd === 'layers') return layers(argv);
+  if (cmd === 'usage') return usage(argv);
   if (cmd === 'timeline') return timeline(argv);
   if (cmd === 'live' || cmd === 'watch') process.exit(liveMain(argv));
   if (cmd === 'health') { const rd = argv[1]; if (!rd) die(2, 'usage: bench.js health <runDir>'); return health(path.resolve(rd)); }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|timeline|health|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|live|selftest');
 }
 main();
