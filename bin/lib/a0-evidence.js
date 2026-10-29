@@ -132,23 +132,55 @@ function classifySession({ chatRows, firstRequest, runStartAt }) {
     return out;
   }
 
+  const norm = (s) => String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
+  const reqNorm = norm(firstRequest.contents);
+
   if (clears.length) {
     const boundary = clears[clears.length - 1];
     out.clear_boundary_at = new Date(boundary).toISOString();
     out.chat_records_after_clear = roles.filter((x) => x.ts > boundary).length;
     const beforeFirst = firstReqMs != null && boundary <= firstReqMs;
-    if (beforeFirst && out.first_request_message_count <= 2) {
-      out.status = 'CLEAN';
-      out.reasons.push('clear-boundary-before-first-request');
+    if (!beforeFirst) {
+      out.reasons.push('clear-boundary-after-first-request');
+      out.legacy_messages_present = true;
       return out;
     }
-    if (!beforeFirst) out.reasons.push('clear-boundary-after-first-request');
-  } else {
-    out.reasons.push('no-clear-record');
+    // 边界早于首请求：ConvoLog.load 从最后一条 clear 之后重放，更早的消息**结构上**进不来。
+    // 但只凭这一点会把「clear 之后又被人手动灌了旧材料」放过去，所以再做一次内容核对：
+    // 取 clear 之前最后 5 条 **非系统注入模板** 的 user 正文（去空白、前 120 字），
+    // 若原样出现在首请求里 → 判 DIRTY。
+    // 必须排除 `<known_blocks>` / `<runtime_state>` 这类每轮都注入的模板：
+    // 2026-10-29 实测它们既在 clear 前也在首请求里，按纯文本比对会把干净轮误判成 DIRTY。
+    // 不做「首请求条数 ≤2」的硬判：实测本轮首请求 10 条，全是开局自查
+    // （scan_entities / get_self / inventory / death_ledger）+ known_blocks，不是上一轮历史。
+    const isInjected = (s) => /^<[a-z_][a-z0-9_-]*>/i.test(s) || s.startsWith('[numen:');
+    const prevUsers = roles
+      .filter((x) => x.r.role === 'user' && x.ts < boundary)
+      .map((x) => norm(x.r.content))
+      .filter((s) => s.length >= 12 && !isInjected(s))
+      .slice(-5);
+    let leaked = null;
+    for (const s of prevUsers) {
+      if (reqNorm.includes(s.slice(0, 120))) { leaked = s.slice(0, 120); break; }
+    }
+    if (leaked) {
+      out.status = 'DIRTY';
+      out.legacy_messages_present = true;
+      out.reasons.push('first-request-carries-previous-goal');
+      out.leaked_snippet = leaked;
+      return out;
+    }
+    out.status = 'CLEAN';
+    out.legacy_messages_present = false;
+    out.reasons.push('clear-boundary-before-first-request');
+    if (!prevUsers.length) out.reasons.push('no-previous-goal-to-compare');
+    return out;
   }
 
+  out.reasons.push('no-clear-record');
   if (out.first_request_message_count > 2) {
     out.status = 'DIRTY';
+    out.legacy_messages_present = true;
     out.reasons.push('first-request-carries-history');
     return out;
   }
@@ -491,8 +523,15 @@ function firstLlmRequestFromJsonl(text) {
   for (const e of rows) {
     if (!e || e.type !== 'llm_request') continue;
     const d = e.data || {};
-    const msgs = (d.request && Array.isArray(d.request.messages)) ? d.request.messages.length : null;
-    return { at: e.timestamp || null, messageCount: msgs, eventId: e.event_id || null };
+    const arr = (d.request && Array.isArray(d.request.messages)) ? d.request.messages : null;
+    return {
+      at: e.timestamp || null,
+      messageCount: arr ? arr.length : null,
+      eventId: e.event_id || null,
+      roles: arr ? arr.map((m) => m && m.role) : [],
+      // 正文只用来做「上一轮任务有没有被带回请求」的内容核对；截断防止大请求占内存。
+      contents: arr ? arr.map((m) => (m && m.content) || '').join('\n').slice(0, 200000) : '',
+    };
   }
   return null;
 }
@@ -678,6 +717,38 @@ function selftest() {
       firstRequest: { at: iso(T0 + 5000), messageCount: 2, eventId: 'c5' }, runStartAt: iso(T0),
     });
     assert(lateClear.status === 'UNKNOWN', '④c clear 晚于首请求必须 UNKNOWN，实得 ' + lateClear.status, fails);
+
+    // ④d 内容核对：clear 之前最后一条 user 正文原样出现在首请求里 → DIRTY（真带回了上一轮任务）
+    const leaked = classifySession({
+      chatRows: [
+        { role: 'user', ts: T0 - 60000, content: '走到 x=250 z=650 一带，报告脚下的 y 和头顶天空' },
+        { role: 'assistant', ts: T0 - 50000, content: '好的' },
+        { type: 'clear', ts: T0 + 1000 },
+      ],
+      firstRequest: {
+        at: iso(T0 + 5000), messageCount: 10, eventId: 'c6',
+        contents: 'system prompt\n走到 x=250 z=650 一带，报告脚下的 y 和头顶天空\n<known_blocks>',
+      },
+      runStartAt: iso(T0),
+    });
+    assert(leaked.status === 'DIRTY' && leaked.reasons.includes('first-request-carries-previous-goal'),
+      '④d 上一轮任务被带回请求必须 DIRTY，实得 ' + leaked.status, fails);
+
+    // ④e 条数不是判据：首请求 10 条但全是开局自查/known_blocks（不含旧任务）→ CLEAN。
+    const injected10 = classifySession({
+      chatRows: [
+        { role: 'user', ts: T0 - 60000, content: '走到 x=250 z=650 一带，报告脚下的 y 和头顶天空' },
+        { type: 'clear', ts: T0 + 1000 },
+        { role: 'user', ts: T0 + 3000, content: '<known_blocks> Functional blocks you have already placed' },
+      ],
+      firstRequest: {
+        at: iso(T0 + 5000), messageCount: 10, eventId: 'c7',
+        contents: 'system prompt\n<known_blocks> Functional blocks you have already placed\n<runtime_state>',
+      },
+      runStartAt: iso(T0),
+    });
+    assert(injected10.status === 'CLEAN' && injected10.legacy_messages_present === false,
+      '④e 首请求 >2 条但无旧任务应判 CLEAN，实得 ' + injected10.status + ' / ' + JSON.stringify(injected10.reasons), fails);
   }
 
   // ⑤ rendered / kept / delivered 不混淆 + 截断不算送达 + delivered 可多于 rendered（直接注入）
