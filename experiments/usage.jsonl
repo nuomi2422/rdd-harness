@@ -13,3 +13,6 @@
 {"at":"2026-10-29T06:39:58.162Z","session":"session-3edf6503-124f-41c3-832c-1a47e2b451e3","source":"dsh","cmd":"bench health","run":"exp-a0-clean3-20261029-143334","card":null,"status":"unhealthy"}
 {"at":"2026-10-29T06:53:26.329Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench health","run":"exp-a0-clean3-20261029-143334","card":null,"status":"unhealthy"}
 {"at":"2026-10-29T06:53:47.801Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench health","run":"a1-synth-run","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T07:00:10.477Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench health","run":"exp-a1-death-20261029-145626","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T07:06:31.220Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench health","run":"a1-missing-instr","card":null,"status":"unhealthy"}
+{"at":"2026-10-29T07:34:21.111Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench health","run":"exp-a1-drops2-20261029-152402","card":null,"status":"unhealthy"}
