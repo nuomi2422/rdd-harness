@@ -352,7 +352,33 @@ function collectDelivery({ contextRows, expmemRows }) {
   }
 
   // 渲染过但最终请求里没有 = 被预算裁掉（可审计的"没送到"）
-  const droppedRefs = renderedRefs.filter((r) => !deliveredRefs.includes(r));
+  const droppedFromRender = renderedRefs.filter((r) => !deliveredRefs.includes(r));
+
+  // A5（97 号）：最终裁剪账本 budget_decision —— per-ref kept/dropped + 原因。
+  // 有它时以它为准（理由可审计）；没有时退回「rendered - delivered」，并标 source。
+  const budgetEvents = mem.filter((e) => e && e.type === 'budget_decision');
+  const keptRefs = [];
+  const droppedRefs = [];
+  const droppedReasons = {};
+  for (const e of budgetEvents) {
+    const d = e.data || {};
+    for (const it of (Array.isArray(d.kept) ? d.kept : [])) {
+      const ref = typeof it === 'string' ? it : (it && it.ref);
+      if (ref && !keptRefs.includes(ref)) keptRefs.push(ref);
+    }
+    for (const it of (Array.isArray(d.dropped) ? d.dropped : [])) {
+      const ref = typeof it === 'string' ? it : (it && it.ref);
+      if (!ref) continue;
+      if (!droppedRefs.includes(ref)) droppedRefs.push(ref);
+      const reason = (it && it.reason) || 'unknown';
+      droppedReasons[ref] = droppedReasons[ref] || reason;
+    }
+  }
+  const hasBudget = budgetEvents.length > 0;
+  const finalDropped = hasBudget ? droppedRefs : droppedFromRender;
+  if (!hasBudget) for (const r of finalDropped) droppedReasons[r] = 'unknown';
+  const finalKept = hasBudget ? keptRefs : deliveredRefs;
+
   // 反向：最终请求里有、但没见过 expanded —— 这是**正常**的（执行视图直接注入正文，
   // 不一定经过逐条 expanded）。不能当成矛盾，但要单列出来供审计。
   const deliveredWithoutRender = deliveredRefs.filter((r) => !renderedRefs.includes(r));
@@ -376,8 +402,9 @@ function collectDelivery({ contextRows, expmemRows }) {
       note: 'auto_expanded 只报 hits，不含 ref',
     },
     kept: {
-      refs: deliveredRefs.slice(),
-      note: '最终请求装配后保留（先裁后记）；与 delivered 同源',
+      refs: finalKept.slice(),
+      source: hasBudget ? 'budget_decision' : 'request_delivered',
+      note: hasBudget ? 'budget_decision.kept（最终裁剪后保留）' : '无 budget_decision，退回 delivered（先裁后记）',
     },
     delivered: {
       events: deliveredEventsCount,
@@ -388,11 +415,17 @@ function collectDelivery({ contextRows, expmemRows }) {
       reasons: truncationReasons,
       deliveredAnyway: truncatedDelivered,
     },
-    dropped: { refs: droppedRefs, count: droppedRefs.length },
+    dropped: {
+      refs: finalDropped,
+      count: finalDropped.length,
+      reasons: droppedReasons,
+      source: hasBudget ? 'budget_decision' : 'rendered-minus-delivered',
+    },
     // 最终请求里有、但没有逐条 expanded 的 ref（执行视图直接注入）——不是矛盾
     deliveredWithoutRender: { refs: deliveredWithoutRender, count: deliveredWithoutRender.length },
     // 判据：任何"截断却算送达"都要在结论侧拦住
     truncatedCountedAsDelivered: truncatedDelivered.length > 0,
+    budgetDecision: { present: hasBudget, events: budgetEvents.length },
   };
 }
 
@@ -841,6 +874,39 @@ function selftest() {
     assert(d.truncated.refs.length === 1, '⑤ 截断必须单独记账', fails);
     assert(d.recalled.refs === null && d.recalled.refs_status === 'AGGREGATE_ONLY', '⑤ recalled 无 per-ref 时必须如实标聚合口径', fails);
     assert(d.truncatedCountedAsDelivered === false, '⑤ 本例截断条目未送达，不应报错', fails);
+  }
+
+  // ⑤b A5（97 号）：budget_decision 提供 per-ref kept/dropped + 原因
+  {
+    const mem = [
+      ev({
+        type: 'budget_decision',
+        data: {
+          role: 'executor', mode: 'legacy', coverage: 'COMPLETE',
+          kept: [{ ref: 'exp:a', version: 'v1' }],
+          dropped: [{ ref: 'exp:b', version: 'v1', reason: 'budget' }],
+        },
+      }),
+      ev({ type: 'request_delivered', data: { count: 1, refs: ['exp:a'] } }),
+    ];
+    const d = collectDelivery({ contextRows: [], expmemRows: mem });
+    assert(d.kept.refs.length === 1 && d.kept.refs[0] === 'exp:a', '⑤b kept 应来自 budget_decision', fails);
+    assert(d.kept.source === 'budget_decision', '⑤b kept.source 要标来源', fails);
+    assert(d.dropped.refs.length === 1 && d.dropped.refs[0] === 'exp:b', '⑤b dropped 应来自 budget_decision', fails);
+    assert(d.dropped.reasons['exp:b'] === 'budget', '⑤b dropped 必须带原因', fails);
+    assert(d.budgetDecision.present === true, '⑤b 要知道这一轮有没有 budget_decision', fails);
+  }
+
+  // ⑤c 没有 budget_decision 时退回 rendered-delivered，且原因标 unknown（不伪造原因）
+  {
+    const ctxRows = [ev({ type: 'retrieval_snapshot', data: { entries: 2 } })];
+    const mem = [
+      ev({ type: 'expanded', data: { ref: 'exp:x', version: 'v1', truncated: false } }),
+      ev({ type: 'request_delivered', data: { count: 0, refs: [] } }),
+    ];
+    const d = collectDelivery({ contextRows: ctxRows, expmemRows: mem });
+    assert(d.dropped.refs[0] === 'exp:x' && d.dropped.reasons['exp:x'] === 'unknown', '⑤c 无账本时原因必须 unknown', fails);
+    assert(d.dropped.source === 'rendered-minus-delivered', '⑤c 要标退回口径', fails);
   }
 
   // ⑥ runtime_state 里有 ref 不等于 delivered
