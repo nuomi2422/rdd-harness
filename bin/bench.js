@@ -1051,6 +1051,7 @@ function main() {
   if (cmd === 'health') { const rd = argv[1]; if (!rd) die(2, 'usage: bench.js health <runDir>'); return health(path.resolve(rd)); }
   // A7（99 号）：两臂对比与周指标（只读 envelope，不改行为）
   if (cmd === 'compare') return compareCmd(argv);
+  if (cmd === 'compare-many') return compareManyCmd(argv);
   if (cmd === 'report') return reportCmd(argv);
   die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|report|live|selftest');
 }
@@ -1067,6 +1068,25 @@ function compareCmd(argv) {
     console.log('  ' + String(row.metric).padEnd(14) + ' A=' + String(row.a).padEnd(6) + ' B=' + String(row.b).padEnd(6) + ' delta=' + row.delta);
   }
   console.log('note: 单轮只能 DIRECTIONAL/INCONCLUSIVE；≥3 轮才算一轮实验，≥5 轮且跨噪声带才 SUPPORTED（99 号 §5）');
+  return 0;
+}
+
+/** A7：`bench compare-many --a d1,d2,d3 --b d4,d5,d6` —— 两臂多轮，中位数 + 极差。 */
+function compareManyCmd(argv) {
+  const E = require('./lib/experiment');
+  const ai = argv.indexOf('--a');
+  const bi = argv.indexOf('--b');
+  if (ai < 0 || bi < 0) die(2, 'usage: bench.js compare-many --a <dir1,dir2,...> --b <dir1,dir2,...>');
+  const load = (d) => JSON.parse(fs.readFileSync(path.join(path.resolve(d), 'envelope.json'), 'utf8'));
+  const list = (s) => s.split(',').map((x) => x.trim()).filter(Boolean).map(load);
+  const r = E.compareGroups(list(argv[ai + 1]), list(argv[bi + 1]));
+  console.log('verdict: ' + r.verdict + '  sample A=' + r.sample.a + ' B=' + r.sample.b
+    + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : ''));
+  for (const row of r.rows) {
+    const f = (s) => (s.median === null ? 'UNKNOWN' : s.median + ' [' + s.min + '..' + s.max + '] n=' + s.n);
+    console.log('  ' + String(row.metric).padEnd(14) + ' A=' + f(row.a).padEnd(22) + ' B=' + f(row.b));
+  }
+  console.log('note: n<3 必 INCONCLUSIVE；n>=5 且两臂区间不重叠才 SUPPORTED（99 号 §5）');
   return 0;
 }
 

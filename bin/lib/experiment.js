@@ -98,6 +98,40 @@ function weekly(envs) {
   return out;
 }
 
+/**
+ * 两臂多轮对比（A7 §2）：每臂 ≥3 轮才算一轮实验。
+ * 中位数 + 极差；n<3 → INCONCLUSIVE；n>=5 且两臂区间不重叠才 SUPPORTED（保守，不做显著性检验）。
+ * @param {Array} envsA
+ * @param {Array} envsB
+ */
+function compareGroups(envsA, envsB) {
+  const A = (envsA || []).filter(Boolean);
+  const B = (envsB || []).filter(Boolean);
+  const reasons = [];
+  if (A.length < 3 || B.length < 3) reasons.push('sample<3');
+  const goals = new Set([...A, ...B].map(goalOf).filter(Boolean));
+  if (goals.size > 1) reasons.push('goal-mismatch');
+  const masters = new Set([...A, ...B].map(masterOf).filter(Boolean));
+  if (masters.size > 1) reasons.push('master-mismatch');
+
+  const stat = (envs, m) => {
+    const vals = envs.map((e) => metricOf(e, m)).filter((v) => v !== null).sort((x, y) => x - y);
+    if (!vals.length) return { n: 0, median: null, min: null, max: null };
+    const mid = Math.floor(vals.length / 2);
+    const median = vals.length % 2 ? vals[mid] : Math.round(((vals[mid - 1] + vals[mid]) / 2) * 100) / 100;
+    return { n: vals.length, median, min: vals[0], max: vals[vals.length - 1] };
+  };
+
+  const rows = METRICS.map((m) => ({ metric: m, a: stat(A, m), b: stat(B, m) }));
+  let verdict = reasons.length ? 'INCONCLUSIVE' : 'DIRECTIONAL';
+  if (!reasons.length && A.length >= 5 && B.length >= 5) {
+    const disjoint = rows.every((r) => r.a.median === null || r.b.median === null
+      || r.a.max < r.b.min || r.b.max < r.a.min);
+    if (disjoint) verdict = 'SUPPORTED';
+  }
+  return { verdict, reasons, rows, sample: { a: A.length, b: B.length } };
+}
+
 function selftest() {
   const fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); };
@@ -123,11 +157,18 @@ function selftest() {
   const w2 = weekly([missing]);
   ok(w2.metrics.deathRatePer100min === 'UNKNOWN', '⑦ 缺字段 → UNKNOWN（不补 0）');
 
-  console.log(fails.length ? 'experiment selftest FAIL: ' + fails.join(' | ') : 'experiment selftest PASS（7 组）');
+  // ⑧ 两臂多轮：样本 <3 → INCONCLUSIVE；3 轮 → DIRECTIONAL；目标不同 → INCONCLUSIVE
+  const g = (goal, d) => [mk(goal, d, 1, 0, 5), mk(goal, d, 1, 0, 5), mk(goal, d, 1, 0, 5)];
+  ok(compareGroups(g('A', 1).slice(0, 2), g('A', 0)).verdict === 'INCONCLUSIVE', '⑧ 样本 <3 → INCONCLUSIVE');
+  ok(compareGroups(g('A', 1), g('A', 0)).verdict === 'DIRECTIONAL', '⑨ 3 轮同向 → DIRECTIONAL');
+  ok(compareGroups(g('A', 1), g('B', 0)).verdict === 'INCONCLUSIVE', '⑩ 目标不同 → INCONCLUSIVE');
+  ok(compareGroups(g('A', 1), g('A', 0)).rows.find((r) => r.metric === 'deaths').a.median === 1, '⑪ 中位数计算');
+
+  console.log(fails.length ? 'experiment selftest FAIL: ' + fails.join(' | ') : 'experiment selftest PASS（11 组）');
   return fails.length ? 1 : 0;
 }
 
-module.exports = { compare, weekly, selftest, METRICS, metricOf };
+module.exports = { compare, compareGroups, weekly, selftest, METRICS, metricOf };
 
 if (require.main === module) {
   if (process.argv[2] === 'selftest') process.exit(selftest());
