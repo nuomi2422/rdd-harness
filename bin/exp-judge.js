@@ -16,6 +16,7 @@
 const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
+const A0 = require('./lib/a0-evidence.js');
 
 const BT = String.fromCharCode(96); // 反引号：避免生成脚本的模板字符串冲突
 function sha256(buf) { return crypto.createHash('sha256').update(buf).digest('hex'); }
@@ -138,8 +139,37 @@ function evaluate(runDir) {
     else add('S4', 'PASS', '停止后 0 条新请求，java 已退出，证据已归档，状态已复位', ['envelope.json', 'evidence/']);
   }
 
+  // ---------- S5 A0 EVIDENCE ----------
+  // 90 号 §8/§9：A0 不证明能力，只决定「这轮的结论能不能算自主」。
+  // 缺 A0 块 → INCONCLUSIVE 而不是 FAIL（老 run 没这条证据，不能倒推它有罪）。
+  {
+    const s = env.session;
+    const itv = env.interventions;
+    const dl = env.context_delivery;
+    if (!env.a0) {
+      add('S5', 'INCONCLUSIVE', '缺 A0 证据块（老 run 或采集失败）：会话/介入/投送都无法判定', ['envelope.json#a0']);
+    } else if (dl && dl.truncatedCountedAsDelivered) {
+      add('S5', 'FAIL', '截断条目被当成 REQUEST_DELIVERED（投送账本口径矛盾）', ['envelope.json#context_delivery']);
+    } else if (s && s.status === 'DIRTY') {
+      add('S5', 'FAIL', '会话上下文 DIRTY：首请求已带历史（msgs=' + s.first_request_message_count + '），本轮材料不干净',
+        ['envelope.json#session']);
+    } else if (s && s.status === 'UNKNOWN') {
+      add('S5', 'INCONCLUSIVE', '会话洁净度 UNKNOWN（' + ((s.reasons || []).join(',') || 'no-reason') + '）：不能当 CLEAN',
+        ['envelope.json#session']);
+    } else if (itv && itv.status === 'PRESENT') {
+      add('S5', 'INCONCLUSIVE', '人工介入 ' + itv.count + ' 条（' + JSON.stringify(itv.byKind || {}) + '）：本轮结果只能算「人工介入后结果」',
+        ['envelope.json#interventions']);
+    } else if (itv && itv.status === 'UNKNOWN') {
+      add('S5', 'INCONCLUSIVE', '人工介入 UNKNOWN（拿不到监控事件流）：不能声称「无介入」', ['envelope.json#interventions']);
+    } else {
+      add('S5', 'PASS', '会话 CLEAN（msgs=' + (s ? s.first_request_message_count : '?') + '）、无人工介入、投送账本一致'
+        + (dl && dl.delivered ? '（delivered=' + dl.delivered.refs.length + '，dropped=' + (dl.dropped ? dl.dropped.count : '?') + '）' : ''),
+        ['envelope.json#session', 'envelope.json#interventions', 'envelope.json#context_delivery']);
+    }
+  }
+
   // ---------- overall ----------
-  const required = ['S1', 'S3', 'S4'];
+  const required = env.a0 ? ['S1', 'S3', 'S4', 'S5'] : ['S1', 'S3', 'S4'];
   const get = (id) => A.find((x) => x.id === id);
   const anyFail = required.some((id) => get(id) && get(id).verdict === 'FAIL');
   const anyInc = required.some((id) => !get(id) || get(id).verdict === 'INCONCLUSIVE');
@@ -158,6 +188,13 @@ function evaluate(runDir) {
     contractChanged,
     overall,
     assertions: A,
+    a0: env.a0 ? {
+      version: env.a0.version || null,
+      session: (env.session || {}).status || 'UNKNOWN',
+      interventions: (env.interventions || {}).status || 'UNKNOWN',
+      interventionCount: (env.interventions || {}).count == null ? null : env.interventions.count,
+      delivery: (env.context_delivery || {}).status || 'UNKNOWN',
+    } : null,
     notes: contractChanged ? ['契约文件在冻结后被改动（hash 不符）→ 本次裁决作废'] : [],
     judgedAt: new Date().toISOString(),
   };

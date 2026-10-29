@@ -30,6 +30,7 @@ const crypto = require('crypto');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const { readLevelInfo, patchLevel } = require('./lib/nbt');
+const A0 = require('./lib/a0-evidence');
 
 const RDD = 'D:/rdd';
 const RDD_ROOT = () => RDD;
@@ -411,7 +412,9 @@ async function cmdRun(opts) {
   log(runDir, 'stimulus', 'companion=' + companionName + ' oak_log(before)=' + before);
 
   const offsets = {};
-  for (const f of ['tools.jsonl', 'context.jsonl', 'events.jsonl', 'ai.jsonl', 'rdd.jsonl']) {
+  // A0（90 号）：expmem.jsonl 里才有 expanded/auto_expanded/request_delivered，
+  // 不归档它就无法区分「渲染过」和「最终请求里真的有」。
+  for (const f of ['tools.jsonl', 'context.jsonl', 'events.jsonl', 'ai.jsonl', 'rdd.jsonl', 'expmem.jsonl']) {
     const p = path.join(MONITOR, f);
     offsets[f] = fs.existsSync(p) ? fs.statSync(p).size : 0;
     fs.writeFileSync(path.join(runDir, 'evidence', f), '');
@@ -613,6 +616,41 @@ async function cmdRun(opts) {
   env.timings.gameExited = nowIso();
   env.stop.javaExited = exited;
   log(runDir, 'stop', 'java 退出=' + exited);
+  saveEnv();
+
+  // ---------- A0：会话边界 / 人工介入 / 投送四阶段 ----------
+  // 必须在受控复位之前：restore 会把 companions/ 整目录还原成基线，
+  // run 期间的 chat.jsonl 会被冲掉（90 号 §5.1，2026-10-29 实测）。
+  // 只读既有事实源、只往 envelope 加键，不改任何规划/战斗行为（90 号 §2 明确不做）。
+  env.phase = 'a0';
+  try {
+    pull('expmem.jsonl'); // 收尾再拉一次：expanded / request_delivered 都在这里
+    const a0 = A0.collect({
+      runDir,
+      monitorDir: MONITOR,
+      companionsDir: path.join(NUMEN, 'companions'),
+      launchStart: env.timings.launchStart || env.createdAt,
+    });
+    const merged = A0.applyToEnvelope(env, a0);
+    env.session = merged.session;
+    env.interventions = merged.interventions;
+    env.context_delivery = merged.context_delivery;
+    env.world_views = merged.world_views;
+    env.a0 = merged.a0;
+    env.a0.sources = a0.sources;
+    log(runDir, 'a0', 'session=' + env.session.status + '（msgs=' + env.session.first_request_message_count + ', clear=' + (env.session.clear_boundary_at || 'none') + '）'
+      + ' interventions=' + env.interventions.status + '(' + env.interventions.count + ')'
+      + ' delivery=' + env.context_delivery.status
+      + ' rendered=' + (env.context_delivery.rendered ? env.context_delivery.rendered.refs.length : '?')
+      + ' delivered=' + (env.context_delivery.delivered ? env.context_delivery.delivered.refs.length : '?'));
+  } catch (e) {
+    // 证据缺失照实记 UNKNOWN，不拿默认值补成功
+    env.session = { status: 'UNKNOWN', reasons: ['a0-collect-failed: ' + String(e.message).slice(0, 200)] };
+    env.interventions = { count: 0, ids: [], status: 'UNKNOWN', entries: [], rejected: [] };
+    env.context_delivery = { status: 'UNKNOWN' };
+    env.a0 = { version: A0.A0_VERSION, collected_at: nowIso(), error: String(e.message).slice(0, 400) };
+    log(runDir, 'a0', 'A0 采集失败（照实记 UNKNOWN）: ' + e.message);
+  }
   saveEnv();
 
   // ---------- restore (受控复位) ----------

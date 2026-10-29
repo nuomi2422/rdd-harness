@@ -44,6 +44,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const A0 = require('./lib/a0-evidence.js');
 
 const HARNESS = path.resolve(__dirname, '..');
 const FILE = process.env.BENCH_FILE || path.join(HARNESS, 'experiments', 'workbench.json');
@@ -396,6 +397,18 @@ function buildTimeline(runDir) {
       }
     }
   }
+  // ★ A0（90 号）：会话边界 / world-view 四相位 / 人工介入 / 投送四阶段。
+  //   行只来自 envelope 的 A0 块（run 时采好），这里不重扫日志、不造事件；
+  //   envelope 没有 a0 块时整段不出现（老 run 不伪造）。
+  for (const row of A0.timelineEntries(env)) push(row.at, row.tag, row.text);
+  // 最终裁决（verdict.json 是机械裁判的落盘，读不到就不写这一行）
+  try {
+    const vp = path.join(runDir, 'verdict.json');
+    if (fs.existsSync(vp)) {
+      const v = JSON.parse(fs.readFileSync(vp, 'utf8'));
+      push(env.finishedAt || T.gameExited, 'verdict', '裁决 ' + (v.overall || '?') + (v.reason ? '  ' + v.reason : ''));
+    }
+  } catch { /* 坏 verdict 不阻断时序 */ }
   evs.sort((a, b) => a.s - b.s);
   const watch = env.watch || {};
   const winEnd = rel(T.gameExited || T.watchEnd), winStart = rel(T.launchStart);
@@ -429,6 +442,19 @@ function buildTimeline(runDir) {
       primaryTotal: Array.isArray(lastChain.primaries) ? lastChain.primaries.length : null,
     } : null,
     chainFrames, tagCount,
+    a0: env.a0 ? {
+      version: env.a0.version || null,
+      session: (env.session || {}).status || 'UNKNOWN',
+      firstMsgs: (env.session || {}).first_request_message_count == null ? null : env.session.first_request_message_count,
+      clearAt: (env.session || {}).clear_boundary_at || null,
+      interventions: (env.interventions || {}).status || 'UNKNOWN',
+      interventionCount: (env.interventions || {}).count == null ? null : env.interventions.count,
+      delivery: (env.context_delivery || {}).status || 'UNKNOWN',
+      rendered: env.context_delivery && env.context_delivery.rendered ? env.context_delivery.rendered.refs.length : null,
+      delivered: env.context_delivery && env.context_delivery.delivered ? env.context_delivery.delivered.refs.length : null,
+      dropped: env.context_delivery && env.context_delivery.dropped ? env.context_delivery.dropped.count : null,
+      truncated: env.context_delivery && env.context_delivery.truncated ? env.context_delivery.truncated.refs.length : null,
+    } : null,
   };
   return { env, summary, evs, fmt };
 }
@@ -459,6 +485,17 @@ function timeline(argv) {
       '（' + summary.chainFrames + ' 帧快照，最后 1 帧）');
   } else {
     console.log('任务链: 本轮没有 taskchain_snapshot（未观测到，不是「没任务」）');
+  }
+  if (summary.a0) {
+    const a = summary.a0;
+    console.log('A0 证据: 会话=' + a.session + '（首请求msgs=' + (a.firstMsgs == null ? '?' : a.firstMsgs) + '）'
+      + '  介入=' + a.interventions + '(' + (a.interventionCount == null ? '?' : a.interventionCount) + ')'
+      + '  投送[recalled=聚合 rendered=' + (a.rendered == null ? '?' : a.rendered)
+      + ' delivered=' + (a.delivered == null ? '?' : a.delivered)
+      + ' dropped=' + (a.dropped == null ? '?' : a.dropped)
+      + ' truncated=' + (a.truncated == null ? '?' : a.truncated) + ']  ' + a.version);
+  } else {
+    console.log('A0 证据: 本轮 envelope 没有 a0 块（老 run 或 A0 采集失败——都不是「干净」，是「未取证」）');
   }
   const folded = Object.entries(summary.tagCount).filter(([t]) => ['chain', 'ctx', 'llm', 'snap'].includes(t));
   if (!tags && folded.length) console.log('已折叠: ' + folded.map(([t, n]) => t + ' ' + n).join(' / ') + '  —— 用 --tag chain,ctx,llm,snap 打开');
@@ -657,7 +694,34 @@ function computeHealth(runDir) {
   if (after.control_key && before.control_key && after.control_key !== before.control_key && env.world.drift !== true) problems.push('control keys differ but drift flag not set');
   const ev = path.join(runDir, 'evidence');
   for (const f of ['tools.jsonl', 'context.jsonl', 'world-before.json', 'world-after.json']) if (!fs.existsSync(path.join(ev, f))) problems.push('missing evidence/' + f);
-  const out = { run: path.basename(runDir), healthy: problems.length === 0, problems, stopReason: (env.watch || {}).stopReason || null, drift: env.world ? env.world.drift : null, complete: { before: before.complete, after: after.complete }, postStopRequests: (env.stop || {}).postStopRequests };
+  // ★ A0（90 号 §8）：证据不可判 ≠ 健康。这里只报事实，不改任何行为。
+  const a0 = {
+    present: !!env.a0,
+    version: env.a0 ? (env.a0.version || null) : null,
+    session: (env.session || {}).status || 'UNKNOWN',
+    interventions: (env.interventions || {}).status || 'UNKNOWN',
+    interventionCount: (env.interventions || {}).count == null ? null : env.interventions.count,
+    delivery: (env.context_delivery || {}).status || 'UNKNOWN',
+    reasons: [],
+  };
+  if (!env.a0) a0.reasons.push('a0:missing（老 run 或采集失败，不是「干净」）');
+  else {
+    const s = env.session || {};
+    if (s.status === 'UNKNOWN') a0.reasons.push('session:UNKNOWN(' + ((s.reasons || []).join(',') || 'no-reason') + ')');
+    if (s.status === 'DIRTY') a0.reasons.push('session:DIRTY');
+    const i = env.interventions || {};
+    if (i.status === 'UNKNOWN') a0.reasons.push('interventions:UNKNOWN');
+    if (i.status === 'PRESENT') a0.reasons.push('interventions:PRESENT(' + i.count + ') → 结果只能算「人工介入后结果」');
+    const d = env.context_delivery || {};
+    if (d.status === 'UNKNOWN') a0.reasons.push('delivery:UNKNOWN');
+    if (d.truncatedCountedAsDelivered) a0.reasons.push('delivery:截断条目被当成送达');
+    if ((d.delivered || {}).refs && (d.rendered || {}).refs
+        && d.delivered.refs.length > d.rendered.refs.length) {
+      a0.reasons.push('delivery:delivered > rendered（口径矛盾，应查账本来源）');
+    }
+  }
+  if (a0.reasons.some((r) => /DIRTY|截断|矛盾/.test(r))) problems.push(...a0.reasons.filter((r) => /DIRTY|截断|矛盾/.test(r)));
+  const out = { run: path.basename(runDir), healthy: problems.length === 0, problems, stopReason: (env.watch || {}).stopReason || null, drift: env.world ? env.world.drift : null, complete: { before: before.complete, after: after.complete }, postStopRequests: (env.stop || {}).postStopRequests, a0 };
   return out;
 }
 function health(runDir) {
