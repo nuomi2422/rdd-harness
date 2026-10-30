@@ -125,6 +125,36 @@ function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
  * 2026-10-31（V-20261031-12）：找本轮最后一次 learner_review 的 review_id。
  * 复盘是异步 LLM；runner 在强杀前要轮询它的 state，避免结果随进程丢失。
  */
+async function waitForReviewEvent(reviewId, maxMs) {
+  const p = path.join(MONITOR, 'learner.jsonl');
+  const t0 = Date.now();
+  let off = 0;
+  try { off = Math.max(0, fs.statSync(p).size - 2 * 1024 * 1024); } catch { off = 0; }
+  let last = { review_id: reviewId, state: 'PENDING', ms: 0 };
+  while (Date.now() - t0 < maxMs) {
+    let size = 0;
+    try { size = fs.statSync(p).size; } catch { await sleep(3000); continue; }
+    if (size > off) {
+      const len = size - off;
+      const fd = fs.openSync(p, 'r');
+      const buf = Buffer.alloc(len);
+      fs.readSync(fd, buf, 0, len, off);
+      fs.closeSync(fd);
+      off = size;
+      for (const line of buf.toString('utf8').split('\n')) {
+        if (!line.trim()) continue;
+        let e; try { e = JSON.parse(line); } catch { continue; }
+        if ((e.type === 'reviewed' || e.type === 'review_failed') && e.data && e.data.review_id === reviewId) {
+          return { review_id: reviewId, state: e.type === 'reviewed' ? 'DONE' : 'FAILED', ms: Date.now() - t0, event: e };
+        }
+      }
+    }
+    last.ms = Date.now() - t0;
+    await sleep(3000);
+  }
+  last.state = 'TIMEOUT_AFTER_180S';
+  return last;
+}
 function latestReviewId(runDir) {
   try {
     const p = path.join(runDir, 'evidence', 'tools.jsonl');
@@ -899,24 +929,12 @@ async function cmdRun(opts) {
   // 上限 180s；超时如实记 TIMEOUT_AFTER_180S，不伪造完成。
   const reviewId = latestReviewId(runDir);
   if (reviewId) {
-    const rw0 = Date.now();
-    let last = null;
-    while (Date.now() - rw0 < 180000) {
-      // mcp() 的 args 必须是 JSON 字符串（位置参数）；传对象会变成 "[object Object]"，
-      // learner_status 看不到 review_id，只会回概览 —— B7 的 state=UNKNOWN 就是这个原因。
-      const st = mcp('learner_status', companionName, JSON.stringify({ review_id: reviewId }), 20000);
-      if (!st.ok) { last = { review_id: reviewId, state: 'STATUS_CALL_FAILED', ms: Date.now() - rw0, out: st.out }; break; }
-      let rec = null;
-      try { rec = JSON.parse(st.out); } catch { /* 解析失败 → 当作仍在跑，下一轮再读 */ }
-      const state = rec && rec.data ? String(rec.data.state || '') : '';
-      last = { review_id: reviewId, state: state || 'UNKNOWN', ms: Date.now() - rw0, out: st.out };
-      if (state && state !== 'RUNNING') break;
-      await sleep(3000);
-    }
-    if (!last) last = { review_id: reviewId, state: 'NO_POLL', ms: Date.now() - rw0 };
-    if (last.state === 'RUNNING') last.state = 'TIMEOUT_AFTER_180S';
-    fs.writeFileSync(path.join(runDir, 'evidence', 'review-wait.json'), JSON.stringify(last, null, 2));
-    log(runDir, 'stop', 'review wait: ' + reviewId + ' state=' + last.state + ' ms=' + last.ms);
+    // B7/B8 实测：learner_status(review_id) 在 runner 侧读不到 state（两次 UNKNOWN）；
+    // 改成直接等 monitor/learner.jsonl 里的 reviewed/review_failed 事件 —— 这是结果本身，
+    // 不是内存态；也避免 tool 参数歧义。
+    const rw = await waitForReviewEvent(reviewId, 180000);
+    fs.writeFileSync(path.join(runDir, 'evidence', 'review-wait.json'), JSON.stringify(rw, null, 2));
+    log(runDir, 'stop', 'review wait: ' + reviewId + ' state=' + rw.state + ' ms=' + rw.ms);
   }
   // 2026-10-31（V-20261031-08）：强杀前先落盘。此前收尾是 task_stop → 宽限 → Stop-Process -Force，
   // 没有优雅 stop；同伴背包只在 autosave 落盘，最后几分钟的物品会在下一轮丢失（B2 2 原木 → B3 0）。
