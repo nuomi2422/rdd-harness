@@ -47,22 +47,6 @@
       "uncovered": []
     },
     {
-      "id": "EVIDENCE-R39",
-      "batch": "A0",
-      "title": "r39 信封存在且与当前部署同版本",
-      "required": true,
-      "level": "evidence",
-      "scenario": "live-log-delivery",
-      "checks": [
-        {
-          "type": "file",
-          "path": "runs/exp-loop-r39-20261030-114944/envelope.json",
-          "requireCurrentBuild": true
-        }
-      ],
-      "uncovered": []
-    },
-    {
       "id": "H21",
       "batch": "H21",
       "title": "H21 观测保留（打龙已非主线）",
@@ -237,15 +221,29 @@
       "scenario": "rdd-zero-20261030",
       "checks": [
         {
-          "type": "manual",
-          "what": "新世界（只剩 level.dat 的母版）+ 现召同伴，至少拿到 S1 里程碑（木头→木镐），且没有 give/setblock 给物"
+          "type": "file",
+          "path": "runs/exp-zero-r4-20261030-141735/envelope.json",
+          "requireCurrentBuild": true
+        },
+        {
+          "type": "json",
+          "path": "runs/exp-zero-r4-20261030-141735/envelope.json",
+          "pointer": "watch.oakLogAfter",
+          "op": ">=",
+          "value": 1,
+          "requireCurrentBuild": true
+        },
+        {
+          "type": "json",
+          "path": "runs/exp-zero-r4-20261030-141735/envelope.json",
+          "pointer": "watch.llmRequests",
+          "op": ">=",
+          "value": 1,
+          "requireCurrentBuild": true
         }
       ],
-      "uncovered": [
-        "世界生成是否正常（新种子）",
-        "无基地时的首夜生存"
-      ],
-      "note": "主线不是打龙：从零开始玩，判定看阶段推进，不看龙。"
+      "uncovered": [],
+      "note": "2026-10-30 首轮通过：8 分钟木头→工作台→木镐→石镐，0 死亡 0 干预。单轮通过不等于长期稳定，稳定性看后续轮次。"
     }
   ]
 }

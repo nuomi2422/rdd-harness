@@ -176,6 +176,40 @@ function runCheck(c, env) {
     const coverage = env0 && env0.actions && env0.actions.coverage ? 'callId ' + env0.actions.coverage.callId + ' / 终态 ' + env0.actions.coverage.terminal : '';
     return { type, status: STATUS.PASS, reason: '证据存在' + (version ? '（构建 ' + version + '）' : ''), evidence: rel, version, coverage };
   }
+  if (type === 'json') {
+    // 从证据里读一个字段做断言：让「跑出来了」可以由文件自己证明，而不是靠人再说一遍。
+    // c = { path, pointer: 'watch.oakLogAfter', op: '>=' | '==' | '>', value }
+    const rel = String(c.path || '').trim();
+    const abs = path.isAbsolute(rel) ? rel : path.join(env.root, rel);
+    if (!rel) return { type, status: STATUS.UNKNOWN, reason: 'path 为空', evidence: '' };
+    if (!fs.existsSync(abs)) return { type, status: STATUS.NOT_RUN, reason: '证据文件不存在：' + rel, evidence: rel };
+    let doc = null;
+    try { doc = JSON.parse(fs.readFileSync(abs, 'utf8').replace(/^\uFEFF/, '')); } catch { doc = null; }
+    if (!doc) return { type, status: STATUS.UNKNOWN, reason: '证据不是合法 JSON：' + rel, evidence: rel };
+    if (c.requireCurrentBuild) {
+      const fp = fingerprint(doc.jarsAtLaunch);
+      if (!fp) return { type, status: STATUS.UNKNOWN, reason: '证据里没有 jarsAtLaunch，无法判版本', evidence: rel };
+      if (env.currentFp && fp !== env.currentFp) {
+        return { type, status: STATUS.VERSION_MISMATCH, reason: '证据是旧部署（' + short(fp) + '）', evidence: rel, version: short(fp) };
+      }
+    }
+    let cur = doc;
+    for (const key of String(c.pointer || '').split('.').filter(Boolean)) {
+      cur = cur && typeof cur === 'object' ? cur[key] : undefined;
+    }
+    const got = typeof cur === 'number' ? cur : null;
+    if (got === null) return { type, status: STATUS.UNKNOWN, reason: rel + ' 里没有数值 ' + c.pointer, evidence: rel };
+    const op = c.op || '>=';
+    const want = typeof c.value === 'number' ? c.value : Number(c.value);
+    const okOp = op === '>=' ? got >= want : op === '>' ? got > want : op === '==' ? got === want : false;
+    return {
+      type,
+      status: okOp ? STATUS.PASS : STATUS.FAIL,
+      reason: c.pointer + '=' + got + ' ' + (okOp ? '满足 ' : '不满足 ') + op + ' ' + want,
+      evidence: rel + '#' + c.pointer,
+      version: doc.jarsAtLaunch ? short(fingerprint(doc.jarsAtLaunch)) : '',
+    };
+  }
   if (type === 'manual') {
     return {
       type,
