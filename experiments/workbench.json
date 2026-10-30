@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T23:26:02.695Z",
+  "updated_at": "2026-10-30T23:34:57.003Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -590,6 +590,13 @@
       "run": "exp-b16-empty-20261031-20261031-072111",
       "by": "unknown",
       "at": "2026-10-30T23:26:02.693Z"
+    },
+    {
+      "exp_id": "b17-goals-suppressed",
+      "note": "2026-10-31 07:34 B17（V-20261031-22 ✅）：exp-b17-goals-20261031-20261031-073022（diagnostic，07:30–07:34，8 calls，0 死亡/0 干预）。4 条 llm_request 含 <goals> 的 = 0；interact_at 23:31:54 开箱 + inspect_gui 27 格全空 + close_gui；无 transfer；背包 cobble 36→36；rdd_save ok 402ms。B15 空箱 INFERRED→OBSERVED。改动：RddPlugin goalHint 在 chain COMPLETED 时置空（f92177448，部署 002377F5…）。未清 GoalSinks 状态本身。",
+      "run": "exp-b17-goals-20261031-20261031-073022",
+      "by": "unknown",
+      "at": "2026-10-30T23:34:57.002Z"
     }
   ],
   "verdicts": [
