@@ -65,6 +65,84 @@ function hasSignature(text, keyword, head) {
 }
 function readText(p) { try { return fs.readFileSync(p, 'utf8'); } catch { return ''; } }
 
+/** 本地日期串 YYYYMMDD（卡号用）。★ 不能用 toISOString：UTC+8 下午会退成前一天。 */
+function ymdLocal(d) {
+  return d.getFullYear() + String(d.getMonth() + 1).padStart(2, '0') + String(d.getDate()).padStart(2, '0');
+}
+
+/**
+ * ★ 2026-10-30：「这一轮到底有没有真的进过游戏」。
+ *
+ * 为什么需要它：Q13/Q14/Q18 全是 WARN/ASK（为了不误伤纯文档轮），结果是
+ * 「进过游戏、一张卡没回填」照样 VERDICT=PASS。用户 2026-10-30 的原话：
+ * 「进游戏验证强、退游戏记录规范，感觉现在还是做不到」。
+ * 判据必须落在实物上，否则又是一条靠自觉的纪律。
+ *
+ * 三条任意一条成立 = 进过游戏：
+ *   ① <runsDir>/exp-*\\/envelope.json 的 createdAt >= since（exp-runner 的轮次）
+ *   ② <logsDir>/latest.log 的 mtime >= since（游戏在跑就会写）
+ *   ③ <logsDir>/rdd-launch-*.log 的 mtime >= since（launch-mc.ps1 的启动日志）
+ *
+ * ★ 刻意**不把 deploy-ledger 当证据**：`run-mutation -SkipLaunch` 的纯编译部署也会写流水，
+ *   拿它当「进过游戏」会把只编译没进游戏的轮次误判成红线。
+ * 目录全部从参数传入 —— selftest 用临时目录验它，不碰真实运行现场。
+ */
+function gameRunEvidence({ since, runsDir, logsDir }) {
+  const reasons = [];
+  const hits = [];
+  let ents = [];
+  try { ents = fs.readdirSync(runsDir, { withFileTypes: true }); } catch { /* 没有 runs 目录 = 没跑过 */ }
+  for (const e of ents) {
+    if (!e.isDirectory()) continue;
+    const envP = path.join(runsDir, e.name, 'envelope.json');
+    if (!isFile(envP)) continue;
+    let createdAt = null;
+    try { createdAt = JSON.parse(readText(envP)).createdAt; } catch { /* 坏封套跳过 */ }
+    if (!createdAt) continue;
+    const t = Date.parse(createdAt);
+    if (Number.isFinite(t) && t >= since.getTime()) {
+      reasons.push('exp-runner 轮次 ' + e.name + '（createdAt ' + createdAt + '）');
+      hits.push(e.name);
+    }
+  }
+  const latest = path.join(logsDir, 'latest.log');
+  if (freshEnough(latest, since)) {
+    reasons.push('logs/latest.log 本轮被写过（游戏在跑就会写）');
+    hits.push('latest.log');
+  }
+  for (const n of listDir(logsDir)) {
+    if (!/^rdd-launch-.*\.log$/.test(n)) continue;
+    if (freshEnough(path.join(logsDir, n), since)) {
+      reasons.push('启动日志 ' + n);
+      hits.push(n);
+    }
+  }
+  return { ran: reasons.length > 0, reasons, hits };
+}
+
+/**
+ * 从一份「实机验证」月度文件里数卡：返回 [{ id, date, filled }]。
+ * 卡标题允许 `##` 或 `###`（有人用 h2 当卡片级标题，与 Q13 同口径）。
+ */
+function parseCards(text) {
+  const out = [];
+  const re = /^#{2,3}\s+V-(\d{8})-(\d{2})\b[^\n]*/gm;
+  const marks = [];
+  let m;
+  while ((m = re.exec(text))) marks.push({ id: 'V-' + m[1] + '-' + m[2], date: m[1], index: m.index });
+  for (let i = 0; i < marks.length; i++) {
+    const start = marks[i].index;
+    const end = i + 1 < marks.length ? marks[i + 1].index : text.length;
+    const body = text.slice(start, end);
+    out.push({
+      id: marks[i].id,
+      date: marks[i].date,
+      filled: /\|\s*状态\s*\|\s*(?:✅|❌|🟡)/.test(body),
+    });
+  }
+  return out;
+}
+
 /** 递归找文件（自己写，避开 glob 依赖），depth 默认 6 */
 function walk(dir, depth, pred, out) {
   out = out || [];
@@ -688,10 +766,11 @@ function postflight(ctx) {
   {
     const okDocs = ['测试日志.md', '09-更新日志.md'];
     const moved = okDocs.filter((n) => freshEnough(path.join(REG.roots.docsUnified, n), since));
-    // 只认「真·长期资产」：`NN-中文名.md`。日志/索引/台账虽然也是 NN- 开头，但不是资产，
+    // 只认「真·长期资产」：`NN-中文名.md`（NN 允许两位或三位 —— 2026-10-30 起 100 号以上
+    // 已是常态，旧正则 `^\d{2}-` 会把 100–151 全漏掉）。日志/索引/台账虽然也是 NN- 开头，但不是资产，
     // 计进去会让「本轮已写 N 份」虚高，反而掩盖「其实一篇都没写」。
     const NOT_ASSET = /更新日志|按主题导航|时间线|README|docs-freshness/;
-    const longterm = walk(REG.roots.docsUnified, 1, (n) => /^\d{2}-.*\.md$/.test(n) && !NOT_ASSET.test(n))
+    const longterm = walk(REG.roots.docsUnified, 1, (n) => /^\d{2,3}-.*\.md$/.test(n) && !NOT_ASSET.test(n))
       .filter((f) => freshEnough(f, since));
     record('Q12', '写记录 + 写文档', 'ask', 'human', ASK,
       `关游戏之后顺序固定：关游戏 → 写记录 → 写文档 → 门禁。三件必须真动手的：\n` +
@@ -943,6 +1022,92 @@ function postflight(ctx) {
     }
   }
 
+  {
+    // ★★ Q20（2026-10-30 用户要求：「退游戏记录规范，感觉现在还是做不到」）：
+    //   **这一轮真进过游戏，就必须有一张回填过的卡 + 证据坐标 hard=0，否则 BLOCK。**
+    //
+    //   为什么必须新立一条、而不是把 Q13/Q14 改成 BLOCK：
+    //   - Q13/Q14 定 WARN 有正当理由（纯文档/纯编译轮不该被拦），`_格式规范.md` 也明令
+    //     「不许把 WARN 悄悄改成 BLOCK（会一夜之间让所有历史提交变红）」；
+    //   - 但它们因此留下了口子：**进了游戏照样 PASS**。这条就是补这个口子的：
+    //     条件判据 —— 只有「本轮有游戏痕迹」时才 BLOCK，没进游戏一律 SKIP（不制造假红）。
+    //
+    //   判据全部是实物（gameRunEvidence / parseCards / check-evidence-anchor）：
+    //     ① gameRunEvidence 为真（runs 封套 / latest.log / 启动日志）
+    //     ② 实机验证/YYYY-MM.md 本轮动过
+    //     ③ 里面至少有一张**当天日期**的卡且状态已填（✅/❌/🟡）
+    //     ④ 证据坐标 hard == 0
+    //   ③ 是这条的核心：不写 = 没记录；只写一张旧卡不算。
+    const g = gameRunEvidence({
+      since,
+      runsDir: path.join(REG.roots.harness, 'runs'),
+      logsDir: path.join(REG.roots.live, 'logs'),
+    });
+    const dir = path.join(REG.roots.docs, '实机验证');
+    const month = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}.md`;
+    const file = path.join(dir, month);
+    const todayYmd = ymdLocal(since);
+    const text = isFile(file) ? readText(file) : '';
+    const cards = parseCards(text);
+    const todays = cards.filter((c) => c.date === todayYmd);
+    const todaysFilled = todays.filter((c) => c.filled);
+
+    // 证据坐标：与 Q14 共用同一个检查器。
+    // ★ 2026-10-30 实测修正：**只看本月这张文件里的坐标**。
+    //   第一版把整个 实机验证/ 目录的 hard 都算进来，于是历史批次卡（G5d/G5e）里
+    //   早已存在的 4 条 MISSING_FILE 会把今天这条判红 —— 那是 Q14 的旧债，不是「今天没写记录」。
+    //   本项要回答的是「今天这张卡里的坐标指得到吗」，所以按 md 文件名过滤。
+    let anchorHard = null;
+    let anchorOther = 0;
+    try {
+      const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
+      const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
+      if (isFile(checker) && isDir(monitor)) {
+        const r = spawnSync(process.execPath, [checker, '--cards', dir, '--monitor', monitor, '--json'],
+          { encoding: 'utf8', timeout: 60000 });
+        const parsed = JSON.parse(r.stdout || '{}');
+        if (Array.isArray(parsed.hard)) {
+          const mine = parsed.hard.filter((x) => path.basename(String(x.md || '')) === month);
+          anchorHard = mine.length;
+          anchorOther = parsed.hard.length - mine.length;
+        }
+      }
+    } catch { anchorHard = null; }
+
+    if (!g.ran) {
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', SKIP,
+        '本轮没有游戏痕迹（runs 封套 / latest.log / rdd-launch 日志 都不新）—— 纯离线轮，不拦。'
+        + '\n       ★ 这条只在「真进过游戏」时才判：没进游戏一律 SKIP，不制造假红。');
+    } else if (!isFile(file) || !freshEnough(file, since)) {
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
+        '★ 本轮进过游戏（' + g.reasons.slice(0, 2).join('；') + '），但 实机验证/' + month + ' '
+        + (isFile(file) ? '本轮没被改过' : '不存在') + '。\n'
+        + '       ⇒ 用户 2026-10-30 指的是这件事：进游戏能验，退游戏的记录却没落地。\n'
+        + '       修法：在 ' + file + ' 建一张卡（判据/数据/结果/原因/复现），至少把状态填成 ✅/❌/🟡。');
+    } else if (!todaysFilled.length) {
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
+        '★ 本轮进过游戏（' + g.reasons.slice(0, 2).join('；') + '），但今天的卡一张都没回填。\n'
+        + '       ' + month + ' 里今天（' + todayYmd + '）的卡 ' + (todays.length ? todays.length + ' 张，全是 ⬜ 待验：'
+          + todays.map((c) => c.id).join('、') : '一张都没有') + '。\n'
+        + '       ⇒ 「写了卡」和「卡里有结果」是两件事。空卡不算证据（实机验证/_格式规范.md §4）。');
+    } else if (anchorHard === null) {
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', WARN,
+        '卡已回填（' + todaysFilled.map((c) => c.id).join('、') + '），但证据坐标检查器跑不起来'
+        + '（缺 check-evidence-anchor.js 或 monitor 目录）—— 这是环境问题，不是「记录合规」。');
+    } else if (anchorHard > 0) {
+      const checkerPath = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
+        '★ 卡已回填，但有 ' + anchorHard + ' 条证据坐标指不到东西 / 引文在文件里不存在。\n'
+        + '       ⇒ 坐标是编的比没有坐标更坏（Q14 只 WARN，这条不放过）；先跑\n'
+        + '         node ' + checkerPath);
+    } else {
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', PASS,
+        '进过游戏（' + g.reasons.slice(0, 2).join('；') + '）且记录到位：今天回填 '
+        + todaysFilled.map((c) => c.id).join('、') + '，本文件证据坐标 hard=0。'
+        + (anchorOther > 0 ? '（另有 ' + anchorOther + ' 条历史批次卡的坐标问题，属 Q14 的旧债，不计在本条）' : ''));
+    }
+  }
+
   builtinChecks(ctx, 'postflight');
 }
 
@@ -988,7 +1153,8 @@ function builtinChecks(ctx, phase) {
       const m = n.match(REG.docNumbers.pattern);
       if (!m) {
         // 盲区：有数字但缺连字符 → 整个逃过编号检查
-        const m2 = n.match(/^(\d{2})[^-\w]/);
+        // ★ 2026-10-30：号数放宽到 2–3 位（100 号以上已是常态，旧的 ^(\d{2}) 看不见它们）。
+        const m2 = n.match(/^(\d{2,3})[^-\w]/);
         if (m2) noHyphen.push(`${n}（建议改名 ${m2[1]}-xxx.md，或去掉开头数字）`);
         continue;
       }
@@ -1247,6 +1413,60 @@ function runSelftest() {
     chk('planner-entry: 坏行不崩',
       verdictOf(['{"broken": ', mk('supervisor_input', { source: 'rdd_supervisor_submit' })]) === 'PLANNED');
     fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+
+  // 8. ★ 2026-10-30：Q20 的两块判据必须能被自检到 —— 否则它又是一条「看起来在守」的纪律。
+  //    为什么必须自检：Q20 的价值全在「能把『进过游戏却没写卡』判红」。
+  //    如果哪天 parseCards 的标题正则或 gameRunEvidence 的判据被改坏，
+  //    它会静默退化成永远 SKIP / 永远 PASS —— 门禁照样绿，但这件事再也抓不到。
+  {
+    const os = require('os');
+    const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'harness-q20-'));
+    const runsDir = path.join(tmpRoot, 'runs');
+    const logsDir = path.join(tmpRoot, 'logs');
+    const nowIso = new Date().toISOString();
+    const mkRun = (name, createdAt) => {
+      const d = path.join(runsDir, name);
+      fs.mkdirSync(d, { recursive: true });
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify({ createdAt }), 'utf8');
+    };
+    const ev = (sinceMs) => gameRunEvidence({ since: new Date(sinceMs), runsDir, logsDir });
+    const hourAgo = Date.now() - 3600e3;
+    const dayAgo = Date.now() - 25 * 3600e3;
+
+    chk('Q20 判定: 空目录 + 无日志 → 没进过游戏', ev(hourAgo).ran === false);
+    fs.mkdirSync(logsDir, { recursive: true });
+    mkRun('exp-q20-new', nowIso);
+    chk('Q20 判定: 本轮 exp-runner 封套 → 进过游戏', ev(hourAgo).ran === true);
+    fs.rmSync(runsDir, { recursive: true, force: true });
+    chk('Q20 判定: 封套比 --since 旧 → 不算本轮', ev(Date.now() + 60e3).ran === false);
+    mkRun('exp-q20-old', '2020-01-01T00:00:00.000Z');
+    chk('Q20 判定: 只有旧封套 → 不算本轮', ev(hourAgo).ran === false);
+    fs.writeFileSync(path.join(logsDir, 'latest.log'), 'boot', 'utf8');
+    chk('Q20 判定: latest.log 本轮被写 → 进过游戏', ev(hourAgo).ran === true);
+    chk('Q20 判定: latest.log 比 --since 旧 → 不算', ev(Date.now() + 60e3).ran === false);
+    fs.rmSync(logsDir, { recursive: true, force: true });
+    fs.mkdirSync(logsDir, { recursive: true });
+    fs.writeFileSync(path.join(logsDir, 'rdd-launch-1.log'), 'launch', 'utf8');
+    chk('Q20 判定: rdd-launch 日志 → 进过游戏', ev(hourAgo).ran === true);
+
+    const today = ymdLocal(new Date());
+    const yest = ymdLocal(new Date(Date.now() - 86400e3));
+    const sample = [
+      '## V-' + today + '-01 · 今天的卡已回填',
+      '| 状态 | ✅ 通过 |',
+      '## V-' + today + '-02 · 今天的卡还空着',
+      '| 状态 | ⬜ 待验 |',
+      '### V-' + yest + '-07 · 昨天的卡已回填',
+      '| 状态 | 🟡 部分通过 |',
+    ].join('\n');
+    const cards = parseCards(sample);
+    chk('Q20 卡解析: 数出 3 张卡', cards.length === 3, '实得 ' + cards.length);
+    chk('Q20 卡解析: 今天 2 张', cards.filter((c) => c.date === today).length === 2);
+    chk('Q20 卡解析: 今天已回填 1 张', cards.filter((c) => c.date === today && c.filled).length === 1);
+    chk('Q20 卡解析: ⬜ 不算回填', cards.find((c) => c.id === 'V-' + today + '-02').filled === false);
+    chk('Q20 卡解析: h3 标题也认', cards.some((c) => c.id === 'V-' + yest + '-07' && c.filled));
+    fs.rmSync(tmpRoot, { recursive: true, force: true });
   }
 
   console.log('══════════ RDD harness 门禁 · SELFTEST（体检门禁自身）═══════════');

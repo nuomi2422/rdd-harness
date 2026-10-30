@@ -278,6 +278,55 @@ function fail(runDir, phase, msg, code) {
   process.exit(code || 10);
 }
 
+// ── 门禁接线（2026-10-30）────────────────────────────────────────────────
+// 为什么加：`run-mutation.ps1` 的第 7 步挂了 postflight，但 exp-runner 这条**实验主线**
+// 进出游戏两头都不碰门禁 —— 于是「退游戏要写记录」在实验轮次里从没被执行过
+// （用户 2026-10-30：「退游戏记录规范，感觉现在还是做不到」）。
+// 这里补两处最小接线，都不新建框架：
+//   ① 进游戏前：跑 P2 的执行体（check-runtime-deployment.js），源码领先 jar 就直接拒绝起跑。
+//      不跑完整 preflight 的原因：P14（工作区干净）会把「运行产物改了」也算脏，
+//      而实验轮次本来就会写 runs/ —— 拿它拦起跑会天天误伤。完整 preflight 仍由人/AI 按纪律跑。
+//   ② 退游戏后：跑 postflight，把整份输出和 BLOCK 清单存进 evidence/，并在收尾横幅里点名。
+//      **不拿它的失败去炸掉 run** —— 记录还没写，此时红是正常的；要的是让它出现在眼前。
+const GATE = path.join(HARNESS, 'bin', 'harness-gate.js');
+const DEPLOY_CHECK = path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-runtime-deployment.js');
+
+function localYmd(d) {
+  const p = (n) => String(n).padStart(2, '0');
+  return d.getFullYear() + '-' + p(d.getMonth() + 1) + '-' + p(d.getDate());
+}
+
+/** P2 的执行体：退出码 2 = 有源码领先于 jar。读不到工具时返回 null（不装作通过）。 */
+function deployGate(runDir) {
+  if (!fs.existsSync(DEPLOY_CHECK)) return { ok: null, reason: 'verifier-missing' };
+  const r = spawnSync(process.execPath, [DEPLOY_CHECK], { encoding: 'utf8', timeout: 240000 });
+  const out = ((r.stdout || '') + (r.stderr || '')).trim();
+  try { fs.writeFileSync(path.join(runDir, 'evidence', 'gate-deploy.txt'), out + '\n\nexit=' + r.status + '\n'); } catch { /* 存档失败不改判 */ }
+  const stale = /VERDICT=STALE/.test(out);
+  return {
+    ok: !(r.status === 2 || stale),
+    exit: r.status === null ? 127 : r.status,
+    staleLines: out.split(/\r?\n/).filter((l) => /^\s+·|源码领先|VERDICT=STALE/.test(l)).slice(0, 6),
+  };
+}
+
+/** 退游戏后跑一次 postflight，把输出与 BLOCK 清单留给下一轮。 */
+function postflightAfterRun(runDir, label) {
+  if (!fs.existsSync(GATE)) return { ok: null, reason: 'gate-missing', blocks: [] };
+  const since = localYmd(new Date());
+  const r = spawnSync(process.execPath, [GATE, 'postflight', '--since', since, '--keyword', label],
+    { encoding: 'utf8', timeout: 300000 });
+  const out = ((r.stdout || '') + (r.stderr || '')).trim();
+  try { fs.writeFileSync(path.join(runDir, 'evidence', 'gate-postflight.txt'), out + '\n\nexit=' + r.status + '\n'); } catch { /* 存档失败不改判 */ }
+  const blocks = [];
+  for (const line of out.split(/\r?\n/)) {
+    const m = line.match(/^✘\s+(\S+)\s+(.+)$/);
+    if (m) blocks.push({ id: m[1], name: m[2].trim() });
+  }
+  return { ok: r.status === 0, exit: r.status === null ? 127 : r.status, blocks, since };
+}
+
+
 async function cmdPlan(opts) {
   const contract = JSON.parse(fs.readFileSync(CONTRACT_PATH, 'utf8'));
   const contractHash = sha256File(CONTRACT_PATH);
@@ -337,6 +386,26 @@ async function cmdRun(opts) {
     if (!(await portOpen(8080))) fail(runDir, 'preflight', 'OpenClaw 8080 起不来（见 evidence/oc-server.log）', 3);
   }
   log(runDir, 'preflight', '实例空闲，母版存在，OpenClaw 就绪');
+
+  // ① 进游戏前的硬判据（2026-10-30）：源码改了但 jar 没部署 → 拒绝起跑。
+  //    为什么只查这一条：P14（工作区干净）会把实验自己写的 runs/ 也算脏，拿它拦起跑会天天误伤；
+  //    而「带着旧 jar 跑实验」是 H10 那类事故的直接形态，必须挡住。
+  if (opts.noGate) {
+    env.gates = { preflight: { mode: 'skipped', reason: '--no-gate' } };
+    log(runDir, 'preflight', '⚠ 部署一致性检查被 --no-gate 跳过（本轮结论只能当「旧 jar 上的行为」）');
+  } else {
+    const dg = deployGate(runDir);
+    env.gates = { preflight: { mode: 'p2-only', ok: dg.ok, exit: dg.exit, reason: dg.reason } };
+    if (dg.ok === null) {
+      log(runDir, 'preflight', '⚠ 部署检查器缺失（' + (dg.reason || '?') + '）—— 无法判定，不冒充通过');
+    } else if (!dg.ok) {
+      saveEnv();
+      fail(runDir, 'preflight', '源码领先于 jar（VERDICT=STALE）—— 先部署再起跑。证据：evidence/gate-deploy.txt '
+        + (dg.staleLines || []).slice(0, 2).join(' | '), 11);
+    } else {
+      log(runDir, 'preflight', '部署一致性通过（jar 不落后于源码）');
+    }
+  }
 
   // 磁盘余量：每个 run 约 130MB（env-baseline 77MB + evidence 55MB）。
   // 2026-10-29 实测 ENOSPC 会让「世界加载超慢 / 同伴不进场」看起来像别的问题，必须提前挡。
@@ -995,6 +1064,29 @@ async function cmdRun(opts) {
   env.phase = 'done';
   env.finishedAt = nowIso();
   saveEnv();
+
+  // ② 退游戏后（2026-10-30）：把 postflight 摆到眼前。
+  //    ★ 不拿它的失败去炸掉 run：记录本来就还没写，这时红是正常的。
+  //    要的是「红得看得见」—— 存证据 + 在收尾横幅里点名 BLOCK 项。
+  if (opts.noGate) {
+    log(runDir, 'gate', 'postflight 被 --no-gate 跳过（记录义务不会因此消失）');
+  } else {
+    const pf = postflightAfterRun(runDir, label);
+    env.gates = env.gates || {};
+    env.gates.postflight = { ok: pf.ok, exit: pf.exit, since: pf.since, blocks: pf.blocks };
+    saveEnv();
+    log(runDir, 'gate', 'postflight exit=' + pf.exit
+      + (pf.blocks.length ? ' BLOCK=' + pf.blocks.map((b) => b.id).join(',') : ' PASS'));
+    if (pf.blocks.length) {
+      console.log('');
+      console.log('════ 退游戏门禁：还有 ' + pf.blocks.length + ' 项 BLOCK 没结清 ════');
+      for (const b of pf.blocks) console.log('  ✘ ' + b.id + ' ' + b.name);
+      console.log('  证据：' + path.join(runDir, 'evidence', 'gate-postflight.txt'));
+      console.log('  ★ 下一轮起跑前必须先处理（尤其 Q20：进过游戏就必须有回填过的验证卡）');
+      console.log('════════════════════════════════════════════════════════════');
+    }
+  }
+
   log(runDir, 'done', 'RUN COMPLETE. 下一步: node exp-judge.js "' + runDir + '"');
   process.exit(0);
 }
@@ -1057,6 +1149,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--mode') opts.mode = argv[++i];
   else if (argv[i] === '--create-companion') opts.createCompanion = argv[++i];
   else if (argv[i] === '--companion-provider') opts.companionProvider = argv[++i];
+  else if (argv[i] === '--no-gate') opts.noGate = true;
 }
 
 /** 151 §3：run 的用途必须显式声明，否则诊断短局会被当成通关效率曲线上的点。 */
@@ -1066,6 +1159,6 @@ const RUN_MODES = ['campaign', 'diagnostic', 'regression'];
   if (cmd === 'run') return cmdRun(opts);
   if (cmd === 'cleanup') return cmdCleanup(argv[1]);
   if (cmd === 'status') return cmdStatus();
-  console.log('usage: node exp-runner.js plan|run|cleanup|status [--label x] [--goal "…"] [--companion RDD] [--minutes N] [--master <worldDir>]');
+  console.log('usage: node exp-runner.js plan|run|cleanup|status [--label x] [--goal "…"] [--companion RDD] [--minutes N] [--master <worldDir>] [--no-gate]');
   process.exit(2);
 })();

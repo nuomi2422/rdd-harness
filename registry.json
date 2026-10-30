@@ -1199,6 +1199,16 @@
           "rule": "★ 2026-10-29 主人指示（与 P18 同一判据、同一份证据 bin/lib/planner-entry.js，问法不同）：P18 问「进场前你建对了吗」（绕过 = BLOCK，逼当场重发 rdd_supervisor_submit）；Q19 问「这一轮到底有没有经过规划者」（绕过 = WARN —— 活已经干完，此时 BLOCK 只会让 postflight 永远过不去，要的是记账 + 下一轮别再犯）。★ 为什么必须记这一笔：主人要的是「任务链由规划者触发」，如果整轮都用的 rdd_submit，那规划者从头到尾没参与过，而账面上链是建成了的 —— 这正是主人说的「东西好像写出来了，但是 AI 都忘记用了」。级别 warn 的另一半理由与 Q13/Q14 同口径：不制造假红，本轮没建链就 SKIP。",
           "verify": "机器判据：node bin/harness-gate.js postflight 的 Q19 行；单独查 node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')))\" 看 verdict 与 planned/bypassed 明细。",
           "tool": "planner.entry"
+        },
+        {
+          "id": "Q20",
+          "name": "★ 进过游戏就必须有回填补齐的验证卡",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "★ 2026-10-30 用户要求（原话：「进游戏验证强、退游戏记录规范，感觉现在还是做不到」）。原先 Q13（验证卡）/Q14（证据坐标）都是 WARN、Q18 是 ASK —— 理由是纯文档轮不该被拦，但代价是「进过游戏、一张卡没回填」照样 VERDICT=PASS。这条补的就是那个口子：**条件判据** —— 只有本轮真有游戏痕迹时才拦。判据四条全部是实物：① gameRunEvidence 为真（runs/exp-* 的 envelope.createdAt >= since，或 live/logs/latest.log、rdd-launch-*.log 的 mtime >= since）；② 实机验证/YYYY-MM.md 本轮被改过；③ 里面至少有一张**当天日期**（V-YYYYMMDD-NN，YYYYMMDD == 今天）的卡且状态已填（✅/❌/🟡）；④ check-evidence-anchor 的 hard == 0（坐标指得到、引文存在）。没进游戏 → SKIP，不制造假红。★ 刻意不把 deploy-ledger 当「进过游戏」的证据：run-mutation -SkipLaunch 的纯编译部署也写流水。",
+          "why": "用户 2026-10-30 指出的真实断层：进游戏的门（preflight）和退游戏的门（postflight）都存在，但软判据让「记录」这一半可以整轮跳过。要的不是更多提示，是「这一轮到底有没有落地」。",
+          "verify": "机器判据：node bin/harness-gate.js postflight 的 Q20 行；自检在 selftest 第 8 组（gameRunEvidence 四种情形 + parseCards 五种情形，共 12 条）；证据坐标沿用 check-evidence-anchor.js --json 的 hard 数。",
+          "tool": "gate.read"
         }
       ]
     },
@@ -1413,8 +1423,8 @@
         "title": "编号门禁正则只认两位号 → 100 号以后的 52 份文档全部漏检（Q9 会假绿）",
         "symptom": "`docNumbers.pattern` = `^(\\\\d{2})-`。2026-10-30 实测：自编译统一版目录 160 份编号 md 只有 106 份能匹配，100–151 共 52 份全部不匹配；门禁 P10 自报「98 个编号，最大 99」，P10c 的「17 份未登记」只覆盖 77–81 与 88–99。",
         "impact": "Q9「编号登记三处」/ P10「撞号」/ P10c「台账登记」/ P10d「集中取号」对 100 号以后一律静默不设防 —— 新文档完全没登记三处也会显示 PASS（假绿）；docs-freshness 台账实际停在 87 号，88–151 共 64 份没登记，却只报得出 17 份（数字比实际小 3.7 倍）。任何「门禁说编号没问题」的结论都可能建立在没看见的那 52 份上。",
-        "guard": "引用 Q9/P10c 绿灯前先自己数：用 registry 的 pattern 逐文件 test，确认 100+ 号在不在视野里；新建编号文档的「三处登记」必须人工核 README §二目录 / 09-更新日志 / 50-按主题导航 各有一行，不看 Q9。修法（pattern 放宽为 `^(\\\\d{2,3})-` 并同步台账、nextDocNo、docno-alloc.js 的取号上限）另立一轮，不夹在文档轮里改。",
-        "verifiedBy": "2026-10-30 12:25 实测：node 逐文件匹配 106/160、3 位号 52 份；`harness-gate.js postflight --since 2026-10-30 --keyword docs` 打印「98 个编号，最大 99」；151 号三处登记经人工核对成立（docs 仓 fe7d458）。",
+        "guard": "引用 Q9/P10c 绿灯前先自己数：用 registry 的 pattern 逐文件 test，确认 100+ 号在不在视野里；新建编号文档的「三处登记」必须人工核 README §二目录 / 09-更新日志 / 50-按主题导航 各有一行，不看 Q9。修法（pattern 放宽为 `^(\\\\d{2,3})-` 并同步台账、nextDocNo、docno-alloc.js 的取号上限）另立一轮，不夹在文档轮里改。★ 2026-10-30 已修主项：pattern 放宽 + harness-gate 两处硬编码正则同步 + docno-alloc 默认值同步；docno-alloc 的 `check` 还顺带修了一个自建起就抛 `ReferenceError: spawnSync is not defined` 的缺陷（该判据从未执行过）。实测 docno-alloc status 从「98 个号/最大 99」变成「150 个号/最大 151」，check = 新撞号 0 / 绕过 0。Q9 随即第一次看见 100+ 号文档并当场判出 149/150 未登记（已补三处登记）。**仍未做**：`check-doc-freshness.js` 的编号正则还是 `^(\\\\d{2})-`（独立 verify-tool，不在 P10/Q9 路径；改它会一次冒出 69 条未登记旧债，需同时定旧债降级口径，另立一批）。",
+        "verifiedBy": "2026-10-30 14:4x–14:5x 实测：`node bin/docno-alloc.js status` → 目录实占号数 150、最大 151、下一号 152；`check` → 新撞号 0、取号后绕过 0、旧撞号 8；`harness-gate postflight` 的 Q9 从「看不见 149/150」变成点名判红，补齐三处登记后转为只看新文档（此刻 152 号由并行会话新建、尚未登记，Q9 因此仍红——那是它的债）。",
         "reviewBy": "2026-11-13",
         "status": "open"
       },
@@ -1433,10 +1443,10 @@
   "docNumbers": {
     "root": "docs/rdd-docs/rdd架构/自编译统一版",
     "ledger": "docs/rdd-docs/rdd架构/自编译统一版/docs-freshness.json",
-    "pattern": "^(\\d{2})-",
-    "maxDocNo": 74,
-    "$maxDocNoNote": "2026-10-04：70 号已被 docsUnified 的「70-相机独立模块numencam与实测记录-20261004.md」占用。★ 分配新号时必须现场重扫，不要信这个缓存值 —— harness 门禁 P10 就是这么判的（它打印「别信这个缓存值」）。",
-    "nextDocNo": 75,
+    "pattern": "^(\\d{2,3})-",
+    "maxDocNo": 151,
+    "$maxDocNoNote": "2026-10-04：70 号已被 docsUnified 的「70-相机独立模块numencam与实测记录-20261004.md」占用。★ 分配新号时必须现场重扫，不要信这个缓存值 —— harness 门禁 P10 就是这么判的（它打印「别信这个缓存值」）。★ 2026-10-30 现场重扫：160 份 .md 中 158 份匹配，最大号 151 → nextDocNo=152；同时把 pattern 从 ^(\\\\d{2})- 放宽到 ^(\\\\d{2,3})-（100–151 共 52 份此前完全不在 P10/P10b/P10c/P10d/Q9 视野内，见 TL-2026-10-30-01）。",
+    "nextDocNo": 153,
     "registerIn": [
       "docs/rdd-docs/rdd架构/自编译统一版/README.md §二目录表",
       "docs/rdd-docs/rdd架构/自编译统一版/09-更新日志.md",
@@ -1600,6 +1610,22 @@
   "knownGaps": {
     "$comment": "★ 结构性缺口：已知但**故意没做**的部分。每次 audit-tag 都必须把它们渲染进快照 —— 否则「某组三批都 ✅」会让将来考古误以为地基完整（owner 2026-10-21 点名：G3e-2 宿主接线未做）。与 timeLocks 的区别：时间锁是「防线到期要复核」，这里是「洞还在，别当它不存在」。",
     "list": [
+      {
+        "id": "UPSTREAM-CLASS-CHECK",
+        "what": "跨模块依赖检查目前只有**时间图**（上游源码晚于 jar ⇒ 需重建评估），没有**类级核对**（这个 jar 真正引用的类，当前 API 里还在不在）。H10 事故（api/common 删掉一个类 → 插件运行时 `IToolSpec is null` 崩溃）的**真判据**是后者。",
+        "why": "实现类级核对要解开 jar 的 constant pool（deflate + 常量池解析），本机 8 个插件 × 上千类，每次 preflight 跑一遍要几十秒；而时间图会过度报警（实测 2026-10-30 api/common 改动后 8 个插件 jar 全部「更旧」），直接当硬门禁等于每次 api 改动都要重打全部插件。",
+        "effect": "现在 `--strict-upstream` 只能回答「这些 jar 不能声称与当前 API 一致」，回答不了「哪一个真的会崩」。默认模式下这条只是警告，H10 那种破坏仍可能在「警告被忽略」时复发。",
+        "plan": "另立一批：解 jar → 取每个插件 `.class` 常量池里 `com/dwinovo/numen/` 的引用 → 与当前 api/core jar 的 entry 集合比对，输出「引用但不存在的类」清单（有则硬 STALE，无则直接放行）。判据：用 H10 那次删掉的 `EntityFilters` 做反例（必须报出引用它的插件），正常构建必须 0 误报。",
+        "reviewBy": "2026-11-20"
+      },
+      {
+        "id": "DOCNO-FRESHNESS-3DIGIT",
+        "what": "`check-doc-freshness.js` 的编号正则仍是 `^(\\\\d{2})-`，100 号以后的 52 份文档对它不可见（UNREGISTERED / DUP_NUMBER 都查不到）。它不在 P10/Q9 路径上（门禁自己实现同一逻辑），但作为独立 verify-tool 会给出「编号没问题」的错误结论。",
+        "why": "单改正则会一次性冒出 69 条「未登记台账」BLOCK —— 那是旧债，按 S-DOC-03 的原则不能一次性把工具变红；必须先定旧债降级口径（按取号处上线日 2026-10-26 分历史/本轮），而这是另一个决策。",
+        "effect": "凡是引用 `check-doc-freshness.js` 结论的地方（文档时效报告），对 100 号以上文档一律不可信。",
+        "plan": "改正则 + 按 `allocations[].at` 最早日期分「历史文件（WARN，补登记即消）」与「机制上线后新增（BLOCK）」，与 `docno-alloc.check` 的同一口径对齐；判据：改后 BLOCK 数 = 机制上线后新增且未登记的份数，历史份数只出现在 WARN 段。",
+        "reviewBy": "2026-11-13"
+      },
       {
         "id": "G3e-2",
         "what": "G3e 的**宿主侧**没做：`SafePoint` 契约与 `TaskChain` 冻结闸已完成且 10 条单测全绿，但宿主 issuer（唯一「身体空闲」判据）、epoch 递增接线、实机 S97–S99b **一行未写**",

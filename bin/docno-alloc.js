@@ -45,7 +45,23 @@
 
 const fs = require('fs');
 const path = require('path');
+const { spawnSync } = require('child_process');
 const registryLib = require('./lib/registry.js');
+
+// ★ 2026-10-30：`check` 从 2026-10-22 建起就是坏的 —— 它用 `spawnSync` 与 `GIT` 却两个都没定义，
+//   一跑就 `ReferenceError: spawnSync is not defined`。也就是说「谁绕过取号处」这条判据
+//   **从来没被执行过一次**（同 bug-10 那一族：纪律看起来在守，其实从没执行过）。
+//   本机 git 不在 PATH（MinGit 装在 %LOCALAPPDATA%\Programs\MinGit），所以这里按已知安装位找。
+function resolveGit() {
+  if (process.env.RDD_GIT && fs.existsSync(process.env.RDD_GIT)) return process.env.RDD_GIT;
+  const probes = [
+    path.join(process.env.LOCALAPPDATA || '', 'Programs', 'MinGit', 'cmd', 'git.exe'),
+    path.join(process.env.ProgramFiles || '', 'Git', 'cmd', 'git.exe'),
+  ];
+  for (const p of probes) if (p && fs.existsSync(p)) return p;
+  return 'git';
+}
+const GIT = resolveGit();
 
 const EXIT_OK = 0, EXIT_CONFLICT = 1, EXIT_USAGE = 2, EXIT_ENV = 3;
 
@@ -101,7 +117,9 @@ function loadCtx() {
   const REG = registryLib.load();
   const dir = REG.docNumbers.root;
   const ledgerFile = REG.docNumbers.ledger;
-  const pattern = REG.docNumbers.pattern || '^(\\d{2})-';
+  // ★ 2026-10-30：号数放宽到 2–3 位。旧默认 ^(\d{2})- 会把 100 号以上全当成「没有编号」，
+  //   于是那些文件既不参与撞号检测，也进不了「谁占了哪个号」的统计 —— 取号就会撞。
+  const pattern = REG.docNumbers.pattern || '^(\\d{2,3})-';
   if (!dir || !ledgerFile) return { err: 'registry.docNumbers 缺 root/ledger' };
   if (!fs.existsSync(dir)) return { err: '编号目录不存在：' + dir };
   const ledger = readLedger(ledgerFile);
