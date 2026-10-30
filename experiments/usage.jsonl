@@ -28,3 +28,4 @@
 {"at":"2026-10-30T06:29:33.158Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-30T06:29:43.371Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-30T06:31:40.610Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:32:56.891Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
