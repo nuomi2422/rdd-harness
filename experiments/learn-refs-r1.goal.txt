@@ -1,0 +1,1 @@
+不要移动、不要挖方块、不要攻击、不要放方块。先解释：如果 goto 回执出现 route unusable 或 no net progress，你会怎么判断（只写判断步骤，不要执行）；然后调用 learner_status 报一次队列深度，把回执原样贴出来。
