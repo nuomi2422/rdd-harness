@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T21:55:01.729Z",
+  "updated_at": "2026-10-30T22:23:09.789Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -527,6 +527,13 @@
       "run": "exp-b6-chain-20261031-20261031-054914",
       "by": "unknown",
       "at": "2026-10-30T21:55:01.728Z"
+    },
+    {
+      "exp_id": "review-wait-monitor",
+      "note": "2026-10-31 06:22 复盘等待修正（V-20261031-14 ✅）：B7/B8 两次 learner_status(review_id) 在 runner 侧都读不到 state（UNKNOWN），但 review 本身完成（B7 reviewed=5/stored=3；B8 22:10:53 reviewed=10/stored=2、22:12:49 reviewed=19/committed=10/restored=46/stored=2）。改为 waitForReviewEvent() 读 monitor/learner.jsonl 的 reviewed/review_failed（按 review_id，上限 180s）。B9 exp-b9-wait-20261031-20261031-061825：review 22:19:45 发起、22:21:45.867 reviewed（5/5，REVISE 命中已有 goto 条目），wait 28ms 读到 DONE；rdd_save ok 274ms；0 死亡/0 干预。发布门仍未落地，DRAFT 未投送。",
+      "run": "exp-b9-wait-20261031-20261031-061825",
+      "by": "unknown",
+      "at": "2026-10-30T22:23:09.788Z"
     }
   ],
   "verdicts": [
