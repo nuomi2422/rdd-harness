@@ -109,6 +109,24 @@ function scenarioOf(env) {
   return typeof env.scenarioId === 'string' ? env.scenarioId : '';
 }
 
+/**
+ * 151 §3：run 的用途。campaign=主线/长程，diagnostic=单问题探针，regression=不回退验证。
+ * 没声明就是 unspecified —— 曲线默认不收它（诊断短局不能混进通关效率）。老信封一律 unspecified。
+ */
+const RUN_MODES = ['campaign', 'diagnostic', 'regression'];
+function modeOf(env) {
+  const m = env && env.mode;
+  const k = typeof m === 'string' ? m : (m && typeof m.kind === 'string' ? m.kind : '');
+  return RUN_MODES.includes(k) ? k : 'unspecified';
+}
+
+/** 持续学习 / 冷启动：只报声明，不猜。 */
+function learningModeOf(env) {
+  const l = env && env.learning;
+  const k = l && typeof l.mode === 'string' ? l.mode : '';
+  return k === 'continuous' || k === 'cold-start' ? k : 'unspecified';
+}
+
 function masterOf(env) {
   // P1-20261030：原来是 env.master.sha256 单一路径，取不到就返回 ''，
   // 而 '' 在 compareGroups 里既不算 mismatch 也不报错 —— 等于"不知道母版"被当成"母版一致"。
@@ -168,6 +186,11 @@ function compare(envA, envB) {
   if (sa && sb && sa !== sb) reasons.push('scenario-mismatch');
   else if (!sa || !sb) notes.push('scenario-unknown');
 
+  const moa = modeOf(envA);
+  const mob = modeOf(envB);
+  if (moa !== 'unspecified' && mob !== 'unspecified' && moa !== mob) reasons.push('mode-mismatch');
+  else if (moa === 'unspecified' || mob === 'unspecified') notes.push('mode-unknown');
+
   const ba = buildOf(envA);
   const bb = buildOf(envB);
   if (ba && bb && ba !== bb) reasons.push('build-mismatch');
@@ -211,16 +234,32 @@ function compare(envA, envB) {
 /**
  * 周指标：只统计给定 run 列表；缺字段 → UNKNOWN，**不进分子也不进分母**。
  * 分子与分母必须来自同一个「都已知」的样本集合（151 §2：缺时间不能算完整死亡率）。
+ *
+ * 151 §3：默认只收 `mode=campaign` —— 诊断短局与回归局不混进通关/作弊曲线。
+ * 要全量看一眼就传 `{ includeAll: true }`，但要记得那不是一条可比曲线。
  * @param {Array} envs
+ * @param {{mode?:string, includeAll?:boolean}} [opts]
  */
-function weekly(envs) {
-  const list = Array.isArray(envs) ? envs.filter(Boolean) : [];
+function weekly(envs, opts) {
+  const o = opts && typeof opts === 'object' ? opts : {};
+  const wantMode = RUN_MODES.includes(o.mode) ? o.mode : 'campaign';
+  const all = Array.isArray(envs) ? envs.filter(Boolean) : [];
+  const byMode = { campaign: 0, diagnostic: 0, regression: 0, unspecified: 0 };
+  for (const e of all) byMode[modeOf(e)] += 1;
+  const list = o.includeAll ? all : all.filter((e) => modeOf(e) === wantMode);
   const get = (e, m) => metricOf(e, m);
   const knownFor = (m) => list.filter((e) => get(e, m) !== null);
   const cov = (m) => knownFor(m).length + '/' + list.length;
   const sumKnown = (m) => knownFor(m).reduce((n, e) => n + get(e, m), 0);
 
-  const out = { runs: list.length, metrics: {}, coverage: {} };
+  const out = {
+    runs: list.length,
+    totalRuns: all.length,
+    mode: o.includeAll ? 'all' : wantMode,
+    excluded: { n: all.length - list.length, byMode },
+    metrics: {},
+    coverage: {},
+  };
   for (const m of METRICS) out.coverage[m] = cov(m);
   out.metrics.stalledKnownRuns = knownFor('stalled').length;
 
@@ -293,6 +332,12 @@ function compareGroups(envsA, envsB) {
   const scenarios = new Set(all.map(scenarioOf).filter(Boolean));
   if (scenarios.size > 1) reasons.push('scenario-mismatch');
   else if (!scenarios.size) notes.push('scenario-unknown');
+
+  // 151 §3：诊断/回归/主线不是同一类局，混着比就是拿排障短局当通关曲线
+  const declaredModes = all.map(modeOf);
+  const modes = new Set(declaredModes.filter((m) => m !== 'unspecified'));
+  if (modes.size > 1) reasons.push('mode-mismatch');
+  if (declaredModes.some((m) => m === 'unspecified')) notes.push('mode-unknown');
 
   const builds = new Set(all.map(buildOf).filter(Boolean));
   if (builds.size > 1) reasons.push('build-mismatch');
@@ -380,6 +425,8 @@ function selftest() {
   const mk = (goal, deaths, kept, dropped, minutes, extra) => Object.assign({
     goal,
     label: goal,
+    mode: { kind: 'campaign', source: 'flag' },
+    learning: { mode: 'cold-start' },
     contract: { scenarioId: 'unit-scenario', revision: 'T-r1' },
     master: { world: 'w', manifest: { count: 148, sha256: 'm1' } },
     jarsAtLaunch: [{ file: 'numen.jar', sha256: 'j1' }],
@@ -509,20 +556,44 @@ function selftest() {
     '㉑d 预注册方向相反 → INCONCLUSIVE');
 
   // ㉒ 部分覆盖：只标 known/total，不假装是总数
-  const w22 = weekly([mk('A', 2, 1, 0, 10), { goal: 'A', contract: { scenarioId: 'unit-scenario' }, master: { manifest: { sha256: 'm1' } } }]);
+  const w22 = weekly([mk('A', 2, 1, 0, 10), { goal: 'A', mode: { kind: 'campaign' }, contract: { scenarioId: 'unit-scenario' }, master: { manifest: { sha256: 'm1' } } }]);
   ok(w22.metrics.deaths && w22.metrics.deaths.coverage === '1/2',
     '㉒ 缺一半样本 → deaths 标 1/2（实得 ' + JSON.stringify(w22.metrics.deaths) + '）');
   ok(w22.metrics.deathRatePer100min === 'UNKNOWN', '㉒b 缺一半时间 → 死亡率 UNKNOWN（不拿半份算率）');
 
+  // ── 151 §3 运行模式反例（第二批）─────────────────────────────────────────
+  // ㉓ 周指标默认只收 campaign：诊断短局不能混进通关效率曲线
+  const diag = mk('A', 0, 1, 0, 1, { mode: { kind: 'diagnostic', source: 'flag' } });
+  const reg = mk('A', 0, 1, 0, 1, { mode: { kind: 'regression', source: 'flag' } });
+  const w23 = weekly([mk('A', 1, 1, 0, 10), diag, reg]);
+  ok(w23.runs === 1, '㉓ 默认只收 campaign（实得 runs=' + w23.runs + '）');
+  ok(w23.excluded && w23.excluded.n === 2 && w23.excluded.byMode.diagnostic === 1 && w23.excluded.byMode.regression === 1,
+    '㉓b 排除计数要按 mode 分开（实得 ' + JSON.stringify(w23.excluded) + '）');
+  const w23b = weekly([mk('A', 1, 1, 0, 10), diag, reg], { includeAll: true });
+  ok(w23b.runs === 3 && w23b.mode === 'all', '㉓c includeAll 收全量（实得 runs=' + w23b.runs + ' mode=' + w23b.mode + '）');
+  // 没声明 mode 的老信封：默认不进曲线，且被计进 unspecified
+  const w23c = weekly([{ goal: 'A', contract: { scenarioId: 's' }, master: { manifest: { sha256: 'm1' } }, deaths: { status: 'NONE', count: 1 } }]);
+  ok(w23c.runs === 0 && w23c.excluded.byMode.unspecified === 1,
+    '㉓d 未声明 mode → 不进曲线（实得 runs=' + w23c.runs + ' / ' + JSON.stringify(w23c.excluded) + '）');
+
+  // ㉔ 诊断局与主线局直接比：不可比
+  const c24 = compare(mk('A', 1, 1, 0, 5), mk('A', 0, 1, 0, 5, { mode: { kind: 'diagnostic', source: 'flag' } }));
+  ok(c24.verdict === 'INCONCLUSIVE' && c24.reasons.includes('mode-mismatch'),
+    '㉔ campaign vs diagnostic → INCONCLUSIVE + mode-mismatch（实得 ' + c24.verdict + '/' + c24.reasons.join(',') + '）');
+  const g24 = compareGroups([1, 2, 3].map(() => mk('A', 1, 1, 0, 5)),
+    [1, 2, 3].map(() => mk('A', 0, 1, 0, 5, { mode: { kind: 'diagnostic', source: 'flag' } })));
+  ok(g24.reasons.includes('mode-mismatch'), '㉔b 两臂多轮混 mode → mode-mismatch');
+
   console.log(fails.length
     ? 'experiment selftest FAIL: ' + fails.join(' | ')
-    : 'experiment selftest PASS（22 组：既有口径 + 审计反例 + 151 反例 + 真实信封形状）');
+    : 'experiment selftest PASS（24 组：既有口径 + 审计反例 + 151 反例 + 真实信封形状 + 运行模式）');
   return fails.length ? 1 : 0;
 }
 
 module.exports = {
   compare, compareGroups, weekly, selftest, METRICS, metricOf,
   goalOf, masterOf, scenarioOf, buildOf, preregOf, stateOf,
+  modeOf, learningModeOf, RUN_MODES,
 };
 
 if (require.main === module) {

@@ -1104,11 +1104,14 @@ function compareManyCmd(argv) {
   return 0;
 }
 
-/** A7：`bench report [--since YYYY-MM-DD]` —— 周指标，缺字段 UNKNOWN 不补 0。 */
+/** A7：`bench report [--since YYYY-MM-DD] [--mode campaign|diagnostic|regression] [--all]` —— 周指标，缺字段 UNKNOWN 不补 0。 */
 function reportCmd(argv) {
   const E = require('./lib/experiment');
   const i = argv.indexOf('--since');
   const since = i >= 0 ? Date.parse(argv[i + 1]) : Date.now() - 7 * 86400000;
+  const mi = argv.indexOf('--mode');
+  const mode = mi >= 0 ? argv[mi + 1] : 'campaign';
+  const includeAll = argv.includes('--all');
   const runsRoot = path.join(HARNESS, 'runs');
   const envs = [];
   if (fs.existsSync(runsRoot)) {
@@ -1120,7 +1123,13 @@ function reportCmd(argv) {
       } catch { /* 没有 envelope 的目录不算样本 */ }
     }
   }
-  console.log(JSON.stringify(E.weekly(envs), null, 2));
+  const w = E.weekly(envs, { mode, includeAll });
+  console.log(JSON.stringify(w, null, 2));
+  if (!includeAll && w.runs !== w.totalRuns) {
+    console.log('note: 只统计 mode=' + w.mode + ' 的局；' + (w.totalRuns - w.runs) + ' 局被排除（'
+      + Object.entries(w.excluded.byMode).filter(([, n]) => n).map(([k, n]) => k + '=' + n).join(' ')
+      + '）。诊断/回归局不混进通关曲线；要看全量加 --all。（151 §3）');
+  }
   return 0;
 }
 main();

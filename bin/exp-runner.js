@@ -79,9 +79,15 @@ function copyTree(src, dst) {
 }
 function expHash() {
   try {
-    const files = fs.readdirSync(NUMEN).filter((f) => /^experience-.*\.jsonl$|^learner-memos-.*\.json$/.test(f)).sort();
+    const files = learnFiles().sort();
     return sha256(files.map((f) => f + ':' + sha256File(path.join(NUMEN, f))).join('\n'));
   } catch { return null; }
+}
+/** 学习产物文件清单（experience-*.jsonl / learner-memos-*.json）；归档与哈希共用同一份口径。 */
+function learnFiles() {
+  try {
+    return fs.readdirSync(NUMEN).filter((f) => /^experience-.*\.jsonl$|^learner-memos-.*\.json$/.test(f));
+  } catch { return []; }
 }
 function manifestOf(dir) {
   const items = [];
@@ -250,6 +256,10 @@ async function cmdPlan(opts) {
 
 async function cmdRun(opts) {
   const label = opts.label || 'smoke';
+  if (opts.mode && !RUN_MODES.includes(opts.mode)) {
+    console.error('--mode 只能是 ' + RUN_MODES.join(' | ') + '（收到 ' + opts.mode + '）');
+    process.exit(2);
+  }
   const contract = JSON.parse(fs.readFileSync(CONTRACT_PATH, 'utf8'));
   const contractHash = sha256File(CONTRACT_PATH);
   // --master 允许换母版（干净模板 saves/exp-clean：无基地无箱子）。默认仍用契约里的 saves/live。
@@ -260,6 +270,10 @@ async function cmdRun(opts) {
   const env = {
     runId, label, createdAt: nowIso(), contract: { path: CONTRACT_PATH, sha256: contractHash, revision: contract.contractRevision, scenarioId: contract.scenarioId },
     gameDir: GAME, phase: 'preflight', timings: {}, world: {},
+    // 151 §3：这次 run 是主线/诊断/回归，必须显式声明；没声明就记 unspecified（曲线默认不收它）。
+    mode: { kind: opts.mode || 'unspecified', source: opts.mode ? 'flag' : 'default' },
+    // 151 §3：持续学习 vs 冷启动也要声明；恢复策略决定「本轮学到的能不能带到下一轮」。
+    learning: { mode: opts.keepExperience ? 'continuous' : 'cold-start', declaredAt: nowIso() },
     // A7（99 号）：实验条件必须可读——compare 用 goal+master 判「同条件」；goal 在 stimulus 段填。
     goal: null,
   };
@@ -801,6 +815,24 @@ async function cmdRun(opts) {
   }
   saveEnv();
 
+  // ---------- 学习产物三态快照（151 §3）----------
+  // 运行前(before) / 恢复前(beforeRestore) / 恢复后(after) 三个哈希都要留。
+  // 为什么：恢复后与运行前相同，只证明「磁盘上的学习产物被回滚」，**不能**证明「本轮没学习」——
+  // 这一轮可能学到了东西、只是被冷启动复位冲掉了。恢复前的产物必须先归档，才谈得上复核。
+  env.phase = 'snapshot';
+  env.experience.beforeRestore = expHash();
+  const learnArchive = path.join(runDir, 'evidence', 'learn-archive');
+  fs.mkdirSync(learnArchive, { recursive: true });
+  const archived = [];
+  for (const f of learnFiles()) {
+    const src = path.join(NUMEN, f);
+    fs.copyFileSync(src, path.join(learnArchive, f));
+    archived.push({ file: f, sha256: sha256File(src), bytes: fs.statSync(src).size });
+  }
+  env.experience.archive = { dir: 'evidence/learn-archive', count: archived.length, files: archived };
+  log(runDir, 'snapshot', '恢复前学习产物归档 ' + archived.length + ' 个文件（' + learnArchive + '）hash=' + String(env.experience.beforeRestore).slice(0, 16) + '…');
+  saveEnv();
+
   // ---------- restore (受控复位) ----------
   env.phase = 'restore';
   if (!exited) fail(runDir, 'restore', '游戏没停下来，拒绝在运行中还原状态（会写坏现场）', 3);
@@ -821,6 +853,18 @@ async function cmdRun(opts) {
     log(runDir, 'restore', 'keep-experience：保留 experience/learner-memos（本轮记忆带入下一轮）');
   }
   env.experience.after = expHash();
+  // 三态结论（只陈述可核对的事实，不替读报告的人做因果判断）
+  env.experience.summary = {
+    learnedThisRun: env.experience.before !== env.experience.beforeRestore,
+    rolledBackToBaseline: env.experience.after === env.experience.before,
+    keptForNextRun: env.experience.after === env.experience.beforeRestore
+      && env.experience.beforeRestore !== env.experience.before,
+    note: '恢复后=运行前 只说明学习产物被回滚，不等于本轮没学习；恢复前的产物在 evidence/learn-archive，'
+      + '本轮是否真学到要看 before->beforeRestore 的差异与归档内容。',
+  };
+  log(runDir, 'restore', '学习三态：learnedThisRun=' + env.experience.summary.learnedThisRun
+    + ' rolledBack=' + env.experience.summary.rolledBackToBaseline
+    + ' keptForNextRun=' + env.experience.summary.keptForNextRun);
   CTX = null;
   const restoredManifest = manifestOf(baseDir);
   log(runDir, 'restore', '存档外状态已还原（基线 ' + restoredManifest.sha256.slice(0, 16) + '…）');
@@ -894,7 +938,11 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--allow-void') opts.allowVoid = true;
   else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
+  else if (argv[i] === '--mode') opts.mode = argv[++i];
 }
+
+/** 151 §3：run 的用途必须显式声明，否则诊断短局会被当成通关效率曲线上的点。 */
+const RUN_MODES = ['campaign', 'diagnostic', 'regression'];
 (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
   if (cmd === 'run') return cmdRun(opts);
