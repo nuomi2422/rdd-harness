@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T23:34:57.003Z",
+  "updated_at": "2026-10-30T23:49:41.371Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -597,6 +597,13 @@
       "run": "exp-b17-goals-20261031-20261031-073022",
       "by": "unknown",
       "at": "2026-10-30T23:34:57.002Z"
+    },
+    {
+      "exp_id": "b18-skipped-mining",
+      "note": "2026-10-31 07:48 B18（V-20261031-23 🟡）：exp-b18-multistep-20261031-20261031-073655（campaign 10 分钟，28 calls，0 死亡/0 干预）。craft 23:38:13 2x furnace（16 cobble，table 165,69,684）；transfer 23:38:25 2 furnace → chest；inspect_gui 23:38:27",
+      "run": "",
+      "by": "unknown",
+      "at": "2026-10-30T23:49:41.370Z"
     }
   ],
   "verdicts": [
