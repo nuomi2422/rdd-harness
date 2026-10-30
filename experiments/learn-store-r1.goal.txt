@@ -1,0 +1,1 @@
+先调用 learner_status 看有没有 pending 的 memo；若 pending > 0，调用 learner_review（max_memos=5）开始复盘，等它结束后把 review_id、reviewed、committed 与 verdict 摘要原样报出来。这一步只处理学习队列：不要挖方块、不要攻击、不要放方块、不要远距离移动。
