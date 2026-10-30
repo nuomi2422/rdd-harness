@@ -704,7 +704,17 @@ async function cmdRun(opts) {
   const graceEnd = Date.now() + 60000;
   while (Date.now() < graceEnd) {
     const p = path.join(MONITOR, 'context.jsonl');
-    const size = fs.statSync(p).size;
+    // 2026-10-30（exp-loop-r16 实测）：context.jsonl 会**轮转**（改名成 context-<ts>.jsonl），
+    // 轮转瞬间 statSync 抛 ENOENT。原来这一行在 a0 的 try/catch **之外**，于是整个收尾直接崩，
+    // 连 restore 都没跑（环境状态没还原）——比丢一条观测严重得多。
+    // 处理：读不到就当作「本轮轮询没有新数据」并跳出；不猜、不补。
+    let size = 0;
+    try {
+      size = fs.statSync(p).size;
+    } catch (e) {
+      log(runDir, 'stop', 'context.jsonl 轮转中（' + e.code + '），停止后静默检查提前结束');
+      break;
+    }
     if (size > stopOff) {
       const fd = fs.openSync(p, 'r');
       const len = size - stopOff;
