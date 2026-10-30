@@ -803,7 +803,19 @@ function health(runDir) {
 /** 坑账本：19 时间锁 + 18 tips 的统一索引（只读两处真源，不改它们）。 */
 function pit(argv) {
   const PL = require('./lib/pit-ledger.js');
-  const sub = argv[1] === 'build' ? 'build' : 'list';
+  const sub = argv[1] === 'build' ? 'build' : (argv[1] === 'close' ? 'close' : 'list');
+  if (sub === 'close') {
+    const id = argv[2];
+    const status = arg(argv, '--status');
+    const reason = arg(argv, '--reason');
+    if (!id || !status || !reason) die(2, 'usage: bench.js pit close <id> --status guarded|fixed|museum --reason "至少10字"');
+    try {
+      const p = PL.closePit(id, status, reason);
+      console.log('pit closed: ' + p.id + ' → ' + p.status + ' @ ' + p.closedAt);
+      logUsage(argv, 'bench pit close', { status: 'ok', pit: id, result: status });
+      return 0;
+    } catch (e) { die(1, e.message); }
+  }
   if (sub === 'build') {
     const L = PL.build();
     if (has(argv, '--json')) console.log(JSON.stringify({ counts: L.counts, updated_at: L.updated_at }, null, 2));

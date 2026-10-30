@@ -123,7 +123,7 @@ function build(opts) {
     try {
       const old = JSON.parse(fs.readFileSync(ledgerFile, 'utf8'));
       for (const e of old.pits || []) {
-        manual.set(e.id, { status: e.status, judge: e.judge, canMachineJudge: e.canMachineJudge, judgeWhy: e.judgeWhy, reviewBy: e.reviewBy });
+        manual.set(e.id, { status: e.status, judge: e.judge, canMachineJudge: e.canMachineJudge, judgeWhy: e.judgeWhy, reviewBy: e.reviewBy, closedAt: e.closedAt, closeReason: e.closeReason });
       }
     } catch { /* 坏文件就当没有，重建 */ }
   }
@@ -134,7 +134,7 @@ function build(opts) {
   for (const p of pits) {
     const m = manual.get(p.id);
     if (!m) continue;
-    for (const k of ['status', 'judge', 'canMachineJudge', 'judgeWhy', 'reviewBy']) {
+    for (const k of ['status', 'judge', 'canMachineJudge', 'judgeWhy', 'reviewBy', 'closedAt', 'closeReason']) {
       if (m[k] !== undefined && m[k] !== null) p[k] = m[k];
     }
   }
@@ -162,6 +162,29 @@ function build(opts) {
 
 function load(file) {
   return readJson(file || LEDGER, 'pit-ledger.json');
+}
+
+function closePit(id, status, reason, opts) {
+  const o = opts || {};
+  if (!STATUSES.includes(status) || status === 'watching') {
+    throw new Error('close 状态只能是 guarded / fixed / museum，收到：' + status);
+  }
+  const file = o.ledger || LEDGER;
+  const L = load(file);
+  const p = (L.pits || []).find((x) => x.id === id);
+  if (!p) throw new Error('找不到坑：' + id);
+  if (!reason || String(reason).trim().length < 10) throw new Error('close 必须写 reason（至少10字，记录为什么关）');
+  p.status = status;
+  p.closedAt = new Date().toISOString();
+  p.closeReason = String(reason).trim();
+  if (status === 'guarded' && !(p.canMachineJudge === true && p.judge)) {
+    throw new Error('guarded 必须同时有 canMachineJudge=true 和 judge 命令；否则只能 watching/fixed/museum');
+  }
+  const counts = Object.fromEntries(STATUSES.map((s) => [s, (L.pits || []).filter((x) => x.status === s).length]));
+  L.counts = Object.assign({}, L.counts, counts, { gateEligible: (L.pits || []).filter((x) => x.canMachineJudge === true && x.judge).length });
+  L.updated_at = new Date().toISOString();
+  fs.writeFileSync(file, JSON.stringify(L, null, 2) + '\n', 'utf8');
+  return p;
 }
 
 function list(opts) {
@@ -227,12 +250,17 @@ function selftest() {
   const filt = list({ ledger: lf, status: 'museum' });
   ok(filt.rows.length === 1 && filt.rows[0].id === 'X-2', 'status 过滤错');
   ok(/坑账本/.test(renderText(filt)), 'renderText 应输出标题');
+  let closeError = null;
+  try { closePit('X-2', 'guarded', '没有 judge，不应允许 guarded', { ledger: lf }); } catch (e) { closeError = e; }
+  ok(!!closeError, '没有 judge 的 guarded 必须拒绝');
+  const closed = closePit('T-1', 'fixed', '已完成一次回归且保留原始证据', { ledger: lf });
+  ok(closed.status === 'fixed' && closed.closedAt && closed.closeReason, 'fixed close 应落状态/时间/理由');
   fs.rmSync(dir, { recursive: true, force: true });
   console.log(fails.length ? 'pit-ledger selftest FAIL: ' + fails.join(' | ') : 'pit-ledger selftest PASS（9 组）');
   return fails.length ? 1 : 0;
 }
 
-module.exports = { build, load, list, renderText, selftest, LEDGER, STATUSES };
+module.exports = { build, load, list, closePit, renderText, selftest, LEDGER, STATUSES };
 
 if (require.main === module) {
   if (process.argv[2] === 'selftest') process.exit(selftest());
