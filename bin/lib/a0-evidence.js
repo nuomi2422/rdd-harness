@@ -269,6 +269,45 @@ function normalizeIntervention(ev) {
   return { ok: true, entry };
 }
 
+/**
+ * 调试工具通道（2026-10-30，第 33 轮）。
+ *
+ * <p>为什么单独记、不并进 interventions：`debug_kill` 能 `entity.kill()` **任意实体**，
+ * 如果哪天用来杀龙就是最彻底的作弊；但它也可以只是「自己掉虚空后结束自己」——
+ * 回执里只有被击杀者的坐标，**没法可靠区分自杀与他杀**。
+ *
+ * <p>所以这里只做一件事：**把这条通道数出来、摆出来**，不做不可靠的归类。
+ * 归类留给看数的人，附上坐标与当时的同伴坐标。
+ *
+ * @param {Array} events rdd.jsonl 行（含 tool_result）
+ */
+function collectDebugTools(events) {
+  const DEBUG_TOOL = /^debug_/;
+  const entries = [];
+  for (const ev of events || []) {
+    if (!ev || ev.type !== 'tool_result') continue;
+    const d = ev.data || {};
+    const tool = String(d.tool || "");
+    if (!DEBUG_TOOL.test(tool)) continue;
+    const r = String(d.result || "");
+    const posM = r.match(/\"position\":\"([^\"]+)\"/);
+    entries.push({
+      tool,
+      at: ev.timestamp || null,
+      ok: r.includes('"success":true'),
+      killedAt: posM ? posM[1] : null,
+    });
+  }
+  const byTool = {};
+  for (const e of entries) byTool[e.tool] = (byTool[e.tool] || 0) + 1;
+  return {
+    count: entries.length,
+    status: entries.length ? 'PRESENT' : 'NONE',
+    byTool,
+    entries,
+  };
+}
+
 /** 汇总介入：按 eventId 去重；同时记录被拒收的条目（审计用）。 */
 function collectInterventions(events, opts) {
   const options = opts || {};
@@ -697,6 +736,11 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   sources.rdd = rddText != null;
   const rddRows = rddText != null ? parseJsonl(rddText).rows : [];
   const interventions = collectInterventions(rddRows, { eventsAvailable: sources.rdd });
+  // 2026-10-30：debug_* 的回执在 **tools.jsonl**（monitoring category=tools），不在 rdd.jsonl。
+  const toolsText = readIfExists(ev('tools.jsonl'));
+  sources.tools = toolsText != null;
+  const toolsRows = toolsText != null ? parseJsonl(toolsText).rows : [];
+  const debugTools = collectDebugTools(toolsRows);
   // 事件本身不带 runId；这些行来自**本轮窗口切片**（evidence/rdd.jsonl 只装了本 run 的增量），
   // 所以按 run 补 runId 是事实，不是猜。补不上的（没有 envelope）保持 null。
   const envEarlyText = readIfExists(path.join(runDir, 'envelope.json'));
@@ -726,7 +770,7 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
     try { return JSON.parse(t); } catch (e) { return null; }
   });
 
-  return { session, interventions, delivery, deaths, worldViews, sources: Object.assign(sources, { collected_at: nowIso }) };
+  return { session, interventions, debugTools, delivery, deaths, worldViews, sources: Object.assign(sources, { collected_at: nowIso }) };
 }
 
 // --------------------------------------------------------- selftest ----
@@ -1036,6 +1080,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  collectDebugTools,
   A0_VERSION, KINDS, ACTORS, SOURCES,
   parseJsonl, classifySession, appendClearBoundary, normalizeIntervention, collectInterventions,
   collectDelivery, collectDeaths, worldViewsFromEnvelope, applyToEnvelope, gateVerdict, timelineEntries,

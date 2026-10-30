@@ -758,6 +758,10 @@ async function cmdRun(opts) {
     const merged = A0.applyToEnvelope(env, a0);
     env.session = merged.session;
     env.interventions = merged.interventions;
+    // 2026-10-30（第 33 轮）：调试工具通道单独计数，不并进 interventions。
+    //   debug_kill 能 kill 任意实体，但回执无法可靠区分自杀/他杀 —— 只摆事实，不做归类。
+    // 注意：applyToEnvelope 只透传它自己认识的字段，新加的 debugTools 在 a0 上，不在 merged 上。
+    env.debug_tools = a0.debugTools || merged.debugTools || { status: 'UNKNOWN', count: null, entries: [] };
     env.context_delivery = merged.context_delivery;
     env.deaths = merged.deaths;
     // A3（95 号）：capability/tool 两层用 run 归档的 tools.jsonl 做**后处理**（非实时，realtime:false），
