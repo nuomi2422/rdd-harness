@@ -122,7 +122,9 @@ function portOpen(port, timeoutMs) {
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
 function mcp(tool, companion, args, timeoutMs) {
   const argv = [MCP_CALL, tool];
-  if (companion) argv.push(companion);
+  // 空串要保留：create_companion 这类"没有 companion 参数"的工具，必须占住第 2 个位置，
+  // 否则 args 会被当成 companion 读走（mcp-call.js 是按位置取参的）。
+  if (companion !== undefined && companion !== null) argv.push(companion);
   if (args) argv.push(args);
   const r = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: timeoutMs || 25000 });
   return { ok: r.status === 0, status: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
@@ -404,6 +406,24 @@ async function cmdRun(opts) {
     await sleep(5000);
     const r = mcp('list_companions', null, null, 20000);
     if (r.ok) { companionsRaw = r.out; companions = parseCompanions(r.out); }
+  }
+  // 全新存档里没有任何同伴 —— 允许当场召一个（用户 2026-10-30：从零开始，新存档当母版）
+  if (companions.length === 0 && opts.createCompanion) {
+    log(runDir, 'launch', '无同伴 → create_companion name=' + opts.createCompanion);
+    const cr = mcp('create_companion', '', JSON.stringify({ name: opts.createCompanion }), 60000);
+    log(runDir, 'launch', 'create_companion → ' + (cr.ok ? String(cr.out).slice(0, 160) : 'FAILED ' + String(cr.err || cr.out).slice(0, 160)));
+    for (let i = 0; i < 24 && companions.length === 0; i++) {
+      await sleep(5000);
+      const rr = mcp('list_companions', null, null, 20000);
+      if (rr.ok) { companionsRaw = rr.out; companions = parseCompanions(rr.out); }
+    }
+    env.companionCreated = {
+      name: opts.createCompanion,
+      ok: companions.length > 0,
+      at: nowIso(),
+      reply: String(cr.out || cr.err || '').slice(0, 200),
+    };
+    log(runDir, 'launch', '新同伴就位: ' + (companions.map((c) => c.name).join(',') || '（仍无）'));
   }
   if (companions.length === 0) fail(runDir, 'launch', '世界加载后仍无同伴（list_companions: ' + String(companionsRaw).slice(0, 120) + '）', 10);
   env.timings.mcpReady = nowIso();
@@ -977,6 +997,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--trigger-death') opts.triggerDeath = true;
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
   else if (argv[i] === '--mode') opts.mode = argv[++i];
+  else if (argv[i] === '--create-companion') opts.createCompanion = argv[++i];
 }
 
 /** 151 §3：run 的用途必须显式声明，否则诊断短局会被当成通关效率曲线上的点。 */

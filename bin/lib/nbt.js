@@ -102,6 +102,37 @@ function patchLevel(file, opts) {
       }
     }
 
+    if (typeof opts.levelName === 'string') {
+      const want = opts.levelName;
+      const i = buf.indexOf('LevelName', 0, 'utf8');
+      const okName = i >= 2 && buf[i - 2] === 0 && buf[i - 1] === 9; // 名字长度必须是 9
+      if (!okName) return { error: 'NOT_FOUND LevelName' };
+      const lp = i + 9;
+      const vlen = buf.readUInt16BE(lp);
+      const val = buf.toString('utf8', lp + 2, lp + 2 + vlen);
+      if (val !== want) {
+        buf = Buffer.concat([buf.subarray(0, lp), Buffer.from([0, want.length]), Buffer.from(want, 'utf8'), buf.subarray(lp + 2 + vlen)]);
+        changed.push('LevelName=' + want);
+      }
+    }
+
+    if (opts.seed !== undefined && opts.seed !== null) {
+      // 1.18+ 的世界种子不在顶层 RandomSeed，而在 WorldGenSettings.seed（TAG_Long，8 字节 BE）。
+      // 先定位 WorldGenSettings，再找它之后的第一个 `\x00\x04seed`，避免撞到别的同名字段。
+      const wg = buf.indexOf('WorldGenSettings', 0, 'utf8');
+      if (wg < 0) return { error: 'NOT_FOUND WorldGenSettings' };
+      const i = buf.indexOf('seed', wg, 'utf8');
+      const okName = i > wg && buf[i - 2] === 0 && buf[i - 1] === 4; // 名字长度 4
+      if (!okName) return { error: 'NOT_FOUND WorldGenSettings.seed' };
+      const pos = i + 4;
+      const next = Buffer.alloc(8);
+      next.writeBigInt64BE(BigInt.asIntN(64, BigInt(opts.seed)), 0);
+      if (!buf.subarray(pos, pos + 8).equals(next)) {
+        next.copy(buf, pos);
+        changed.push('seed=' + String(opts.seed));
+      }
+    }
+
     if (!changed.length) return { file, changed: [], note: 'already-set' };
     const out = gz ? zlib.gzipSync(buf) : buf;
     fs.writeFileSync(file, out);
