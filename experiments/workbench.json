@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T21:33:26.855Z",
+  "updated_at": "2026-10-30T21:44:25.021Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -513,6 +513,13 @@
       "run": "exp-b4-campaign-20261031-20261031-052238",
       "by": "unknown",
       "at": "2026-10-30T21:33:26.854Z"
+    },
+    {
+      "exp_id": "b5-place-sidequest",
+      "note": "2026-10-31 05:42 B5（V-20261031-10 ✅）：exp-b5-place-20261031-20261031-053726，母版 B4 副本（crafting_table 1）。build 21:39:14.879Z placed 1；chat 报 164 69 683；inventory 1→0；inspect_block 165 69 684 见旧台；rdd_save ok（353ms）；0 死亡/0 干预；keptForNextRun=true；exp refs=0。旁记：同轮做了未要求的「10 圆石堆 + 47 圆石存箱/取回」（chat 提「复活支线」）——疑似持久化 RDD 支线，下一轮查来源（目标漂移）。发布门政策矛盾（86 §3 自动批 vs TrialVerdict 人批）已记 #375，待主人裁定。",
+      "run": "exp-b5-place-20261031-20261031-053726",
+      "by": "unknown",
+      "at": "2026-10-30T21:44:25.019Z"
     }
   ],
   "verdicts": [
