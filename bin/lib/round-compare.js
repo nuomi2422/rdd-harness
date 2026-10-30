@@ -20,9 +20,11 @@ function readJsonl(f) {
 
 function callerOf(id) {
   const s = String(id || '');
+  // 2026-10-30 实测：同伴的 callId 不是固定前缀 —— r4/r5 是 `call_…`，r6 变成 `chatcmpl-tool-…`。
+  // 唯一稳定的是"runner 自己的 MCP 调用以 mcp- 开头"，所以按"不是 mcp- 就是同伴"来分。
   if (s.startsWith('mcp-')) return 'runner';
-  if (s.startsWith('call_')) return 'companion';
-  return 'other';
+  if (!s) return 'other';
+  return 'companion';
 }
 
 /** @param {string} runDir */
