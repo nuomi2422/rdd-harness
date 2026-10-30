@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T06:51:11.418Z",
+  "updated_at": "2026-10-30T07:17:18.002Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -415,6 +415,13 @@
       "run": "exp-zero-r5-20261030-143857",
       "by": "unknown",
       "at": "2026-10-30T06:51:11.416Z"
+    },
+    {
+      "exp_id": "exp-zero-r4-r6",
+      "note": "学习链路基线：三轮 expmem 的 request_delivered 唯一 refs 恒为 4 条 tool:acx_*，0 条 exp:*；新 UUID + companions 复位 => 没有可投的经验。B 组第一硬判据：refs 出现非本轮 exp: 条目",
+      "run": "exp-zero-r4/r5/r6",
+      "by": "unknown",
+      "at": "2026-10-30T07:17:18.001Z"
     }
   ],
   "verdicts": [
