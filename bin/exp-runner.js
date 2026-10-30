@@ -185,6 +185,45 @@ function parseCompanions(raw) {
   }
   return out;
 }
+
+/**
+ * 同伴的模型绑定在 config/numen/companions/<uuid>/binding.json。
+ * 2026-10-30 实测：MCP `create_companion` 现召的同伴**没有**这个文件 ⇒ 内脑拿不到 provider
+ * ⇒ 一次 LLM 请求都不发（exp-zero-r1 的 llmRequests=0）。CompanionHome.binding() 每次现读文件，
+ * 所以运行中补写立即生效，不需要重启。
+ */
+function ensureProviderBinding(companion, providerId) {
+  if (!companion || !companion.id) return { ok: false, reason: 'no companion id' };
+  if (!providerId) return { ok: false, reason: 'no provider id' };
+  const dir = path.join(NUMEN, 'companions', companion.id);
+  const file = path.join(dir, 'binding.json');
+  if (fs.existsSync(file)) {
+    try {
+      const cur = JSON.parse(fs.readFileSync(file, 'utf8'));
+      if (cur && cur.provider) return { ok: true, provider: cur.provider, existed: true, file };
+    } catch { /* 坏文件按没有处理，下面重写 */ }
+  }
+  fs.mkdirSync(dir, { recursive: true });
+  fs.writeFileSync(file, JSON.stringify({ provider: providerId }));
+  return { ok: true, provider: providerId, existed: false, file };
+}
+
+/** 从已有同伴里取 provider（多数票）；全空就返回 ''（不许瞎编一个 id）。 */
+function defaultProvider() {
+  const base = path.join(NUMEN, 'companions');
+  if (!fs.existsSync(base)) return '';
+  const counts = {};
+  for (const d of fs.readdirSync(base)) {
+    const f = path.join(base, d, 'binding.json');
+    if (!fs.existsSync(f)) continue;
+    try {
+      const j = JSON.parse(fs.readFileSync(f, 'utf8'));
+      if (j && j.provider) counts[j.provider] = (counts[j.provider] || 0) + 1;
+    } catch { /* 单个坏文件不影响多数票 */ }
+  }
+  const top = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+  return top ? top[0] : '';
+}
 function oakLogCount(raw) {
   if (!raw) return null;
   try {
@@ -461,6 +500,18 @@ async function cmdRun(opts) {
   }
   fs.writeFileSync(path.join(runDir, 'evidence', 'companions-raw.txt'), String(companionsRaw));
   env.companion = companionName;
+  // 模型绑定：新召的同伴没有 binding.json 就没有 provider，内脑会一声不响地不动
+  {
+    const providerId = opts.companionProvider || defaultProvider();
+    const sel = companions.find((c) => c.name === companionName);
+    const bind = ensureProviderBinding(sel, providerId);
+    env.companionBinding = Object.assign({ companionId: sel ? sel.id : null }, bind);
+    if (bind.ok) {
+      log(runDir, 'stimulus', '模型绑定：' + companionName + ' → ' + bind.provider + (bind.existed ? '（原有）' : '（本轮补写）'));
+    } else {
+      log(runDir, 'stimulus', '⚠ 没有可用的 provider 绑定（' + bind.reason + '）—— 内脑不会发 LLM 请求');
+    }
+  }
 
   // H1（103 号）：起跑前虚空体检 —— 同伴若在末地虚空/虚空层，这一轮测到的是
   // 环境逼出来的 tp/setblock 自救，不是能力。命中即拒绝，除非显式 --allow-void。
@@ -1000,6 +1051,7 @@ for (let i = 1; i < argv.length; i++) {
   else if (argv[i] === '--trigger-death-delay') opts.triggerDeathDelaySeconds = parseInt(argv[++i], 10);
   else if (argv[i] === '--mode') opts.mode = argv[++i];
   else if (argv[i] === '--create-companion') opts.createCompanion = argv[++i];
+  else if (argv[i] === '--companion-provider') opts.companionProvider = argv[++i];
 }
 
 /** 151 §3：run 的用途必须显式声明，否则诊断短局会被当成通关效率曲线上的点。 */
