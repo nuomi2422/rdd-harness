@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T22:45:32.356Z",
+  "updated_at": "2026-10-30T22:55:24.675Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -555,6 +555,13 @@
       "run": "exp-b11-revise-20261031-20261031-063621",
       "by": "unknown",
       "at": "2026-10-30T22:45:32.355Z"
+    },
+    {
+      "exp_id": "review-dedup-verified",
+      "note": "2026-10-31 06:54 复盘去重（V-20261031-17 ✅）：numen 6929782e2（LearnerPlugin.runningReview + drain 前检查），部署 learner D6CF83C8…（mutation-20261031-064945-0d49e2）。B12 exp-b12-dedup-20261031-20261031-065049：22:52:19 第一次 review（rev-...-12，RUNNING，5，queue 28）；22:52:24 第二次 → already running、dedup=true、同 id、queue 30（未 drain）；22:53:32 reviewed 5/5；1 auto_learn；save ok 350ms；0 死亡/0 干预。去重只挡 RUNNING 窗口。",
+      "run": "exp-b12-dedup-20261031-20261031-065049",
+      "by": "unknown",
+      "at": "2026-10-30T22:55:24.673Z"
     }
   ],
   "verdicts": [
