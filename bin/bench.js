@@ -1067,7 +1067,9 @@ function compareCmd(argv) {
   for (const row of r.rows) {
     console.log('  ' + String(row.metric).padEnd(14) + ' A=' + String(row.a).padEnd(6) + ' B=' + String(row.b).padEnd(6) + ' delta=' + row.delta);
   }
-  console.log('note: 单轮只能 DIRECTIONAL/INCONCLUSIVE；≥3 轮才算一轮实验，≥5 轮且跨噪声带才 SUPPORTED（99 号 §5）');
+  console.log('note: 单轮只能 DIRECTIONAL/INCONCLUSIVE；≥3 轮才算一轮实验。'
+      + 'SUPPORTED 还需：两臂各>=5 份，且每个「两臂都有样本」的指标各>=5 份已知样本、区间不重叠。'
+      + '母版或目标取不到 => 一律 INCONCLUSIVE（不许当成一致）；某指标一台样本都没有 => INSUFFICIENT。（P1-20261030）');
   return 0;
 }
 
@@ -1092,7 +1094,9 @@ function compareManyCmd(argv) {
     const f = (s) => (s.median === null ? 'UNKNOWN' : s.median + ' [' + s.min + '..' + s.max + '] n=' + s.n);
     console.log('  ' + String(row.metric).padEnd(14) + ' A=' + f(row.a).padEnd(22) + ' B=' + f(row.b));
   }
-  console.log('note: n<3 必 INCONCLUSIVE；n>=5 且两臂区间不重叠才 SUPPORTED（99 号 §5）');
+  console.log('note: n<3 必 INCONCLUSIVE。'
+      + 'SUPPORTED 需 n>=5 且每个可比较指标两臂各>=5 份已知样本、区间不重叠；'
+      + '空数据或单边无样本 => INSUFFICIENT，绝不给 SUPPORTED。（P1-20261030）');
   return 0;
 }
 
