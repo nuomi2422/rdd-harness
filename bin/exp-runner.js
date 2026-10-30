@@ -1021,12 +1021,17 @@ async function cmdRun(opts) {
   // ---------- restore (受控复位) ----------
   env.phase = 'restore';
   if (!exited) fail(runDir, 'restore', '游戏没停下来，拒绝在运行中还原状态（会写坏现场）', 3);
-  for (const d of NUMEN_STATE_DIRS) {
+  // 151/2026-10-30：跑"学习曲线"时必须让同一位同伴跨轮活着 —— 否则每轮都是新 UUID、
+  // 聊天/经验/记忆全被复位掉，学习链路根本没有可累积的载体（r4/r5 实测：新同伴 expmem 只投出 2 条工具引用）。
+  // --keep-companion 只跳过 companions 这一个目录，其余（任务/账本/事实/资产…）照旧复位。
+  const restoreDirs = opts.keepCompanion ? NUMEN_STATE_DIRS.filter((d) => d !== 'companions') : NUMEN_STATE_DIRS;
+  for (const d of restoreDirs) {
     const target = path.join(NUMEN, d);
     const backup = path.join(baseDir, d);
     fs.rmSync(target, { recursive: true, force: true });
     if (fs.existsSync(backup)) copyTree(backup, target);
   }
+  if (opts.keepCompanion) log(runDir, 'restore', 'keep-companion：companions/ 目录不复位（同一位同伴跨轮保留聊天与记忆）');
   if (!opts.keepExperience) {
     for (const f of baseFiles) fs.copyFileSync(path.join(baseDir, f), path.join(NUMEN, f));
     // 清掉运行中新建的同族文件（例如新的 experience-<uuid>.jsonl）
