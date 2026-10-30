@@ -1,0 +1,141 @@
+{
+  "schema": 1,
+  "source": "151-统一验证入口与验收缺口收口施工清单",
+  "updated": "2026-10-30",
+  "note": "这里是「要求 → 检查」的清单，不是结论。manual 类永远报 NOT_RUN：它必须由一次真实 run 的验证卡来回答。改码/换 jar 后，file 类旧证据会变成 VERSION_MISMATCH，不是 PASS。",
+  "requirements": [
+    {
+      "id": "OFFLINE-REGRESS",
+      "batch": "底座",
+      "title": "离线回归全绿（A0/A3/A7/账本/守卫/bench/门禁）",
+      "required": true,
+      "level": "offline",
+      "checks": [{ "type": "cmd", "cmd": "node bin/regress.js" }],
+      "uncovered": []
+    },
+    {
+      "id": "OFFLINE-JUDGE",
+      "batch": "A7",
+      "title": "裁判自测（空数据/UNKNOWN/预注册/真实信封形状）",
+      "required": true,
+      "level": "offline",
+      "checks": [{ "type": "cmd", "cmd": "node bin/lib/experiment.js selftest" }],
+      "uncovered": []
+    },
+    {
+      "id": "OFFLINE-ACTIONS",
+      "batch": "动作证据",
+      "title": "动作账本自测（去重/受理≠完成/连续≠累计）",
+      "required": true,
+      "level": "offline",
+      "checks": [{ "type": "cmd", "cmd": "node bin/lib/action-ledger.js selftest" }],
+      "uncovered": []
+    },
+    {
+      "id": "EVIDENCE-R39",
+      "batch": "A0",
+      "title": "r39 信封存在且与当前部署同版本",
+      "required": true,
+      "level": "evidence",
+      "scenario": "live-log-delivery",
+      "checks": [{ "type": "file", "path": "runs/exp-loop-r39-20261030-114944/envelope.json", "requireCurrentBuild": true }],
+      "uncovered": []
+    },
+    {
+      "id": "H21",
+      "batch": "H21",
+      "title": "H21/H21b 打龙放弃逻辑的回归",
+      "required": true,
+      "level": "real",
+      "scenario": "live-log-delivery",
+      "checks": [{ "type": "manual", "what": "实机四组：普通地面战斗不误放弃；射手绕障/走位中不判不可达；静止目标遮挡变化；目标/武器/射程切换后计数复位" }],
+      "uncovered": [
+        "普通地面战斗未回归",
+        "射手绕障/走位未验",
+        "目标/武器/射程切换复位未验",
+        "静目标遮挡变化未验"
+      ],
+      "note": "触发放弃不等于射击能力提高；没见失败提示不等于没进分支。"
+    },
+    {
+      "id": "A0",
+      "batch": "A0",
+      "title": "事实快照与四通道投送覆盖",
+      "required": true,
+      "level": "real",
+      "scenario": "live-log-delivery",
+      "checks": [
+        { "type": "cmd", "cmd": "node bin/lib/a0-evidence.js selftest" },
+        { "type": "manual", "what": "实机：同步/异步/外部/特权四通道各有一条进入 envelope；缺流记 UNKNOWN 而不是空" }
+      ],
+      "uncovered": ["特权通道实机覆盖", "外部通道终态覆盖"]
+    },
+    {
+      "id": "A1",
+      "batch": "A1",
+      "title": "死亡事实与重算幂等",
+      "required": true,
+      "level": "real",
+      "scenario": "live-log-delivery",
+      "checks": [{ "type": "manual", "what": "真进程重启后同 deathSeq 去重；自然死亡样本（非 fixture）；death/review 相位适用性" }],
+      "uncovered": ["真进程重启去重", "自然死亡样本", "death/review 相位"]
+    },
+    {
+      "id": "A2",
+      "batch": "A2",
+      "title": "生存韧性与恢复规划",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "高风险节点资源不足时真拦停；人工介入反例；恢复步骤与实际世界行为逐段对账" }],
+      "uncovered": ["门存在未观察拦停", "人工介入反例未造", "恢复对账"]
+    },
+    {
+      "id": "A3",
+      "batch": "A3",
+      "title": "环境能力与停滞闭环",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "facts 读取失败/UNKNOWN 反例；重复查询结合参数/目标/在途状态；实时与归档分开" }],
+      "uncovered": ["无探针失败路径", "实时版未做"]
+    },
+    {
+      "id": "A4",
+      "batch": "A4",
+      "title": "E2 轻量环境块接统一事实源",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "coverage=UNKNOWN 路径、过期来源、正常来源对照；旧告警规则不回归" }],
+      "uncovered": ["coverage UNKNOWN 未造", "多来源对照"]
+    },
+    {
+      "id": "A5",
+      "batch": "A5",
+      "title": "G5 统一入口与最终投送账本",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "可控构造条目正文真实截断、整段丢弃、正常保留三种；逐 ref/version 核最终送达" }],
+      "uncovered": ["截断样本形状不存在（body 更早被裁）", "逐 ref 送达对账"],
+      "note": "候选出现不等于送达；不许为让测试绿削弱「截断不算送达」。"
+    },
+    {
+      "id": "A6",
+      "batch": "A6",
+      "title": "方法与经验 ACX 角色化投送",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "用接口原样 id 做 PLANNER-only 与 EXECUTOR 对照；ACX/PROCEDURE 不误入执行正文；旧条目兼容" }],
+      "uncovered": ["角色隔离实机对照", "ACX 样本"],
+      "note": "expand/verify 成功不等于角色隔离或世界效果成功。"
+    },
+    {
+      "id": "A7",
+      "batch": "A7",
+      "title": "效果实验与持续回归",
+      "required": true,
+      "level": "real",
+      "checks": [{ "type": "manual", "what": "真实归档信封回放；一组预定变量的可比场景（≥5 轮 + prereg）；补失败/中断样本" }],
+      "uncovered": ["≥5 轮可比场景", "prereg 生产者未接", "失败/中断样本"],
+      "note": "≥5 轮不自动等于学习有效；修码收益与经验收益分开。"
+    }
+  ]
+}

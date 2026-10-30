@@ -1053,7 +1053,8 @@ function main() {
   if (cmd === 'compare') return compareCmd(argv);
   if (cmd === 'compare-many') return compareManyCmd(argv);
   if (cmd === 'report') return reportCmd(argv);
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|report|live|selftest');
+  if (cmd === 'verify') { const code = verifyCmd(argv); process.exit(code); }
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|compare-many|report|verify|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */
@@ -1132,4 +1133,29 @@ function reportCmd(argv) {
   }
   return 0;
 }
+/**
+ * 151 §4：`bench verify [--json] [--manifest <file>]` —— 一个入口、一张表。
+ *
+ * 只读：跑离线检查、读已有证据文件；**不启动游戏、不编译、不部署**。
+ * 退出码：0 = 所有必验项 PASS；1 = 有必验项未过（这就是「整体没完成」）；2 = 用法/清单错。
+ */
+function verifyCmd(argv) {
+  const A = require('./lib/acceptance');
+  const i = argv.indexOf('--manifest');
+  const file = i >= 0 ? path.resolve(argv[i + 1]) : path.join(HARNESS, 'experiments', 'acceptance.json');
+  let res;
+  try {
+    res = A.evaluate(A.loadManifest(file), {
+      root: HARNESS,
+      modsDir: path.join(HARNESS, '..', '..', 'mc', 'The Best of Twilight Forest', 'mods'),
+    });
+  } catch (e) {
+    console.error('验收清单读不了：' + e.message);
+    return 2;
+  }
+  if (argv.includes('--json')) console.log(JSON.stringify(res, null, 2));
+  else console.log(A.render(res));
+  return res.summary.overall === 'COMPLETE' ? 0 : 1;
+}
+
 main();
