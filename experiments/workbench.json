@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T07:35:30.507Z",
+  "updated_at": "2026-10-30T08:15:55.303Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -436,6 +436,13 @@
       "run": "exp-learn-b1-20261030-152158",
       "by": "unknown",
       "at": "2026-10-30T07:35:30.506Z"
+    },
+    {
+      "exp_id": "exp-learn-b4",
+      "note": "B4：目标显式要求 rdd_supervisor_submit -> 链激活(taskchain_snapshot=61, primary_expanded=2, subtask_completed=4, goal_completed=1)、监测台 chain.md 数据年龄=1s；本轮 raw_iron 3/iron_ingot 2、0 死 0 干预。B1-B3 无链、只到工作台",
+      "run": "exp-learn-b4-20261030-160333",
+      "by": "unknown",
+      "at": "2026-10-30T08:15:55.301Z"
     }
   ],
   "verdicts": [
