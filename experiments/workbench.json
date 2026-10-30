@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-29T06:38:59.694Z",
+  "updated_at": "2026-10-30T04:57:27.887Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -349,6 +349,30 @@
       "link": "V-20261029-01",
       "added_by": "session-77aa68cf",
       "added_at": "2026-10-29T06:38:59.694Z"
+    },
+    {
+      "id": "TIP-20261030-01",
+      "kind": "pitfall",
+      "symptom": "编号门禁看不见 100 号以上的文档，Q9 绿灯是假绿",
+      "fake": "Q9「编号登记三处」PASS 就以为新文档三处都登记了",
+      "cause": "registry.json 的 docNumbers.pattern 是 ^(\\\\d{2})-，只认两位编号：160 份编号 md 只有 106 份匹配，100–151 共 52 份完全不在 P10/P10b/P10c/P10d/Q9 视野内",
+      "guard": "引用 Q9/P10c 绿灯前先按 pattern 逐文件 test 一遍；新编号文档的三处登记人工核 README §二/09/50；时间锁 TL-2026-10-30-01（复审 2026-11-13）",
+      "status": "open",
+      "link": "151 §1 / TL-2026-10-30-01",
+      "added_by": "unknown",
+      "added_at": "2026-10-30T04:57:06.982Z"
+    },
+    {
+      "id": "TIP-20261030-02",
+      "kind": "pitfall",
+      "symptom": "工具失败次数被重复投递翻倍，还把「累计」写成「连续」",
+      "fake": "看到 tools.jsonl 里每一条 success:false 就当成一次失败；连看 3 条就报「连续失败 3 次」",
+      "cause": "同一个 tool_call_id 会有服务端与客户端两条 tool_result（client 行带 journaled_by:client）；r39 的 11 次调用有 9 条重复投递、r38 的 27 次有 18 条。逐行累计 => 失败翻倍；累计数还被直接叫成 consecutive_failures",
+      "guard": "按 callId 去重后再算（bin/lib/action-ledger.js）；累计失败用 failuresTotal、连续失败用 streakMax/streakNow 两把尺子；异步 async:true 只算 accepted，终态只认 task_finished",
+      "status": "open",
+      "link": "151 §3 / 316de09",
+      "added_by": "unknown",
+      "added_at": "2026-10-30T04:57:27.887Z"
     }
   ],
   "signals": [
@@ -358,6 +382,13 @@
       "run": "exp-clean-anchor / exp-craft-behave",
       "by": "dsh-session",
       "at": "2026-10-26T20:00:00+08:00"
+    },
+    {
+      "exp_id": "离线复审-20261030-toolresult",
+      "note": "动作账本真实回放：r39 11 次调用里 9 条重复投递、r38 27 次里 18 条；去重后 r39=completed5/failed2/cancelled1/accepted-no-terminal2/result-no-status1，r38 另有 timeout1。旧口径的失败计数会被重复投递放大",
+      "run": "exp-loop-r38 / exp-loop-r39",
+      "by": "unknown",
+      "at": "2026-10-30T04:57:07.092Z"
     }
   ],
   "verdicts": [
