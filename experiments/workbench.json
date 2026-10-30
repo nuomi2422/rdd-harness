@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T20:37:38.453Z",
+  "updated_at": "2026-10-30T20:50:52.911Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -485,6 +485,13 @@
       "run": "exp-b1-20261031-20261031-042238",
       "by": "unknown",
       "at": "2026-10-30T20:37:38.451Z"
+    },
+    {
+      "exp_id": "b2-surface-oak-partial",
+      "note": "2026-10-31 04:48 B2 campaign（V-20261031-06 ✅ 判据级）：exp-b2-20261031-20261031-043852，母版 B1 副本（村庄地面），goal 明确地表找橡木。oak_log 0→2（判据 ≥1 通过；goal 4 原木只到 2，无 crafting_table）；craft 4 次（wooden/stone pickaxe、oak_planks 3），cobblestone 14→4（build 1）—— 2 个原木后转去 crafting/圆石，是资源分配/目标跟随问题。0 死亡/0 干预；keptForNextRun=true；无 reviewed/auto_learn；request_delivered 63 次 expRefs=0（预期）。B1 0→B2 2 不能归因学习（goal 文本变了/无 review/exp 0）。",
+      "run": "exp-b2-20261031-20261031-043852",
+      "by": "unknown",
+      "at": "2026-10-30T20:50:52.909Z"
     }
   ],
   "verdicts": [
