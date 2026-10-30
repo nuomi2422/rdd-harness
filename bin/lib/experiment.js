@@ -45,7 +45,18 @@ function goalOf(env) {
 }
 
 function masterOf(env) {
-  return env && env.master && env.master.sha256 ? env.master.sha256 : '';
+  // P1-20261030：原来是 env.master.sha256 单一路径，取不到就返回 ''，
+  // 而 '' 在 compareGroups 里既不算 mismatch 也不报错 —— 等于"不知道母版"被当成"母版一致"。这是假绿的来源之一。
+  if (!env) return '';
+  const m = env.master;
+  if (typeof m === 'string') return m;
+  // 真实 envelope 的母版哈希在 master.manifest.sha256（148 files）。
+  // 旧代码只读 master.sha256 => 恒 undefined => 所有 run 的母版都算空
+  // => "母版不同"永远检测不到，这是审计复现出的假绿机制。
+  if (m && m.manifest && typeof m.manifest.sha256 === 'string') return m.manifest.sha256;
+  if (m && typeof m.sha256 === 'string') return m.sha256;
+  if (env.prepare && typeof env.prepare.masterSha256 === 'string') return env.prepare.masterSha256;
+  return '';
 }
 
 /**
@@ -93,7 +104,12 @@ function weekly(envs) {
   const dropped = sum((e) => metricOf(e, 'dropped'));
   out.metrics.budgetDropRate = kept + dropped > 0 ? Math.round((dropped / (kept + dropped)) * 1000) / 10 : 'UNKNOWN';
   const inter = sum((e) => metricOf(e, 'interventions'));
-  out.metrics.interventionsPerRun = Math.round((inter / list.length) * 100) / 100;
+  // P1-20261030（审计反例）：原来 inter / list.length，缺数据时得 0，等于"没有介入"。
+  // 现在分母只算**已知**样本；一台都没有就是 UNKNOWN，并单独报覆盖率。
+  const interKnown = known((e) => metricOf(e, 'interventions'));
+  out.metrics.interventionsPerRun = interKnown > 0
+    ? Math.round((inter / interKnown) * 100) / 100 : 'UNKNOWN';
+  out.metrics.interventionsCoverage = interKnown + '/' + list.length;
   out.metrics.stalledKnownRuns = known((e) => metricOf(e, 'stalled'));
   return out;
 }
@@ -123,13 +139,36 @@ function compareGroups(envsA, envsB) {
   };
 
   const rows = METRICS.map((m) => ({ metric: m, a: stat(A, m), b: stat(B, m) }));
+
+  // P1-20261030（审计反例）：原实现里 "median === null" 会让 disjoint 判定**跳过**该指标，
+  // 于是五份空数据 / 每臂只有 1 份有效样本，都能被判成 SUPPORTED。
+  // 现在：任一臂某指标一台样本都没有 => 该指标整体不可判 => INSUFFICIENT，绝不 SUPPORTED。
+  // P1-20261030（审计反例）：原实现把 "median === null" 当作"不冲突"跳过去，
+  // 于是五份空数据 / 每臂 1 份有效样本都能判成 SUPPORTED。
+  //
+  // 现在的规则：
+  //   - 只比较「两臂都有样本」的指标（单边有、另一边没有 => 不可比，单独记 reason）；
+  //   - 一个可比较指标都没有 => INSUFFICIENT，绝不 SUPPORTED；
+  //   - SUPPORTED 还要求两臂各 >=5 份、且每个可比较指标在两臂都 >=5 份已知样本、区间不重叠。
+  const comparable = rows.filter((r) => r.a.n > 0 && r.b.n > 0);
+  const oneSided = rows.filter((r) => (r.a.n > 0) !== (r.b.n > 0)).map((r) => r.metric);
+  if (oneSided.length) reasons.push('metric-one-sided:' + oneSided.join(','));
+  if (!comparable.length) reasons.push('all-metrics-no-samples');
+
+  // 母版/目标未知也不许当"一致"
+  if (![...A, ...B].map(masterOf).filter(Boolean).length) reasons.push('master-unknown');
+  if (![...A, ...B].map(goalOf).filter(Boolean).length) reasons.push('goal-unknown');
+
   let verdict = reasons.length ? 'INCONCLUSIVE' : 'DIRECTIONAL';
+  if (!comparable.length) verdict = 'INSUFFICIENT';
+
   if (!reasons.length && A.length >= 5 && B.length >= 5) {
-    const disjoint = rows.every((r) => r.a.median === null || r.b.median === null
-      || r.a.max < r.b.min || r.b.max < r.a.min);
-    if (disjoint) verdict = 'SUPPORTED';
+    const enough = comparable.every((r) => r.a.n >= 5 && r.b.n >= 5);
+    const disjoint = comparable.every((r) => r.a.max < r.b.min || r.b.max < r.a.min);
+    if (enough && disjoint) verdict = 'SUPPORTED';
+    else if (!enough) { reasons.push('metric-sample<5'); verdict = 'INSUFFICIENT'; }
   }
-  return { verdict, reasons, rows, sample: { a: A.length, b: B.length } };
+  return { verdict, reasons, rows, comparable: comparable.map((r) => r.metric), sample: { a: A.length, b: B.length } };
 }
 
 function selftest() {
@@ -164,7 +203,30 @@ function selftest() {
   ok(compareGroups(g('A', 1), g('B', 0)).verdict === 'INCONCLUSIVE', '⑩ 目标不同 → INCONCLUSIVE');
   ok(compareGroups(g('A', 1), g('A', 0)).rows.find((r) => r.metric === 'deaths').a.median === 1, '⑪ 中位数计算');
 
-  console.log(fails.length ? 'experiment selftest FAIL: ' + fails.join(' | ') : 'experiment selftest PASS（11 组）');
+  // ---- P1-20261030 审计反例（修复前这三条会全绿，正是假绿）----
+  // 反例 ⑫ 两臂各 5 份**空**记录：旧实现 disjoint 把 null 当"不冲突"跳过去 => SUPPORTED。
+  const empty5 = [{}, {}, {}, {}, {}];
+  const r12 = compareGroups(empty5, empty5);
+  ok(r12.verdict !== 'SUPPORTED', '⑫ 两臂各5份空数据 → 不许 SUPPORTED（实得 ' + r12.verdict + '）');
+  ok(r12.verdict === 'INSUFFICIENT', '⑫b 两臂各5份空数据 → 应为 INSUFFICIENT（实得 ' + r12.verdict + '）');
+
+  // 反例 ⑬ 每臂 1 份有效 + 4 份空：旧实现每臂 n=1 也能判 SUPPORTED。
+  const one4 = (g) => [mk(g, 1, 1, 0, 5), {}, {}, {}, {}];
+  const r13 = compareGroups(one4('A'), [mk('A', 0, 1, 0, 5), {}, {}, {}, {}]);
+  ok(r13.verdict !== 'SUPPORTED', '⑬ 1有效+4空 → 不许 SUPPORTED（实得 ' + r13.verdict + '）');
+
+  // 反例 ⑭ 两臂母版不同：不许 SUPPORTED。
+  const m5 = (g, sha, d) => [1, 2, 3, 4, 5].map(() => Object.assign(mk(g, d, 1, 0, 5), { master: { sha256: sha } }));
+  const r14 = compareGroups(m5('A', 'mA', 1), m5('A', 'mB', 0));
+  ok(r14.verdict !== 'SUPPORTED', '⑭ 母版不同 → 不许 SUPPORTED（实得 ' + r14.verdict + '）');
+
+  // 反例 ⑮ 没有介入数据：不许算成 0 次介入。
+  const w3 = weekly([{ goal: 'A', deaths: { status: 'PRESENT', count: 0 }, timings: { watchSeconds: 60 }, context_delivery: null }]);
+  ok(w3.metrics.interventionsPerRun === 'UNKNOWN',
+    '⑮ 无介入数据 → interventionsPerRun 必须是 UNKNOWN（实得 ' + w3.metrics.interventionsPerRun + '）');
+  ok(w3.metrics.interventionsCoverage === '0/1', '⑮b 覆盖率应为 0/1（实得 ' + w3.metrics.interventionsCoverage + '）');
+
+  console.log(fails.length ? 'experiment selftest FAIL: ' + fails.join(' | ') : 'experiment selftest PASS（16 组，含 4 组审计反例）');
   return fails.length ? 1 : 0;
 }
 
