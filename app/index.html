@@ -657,91 +657,36 @@ async function runRepo(){
 window.runSelftest=runSelftest; window.runGate=runGate; window.runRepo=runRepo;
 window.openPath = openPath;
 
-// ══════════════════════════════════════════════ 主循环
-// ══════════════════════════════════════════════ 老板台（2026-10-20 用户要求）
-// 用户原话：「我无法快速拿到想要的文件，我要自己发文件夹，很麻烦」
-// 所以这一页只做一件事：把「今天该看什么」摆在最上面，三行大白话直接可见，
-// 点标题才进全文。不合格的日报标红并写出问题，不让它混过去。
+// ══════════════════════════════════════════════ 老板台
+// 只展示两类信息：最新简报，以及需要老板知道/处理的警告。
 let BOSS = null;
 async function paintBoss(){
-  // 数据由 refresh() 统一拉（避免每 5 秒重复请求）；这里只兜底第一次
   if(BOSS===null){
-    try{ BOSS = await J('/api/boss'); }
-    catch(e){ return '<div class="card cut"><div class="note bad">[!] 读不出日报：'+esc(e.message)+'</div></div>'; }
+    try{ BOSS = await J("/api/boss"); }
+    catch(e){ return '<div class="card cut"><div class="note bad">[!] 读不出简报：'+esc(e.message)+'</div></div>'; }
   }
-  if(BOSS && BOSS.err){
-    return '<div class="card cut"><div class="note bad">[!] 读不出日报：'+esc(BOSS.err)+'</div></div>';
-  }
-  const B = BOSS, items = B.items || [];
-  const today = new Date().toISOString().slice(0,10).replace(/-/g,'');
-  // ★ 跨夜会出问题：0 点一过「今天」就没有日报了，而人还在干 10-20 的活。
-  //   所以今天为空时，回退到「最近有日报的那一天」，并明说这是哪天的。
-  const newestDate = items.length ? items[0].date : '';
-  const showDate = items.some(x=>x.date===today) ? today : newestDate;
-  const isFallback = showDate !== today;
-  const todays = items.filter(x=>x.date===showDate);
-  const older = items.filter(x=>x.date!==showDate);
-
-  // ★ 左栏文件树（2026-10-21）：用户要求「文件夹更好管理、统一查看、点开即看」。
-  //   用 table 布局而不是 flex —— 面板是内联 HTML，少一个 CSS 类少一处漂移风险。
-  const treeHtml = await paintTree();
-  let s = '<table style="width:100%;border-collapse:collapse"><tr>'+
-          '<td style="width:230px;vertical-align:top;padding-right:12px;border-right:1px solid var(--line)">'+
-          treeHtml+'</td><td style="vertical-align:top;padding-left:12px">';
-
-  // ★ 治理层（76号）：老板每个轮回只做三件事，其余时间系统自己跑。
-  //   放在最上面，因为这是「这套系统该怎么用」的答案，比任何日报都先要看到。
-  const gov = B.governance || {};
-  s += '<div class="card cut"><h2>你的轮回 <span class="r">'+
-       (gov.daysSinceAudit!=null ? ('距上次审计 '+(gov.daysSinceAudit===0?'今天':gov.daysSinceAudit+' 天')+
-         (gov.daysSinceAudit>=2?' <span class="tag bad">已超两天，该审计了</span>':' <span class="tag ok">在窗口内</span>'))
-         : '<span class="tag">还没有审计 tag</span>')+'</span></h2>';
-  s += '<div class="note" style="line-height:1.9">'+
-       '<b>① 看三行</b>（30 秒）　→　<b>② 玩五分钟游戏</b>（按验收单，亲眼看到本事）　→　<b>③ 打一次 tag</b>'+
-       '<br>其余时间系统自己跑。<b>你的注意力是最稀缺的资源，花在边界上，不花在过程里。</b>'+
-       '</div>';
-  // 熔断线（不等里程碑，触发就停）
-  s += '<div class="note" style="margin-top:10px;line-height:1.8">'+
-       '<b style="color:var(--bad)">⚡ 不等里程碑、立刻停（熔断线）</b><br>'+
-       '① 批准范围外的破坏性操作　② <b>修改 harness/goal/审计文件本身</b>（改自己的宪法=越权）'+
-       '　③ 无声超过 X 小时　④ 同一失败连续复发'+
-       '</div>';
-  s += '<div class="note" style="margin-top:8px;color:var(--tx-2)">'+
-       '规则真源：<a href="#" onclick="go(\'rules\');return false">纪律</a> → '+
-       '76 · 里程碑门禁与红线固化（治理层）｜ 75 · 重构决策草案（施工层）'+
-       '</div>';
-  s += '</div>';
-
-  // 今天该看的
-  const fmt = d => d && d.length===8 ? d.slice(0,4)+'-'+d.slice(4,6)+'-'+d.slice(6,8) : (d||'');
-  const headLabel = isFallback
-    ? '最近一次日报（'+fmt(showDate)+'，今天还没写新的）'
-    : '今天要你看的';
-  s += '<div class="card cut"><h2>'+headLabel+' <span class="r">'+
-       (todays.length ? todays.length+' 份' : '<span class="tag bad">还没有日报</span>')+'</span></h2>';
-  if(!todays.length){
-    s += '<div class="note bad">还没有日报。让 AI 在 rdd存放\\ 写一份，顶部必须有「给老板的三行」。</div>';
-  }else{
-    s += todays.map(x=>bossCard(x,true)).join('');
-  }
-  s += '</div>';
-
-  // 历史
-  if(older.length){
-    s += '<div class="card cut"><h2>更早的 <span class="r">'+older.length+' 份</span></h2>';
-    s += older.slice(0,12).map(x=>bossCard(x,false)).join('');
-    s += '</div>';
-  }
-
-  s += '<div class="card cut"><h2>说明</h2><div class="note">'+
-       '这一页只列 <code>rdd存放\\</code> 里的日报。判定与 goal 的验收同口径：'+
-       '三行必须齐（①②③）、不超过 250 字、不出现批次号/判据/契约/文件名/sha、不写空话。'+
-       '不合格的会标红并写出原因 —— 那是要 AI 重写的，不是给你凑合看的。</div></div>';
-
-  s += '</td></tr></table>';   // 闭合左栏表格
+  if(BOSS && BOSS.err) return '<div class="card cut"><div class="note bad">[!] 读不出简报：'+esc(BOSS.err)+'</div></div>';
+  const items = (BOSS && BOSS.items) || [];
+  const latest = items[0];
+  const today = new Date().toISOString().slice(0,10).replace(/-/g,"");
+  const showDate = items.some(x=>x.date===today) ? today : (latest ? latest.date : "");
+  const fallback = showDate !== today;
+  const fmt = d => d && d.length===8 ? d.slice(0,4)+"-"+d.slice(4,6)+"-"+d.slice(6,8) : (d||"");
+  let s = "";
+  s += '<div class="card cut"><h2>简报 <span class="r">'+(latest ? esc(fmt(latest.date)) : '<span class="tag bad">没有</span>')+'</span></h2>';
+  if(!latest) s += '<div class="note bad">没有可读简报。</div>';
+  else s += bossCard(latest, true);
+  s += "</div>";
+  const warnings = [];
+  if(!latest) warnings.push("没有简报，老板台没有可读内容。");
+  if(fallback && latest) warnings.push("今天还没有新简报，当前显示的是最近一份。");
+  for(const item of items.slice(0,5)) for(const problem of (item.problems||[])) warnings.push((item.date ? fmt(item.date)+"：" : "")+problem);
+  s += '<div class="card cut"><h2>警告 <span class="r">'+(warnings.length ? '<span class="tag bad">'+warnings.length+' 条</span>' : '<span class="tag ok">无</span>')+'</span></h2>';
+  if(!warnings.length) s += '<div class="empty">没有需要老板处理的警告。</div>';
+  else for(const warning of warnings) s += '<div class="note bad" style="margin:6px 0">⚠ '+esc(warning)+'</div>';
+  s += "</div>";
   return s;
 }
-
 // 去掉 markdown 标记：老板台是给人快速扫的，星号/反引号只会碍眼
 function plainMd(s){
   return String(s||'').replace(/\*\*/g,'').replace(/`/g,'').replace(/^#+\s*/gm,'').trim();
@@ -752,8 +697,7 @@ function bossCard(x, isToday){
   let s = '<div class="docrow" style="padding:10px 0;border-top:1px solid var(--line)">';
   // 标题行：点进全文
   s += '<div style="display:flex;align-items:baseline;gap:8px">';
-  s += '<a href="#" onclick="bossOpen(\''+esc(x.file).replace(/'/g,"\\'")+'\');return false" '+
-       'style="font-weight:600;color:var(--tx);text-decoration:none">'+esc(plainMd(x.title))+'</a>';
+  s += '<span style="font-weight:600;color:var(--tx)">'+esc(plainMd(x.title))+'</span>';
   s += '<span class="tag '+(bad?'bad':'ok')+'">'+(bad?'不合格':'三行合规')+'</span>';
   s += '<span class="r" style="margin-left:auto;color:var(--tx-2);font-size:11.5px">'+
        esc(x.date||'')+' · '+(x.threeChars||0)+' 字</span>';
