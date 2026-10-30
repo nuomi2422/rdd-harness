@@ -793,12 +793,19 @@ function health(runDir) {
   process.exit(out.problems.length ? 1 : 0);
 }
 
-/** 工具分层视图（生成，不手写第二份真源）。 */
+/** 工具分层视图（生成，不手写第二份真源）。默认只列 core，其余层显式展开。 */
 function layers(argv) {
   const TL = require('./lib/tool-layers.js');
   const view = TL.load();
-  if (has(argv, '--json')) console.log(JSON.stringify(TL.renderJson(view), null, 2));
-  else console.log(TL.renderText(view));
+  const opts = {
+    specialist: has(argv, '--specialist'),
+    operator: has(argv, '--operator'),
+    legacy: has(argv, '--legacy'),
+    archived: has(argv, '--archived'),
+    all: has(argv, '--all'),
+  };
+  if (has(argv, '--json')) console.log(JSON.stringify(TL.renderJson(view, opts), null, 2));
+  else console.log(TL.renderText(view, opts));
   if (view.problems.length) console.error('\n[warn] ' + view.problems.join('\n[warn] '));
   logUsage(argv, 'bench layers', { status: 'ok' });
 }
@@ -999,12 +1006,18 @@ function selfTest() {
   const c17 = run(['live', 'status']);
   cases.push(['live status 可跑（没进程也不崩）', c17.code === 0 && c17.out.includes('watch.json'), c17.out.trim().slice(0, 160)]);
   // 2026-10-29：分层视图 + 开工包首屏 + 使用证据（施工单第 2/3/4 阶段）
-  const c18 = run(['layers', '--json']);
+  const c18 = run(['layers', '--json', '--all']);
   let layersJson = null;
   try { layersJson = JSON.parse(c18.out.slice(c18.out.indexOf('{'))); } catch {}
-  cases.push(['layers 生成四层，core ≤5',
-    c18.code === 0 && layersJson && layersJson.core.length <= 5 && layersJson.counts.registry >= 90 && layersJson.operator.length > 0,
+  cases.push(['layers 默认只列 core，--all 才展开四层',
+    c18.code === 0 && layersJson && layersJson.core.length <= 5 && layersJson.counts.registry >= 90 && Array.isArray(layersJson.operator) && layersJson.operator.length > 0,
     c18.out.trim().slice(0, 160)]);
+  const c18b = run(['layers', '--json']);
+  let layersDefault = null;
+  try { layersDefault = JSON.parse(c18b.out.slice(c18b.out.indexOf('{'))); } catch {}
+  cases.push(['layers 默认视图不含 operator/legacy 明细',
+    c18b.code === 0 && layersDefault && layersDefault.operator === undefined && layersDefault.legacy_or_unverified === undefined && layersDefault.core.length <= 5,
+    c18b.out.trim().slice(0, 200)]);
   const c19 = run(['brief', '--session', 'selftest-session']);
   cases.push(['brief 首屏有目标/边界/live/core/限制',
     c19.code === 0 && c19.out.includes('本轮目标与边界') && c19.out.includes('测试目标') && c19.out.includes('core 入口') && c19.out.includes('已知限制') && c19.out.includes('不是每轮模型收到的工具定义数'),
@@ -1019,7 +1032,7 @@ function selfTest() {
   let usageJson = null;
   try { usageJson = JSON.parse(c20.out.slice(c20.out.indexOf('{'))); } catch {}
   cases.push(['usage 能读回账本', c20.code === 0 && usageJson && usageJson.total >= 1, c20.out.trim().slice(0, 160)]);
-  const c21 = run(['layers', '--json']);
+  const c21 = run(['layers', '--json', '--operator']);
   let opRisk = null;
   try { opRisk = JSON.parse(c21.out.slice(c21.out.indexOf('{'))).operator.find((x) => x.id === 'compile.entry'); } catch {}
   cases.push(['operator 带显式风险文案', !!opRisk && !!opRisk.risk && /run-mutation|部署/.test(opRisk.risk), JSON.stringify(opRisk)]);

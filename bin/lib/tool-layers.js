@@ -5,12 +5,15 @@
  *
  * 为什么存在：
  *   registry.json 是「工具目录」，不是「每轮该看什么」。98 项平铺会让外部 AI 直接翻原始日志、
- *   漏掉 bench 已有结论。这里把**外部 AI 的工具面**收成四层，核心不超过 5 项。
+ *   漏掉 bench 已有结论。所以**默认视图只给 core 5 项**，其余层必须显式展开
+ *   （--specialist / --operator / --legacy / --archived / --all）。
+ *   2026-10-30 改：此前默认把 98 项全打出来，等于没分层；现在默认面从 98 → 5。
  *
- * 三层数据来源（不复制真源）：
+ * 数据来源（不复制真源）：
  *   1. registry.json        —— 有哪些工具（98 项，唯一真源）
  *   2. tool-layers.json     —— 人工分层覆盖（core / specialist / operator + operator 风险）
  *   3. registry 的 side      —— 兜底规则：build/writeMods/writeGame 未分类 → operator；其余 → legacy
+ *   4. registry 的 archived  —— 显式隐藏：只从默认工作视图消失，条目与文件都保留
  *
  * ★ 边界：
  *   - 这是**发现性与工作流约束，不是授权凭据**。工具可见 ≠ 已授权；operator 层必须先显式选择。
@@ -86,11 +89,19 @@ function load(registryPath, overlayPath) {
   };
   for (const c of core) assign(c.id, 'core', c.why || '');
   for (const id of specialist) assign(id, 'specialist', '当前任务确实需要时再展开');
-  for (const id of operator) assign(id, 'operator', overlay.operatorRisk && overlay.operatorRisk[id] ? overlay.operatorRisk[id] : '显式选择；可能改源码/构建部署/起停实例/改世界');  for (const t of tools) {
+  for (const id of operator) assign(id, 'operator', overlay.operatorRisk && overlay.operatorRisk[id] ? overlay.operatorRisk[id] : '显式选择；可能改源码/构建部署/起停实例/改世界');
+  // archived：显式隐藏项。只从默认工作视图里拿掉，registry 条目与文件都保留（selftest 仍核路径）。
+  const archivedRows = [];
+  for (const t of tools) {
     if (rows.has(t.id)) continue;
+    if (t.archived === true) {
+      archivedRows.push({ id: t.id, name: t.name, side: t.side || '?', needsGame: !!t.needsGame, layer: 'archived', restoreTo: t.restoreTo || 'legacy_or_unverified', why: t.archivedReason || '已归档隐藏' });
+      continue;
+    }
     if (MUTATING_SIDES.has(t.side)) assign(t.id, 'operator', defaultRiskBySide(t.side) + '（registry side=' + t.side + '，兜底归入 operator）');
     else assign(t.id, 'legacy_or_unverified', '未分层（默认不推荐；有近期使用证据再升层）');
   }
+  for (const r of archivedRows) rows.set(r.id, r);
   // 同一 id 被分到多层 → 记录提示（不致命，但提醒改 overlay）
   const layerCount = {};
   for (const [id, r] of rows) { (layerCount[id] = layerCount[id] || []).push(r.layer); }
@@ -105,8 +116,9 @@ function load(registryPath, overlayPath) {
     registryPath: registryPath || REGISTRY,
     overlayPath: overlayPath || OVERLAY,
     registryCount: tools.length,
-    counts: { registry: tools.length, core: core.length, specialist: grouped.specialist.length, operator: grouped.operator.length, legacy: grouped.legacy_or_unverified.length },
+    counts: { registry: tools.length, core: core.length, specialist: grouped.specialist.length, operator: grouped.operator.length, legacy: grouped.legacy_or_unverified.length, archived: archivedRows.length },
     layers: grouped,
+    archived: archivedRows,
     coreOverlay: core,
     operatorRisk: overlay.operatorRisk || {},
     problems,
@@ -123,48 +135,74 @@ function fmtRisks(view) {
   return out;
 }
 
-function renderText(view) {
-  const c = view.counts;
+/** 展开哪些层：默认只有 core；其余必须显式要。 */
+function picked(opts) {
+  const o = opts || {};
+  const all = !!o.all;
+  return {
+    core: true,
+    specialist: all || !!o.specialist,
+    operator: all || !!o.operator,
+    legacy: all || !!o.legacy,
+    archived: all || !!o.archived,
+  };
+}
+
+function renderText(view, opts) {
+  const c = view.counts, p = picked(opts);
   const out = [];
-  out.push('# 外部编码 AI · Harness 工具分层（generated）');
-  out.push('registry：' + c.registry + ' 项（目录数量，不是每轮工具定义数）  core ' + c.core + ' / specialist ' + c.specialist + ' / operator ' + c.operator + ' / legacy_or_unverified ' + c.legacy);
-  out.push('生成源：registry.json + tool-layers.json ｜ 读法：node bin/bench.js layers');
+  out.push('# Harness 工具面（默认只列 core）');
+  out.push('registry ' + c.registry + ' 项目录｜core ' + c.core + ' / specialist ' + c.specialist + ' / operator ' + c.operator + ' / legacy ' + c.legacy + (c.archived ? ' / archived ' + c.archived : ''));
+  out.push('其余层按需展开：--specialist / --operator / --legacy / --archived / --all（--json 可机读）');
   out.push('');
-  out.push('## core —— 每轮开工/收工，最多 5 项');
+  out.push('## core —— 每轮默认只用这 ' + c.core + ' 项');
   for (const e of view.coreOverlay) {
     out.push('- ' + (e.cmd || e.id) + '   [' + (e.side || 'read') + ']');
     if (e.why) out.push('    ' + e.why);
   }
+  if (p.specialist) {
+    out.push('');
+    out.push('## specialist —— 任务确实需要时再展开（' + c.specialist + ' 项）');
+    for (const r of view.layers.specialist) out.push('- `' + r.id + '`  ' + r.name + (r.needsGame ? '  [needsGame]' : ''));
+  }
+  if (p.operator) {
+    out.push('');
+    out.push('## operator —— ⚠ 显式选择；可能改源码/构建部署/起停实例/改世界（' + c.operator + ' 项）');
+    out.push('  ★ 可发现 ≠ 已授权；in-game live/存档/作弊动作一律先绑 card/runId。');
+    for (const line of fmtRisks(view)) out.push(line);
+    const noRisk = view.layers.operator.filter((r) => !view.operatorRisk[r.id]).length;
+    if (noRisk) out.push('  （其中 ' + noRisk + ' 项没有逐条风险文案，按 registry 的 side 兜底提示）');
+  }
+  if (p.legacy) {
+    out.push('');
+    out.push('## legacy_or_unverified —— 保留兼容，默认不推荐（' + c.legacy + ' 项）');
+    out.push('  ' + view.layers.legacy_or_unverified.map((r) => '`' + r.id + '`').join(' '));
+  }
+  if (p.archived && view.archived && view.archived.length) {
+    out.push('');
+    out.push('## archived —— 已隐藏归档（' + view.archived.length + ' 项）');
+    for (const r of view.archived) out.push('- `' + r.id + '`  ' + r.name + '  restoreTo=' + (r.restoreTo || 'legacy_or_unverified'));
+  }
   out.push('');
-  out.push('## specialist —— 当前任务确实需要时再展开（' + c.specialist + ' 项）');
-  for (const r of view.layers.specialist) out.push('- `' + r.id + '`  ' + r.name + (r.needsGame ? '  [needsGame]' : ''));
-  out.push('');
-  out.push('## operator —— ⚠ 显式选择；可能改源码/构建部署/起停实例/改世界（' + c.operator + ' 项）');
-  out.push('  ★ 可发现 ≠ 已授权；in-game live/存档/作弊动作一律先绑 card/runId。');
-  for (const line of fmtRisks(view)) out.push(line);
-  const noRisk = view.layers.operator.filter((r) => !view.operatorRisk[r.id]).length;
-  if (noRisk) out.push('  （其中 ' + noRisk + ' 项没有逐条风险文案，按 registry 的 side 兜底提示；要更细就写进 tool-layers.json 的 operatorRisk）');
-  out.push('');
-  out.push('## legacy_or_unverified —— 保留兼容，默认不推荐（' + c.legacy + ' 项）');
-  out.push('  ' + view.layers.legacy_or_unverified.map((r) => '`' + r.id + '`').join(' '));
-  out.push('');
-  out.push('## 未核实边界');
-  out.push('  ' + view.exposure);
-  out.push('  未分类规则：任何未在 tool-layers.json 出现、且 side 不是 build/writeMods/writeGame 的新工具 → legacy_or_unverified。');
+  out.push('未核实边界：' + view.exposure);
   return out.join('\n');
 }
 
-function renderJson(view) {
-  return {
+function renderJson(view, opts) {
+  const p = picked(opts);
+  const out = {
     registry: view.registryCount,
     counts: view.counts,
+    expanded: Object.keys(p).filter((k) => p[k]),
     core: view.layers.core.map((r) => r.id),
-    specialist: view.layers.specialist.map((r) => r.id),
-    operator: view.layers.operator.map((r) => ({ id: r.id, risk: view.operatorRisk[r.id] || null })),
-    legacy_or_unverified: view.layers.legacy_or_unverified.map((r) => r.id),
     exposure: view.exposure,
     problems: view.problems,
   };
+  if (p.specialist) out.specialist = view.layers.specialist.map((r) => r.id);
+  if (p.operator) out.operator = view.layers.operator.map((r) => ({ id: r.id, risk: view.operatorRisk[r.id] || null }));
+  if (p.legacy) out.legacy_or_unverified = view.layers.legacy_or_unverified.map((r) => r.id);
+  if (p.archived) out.archived = (view.archived || []).map((r) => r.id);
+  return out;
 }
 
 module.exports = { LAYERS, load, renderText, renderJson, HARNESS };
