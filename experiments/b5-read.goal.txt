@@ -1,0 +1,1 @@
+不要移动，调用 rdd_get_inventory 把背包报出来。
