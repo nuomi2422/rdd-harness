@@ -1063,13 +1063,15 @@ function compareCmd(argv) {
   const E = require('./lib/experiment');
   const load = (d) => JSON.parse(fs.readFileSync(path.join(path.resolve(d), 'envelope.json'), 'utf8'));
   const r = E.compare(load(a), load(b));
-  console.log('verdict: ' + r.verdict + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : ''));
+  console.log('verdict: ' + r.verdict + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : '')
+    + (r.notes && r.notes.length ? '  notes=' + r.notes.join(',') : ''));
   for (const row of r.rows) {
     console.log('  ' + String(row.metric).padEnd(14) + ' A=' + String(row.a).padEnd(6) + ' B=' + String(row.b).padEnd(6) + ' delta=' + row.delta);
   }
-  console.log('note: 单轮只能 DIRECTIONAL/INCONCLUSIVE；≥3 轮才算一轮实验。'
-      + 'SUPPORTED 还需：两臂各>=5 份，且每个「两臂都有样本」的指标各>=5 份已知样本、区间不重叠。'
-      + '母版或目标取不到 => 一律 INCONCLUSIVE（不许当成一致）；某指标一台样本都没有 => INSUFFICIENT。（P1-20261030）');
+  console.log('note: 单轮最高 DIRECTIONAL，从不等于「变好」；没有任何可比较指标 => INSUFFICIENT（不是 DIRECTIONAL）。'
+      + '目标/母版/场景/构建（jarsAtLaunch 指纹）任一不同或取不到 => INCONCLUSIVE；'
+      + 'SUPPORTED 需要 envelope.prereg 或 contract.prereg = {metric,arm,direction}，且主指标两臂各≥5 份、区间不重叠、方向相符。'
+      + '（151 §2 / P1-20261030）');
   return 0;
 }
 
@@ -1089,14 +1091,16 @@ function compareManyCmd(argv) {
   });
   const r = E.compareGroups(list(argv[ai + 1]), list(argv[bi + 1]));
   console.log('verdict: ' + r.verdict + '  sample A=' + r.sample.a + ' B=' + r.sample.b
-    + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : ''));
+    + (r.reasons.length ? '  reasons=' + r.reasons.join(',') : '')
+    + (r.notes && r.notes.length ? '  notes=' + r.notes.join(',') : ''));
   for (const row of r.rows) {
     const f = (s) => (s.median === null ? 'UNKNOWN' : s.median + ' [' + s.min + '..' + s.max + '] n=' + s.n);
     console.log('  ' + String(row.metric).padEnd(14) + ' A=' + f(row.a).padEnd(22) + ' B=' + f(row.b));
   }
-  console.log('note: n<3 必 INCONCLUSIVE。'
-      + 'SUPPORTED 需 n>=5 且每个可比较指标两臂各>=5 份已知样本、区间不重叠；'
-      + '空数据或单边无样本 => INSUFFICIENT，绝不给 SUPPORTED。（P1-20261030）');
+  console.log('note: n<3 必 INCONCLUSIVE；无从比较 => INSUFFICIENT。'
+      + 'SUPPORTED 需要预注册主指标（envelope.prereg={metric,arm,direction}）+ 两臂各>=5 份 + 主指标区间不重叠 + 方向相符；'
+      + '没有预注册 => 封顶 DIRECTIONAL（「区间不重叠」不是学习收益）。'
+      + '目标/母版/场景/构建任一不同或取不到 => INCONCLUSIVE。（151 §2 / P1-20261030）');
   return 0;
 }
 
