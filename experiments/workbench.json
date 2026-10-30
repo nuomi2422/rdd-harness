@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T21:04:25.972Z",
+  "updated_at": "2026-10-30T21:19:31.770Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -499,6 +499,13 @@
       "run": "exp-b3-20261031-20261031-045327",
       "by": "unknown",
       "at": "2026-10-30T21:04:25.971Z"
+    },
+    {
+      "exp_id": "save-hook-verified",
+      "note": "2026-10-31 05:18 停机落盘修复复验（V-20261031-08 ✅）：numen 85ffb4d32 加 rdd_save（saveEverything(flush)+saveAll，不改世界），harness 854b680 在 task_stop 后调用；plugins:rdd D63804CF…（mutation-20261031-051001-f28708）。B4 exp-b4-save-20261031-20261031-051114：rdd_save.ok=true（ms=264, players=2），playerdata mtime 21:14:39.709Z；B5 exp-b5-save-…-051546：inventory-before 与 B4 inventory-after 逐项相同（DIFF=[]）。0 死亡/0 干预。旁证：B4 从 B3 副本起步 dirt 4/cobble 15（B3 结束 dirt 15/cobble 58）——旧缺口仍可追溯，修复只解决最后几分钟。",
+      "run": "exp-b4-save-20261031-20261031-051114",
+      "by": "unknown",
+      "at": "2026-10-30T21:19:31.768Z"
     }
   ],
   "verdicts": [
