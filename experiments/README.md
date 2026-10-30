@@ -25,7 +25,8 @@
 **状态（2026-10-29）：v0.3 已写码、离线自测绿；live 视图 10-29 10:36 后停（进程死），Observer stale。**
 
 - `bin/world-view.js`：world_probe snapshot → `world-view-<phase>.md/.json`；`--render` 离线、无 `--render` 走 MCP 采集；自测 4/4。
-- `bin/bench.js`：共享账本（tips / signals / verdicts / queue / masters / health/ probe）+ 开工包（brief）+ 工具分层（layers）+ 使用证据（usage）；自测 23/23。
+- `bin/bench.js`：共享账本（tips / signals / verdicts / queue / masters / health/ probe）+ 开工包（brief）+ 工具分层（layers）+ 使用证据（usage）；
+- `verification-queue.json`：跨多轮通关复用的待验证判据与证据匹配规则；`verification-history.jsonl` 汇总每轮对照状态，完整证据报告留在各 run 目录。
 - `experiments/workbench.json`：探针 + tips + signal + verdicts + master 共享账本（数值以 `bench catalog` 为准，不在文档里抄死）。
 - `experiments/usage.jsonl`：append-only 使用账本（时间/session/命令/run/card/status；不记正文）。
 - 睡觉裁判 `bin/exp-night-ab.js` 由并行会话提供，本台只登记、不改。
@@ -46,6 +47,7 @@
     node bin\bench.js timeline <runDir>       # 完整时序一条命令读全（阶段/目标/回合/调用/结果/任务链/死亡）
     node bin\bench.js probe add --id <id> --title "..." --source "..." --fields a,b,c --note "..."   # AI 自己登记要读的数据
     node bin\bench.js health <runDir>         # 收工：这轮材料能不能用（会写一条 usage）
+    node bin\bench.js coverage <runDir>       # 收工：对照待验队列，报告候选证据（不自动 PASS）
 
 **禁止**：把 fixture 标 natural；用 SUSPENDED 做 A/B 后不恢复；没冻结判据就写 verdict。
 

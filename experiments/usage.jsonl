@@ -33,3 +33,50 @@
 {"at":"2026-10-30T06:47:31.234Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-30T06:49:11.762Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-30T06:49:11.828Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T07:03:30.515Z","session":"session-978a7061-cd8e-4d9e-a50e-e60375c4fb60","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T08:01:28.741Z","session":"session-00384375-9a52-4573-b98d-fa688a36858b","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T08:02:49.562Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T08:05:09.912Z","session":"4d48fb12-a385-4366-9177-89a5e497e5a4","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T08:25:29.379Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:08:59.612Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:16:58.078Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:16:58.236Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:18:48.631Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:18:48.783Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:19:00.751Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:19:00.895Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:41:49.397Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit build","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:41:49.569Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:43:13.662Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:43:13.854Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:46:04.945Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:59:00.656Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T09:59:02.076Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench health","run":"exp-learn-b6-20261030-162917","card":null,"status":"unhealthy"}
+{"at":"2026-10-30T10:03:59.214Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T10:04:02.431Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T10:08:38.213Z","session":"session-00384375-9a52-4573-b98d-fa688a36858b","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T10:11:38.414Z","session":"session-d4e8fae0-3406-4b94-843d-5903f7b9ee96","source":"dsh","cmd":"bench pit","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T10:52:59.225Z","session":"session-ae22d44d-5212-4146-874b-d44715a2608c","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:01:05.351Z","session":"session-c591d0f4-9e23-41a9-b42b-60fe96c3ad42","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:01:23.693Z","session":"session-c591d0f4-9e23-41a9-b42b-60fe96c3ad42","source":"dsh","cmd":"bench live show chain","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:01:34.046Z","session":"session-c591d0f4-9e23-41a9-b42b-60fe96c3ad42","source":"dsh","cmd":"bench live show context","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:12:29.744Z","session":"session-326e30e4-2e0d-495d-a63d-62707a303681","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:13:12.384Z","session":"72457766-5579-4d98-a225-072b1c0cbd74","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:13:22.170Z","session":"4c9f1f6e-fcb5-4513-acbf-c848189cbaad","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:16:13.917Z","session":"session-ae22d44d-5212-4146-874b-d44715a2608c","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:21:02.432Z","session":"session-ae22d44d-5212-4146-874b-d44715a2608c","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T11:23:49.438Z","session":"session-c591d0f4-9e23-41a9-b42b-60fe96c3ad42","source":"dsh","cmd":"bench live show context","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T12:04:32.311Z","session":"session-c591d0f4-9e23-41a9-b42b-60fe96c3ad42","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T12:05:50.904Z","session":"session-8a734095-5670-43c5-8bc1-761b58ac625f","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T12:14:15.229Z","session":"session-589ac8d9-2ee3-42da-89c3-defebb647d57","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T15:38:14.183Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T15:39:58.088Z","session":"72616d3a-b343-4507-943a-79ac9e669e55","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T15:45:02.077Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench coverage","run":"exp-loop-r39-20261030-114944","card":null,"status":"ok"}
+{"at":"2026-10-30T15:47:52.191Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench coverage","run":"exp-loop-r39-20261030-114944","card":null,"status":"ok"}
+{"at":"2026-10-30T15:48:43.792Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench coverage","run":"exp-loop-r39-20261030-114944","card":null,"status":"ok"}
+{"at":"2026-10-30T15:50:42.549Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench coverage","run":"exp-loop-r39-20261030-114944","card":null,"status":"ok"}
+{"at":"2026-10-30T16:03:38.965Z","session":"session-1946f8d2-304c-40b4-adcd-2a3231b81f59","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T16:04:45.119Z","session":"e7c81d12-455e-4283-80ea-ee97f071546d","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T16:05:07.201Z","session":"54337fd5-1438-44e8-809f-65b2d1e2e1b0","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T16:11:19.188Z","session":"session-0f5abf45-1ced-4b15-8d2b-b34be4b14dce","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T18:42:11.213Z","session":"session-d7ec3d7f-0a77-4df6-addd-5ceb102dff40","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}

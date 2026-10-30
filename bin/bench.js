@@ -36,6 +36,7 @@
  *                                                  --tag 显式打开被默认折叠的流（chain=任务链帧 ctx=numen/supervisor 上下文
  *                                                  chat=对话 llm=请求与预算 snap=事实/资产快照 all=全部）
  *   node bench.js health <runDir>
+ *   node bench.js coverage <runDir> [--queue <json>]  对照待验队列，生成候选证据报告（不自动 PASS）
  *   node bench.js live [status|start|stop|on|off|only <views>|interval <s>|show [view]|selftest]
  *                                                ← 常驻视图开关（引擎 bin/bench-watch.js，视图落在 experiments/live/）
  *   node bench.js selftest
@@ -800,6 +801,71 @@ function health(runDir) {
   process.exit(out.problems.length ? 1 : 0);
 }
 
+/** 对照统一待验队列；只产候选证据，绝不替人判 PASS。 */
+function coverageRun(argv) {
+  const runArg = argv[1];
+  if (!runArg) die(2, 'usage: bench.js coverage <runDir> [--queue <json>]');
+  const runDir = path.resolve(runArg);
+  const envPath = path.join(runDir, 'envelope.json');
+  if (!fs.existsSync(envPath)) die(3, 'no envelope.json: ' + runDir);
+  const env = JSON.parse(fs.readFileSync(envPath, 'utf8'));
+  const queueArg = arg(argv, '--queue');
+  const queuePath = queueArg ? path.resolve(queueArg) : path.join(HARNESS, 'experiments', 'verification-queue.json');
+  if (!fs.existsSync(queuePath)) die(3, 'no verification queue: ' + queuePath);
+  const queue = JSON.parse(fs.readFileSync(queuePath, 'utf8'));
+  const evDir = path.join(runDir, 'evidence');
+  const files = fs.existsSync(evDir) ? fs.readdirSync(evDir).filter((f) => f.endsWith('.jsonl')) : [];
+  const deathStatus = env.deaths && env.deaths.status;
+  const hasDeath = deathStatus === 'PRESENT' || (env.deaths && Number(env.deaths.count) > 0);
+  const checks = (queue.checks || []).map((check) => {
+    const hits = [];
+    const searched = new Set();
+    const sources = files.map((name) => ({ rel: 'evidence/' + name, full: path.join(evDir, name) }));
+    const ledgerDir = path.join(runDir, 'env-baseline', 'rdd-ledger');
+    if (fs.existsSync(ledgerDir)) for (const name of fs.readdirSync(ledgerDir).filter((f) => f.endsWith('.json'))) sources.push({ rel: 'env-baseline/rdd-ledger/' + name, full: path.join(ledgerDir, name) });
+    for (const rule of check.evidence || []) {
+      let ruleHit = false;
+      let re;
+      try { re = new RegExp(rule.pattern, rule.flags || ''); } catch (e) { die(3, 'bad regex in ' + check.id + ': ' + e.message); }
+      const allowed = (glob, rel) => {
+        if (glob === 'evidence/*.jsonl') return rel.startsWith('evidence/') && rel.endsWith('.jsonl') && !rel.slice(9).includes('/');
+        if (glob === 'env-baseline/rdd-ledger/*.json') return rel.startsWith('env-baseline/rdd-ledger/') && rel.endsWith('.json') && !rel.slice(23).includes('/');
+        return glob === rel;
+      };
+      for (const source of sources) {
+        if (!(rule.files || []).some((glob) => allowed(glob, source.rel))) continue;
+        searched.add(source.rel);
+        let lines;
+        try { lines = fs.readFileSync(source.full, 'utf8').split(/\r?\n/); } catch { continue; }
+        lines.forEach((line, i) => {
+          if (!line) return;
+          re.lastIndex = 0;
+          if (re.test(line)) { hits.push({ file: source.rel, line: i + 1, excerpt: line.slice(0, 500) }); ruleHit = true; }
+        });
+      }
+      if (!ruleHit) hits.push({ missing: rule.pattern });
+    }
+    const found = (check.evidence || []).length > 0 && (check.evidence || []).every((rule) => hits.some((h) => {
+      if (h.missing) return false;
+      const re = new RegExp(rule.pattern, rule.flags || '');
+      return re.test(h.excerpt);
+    }));
+    let status = found ? 'CANDIDATE' : 'NO_EVIDENCE';
+    if (check.requiresDeath && deathStatus === 'NONE') status = found ? 'CANDIDATE_NEEDS_SCOPE_REVIEW' : 'NOT_APPLICABLE_RUN_WINDOW';
+    else if (check.requiresDeath && !hasDeath) status = found ? 'CANDIDATE_NEEDS_SCOPE_REVIEW' : 'INCONCLUSIVE_DEATH_UNKNOWN';
+    if (check.id === 'SURVIVAL-CORE-BEHAVIOR' && found) status = 'CANDIDATE_REQUIRES_AB';
+    return { id: check.id, title: check.title, status, card: check.card, searched: Array.from(searched), hits: hits.filter((h) => !h.missing), missingPatterns: hits.filter((h) => h.missing).map((h) => h.missing), note: check.note || null };
+  });
+  const report = { schema: 1, run: path.basename(runDir), generatedAt: now(), source: path.relative(HARNESS, queuePath), deaths: deathStatus || 'UNKNOWN', checks };
+  const reportPath = path.join(runDir, 'verification-report.json');
+  fs.writeFileSync(reportPath, JSON.stringify(report, null, 2) + '\n', 'utf8');
+  const historyPath = process.env.BENCH_VERIFICATION_HISTORY || path.join(HARNESS, 'experiments', 'verification-history.jsonl');
+  const historyRow = { schema: 1, run: report.run, generatedAt: report.generatedAt, deaths: report.deaths, report: path.relative(HARNESS, reportPath), checks: report.checks.map((c) => ({ id: c.id, status: c.status, hits: c.hits.length })) };
+  fs.appendFileSync(historyPath, JSON.stringify(historyRow) + '\n', 'utf8');
+  console.log(JSON.stringify({ ...report, report: path.relative(runDir, reportPath), history: path.relative(HARNESS, historyPath) }, null, 2));
+  logUsage(argv, 'bench coverage', { run: path.basename(runDir), status: 'ok' });
+}
+
 /** 坑账本：19 时间锁 + 18 tips 的统一索引（只读两处真源，不改它们）。 */
 function pit(argv) {
   const PL = require('./lib/pit-ledger.js');
@@ -992,7 +1058,7 @@ function selfTest() {
   const run = (args) => {
     const r = require('child_process').spawnSync(process.execPath, [__filename].concat(args), {
       encoding: 'utf8',
-      env: Object.assign({}, process.env, { BENCH_FILE: f, BENCH_USAGE_FILE: usageF, RDD_CHECKPOINT: checkpointF, DSH_SESSION_ID: '' }),
+      env: Object.assign({}, process.env, { BENCH_FILE: f, BENCH_USAGE_FILE: usageF, BENCH_VERIFICATION_HISTORY: path.join(tmp, 'verification-history.jsonl'), RDD_CHECKPOINT: checkpointF, DSH_SESSION_ID: '' }),
     });
     return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
   };
@@ -1099,6 +1165,17 @@ function selfTest() {
   cases.push(['brief --json 带 entry（目标/live/限制）',
     c22.code === 0 && briefJson && briefJson.entry && briefJson.entry.limits.length >= 2 && typeof briefJson.entry.live.known === 'boolean',
     c22.out.trim().slice(0, 120)]);
+  const queueF = path.join(tmp, 'verification-queue.json');
+  fs.writeFileSync(queueF, JSON.stringify({ schema: 1, checks: [{ id: 'DEATH-TEST', title: 'death evidence', requiresDeath: true, evidence: [{ files: ['evidence/*.jsonl'], pattern: 'CHUNK_UNLOADED' }, { files: ['evidence/*.jsonl'], pattern: 'state.{0,10}UNKNOWN' }] }] }));
+  const vr = path.join(tmp, 'coverage-run');
+  fs.mkdirSync(path.join(vr, 'evidence'), { recursive: true });
+  fs.mkdirSync(path.join(vr, 'env-baseline', 'rdd-ledger'), { recursive: true });
+  fs.writeFileSync(path.join(vr, 'envelope.json'), JSON.stringify({ deaths: { status: 'NONE', count: 0 } }));
+  fs.writeFileSync(path.join(vr, 'evidence', 'rdd.jsonl'), '{"type":"x","state":"UNKNOWN"}\\n{"type":"x","state":"CHUNK_UNLOADED"}\\n');
+  const cv = run(['coverage', vr, '--queue', queueF]);
+  let cvJson = null;
+  try { cvJson = JSON.parse(cv.out.slice(cv.out.indexOf('{'))); } catch {}
+  cases.push(['coverage emits evidence candidates without PASS', cv.code === 0 && cvJson && cvJson.checks[0].status === 'CANDIDATE_NEEDS_SCOPE_REVIEW' && cvJson.checks[0].hits.some((h) => h.file === 'evidence/rdd.jsonl' && h.line === 1), cv.out.trim().slice(0, 180)]);
   // 2026-10-30：坑账本（19 时间锁 + 18 tips 合成索引）
   let pitRes = null;
   try { pitRes = require('./lib/pit-ledger.js').list(); } catch (e) { pitRes = { error: e.message }; }
@@ -1129,6 +1206,7 @@ function main() {
   if (cmd === 'timeline') return timeline(argv);
   if (cmd === 'live' || cmd === 'watch') process.exit(liveMain(argv));
   if (cmd === 'health') { const rd = argv[1]; if (!rd) die(2, 'usage: bench.js health <runDir>'); return health(path.resolve(rd)); }
+  if (cmd === 'coverage') return coverageRun(argv);
   // A7（99 号）：两臂对比与周指标（只读 envelope，不改行为）
   if (cmd === 'compare') return compareCmd(argv);
   if (cmd === 'compare-many') return compareManyCmd(argv);
@@ -1141,7 +1219,7 @@ function main() {
     if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
     process.exit(noshotCmd(path.resolve(rd), null));
   }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|compare-many|report|verify|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|verify|compare|compare-many|report|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */

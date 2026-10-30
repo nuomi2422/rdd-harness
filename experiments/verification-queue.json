@@ -1,0 +1,59 @@
+{
+  "schema": 1,
+  "note": "要求队列不是验证结论。自动命中只标 CANDIDATE；必须人工核证并回填实机验证卡，永不自动标 PASS。正则只用于从真实 run 中找候选证据。",
+  "checks": [
+    {
+      "id": "DEATH-CHUNK-UNKNOWN",
+      "card": "V-损失重算链路-20261029待验.md",
+      "title": "死亡后掉落区块未加载时保持 UNKNOWN，不误判丢失",
+      "requiresDeath": true,
+      "evidence": [
+        { "files": ["evidence/*.jsonl"], "pattern": "CHUNK_UNLOADED|chunk_unloaded|chunk.*unload|unloaded.*chunk", "flags": "i" },
+        { "files": ["env-baseline/rdd-ledger/*.json"], "pattern": "\\\"state\\\"\\s*:\\s*\\\"UNKNOWN\\\"|\\\"state\\\"\\s*:\\s*\\\"CHUNK_UNLOADED\\\"", "flags": "i" }
+      ]
+    },
+    {
+      "id": "DEATH-REEQUIP-BACKUP",
+      "card": "V-损失重算链路-20261029待验.md",
+      "title": "dangerous=true 且有备用装备时进入 REEQUIP_AND_RESUME",
+      "requiresDeath": true,
+      "evidence": [
+        { "files": ["evidence/*.jsonl"], "pattern": "REEQUIP_AND_RESUME", "flags": "i" },
+        { "files": ["evidence/*.jsonl"], "pattern": "dangerous.{0,30}true.{0,80}backup_available.{0,20}true|backup_available.{0,20}true.{0,80}dangerous.{0,30}true", "flags": "i" }
+      ]
+    },
+    {
+      "id": "RESPAWN-RATE-LIMIT",
+      "card": "V-损失重算链路-20261029待验.md",
+      "title": "复活卡住时限频，不重复刷屏",
+      "requiresDeath": true,
+      "note": "目前无统一 respawn/限频字段；自动报告仅查字面候选，缺证据不代表未发生。",
+      "evidence": [
+        { "files": ["evidence/*.jsonl"], "pattern": "respawn.*(stuck|timeout|卡住)|(?:stuck|timeout|卡住).*respawn", "flags": "i" },
+        { "files": ["evidence/*.jsonl"], "pattern": "rate.?limit|throttl|suppressed|限频", "flags": "i" }
+      ]
+    },
+    {
+      "id": "SLEEP-SIDETASK-STALL",
+      "card": "2026-10.md#V-20261030-11",
+      "title": "睡眠支线卡住及其恢复/超时行为",
+      "requiresDeath": false,
+      "note": "需要 sleep 调用/回执与前后 sleeping 观测关联；单时点 sleeping 不是跨时段结论。",
+      "evidence": [
+        { "files": ["evidence/*.jsonl"], "pattern": "sleep.*(stall|stuck|timeout)|(?:stall|stuck|timeout).*sleep", "flags": "i" },
+        { "files": ["evidence/*.jsonl"], "pattern": "sleep_success_window|sleeping.{0,20}(true|false)", "flags": "i" }
+      ]
+    },
+    {
+      "id": "SURVIVAL-CORE-BEHAVIOR",
+      "card": "V-损失重算链路-20261029待验.md",
+      "title": "<survival_core> 注入后行为效果（需对照，不以注入本身作通过）",
+      "requiresDeath": false,
+      "evidence": [
+        { "files": ["evidence/*.jsonl"], "pattern": "survival_core", "flags": "i" },
+        { "files": ["evidence/*.jsonl"], "pattern": "(eat|food|retreat|flee|逃|进食).{0,60}(health|hp|危险|低血)|(?:health|hp).{0,60}(eat|food|retreat|flee|逃|进食)", "flags": "i" }
+      ],
+      "note": "普通通关无法证明提示词导致行为差异；这里只能找候选样本，因果仍需 A/B。"
+    }
+  ]
+}
