@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T21:44:25.021Z",
+  "updated_at": "2026-10-30T21:55:01.729Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -520,6 +520,13 @@
       "run": "exp-b5-place-20261031-20261031-053726",
       "by": "unknown",
       "at": "2026-10-30T21:44:25.019Z"
+    },
+    {
+      "exp_id": "b6-chain-fix",
+      "note": "2026-10-31 05:52 B6（V-20261031-11 🟡）：exp-b6-chain-20261031-20261031-054914，母版 B5 副本（旧链 r4-2 已完成）。新 runtime_state 3/3 active=false/state=chain_completed，无 current_task/必须执行；工具无 build/mine/transfer，inventory 不变；interact_at 开箱 + inspect_gui（27 格空）+ chat 报空；rdd_decline_side(sleep)；rdd_save ok 376ms；0 死亡/0 干预。C1 部分：首请求历史里仍有上一轮 active=true/RECOVERING/r4-0 旧 instruction（非本轮注入）。新缺口：learner_review 21:50:50 发起（rev-1793397050727-40，reviewing=20，queue 59），到停机无 reviewed/auto_learn —— 异步复盘被强杀。",
+      "run": "exp-b6-chain-20261031-20261031-054914",
+      "by": "unknown",
+      "at": "2026-10-30T21:55:01.728Z"
     }
   ],
   "verdicts": [
