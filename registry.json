@@ -250,6 +250,15 @@
       "note": "★ preflight 的 P13 就是这一份。2026-10-04 按用户口述建：说话 / 建伙伴 / 让内脑停 / 视觉 / 快速拍摄 / 追踪 / 相机 / openclaw 还是指令 / 切创造者模式 / 看监测台。"
     },
     {
+      "id": "gate.promptLint",
+      "name": "★ 提示词治理 lint（预算/候选晋升/指针目标）",
+      "path": "rdd-selfcompile/scripts/verify-tools/prompt-lint.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node rdd-selfcompile/scripts/verify-tools/prompt-lint.js",
+      "note": "preflight P21 强制执行；失败直接 BLOCK。"
+    },
+    {
       "id": "gate.docAnchor",
       "name": "查文档行号锚点漂移（直接给新行号）",
       "path": "rdd-selfcompile/scripts/verify-tools/check-doc-anchor-drift.js",
@@ -1033,6 +1042,14 @@
           "tool": "mf.kit"
         },
         {
+          "id": "P21",
+          "name": "★ 提示词治理 lint",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "常驻提示词、Goal 提示词和指针目录必须通过预算、候选晋升和指针目标检查。",
+          "verify": "node rdd-selfcompile/scripts/verify-tools/prompt-lint.js → exit 0"
+        },
+        {
           "id": "P18",
           "name": "★ 建链经过规划者（rdd_supervisor_submit，不是 rdd_submit）",
           "kind": "artifact",
@@ -1233,7 +1250,8 @@
           "P5",
           "P14",
           "P14b",
-          "P18"
+          "P18",
+          "P21"
         ]
       },
       "GK-2": {

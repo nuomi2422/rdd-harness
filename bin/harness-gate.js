@@ -232,6 +232,15 @@ function preflight(ctx) {
   const { since, keyword, head } = ctx;
   const NUMEN = R('minecraft-numen');
   const SCRIPTS = R('rdd-selfcompile/scripts');
+
+  // P21: prompt governance must pass before any game-side work.
+  {
+    const lint = path.join(SCRIPTS, 'verify-tools', 'prompt-lint.js');
+    const r = spawnSync(process.execPath, [lint], { encoding: 'utf8', maxBuffer: 8 << 20 });
+    const output = ((r.stdout || '') + (r.stderr || '')).trim();
+    record('P21', '提示词治理 lint', BLOCK, 'artifact', r.status === 0 ? PASS : BLOCK, output || `exit=${r.status}`);
+  }
+
   const LIVE_MODS = P(REG.roots.live) + path.sep + 'mods';
 
   // P1 编译通道合规 —— phase-build.json 是 run-mutation 的产物，手写 gradle 不会产生它
@@ -1308,6 +1317,11 @@ function runSelftest() {
   const R = [];
   let bad = 0;
   const chk = (name, ok, note) => { R.push(`  ${ok ? '✔' : '✘'} ${name}${note ? '  —— ' + note : ''}`); if (!ok) bad++; };
+  {
+    const lint = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'prompt-lint.js');
+    const ok = isFile(lint);
+    chk('prompt-lint 脚本存在', ok, ok ? lint : '缺少治理 lint');
+  }
 
   // 1. 注册表结构：门禁代码里读到的每个字段都必须存在（缺字段会在跑到那一项时才炸）
 
