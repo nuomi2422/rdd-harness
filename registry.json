@@ -1417,6 +1417,16 @@
         "verifiedBy": "2026-10-30 12:25 实测：node 逐文件匹配 106/160、3 位号 52 份；`harness-gate.js postflight --since 2026-10-30 --keyword docs` 打印「98 个编号，最大 99」；151 号三处登记经人工核对成立（docs 仓 fe7d458）。",
         "reviewBy": "2026-11-13",
         "status": "open"
+      },
+      {
+        "id": "TL-2026-10-30-02",
+        "title": "MCP 现召的同伴没有 binding.json → 内脑一次 LLM 请求都不发（且不报错）",
+        "symptom": "`exp-zero-r1/r2`（全新存档 + `create_companion` 现召 RDD，事后补写 binding.json）`watch.llmRequests = 0`，15 次 tool_call 全是 exp-runner 自己的背包轮询；日志里有 `user prompt (64 chars)` 说明目标已送达。对照：同一配置下旧世界旧同伴 `exp-h21obs-g1` llm=9；把 binding.json 提前放好、让 loop 重新构造后 `exp-zero-r3` llm=50。",
+        "impact": "看起来像「模型不干活/任务不聪明」，实际是新同伴没有 provider 绑定；更隐蔽的是**不报错**——endpointProblem 只在开轮时判定，loop 构造期读到 null 就一直不开口，整轮没有任何告警。任何「从零开始」的实验都会白跑。",
+        "guard": "起跑后先看 `envelope.watch.llmRequests` 与 `envelope.companionBinding`：llmRequests==0 且 companionBinding.ok==false/缺失 ⇒ 本轮不算开工，别写行为结论。binding 必须在 loop 构造前存在（已改为 EntityAgentLoop.tryStartTurn 每轮重读，2026-10-30 `298B2E83` 起生效）；provider 取 `--companion-provider` 或已有同伴 binding 的多数票，全空要显式警告。",
+        "verifiedBy": "2026-10-30 14:00–14:15：r1/r2 llm=0 → 补写 binding 无效（构造期缓存）→ r3 预置 binding 后 llm=50 → api 包重建 298B2E83 改为每轮重读。",
+        "reviewBy": "2026-11-13",
+        "status": "open"
       }
     ]
   },
