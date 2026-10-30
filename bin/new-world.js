@@ -21,7 +21,9 @@ const path = require('path');
 const { readLevelInfo, patchLevel } = require('./lib/nbt');
 
 const SAVES = path.join(__dirname, '..', '..', '..', 'mc', 'The Best of Twilight Forest', 'saves');
-const TEMPLATE = path.join(SAVES, 'exp-clean');   // 只有 level.dat 的干净模板
+// 2026-10-30：saves 下只留用户当前在用的那个存档（`live`），母版不再占 saves。
+// 模板 level.dat 挪到 templates/world/ —— 它只是「世界设置」，不是存档，别跟世界混在一起。
+const TEMPLATE = path.join(__dirname, '..', 'templates', 'world');
 
 function makeWorld(opts) {
   const name = String(opts.name || '').trim();
