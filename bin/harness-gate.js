@@ -1382,9 +1382,17 @@ function runSelftest() {
 
   // 2. 时间锁：★ 必须每条都带 guard（「没有 guard 的锁等于没有锁，只是抱怨」）
   //    注意 timeLocks 是 { $comment, policy, locks:[…] }，不是数组 —— 2026-10-04 写错过一次
-  for (const L of (REG.timeLocks.locks || [])) {
-    chk(`锁 ${L.id} 带 guard`, typeof L.guard === 'string' && L.guard.length > 0, L.title);
-    chk(`锁 ${L.id} 有 reviewBy`, !!L.reviewBy, String(L.reviewBy));
+  //    ★ 2026-10-30：原来每条锁打 2 行（19 条 = 38 行噪音），真红灯会被淹。
+  //      改成按锁汇总成 2 行；判据强度不变 —— 缺 guard / 缺 reviewBy 仍然 FAIL，
+  //      只是把「哪几条」放进 detail 里。
+  {
+    const locks = (REG.timeLocks && REG.timeLocks.locks) || [];
+    const noGuard = locks.filter((L) => !(typeof L.guard === 'string' && L.guard.length > 0));
+    const noReview = locks.filter((L) => !L.reviewBy);
+    chk(`${locks.length} 条时间锁全部带 guard`, noGuard.length === 0,
+      noGuard.length ? '缺 guard：' + noGuard.map((L) => L.id).join(', ') : locks.length + ' 条均有 guard');
+    chk(`${locks.length} 条时间锁全部有 reviewBy`, noReview.length === 0,
+      noReview.length ? '缺 reviewBy：' + noReview.map((L) => L.id).join(', ') : locks.length + ' 条均有 reviewBy');
   }
 
   // 3. 文档编号台账文件在不在

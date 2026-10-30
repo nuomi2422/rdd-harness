@@ -793,6 +793,32 @@ function health(runDir) {
   process.exit(out.problems.length ? 1 : 0);
 }
 
+/** 坑账本：19 时间锁 + 18 tips 的统一索引（只读两处真源，不改它们）。 */
+function pit(argv) {
+  const PL = require('./lib/pit-ledger.js');
+  const sub = argv[1] === 'build' ? 'build' : 'list';
+  if (sub === 'build') {
+    const L = PL.build();
+    if (has(argv, '--json')) console.log(JSON.stringify({ counts: L.counts, updated_at: L.updated_at }, null, 2));
+    else {
+      const c = L.counts;
+      console.log('# 坑账本已重建 ' + PL.LEDGER);
+      console.log('共 ' + c.total + ' 条（timeLock ' + c.timeLock + ' / tip ' + c.tip + '）｜watching ' + c.watching + ' · guarded ' + c.guarded + ' · fixed ' + c.fixed + ' · museum ' + c.museum + '｜可进机器判据 ' + c.gateEligible);
+    }
+    logUsage(argv, 'bench pit build', { status: 'ok' });
+    return 0;
+  }
+  const res = PL.list({
+    status: arg(argv, '--status'),
+    source: arg(argv, '--source'),
+    eligible: has(argv, '--eligible'),
+  });
+  if (has(argv, '--json')) console.log(JSON.stringify(res, null, 2));
+  else console.log(PL.renderText(res));
+  logUsage(argv, 'bench pit', { status: 'ok' });
+  return 0;
+}
+
 /** 工具分层视图（生成，不手写第二份真源）。默认只列 core，其余层显式展开。 */
 function layers(argv) {
   const TL = require('./lib/tool-layers.js');
@@ -1042,6 +1068,12 @@ function selfTest() {
   cases.push(['brief --json 带 entry（目标/live/限制）',
     c22.code === 0 && briefJson && briefJson.entry && briefJson.entry.limits.length >= 2 && typeof briefJson.entry.live.known === 'boolean',
     c22.out.trim().slice(0, 120)]);
+  // 2026-10-30：坑账本（19 时间锁 + 18 tips 合成索引）
+  let pitRes = null;
+  try { pitRes = require('./lib/pit-ledger.js').list(); } catch (e) { pitRes = { error: e.message }; }
+  cases.push(['pit 账本能读且计数自洽',
+    !pitRes.error && pitRes.counts && pitRes.counts.total === (pitRes.counts.timeLock + pitRes.counts.tip) && pitRes.counts.total >= 19 && pitRes.rows.length === pitRes.counts.total,
+    pitRes.error ? pitRes.error : JSON.stringify(pitRes.counts)]);
   let ok = true;
   for (const [name, pass, msg] of cases) { console.log((pass ? 'PASS' : 'FAIL') + '  ' + name + (pass ? '' : '  -> ' + msg)); if (!pass) ok = false; }
   console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: cases.length }));
@@ -1061,6 +1093,7 @@ function main() {
   if (cmd === 'probe') return argv[1] === 'add' ? probeAdd(argv) : probeList(argv);
   if (cmd === 'brief') return brief(argv);
   if (cmd === 'layers') return layers(argv);
+  if (cmd === 'pit') return pit(argv);
   if (cmd === 'usage') return usage(argv);
   if (cmd === 'timeline') return timeline(argv);
   if (cmd === 'live' || cmd === 'watch') process.exit(liveMain(argv));
