@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T20:07:22.259Z",
+  "updated_at": "2026-10-30T20:18:37.762Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -464,6 +464,13 @@
       "run": "exp-learn-refs-r1-20261031-035958",
       "by": "unknown",
       "at": "2026-10-30T20:07:22.258Z"
+    },
+    {
+      "exp_id": "refs-boundary-fix",
+      "note": "2026-10-31 04:17 截断记账修正复验（V-20261031-04 ✅）：numen 466d15f80，api jar 761B5F77…（mutation-20261031-041129-b87149）。run exp-learn-refs-r2-20261031-041310（diagnostic，0 死亡/0 干预）：request_delivered 15 次全含 exp:execution|goto…；budget_decision A truncated=false 全程，前 7 次 tool:build/count true（跨 4000 切点）、后 8 次 false；retrieval_snapshot.refs 15/15。修的是记账口径不是预算。A 仍是 DRAFT（setup 已 teardown）。继承红：:api:common:test 的 CompanionRegistryTest.deathStateOfAnUnknownCompanionIsANoOp（H5-113 与旧断言漂移）。",
+      "run": "exp-learn-refs-r2-20261031-041310",
+      "by": "unknown",
+      "at": "2026-10-30T20:18:37.760Z"
     }
   ],
   "verdicts": [
