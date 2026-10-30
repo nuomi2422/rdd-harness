@@ -902,7 +902,9 @@ async function cmdRun(opts) {
     const rw0 = Date.now();
     let last = null;
     while (Date.now() - rw0 < 180000) {
-      const st = mcp('learner_status', companionName, { review_id: reviewId }, 20000);
+      // mcp() 的 args 必须是 JSON 字符串（位置参数）；传对象会变成 "[object Object]"，
+      // learner_status 看不到 review_id，只会回概览 —— B7 的 state=UNKNOWN 就是这个原因。
+      const st = mcp('learner_status', companionName, JSON.stringify({ review_id: reviewId }), 20000);
       if (!st.ok) { last = { review_id: reviewId, state: 'STATUS_CALL_FAILED', ms: Date.now() - rw0, out: st.out }; break; }
       let rec = null;
       try { rec = JSON.parse(st.out); } catch { /* 解析失败 → 当作仍在跑，下一轮再读 */ }
