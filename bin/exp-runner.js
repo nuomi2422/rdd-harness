@@ -403,6 +403,8 @@ async function cmdRun(opts) {
   log(runDir, 'launch', 'MCP 就绪，等待世界加载/同伴进场…');
   let companions = parseCompanions(companionsRaw);
   for (let i = 0; i < 72 && companions.length === 0; i++) { // 世界加载 ~2-3 分钟
+    // 全新存档里**永远**不会有同伴：等满 6 分钟纯属浪费。60s 还没有就直接去召。
+    if (opts.createCompanion && i >= 12) break;
     await sleep(5000);
     const r = mcp('list_companions', null, null, 20000);
     if (r.ok) { companionsRaw = r.out; companions = parseCompanions(r.out); }
