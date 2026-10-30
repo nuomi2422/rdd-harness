@@ -875,9 +875,14 @@ async function cmdRun(opts) {
   saveEnv();
 
   const ts = mcp('task_stop', companionName, null, 20000);
+  // 2026-10-31（V-20261031-08）：强杀前先落盘。此前收尾是 task_stop → 宽限 → Stop-Process -Force，
+  // 没有优雅 stop；同伴背包只在 autosave 落盘，最后几分钟的物品会在下一轮丢失（B2 2 原木 → B3 0）。
+  // rdd_save 只 flush 区块/玩家数据，不改世界，不记 admin_command_used。
+  const sv = mcp('rdd_save', companionName, null, 60000);
+  fs.writeFileSync(path.join(runDir, 'evidence', 'save.json'), JSON.stringify({ rdd_save: sv }, null, 2));
   const sb = mcp('rdd_standby', companionName, null, 20000);
-  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ task_stop: ts, rdd_standby: sb }, null, 2));
-  log(runDir, 'stop', 'task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_standby → ' + (sb.ok ? 'ok' : 'failed'));
+  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ task_stop: ts, rdd_save: sv, rdd_standby: sb }, null, 2));
+  log(runDir, 'stop', 'task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed') + '；rdd_standby → ' + (sb.ok ? 'ok' : 'failed'));
   // 60s 宽限：数一数还有没有新的 llm_request
   let postStopRequests = 0;
   const graceEnd = Date.now() + 60000;
