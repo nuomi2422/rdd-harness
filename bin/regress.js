@@ -17,6 +17,7 @@ const STEPS = [
   ['A7 实验口径', path.join(ROOT, 'lib', 'experiment.js'), ['selftest']],
   ['A7 动作证据账本', path.join(ROOT, 'lib', 'action-ledger.js'), ['selftest']],
   ['统一验收表', path.join(ROOT, 'lib', 'acceptance.js'), ['selftest']],
+  ['H21 观测账', path.join(ROOT, 'lib', 'noshot.js'), ['selftest']],
   ['H1 虚空守卫', path.join(ROOT, 'lib', 'guard.js'), ['selftest']],
   ['bench 自检', path.join(ROOT, 'bench.js'), ['selftest']],
   ['harness-gate 自检', path.join(ROOT, 'harness-gate.js'), ['selftest']],

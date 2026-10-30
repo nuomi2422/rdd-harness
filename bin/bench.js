@@ -1054,6 +1054,13 @@ function main() {
   if (cmd === 'compare-many') return compareManyCmd(argv);
   if (cmd === 'report') return reportCmd(argv);
   if (cmd === 'verify') { const code = verifyCmd(argv); process.exit(code); }
+  if (cmd === 'noshot') {
+    const rd = argv[1];
+    if (!rd) die(2, 'usage: bench.js noshot <runDir> [--log <latest.log>]');
+    const li = argv.indexOf('--log');
+    if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
+    process.exit(noshotCmd(path.resolve(rd), null));
+  }
   die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|compare|compare-many|report|verify|live|selftest');
 }
 
@@ -1156,6 +1163,21 @@ function verifyCmd(argv) {
   if (argv.includes('--json')) console.log(JSON.stringify(res, null, 2));
   else console.log(A.render(res));
   return res.summary.overall === 'COMPLETE' ? 0 : 1;
+}
+
+/**
+ * 151 §5 H21：`bench noshot <runDir> [--log <latest.log>]` —— 读一次 run 的判别性观测账。
+ * 只读；缺摘要就报 UNOBSERVED，不替人把「没看见」写成「没发生」。
+ */
+function noshotCmd(runDir, logPath) {
+  const N = require('./lib/noshot');
+  const toolsPath = path.join(runDir, 'evidence', 'tools.jsonl');
+  const tools = fs.existsSync(toolsPath) ? fs.readFileSync(toolsPath, 'utf8') : '';
+  let log = '';
+  if (logPath && fs.existsSync(logPath)) log = fs.readFileSync(logPath, 'utf8');
+  const r = N.analyze(tools, log);
+  console.log(N.render(r));
+  return r.verdict === 'OBSERVED' ? 0 : 1;
 }
 
 main();
