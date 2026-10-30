@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T04:57:27.887Z",
+  "updated_at": "2026-10-30T06:32:35.918Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -373,6 +373,18 @@
       "link": "151 §3 / 316de09",
       "added_by": "unknown",
       "added_at": "2026-10-30T04:57:27.887Z"
+    },
+    {
+      "id": "TIP-20261030-03",
+      "kind": "pitfall",
+      "symptom": "把 exp-runner 自己的背包轮询算成 AI 的重复劳动",
+      "fake": "按 tools.jsonl 里 tool 名计数，看到 rdd_get_inventory=16 就判「AI 在反复查背包」",
+      "cause": "runner 每 30s 用 MCP 拉一次背包（delta-stop 用），与同伴自己的调用写进同一个 tools.jsonl；两者只有 callId 前缀不同（mcp- vs call_）",
+      "guard": "统计前先按 callId 拆分：mcp- = 外部/runner，call_ = 同伴；exp-zero-r4 实际是同伴 45 次、runner 19 次，差 2.4 倍",
+      "status": "open",
+      "link": "exp-zero-r4 / 151",
+      "added_by": "unknown",
+      "added_at": "2026-10-30T06:32:35.781Z"
     }
   ],
   "signals": [
@@ -389,6 +401,13 @@
       "run": "exp-loop-r38 / exp-loop-r39",
       "by": "unknown",
       "at": "2026-10-30T04:57:07.092Z"
+    },
+    {
+      "exp_id": "exp-zero-r4",
+      "note": "从零首轮：同伴 45 次调用（craft9/build5/goto4/mine2），runner 轮询 19 次；里程碑 +60s 工作台 / +75s 木镐 / +186s 石镐；0 死亡 0 干预；两处盲点：craft 3x3 未近工作台直接失败(2次)、task_status 轮询 13 次",
+      "run": "exp-zero-r4-20261030-141735",
+      "by": "unknown",
+      "at": "2026-10-30T06:32:35.916Z"
     }
   ],
   "verdicts": [
