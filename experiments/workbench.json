@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T08:15:55.303Z",
+  "updated_at": "2026-10-30T19:34:19.146Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -443,6 +443,13 @@
       "run": "exp-learn-b4-20261030-160333",
       "by": "unknown",
       "at": "2026-10-30T08:15:55.301Z"
+    },
+    {
+      "exp_id": "learn-chain-store-fixed",
+      "note": "2026-10-31 03:28 实机：auto_learn STORED=1（tf-goto，REVIEW_REQUIRED 草稿 → experience-a43d753e.jsonl DRAFT/OBSERVED）；同批 4 条 REJECT 未落。修复前 publishable 恒 false ⇒ autoStore 从 2026-10-27 起是死代码。未验：DRAFT 是否被检索投送到执行请求（exp: refs）、发布门 DRAFT→TRIAL。证据：runs/exp-learn-store-r1-20261031-031932/evidence/{learner-window.jsonl,expmem.jsonl,learn-archive/}；卡 V-20261031-01。",
+      "run": "exp-learn-store-r1-20261031-031932",
+      "by": "unknown",
+      "at": "2026-10-30T19:34:19.145Z"
     }
   ],
   "verdicts": [
