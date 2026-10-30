@@ -57,14 +57,31 @@ function analyzeRun(runDir) {
   };
 }
 
+/**
+ * 151 §3：经验变化只有三态（before/beforeRestore/after）才说得清。
+ * 老信封只有 before/after —— 哈希相同只说明产物被回滚，**不等于本轮没学习**。
+ */
+function learnLabel(exp) {
+  if (!exp) return '无记录';
+  const s = exp.summary;
+  if (s) {
+    return (s.learnedThisRun ? '本轮有学习产物' : '本轮无学习产物')
+      + ' / ' + (s.rolledBackToBaseline ? '恢复后回基线' : '恢复后未回基线')
+      + ' / ' + (s.keptForNextRun ? '带入下一轮' : '未带入下一轮');
+  }
+  return exp.before !== exp.after
+    ? '哈希有变化（无三态，不能判定学到什么）'
+    : '哈希未变（无三态：哈希相同≠没学习，只说明产物被回滚）';
+}
+
 function briefOf(a) {
   const lines = [];
   lines.push('# 轮末简报 · ' + a.runId);
   lines.push('');
   lines.push('- 最远阶段：**' + a.stageName + '**（阶段耗时 ' + JSON.stringify(a.stageSeconds) + ' 秒）');
   lines.push('- 墙钟：' + a.watchSeconds + 's；决策/工具调用：' + a.toolCalls + '；停止原因：' + a.stopReason);
-  lines.push('- 死亡：' + a.deaths + ' 次；卡点：' + (a.blockers.length ? a.blockers.map((b) => b.tool + ' 连续失败3次').join('；') : '无'));
-  lines.push('- 经验：before=' + (a.experience ? String(a.experience.before).slice(0, 12) : '?') + ' after=' + (a.experience ? String(a.experience.after).slice(0, 12) : '?') + (a.experience && a.experience.before !== a.experience.after ? '（有新增）' : '（无变化）'));
+  lines.push('- 死亡：' + a.deaths + ' 次；卡点：' + (a.blockers.length ? a.blockers.map((b) => b.tool + ' 连续失败' + (b.consecutive_failures || 3) + '次').join('；') : '无'));
+  lines.push('- 经验：' + learnLabel(a.experience));
   lines.push('- 里程碑：' + a.milestoneCount + ' 条（S1 木器→S5 钻石套）');
   return lines.join('\n') + '\n';
 }
@@ -124,7 +141,7 @@ function cmdRun(args) {
   md.push('');
   md.push('| 轮 | 最远阶段 | 阶段耗时(s) | 死亡 | 卡点 | 墙钟(s) | 经验变化 |');
   md.push('|---|---|---|---|---|---|---|');
-  for (const r of rounds) md.push('| ' + r.runId + ' | ' + r.stageName + ' | ' + JSON.stringify(r.stageSeconds) + ' | ' + r.deaths + ' | ' + (r.blockers.length ? r.blockers.map((b) => b.tool).join(',') : '无') + ' | ' + r.watchSeconds + ' | ' + (r.experience && r.experience.before !== r.experience.after ? '有新增' : '无') + ' |');
+  for (const r of rounds) md.push('| ' + r.runId + ' | ' + r.stageName + ' | ' + JSON.stringify(r.stageSeconds) + ' | ' + r.deaths + ' | ' + (r.blockers.length ? r.blockers.map((b) => b.tool).join(',') : '无') + ' | ' + r.watchSeconds + ' | ' + learnLabel(r.experience) + ' |');
   md.push('');
   md.push('**improved 判定**（第 1 轮为基线）：' + (improved ? '有 ' + improved + ' 轮更强（' + marks.filter((m) => m.advanced).map((m) => m.runId).join(',') + '）' : '没有轮次强于第 1 轮') + '。');
   md.push('');

@@ -31,6 +31,7 @@ const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 const { readLevelInfo, patchLevel } = require('./lib/nbt');
 const A0 = require('./lib/a0-evidence');
+const AL = require('./lib/action-ledger');
 
 const RDD = 'D:/rdd';
 const RDD_ROOT = () => RDD;
@@ -577,7 +578,11 @@ async function cmdRun(opts) {
     diamond_leggings: 'S5_armor', diamond_boots: 'S5_armor',
   };
   const seenCrafted = new Set();
-  const failCount = {};
+  // 151 §3：动作证据用 callId 去重后的账本算，不再按文本行累计。
+  // 旧实现每见到一条 "success":false 就 +1，而同一 call 会有服务端+客户端两条 result
+  // => 失败次数被重复投递翻倍，「累计」还被写成「连续」。
+  const raw = { tools: '', events: '' };
+  const blockersSeen = new Set();
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
   const pull = (f) => {
     const p = path.join(MONITOR, f);
@@ -602,6 +607,7 @@ async function cmdRun(opts) {
       log(runDir, 'trigger-death', '/kill ' + companionName + ' exit=' + kd.status);
     }
     const chunkTools = pull('tools.jsonl');
+    raw.tools += chunkTools;
     for (const line of chunkTools.split('\n')) {
       if (line.includes('"type":"tool_call"')) {
         toolCalls++;
@@ -618,16 +624,25 @@ async function cmdRun(opts) {
           }
         }
       }
-      if (line.includes('"type":"tool_result"') && /"success":false/i.test(line)) {
-        const tm = line.match(/"tool":"([^"]+)"/);
-        const tool = tm ? tm[1] : 'unknown';
-        failCount[tool] = (failCount[tool] || 0) + 1;
-        if (failCount[tool] === 3) rec('blocker', { tool, consecutive_failures: 3, note: '同一工具连续失败 3 次' });
-      }
     }
     const chunkCtx = pull('context.jsonl');
     for (const line of chunkCtx.split('\n')) if (line.includes('"type":"llm_request"')) llmRequests++;
     const chunkEv = pull('events.jsonl');
+    raw.events += chunkEv;
+    // 只在「按 callId 去重后的真实连续失败」达到阈值时记 blocker（累计失败另算，不混称）
+    if (raw.tools) {
+      const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
+      for (const b of lg.blockers) {
+        if (blockersSeen.has(b.tool)) continue;
+        blockersSeen.add(b.tool);
+        rec('blocker', {
+          tool: b.tool,
+          consecutive_failures: b.consecutive_failures,
+          note: '同一工具连续失败 ' + b.consecutive_failures + ' 次（按 callId 去重后的真实连续；累计失败另计）',
+          callId: b.callId,
+        });
+      }
+    }
     for (const line of (chunkEv || '').split('\n')) {
       if (line.includes('"type":"task_finished"') && /(died|slain|死亡|被.*杀死|killed)/i.test(line)) {
         const m = line.match(/"message":"([^"]{0,200})"/);
@@ -680,6 +695,9 @@ async function cmdRun(opts) {
     }
     await sleep(5000);
   }
+  // 收尾：把最后一段日志也读进账本（watch 循环 5s 一拉，尾部可能还没读）
+  raw.tools += pull('tools.jsonl');
+  raw.events += pull('events.jsonl');
   env.timings.watchEnd = nowIso();
   env.timings.watchSeconds = Math.round((Date.now() - t0) / 1000);
   env.watch = { stopReason: stopReason.value, toolCalls, llmRequests, oakLogBefore: before, oakLogAfter: after, chain: chain ? {
@@ -820,6 +838,26 @@ async function cmdRun(opts) {
   // 为什么：恢复后与运行前相同，只证明「磁盘上的学习产物被回滚」，**不能**证明「本轮没学习」——
   // 这一轮可能学到了东西、只是被冷启动复位冲掉了。恢复前的产物必须先归档，才谈得上复核。
   env.phase = 'snapshot';
+  // 停机阶段的 task_stop / rdd_standby 回执也要进账（否则「叫停」这一步永远查不到）
+  raw.tools += pull('tools.jsonl');
+  raw.events += pull('events.jsonl');
+  // 151 §3：动作证据账本 —— 按 callId 去重，区分受理/完成/超时/取消/终态缺失，
+  // 并把「累计失败」和「连续失败」分开记。只读日志，不改变任何任务控制语义。
+  try {
+    const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
+    env.actions = Object.assign({ status: 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl' }, lg.summary, { blockers: lg.blockers });
+    log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (lg.summary.states.completed || 0)
+      + ' failed=' + (lg.summary.states.failed || 0)
+      + ' cancelled=' + (lg.summary.states.cancelled || 0)
+      + ' timeout=' + (lg.summary.states.timeout || 0)
+      + ' acceptedOnly=' + lg.summary.acceptedOnly
+      + ' noResult=' + (lg.summary.states['no-result'] || 0)
+      + ' 终态覆盖=' + lg.summary.coverage.terminal
+      + ' 重复投递=' + lg.summary.duplicates.results);
+  } catch (e) {
+    env.actions = { status: 'UNKNOWN', reason: String(e.message).slice(0, 200) };
+    log(runDir, 'actions', '动作账本构建失败（照实记 UNKNOWN）: ' + e.message);
+  }
   env.experience.beforeRestore = expHash();
   const learnArchive = path.join(runDir, 'evidence', 'learn-archive');
   fs.mkdirSync(learnArchive, { recursive: true });
