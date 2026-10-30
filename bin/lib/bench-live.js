@@ -280,7 +280,7 @@ function renderSnapshot(state, meta) {
   L.push('');
   L.push('## 当前任务链');
   if (cv) {
-    L.push('goal_id=' + cv.goalId + '  status=' + cv.status + '  stateVersion=' + cv.version);
+    L.push('goal_id=' + cv.goalId + '  status=' + cv.status + '  stateVersion=' + cv.version + '  链数据年龄=' + ago(state.last.chain.t, now));
     L.push('主目标 ' + cv.primaryIndex + '/' + cv.primaryTotal + '  ·  当前小步 ' + cv.subtaskIndex + '  ·  subtask=' + (cv.currentSubtask || '?'));
     L.push('description: ' + clip(cv.description, 300));
   } else {
@@ -345,6 +345,10 @@ function renderSnapshot(state, meta) {
     if (st) alerts.push('最近一次 subtask_stalled：' + ts(st.t) + '  ' + clip(st.brief, 120));
   }
   if (state.last.observer && (now - state.last.observer.t) > 10 * 60 * 1000) alerts.push('observer 样本超过 10 分钟 —— 第二视角可能已停');
+  // 换存档/没建链时，链快照会停在上一局；不标年龄就会被当成当前局读。
+  if (state.last.chain && (now - state.last.chain.t) > 10 * 60 * 1000) {
+    alerts.push('任务链数据 ' + ago(state.last.chain.t, now) + ' 没更新 —— 可能换了存档/本局还没建链，别当当前局');
+  }
   const oldest = state.started_at;
   if (state.ticks > 0 && !state.last.chain) alerts.push('整轮没有 taskchain_snapshot —— 链观测没开？');
   if (!alerts.length) alerts.push('（无）');

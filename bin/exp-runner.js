@@ -428,6 +428,11 @@ async function cmdRun(opts) {
   spawn(process.execPath, [MC_LAUNCH, '--instance', GAME, '--level', world, '--mem', '4G'],
     { cwd: RDD, detached: true, stdio: ['ignore', launchLog, launchLog] }).unref();
   log(runDir, 'launch', '游戏已脱离启动（world=' + world + '），等待 MCP 8765…');
+  // 实验台常驻视图：实验期间 bench 也要看得到现场（幂等；起不来不影响实验）
+  try {
+    const bl = spawnSync(process.execPath, [path.join(HARNESS, 'bin', 'bench.js'), 'live', 'start'], { cwd: HARNESS, stdio: 'ignore', timeout: 30000 });
+    log(runDir, 'launch', 'bench live start → ' + (bl.status === 0 ? 'ok' : 'exit ' + bl.status));
+  } catch (e) { log(runDir, 'launch', 'bench live start 失败（忽略）：' + (e && e.message)); }
 
   let companionsRaw = null;
   for (let i = 0; i < 120; i++) { // ≤ 300s

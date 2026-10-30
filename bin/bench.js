@@ -684,6 +684,9 @@ function brief(argv) {
     console.log('Observer: ' + (L.observer_age_s == null ? 'unknown' : fmtAgeSec(L.observer_age_s) + ' 前' + (L.observer_age_s > 600 ? '（STALE）' : '')));
     if (L.chain) console.log('任务链（live/snapshot.md，新鲜度见上）:\n  ' + L.chain.join('\n  '));
     for (const p of L.problems) console.log('⚠ ' + p);
+    if (!L.alive || (L.age_s != null && L.age_s > 120)) {
+      console.log('→ 修复: node bin/bench.js live start（15s 后重读；常驻视图死了不等于游戏没数据）');
+    }
   }
   console.log('\n## 0.3 · 要进游戏才做的前置（纯文档/单测任务跳过）');
   console.log('1) 读 harness/进游戏前必读-游戏内能力清单.md；2) preflight → BLOCK=0；3) 先把判据写死建验证卡（实机验证/YYYY-MM.md）；');

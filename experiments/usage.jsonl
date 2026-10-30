@@ -22,3 +22,9 @@
 {"at":"2026-10-29T15:18:58.317Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench live show chain","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-29T16:01:32.776Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
 {"at":"2026-10-29T16:51:19.291Z","session":"session-77aa68cf-cfd1-4cd0-a439-1cabd3d78fd6","source":"dsh","cmd":"bench live show chain","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:25:08.959Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:28:03.379Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench live status","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:28:15.704Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:29:33.158Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:29:43.371Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
+{"at":"2026-10-30T06:31:40.610Z","session":"session-26c17139-e09f-49a1-8e76-31323a73585a","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
