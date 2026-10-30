@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T22:41:41.940Z",
+  "updated_at": "2026-10-30T22:45:32.356Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -548,6 +548,13 @@
       "run": "exp-b11-revise-20261031-20261031-063621",
       "by": "unknown",
       "at": "2026-10-30T22:41:41.938Z"
+    },
+    {
+      "exp_id": "b11-missing-not-loss",
+      "note": "更正（2026-10-31 06:52 OBSERVED）：B11 的 10 条 verdict 的 actions 是 1×SELF_COMPILE + 9×NO_ACTION，没有 WRITE_EXPERIENCE；RetrievalGate.problem() 只对写经验要求 retrieval 段（core/RetrievalGate.java:26-33），所以这 10 条被 commit 是合法的，**不是丢学习样本**。初版把 retrieval_decision=MISSING 误读成「无判定」。另：targetTitleOf 单测覆盖 155 字长 title；:plugins:learner:test BUILD SUCCESSFUL（修复 testCompileJava 缺 IToolSpec）。",
+      "run": "exp-b11-revise-20261031-20261031-063621",
+      "by": "unknown",
+      "at": "2026-10-30T22:45:32.355Z"
     }
   ],
   "verdicts": [
