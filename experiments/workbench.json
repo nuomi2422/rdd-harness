@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T19:50:06.247Z",
+  "updated_at": "2026-10-30T20:07:22.259Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -457,6 +457,13 @@
       "run": "exp-learn-deliver-r1-20261031-034028",
       "by": "unknown",
       "at": "2026-10-30T19:50:06.246Z"
+    },
+    {
+      "exp_id": "retrieval-refs-observability",
+      "note": "2026-10-31 04:04 retrieval_snapshot.refs 已上线并实机：3 次 executor snapshot 带 refs；TRIAL 条目 rendered=true/trial=true，合成 DRAFT rendered=false/reason=draft_or_suspended；raw_entries=2。反手抓到记账 bug：执行知识片段 4353>MAX_EXECUTOR_KNOWLEDGE_CHARS=4000 时，aggregateExecutorKnowledgeFragment 把整片段所有 refs 标 truncated=true，requestDelivered 只收非 truncated ⇒ request_delivered=0（budget_decision.kept[*].truncated=true；latest.log truncated=1 chars=4000/4000）。a 的内容其实完整进了 runtime_state。卡 V-20261031-03（🟡）。下一步：按条目边界修截断记账 + 单测，再重跑。",
+      "run": "exp-learn-refs-r1-20261031-035958",
+      "by": "unknown",
+      "at": "2026-10-30T20:07:22.258Z"
     }
   ],
   "verdicts": [
