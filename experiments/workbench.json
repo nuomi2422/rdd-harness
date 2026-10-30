@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T19:34:19.146Z",
+  "updated_at": "2026-10-30T19:50:06.247Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -450,6 +450,13 @@
       "run": "exp-learn-store-r1-20261031-031932",
       "by": "unknown",
       "at": "2026-10-30T19:34:19.145Z"
+    },
+    {
+      "exp_id": "learn-delivery-trial-verified",
+      "note": "2026-10-31 03:52 TRIAL 条目投送 setup 验证：context.jsonl 175 次 role=executor entries=3；latest.log [expmem] executor refs 含 exp:execution|goto…；expmem request_delivered 约 50 次 expRefs=1；interventions=0；C5 FAIL（19:46:35 停机宽限期 fall 死亡 deathSeq=8）。自然发布门 DRAFT→TRIAL 未实现（手工 setup，测后还原 DRAFT）；retrieval_snapshot.entries 只记计数不记 refs。卡 V-20261031-02（🟡 部分通过）。",
+      "run": "exp-learn-deliver-r1-20261031-034028",
+      "by": "unknown",
+      "at": "2026-10-30T19:50:06.246Z"
     }
   ],
   "verdicts": [
