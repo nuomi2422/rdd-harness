@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T23:19:35.630Z",
+  "updated_at": "2026-10-30T23:26:02.695Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -583,6 +583,13 @@
       "run": "exp-b15-pickaxe-20261031-20261031-071307",
       "by": "unknown",
       "at": "2026-10-30T23:19:35.628Z"
+    },
+    {
+      "exp_id": "b16-stale-engine-goal",
+      "note": "2026-10-31 07:24 B16（V-20261031-21 ❌ FAIL）：exp-b16-empty-20261031-20261031-072111。goal「只开箱报告」，AI 只调 rdd_get_inventory×5 + world_probe + task_stop + rdd_save + rdd_standby，没有 interact_at/inspect_gui；0 死亡/0 干预；save ok 252ms；learnedThisRun=false（回滚）。根因（OBSERVED，首请求）：<query> 新目标在、<rdd>active=false/chain_completed 正确，但 <goals> 仍注入旧目标「总目标：挖 10 个圆石…当前步骤：清点堆放结果…」，AI 跟随旧 goals。缺口：RDD 链完成后 GoalSinks/引擎目标未清除（RddPlugin:480 submit，无完成钩子）。B15 空箱仍 UNKNOWN。",
+      "run": "exp-b16-empty-20261031-20261031-072111",
+      "by": "unknown",
+      "at": "2026-10-30T23:26:02.693Z"
     }
   ],
   "verdicts": [
