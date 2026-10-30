@@ -996,7 +996,15 @@
           "kind": "artifact",
           "level": "block",
           "rule": "★ 2026-10-21 用户定：脏工作区不许开新批次。「干净」= git status --porcelain 为空或显式白名单（运行产物 report/ 临时件、runs/、mutations/、.tmp/、*.log）；untracked 一律算脏。★ 为什么：各会话只看 diff，不看「磁盘上有但 git 不知道」的文件 —— 26 项文档资产 + 44 个 harness 文件就是这么攒出来的。干净没有强制点，334 处脏项能攒几周没人发现。",
-          "verify": "内置检查（三仓 git status --porcelain；忽略项按上述白名单正则过滤，untracked 不过滤）"
+          "verify": "内置检查（三仓 git status --porcelain；忽略项按上述白名单正则过滤，untracked 不过滤）。★ 2026-10-30 白名单加 `experiments/usage.jsonl`（bench 每次调用追加一行，是**被跟踪**的 append-only 账本；不排除就变成「跑过 bench 就永远进不了游戏」）。资产普查另立 P14b。"
+        },
+        {
+          "id": "P14b",
+          "name": "资产普查（被 .gitignore 吃掉的治理资产）",
+          "kind": "artifact",
+          "level": "block",
+          "rule": "★ 2026-10-30 从 P14 拆出独立 id：`git status --porcelain` 看不见被 .gitignore 吃掉的文件，所以「工作区干净」不等于「资产在库里」。普查盯的是清单上的治理资产（红线回退/模块架构/项目历史/七类活文档…）是否都在 git 里，目录型条目逐文件比对。拆开的原因：原来两者共用一个 id，一次 preflight 里同一 id 出现两行（一行 BLOCK 一行 PASS），且普查那行的文案还谎称「三仓 git status 均为空」—— 门禁自己的输出在说谎，比不报更糟（bug-9 同族）。",
+          "verify": "node bin/check-asset-census.js --json → badCount==0；P14b 的 PASS 只表示「资产都在库里」，不表示「工作区干净」"
         },
         {
           "id": "P15",

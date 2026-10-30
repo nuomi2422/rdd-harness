@@ -209,6 +209,22 @@ const BLOCK = 'BLOCK', WARN = 'WARN', PASS = 'PASS', SKIP = 'SKIP';
 // —— 那正是 bug-10 那一族（纪律看起来在守，其实从没执行过）。
 const ASK = 'ASK';
 
+/**
+ * P14「工作区干净」的脏项白名单（`.gitignore` 之外还要额外放行的）。
+ *
+ * ★ 只放两类东西，别往里加别的：
+ *   ① 运行产物：`runs/`（多模型 run-store）、`mutations/`（变异工作区）、`.tmp/`、
+ *      `node_modules/`、`*.log`、`report/w-replies/`（外脑审稿原文）；
+ *   ② **append-only 账本**：`experiments/usage.jsonl`（bench 每次调用追加一行）。
+ *      2026-10-30 实测：它是被跟踪文件，跑过一次 `bench brief` 就被改脏，
+ *      于是 P14 变成「跑过 bench 就永远进不了游戏」—— 门禁对正常操作常态化报红时，
+ *      人就会开始无视它，那比没有这条门禁更糟。
+ *
+ * ★ 判据本身没放松：untracked 仍然算脏，白名单之外一个文件都不放过。
+ *   提出处：并行会话 2026-10-30（他们每跑一轮 MC 都要 preflight BLOCK=0）。
+ */
+const P14_DIRTY_WHITELIST = /(^|\/)(runs|mutations|\.tmp|node_modules)\/|experiments\/usage\.jsonl$|\.log$|report\/w-replies\//;
+
 // ═══════════════════════════════════════════════════════════════════════════
 // preflight —— 进游戏之前
 // ═══════════════════════════════════════════════════════════════════════════
@@ -458,14 +474,19 @@ function preflight(ctx) {
     //   26 项文档资产 + 44 个 harness 文件就是这么攒出来的（宪法和记忆从没进过版本控制）。
     //   ★ 所以「干净」的定义必须写死：clean = git status --porcelain 为空；
     //     **untracked 一律算脏**（不许只盯改动过的文件）。
-    //   白名单：运行产物（report/ 的临时件、runs/、mutations/、.tmp/、*.log）
-    //   它们本来就该在盘上而不该进库。
+    //   白名单：运行产物（report/ 的临时件、runs/、mutations/、.tmp/、*.log）与
+    //   **append-only 账本**（`experiments/usage.jsonl`）。
+    //   ★ 2026-10-30 补最后这一项（并行会话提的，实测成立）：`usage.jsonl` 是 bench 每次
+    //     调用都追加一行的使用账本，而且它是**被跟踪的文件** —— 只要跑过一次 `bench brief`，
+    //     harness 仓就永远是脏的，P14 于是变成「跑过 bench 就永远进不了游戏」。
+    //     门禁一旦对正常操作常态化报红，人就会开始无视它（同 S-DOC-03 的道理）。
+    //     注意：`experiments/live/` 与 `runs/` 已由 .gitignore 排掉，这里不必重复列。
     const repos = [
       { name: 'docs', dir: REG.roots.docs },
       { name: 'harness', dir: REG.roots.harness },
       { name: 'numen', dir: path.join(REG.roots.workspace, 'minecraft-numen') },
     ];
-    const IGNORE = /(^|\/)(runs|mutations|\.tmp|node_modules)\/|\.log$|report\/w-replies\//;
+    const IGNORE = P14_DIRTY_WHITELIST;
     const dirtyAll = [];
     for (const r of repos) {
       if (!fs.existsSync(r.dir)) continue;
@@ -505,10 +526,14 @@ function preflight(ctx) {
     //     门禁说干净、普查（只在打 tag 时跑）不说、文档里照常引用它。
     //   顺序（用户 2026-10-22 定）：红线回退 > 模块架构 > 项目历史。
     //   判据（用户定）：「文件存在 + 在资产普查清单里」就够，不查内容。
+    //   ★ 2026-10-30：**改用独立 id P14b**。原来它和「工作区干净」共用一个 P14，
+    //     结果一次 preflight 里同一 id 出现两行（一行 BLOCK 一行 PASS），而且普查那行
+    //     的 PASS 文案还写着「三仓 git status 均为空」—— 明明此时树是脏的。
+    //     同 bug-9 那一族：门禁自己的输出在说谎，比不报更糟。拆开以后每行只说自己那份判据。
     {
       const census = path.join(__dirname, 'check-asset-census.js');
       if (!fs.existsSync(census)) {
-        record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+        record('P14b', '资产普查（被 .gitignore 吃掉的治理资产）', 'artifact', 'BLOCK', BLOCK,
           '★ 资产普查脚本不存在（bin/check-asset-census.js）—— 不能当通过：治理资产可能裸奔且无人知道');
       } else {
         const cg = require('child_process').spawnSync(process.execPath, [census, '--json'],
@@ -516,7 +541,7 @@ function preflight(ctx) {
         let parsed = null;
         try { parsed = JSON.parse(cg.stdout || '{}'); } catch { /* 降级 */ }
         if (!parsed || !Array.isArray(parsed.items)) {
-          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+          record('P14b', '资产普查（被 .gitignore 吃掉的治理资产）', 'artifact', 'BLOCK', BLOCK,
             '★ 资产普查跑不起来（输出无法解析）—— 不能当通过：被 .gitignore 吃掉的资产门禁看不见');
         } else if (parsed.badCount > 0) {
           // 优先级序：红线回退 > 模块架构 > 项目历史（用户 2026-10-22 定）
@@ -531,7 +556,7 @@ function preflight(ctx) {
             const bare = (x.bare || []).slice(0, 3);
             return `${x.p}（${bare.length ? bare.join('、') : x.detail}）`;
           }).join('\n       ');
-          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
+          record('P14b', '资产普查（被 .gitignore 吃掉的治理资产）', 'artifact', 'BLOCK', BLOCK,
             `★ 资产普查有 ${parsed.badCount} 项裸奔 —— 治理层的器官在库外。\n` +
             `       ★ 这些文件 git status --porcelain 看不见（被 .gitignore 吃掉），\n` +
             `         所以「工作区干净」不等于「资产在库里」。\n` +
@@ -539,8 +564,9 @@ function preflight(ctx) {
             `       处理：git add 对应路径，或修掉误伤它的 .gitignore 规则。`);
         } else {
           const n = parsed.items.length;
-          record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', PASS,
-            `三仓 git status --porcelain 均为空；资产普查 ${n} 项全部在库里（逐文件比对，含被 .gitignore 吃掉的那一类）`);
+          record('P14b', '资产普查（被 .gitignore 吃掉的治理资产）', 'artifact', 'BLOCK', PASS,
+            `资产普查 ${n} 项全部在库里（逐文件比对，含被 .gitignore 吃掉的那一类）；`
+            + `「干不干净」由上面的 P14 单独判，本项只管「在不在库里」`);
         }
       }
     }
@@ -1415,8 +1441,7 @@ function runSelftest() {
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
-  // 8. ★ 2026-10-30：Q20 的两块判据必须能被自检到 —— 否则它又是一条「看起来在守」的纪律。
-  //    为什么必须自检：Q20 的价值全在「能把『进过游戏却没写卡』判红」。
+  // 8. ★ 2026-10-30：Q20 的两块判据必须能被自检到 —— 否则它又是一条「看起来在守」的纪律。  //    为什么必须自检：Q20 的价值全在「能把『进过游戏却没写卡』判红」。
   //    如果哪天 parseCards 的标题正则或 gameRunEvidence 的判据被改坏，
   //    它会静默退化成永远 SKIP / 永远 PASS —— 门禁照样绿，但这件事再也抓不到。
   {
@@ -1467,6 +1492,19 @@ function runSelftest() {
     chk('Q20 卡解析: ⬜ 不算回填', cards.find((c) => c.id === 'V-' + today + '-02').filled === false);
     chk('Q20 卡解析: h3 标题也认', cards.some((c) => c.id === 'V-' + yest + '-07' && c.filled));
     fs.rmSync(tmpRoot, { recursive: true, force: true });
+  }
+
+  // 9. ★ 2026-10-30：P14 脏项白名单 —— 放行 append-only 账本，但**别的照样算脏**。
+  //    为什么必须自检：白名单是个正则，写松一格（比如写成 /\.jsonl$/）就会把
+  //    真正该拦的脏文件也放过去，而门禁仍然全绿。这里钉住四个正例 + 两个反例。
+  {
+    const wl = (p) => P14_DIRTY_WHITELIST.test(p);
+    chk('P14 白名单: experiments/usage.jsonl 放行', wl('experiments/usage.jsonl') === true);
+    chk('P14 白名单: runs/… 放行', wl('runs/exp-zero-r4/envelope.json') === true);
+    chk('P14 白名单: mutations/… 放行', wl('rdd-selfcompile/mutations/x/phase-build.json') === true);
+    chk('P14 白名单: *.log 放行', wl('report/launch.err.log') === true);
+    chk('P14 白名单: 源码文件仍算脏', wl('bin/harness-gate.js') === false);
+    chk('P14 白名单: 任意 .jsonl 不自动放行', wl('experiments/workbench.jsonl') === false);
   }
 
   console.log('══════════ RDD harness 门禁 · SELFTEST（体检门禁自身）═══════════');
