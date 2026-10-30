@@ -61,9 +61,22 @@ function parseLogSummaries(logText) {
 function analyze(toolsText, logText, opts) {
   const expect = (opts && opts.expectObserver) || EXPECTED_OBSERVER;
   const { events, bad } = parseLines(toolsText);
-  const attackRows = events.filter((e) => e && e.data && e.data.tool === 'attack'
-    && (e.data.journaled_by === 'server-async' || e.type === 'tool_result'));
-  const withNoshot = attackRows.filter((e) => e.data.noshot && typeof e.data.noshot === 'object');
+  const attackRows = events.filter((e) => e && e.data && e.data.tool === 'attack' && e.type === 'tool_result');
+  // ★ 同一个 call 会写好几行：受理回执、client journal、server-async 终态。
+  //   只有 server-async（或带 async_status）那行才是**终态**；把受理行也数成"缺摘要的任务"
+  //   会凭空造出 PARTIAL_SUMMARY（2026-10-30 实测：1 个攻击任务被数成了 3 个）。
+  const isTerminalRow = (e) => e.data.journaled_by === 'server-async' || typeof e.data.async_status === 'string';
+  const byCall = new Map();
+  for (const e of attackRows) {
+    const id = e.data.tool_call_id || '(no-id)';
+    const rec = byCall.get(id) || { rows: 0, terminal: null };
+    rec.rows += 1;
+    if (isTerminalRow(e)) rec.terminal = e;
+    byCall.set(id, rec);
+  }
+  const callIds = [...byCall.keys()];
+  const terminalRows = [...byCall.values()].filter((r) => r.terminal).map((r) => r.terminal);
+  const withNoshot = terminalRows.filter((e) => e.data.noshot && typeof e.data.noshot === 'object');
   const logSums = parseLogSummaries(logText || '');
 
   const tasks = withNoshot.map((e) => {
@@ -92,12 +105,16 @@ function analyze(toolsText, logText, opts) {
   // 观测可信性：这是全部结论的前提，先判它
   const reasons = [];
   let verdict;
-  if (!attackRows.length) {
+  if (!callIds.length) {
     verdict = 'NO_ATTACK_TASK';
     reasons.push('这次 run 里没有 attack 任务（tools.jsonl 没有 attack 的 tool_result）——不可能判 H21');
+  } else if (!terminalRows.length) {
+    verdict = 'UNOBSERVED';
+    reasons.push('有 ' + callIds.length + ' 次 attack 调用，但一条**终态**（server-async）都没有'
+      + ' ⇒ 缺观测。**不得**读成「未进入分支」，只能记 UNKNOWN');
   } else if (!tasks.length) {
     verdict = 'UNOBSERVED';
-    reasons.push('有 ' + attackRows.length + ' 个 attack 终态，但没有任何一条带 noshot 摘要'
+    reasons.push('有 ' + terminalRows.length + ' 个 attack 终态，但没有任何一条带 noshot 摘要'
       + ' ⇒ 缺观测。**不得**读成「未进入分支」，只能记 UNKNOWN');
   } else {
     const badObs = tasks.filter((t) => t.observerVersion !== expect);
@@ -110,9 +127,9 @@ function analyze(toolsText, logText, opts) {
       verdict = 'COVERAGE_PARTIAL';
       reasons.push(badCov.length + ' 个任务 coverage 不是 FULL（实得 '
         + [...new Set(badCov.map((t) => t.coverage || '(空)'))].join(',') + '）⇒ 不能据 entered==0 说「未进入」');
-    } else if (tasks.length < attackRows.length) {
+    } else if (tasks.length < terminalRows.length) {
       verdict = 'PARTIAL_SUMMARY';
-      reasons.push(attackRows.length + ' 个 attack 终态里只有 ' + tasks.length + ' 个带摘要 —— 其余任务的覆盖未知');
+      reasons.push(terminalRows.length + ' 个 attack 终态里只有 ' + tasks.length + ' 个带摘要 —— 其余任务的覆盖未知');
     } else {
       verdict = 'OBSERVED';
       reasons.push('全部 ' + tasks.length + ' 个攻击任务都带 ' + expect + ' 的摘要，coverage=FULL');
@@ -148,7 +165,8 @@ function analyze(toolsText, logText, opts) {
     verdict,
     reasons,
     expectedObserver: expect,
-    attackResults: attackRows.length,
+    attackCalls: callIds.length,
+    attackTerminals: terminalRows.length,
     summaries: tasks.length,
     logSummaryLines: logSums.length,
     logParsed: logSums.filter((s) => s.parsed).length,
@@ -168,7 +186,7 @@ function render(r) {
   L.push('H21 noshot 观测：' + r.verdict + '（期望 observerVersion=' + r.expectedObserver + '）');
   for (const why of r.reasons) L.push('  · ' + why);
   L.push('');
-  L.push('  attack 终态=' + r.attackResults + '  带摘要=' + r.summaries + '  latest.log 摘要行=' + r.logSummaryLines);
+  L.push('  attack 调用=' + r.attackCalls + '  终态=' + r.attackTerminals + '  带摘要=' + r.summaries + '  latest.log 摘要行=' + r.logSummaryLines);
   if (r.summaries) {
     L.push('');
     L.push('  | callId | 终态 | entered | resetT | resetS | resetInit | maxStreak | exitStreak | terminal |');
