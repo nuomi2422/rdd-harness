@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T22:23:09.789Z",
+  "updated_at": "2026-10-30T22:41:41.940Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -534,6 +534,20 @@
       "run": "exp-b9-wait-20261031-20261031-061825",
       "by": "unknown",
       "at": "2026-10-30T22:23:09.788Z"
+    },
+    {
+      "exp_id": "b10-revise-type-partial",
+      "note": "2026-10-31 06:32 B10（V-20261031-15 🟡）：3 条 REVISE；type 覆写后 2/3 落点匹配（tool_defect→tool_defect、execution→execution 短title）；第 3 条 155 字目标落成 20 字 execution|goto 的寻路以『净位移』判定进度（hits[0].title 显示截断），config 7→8。⇒ 只覆写 type 不够；title 也从 target id 取（43b0c61e4）。",
+      "run": "exp-b10-revise-20261031-20261031-062847",
+      "by": "unknown",
+      "at": "2026-10-30T22:41:40.792Z"
+    },
+    {
+      "exp_id": "b11-missing-decision-loss",
+      "note": "2026-10-31 06:40 B11（V-20261031-16 🟡/UNKNOWN）：reviewed 10/committed 10，但 10 条 verdict 全 retrieval_decision=MISSING；0 auto_learn；config 仍 8（长 title 修复未触发）。新发现：MISSING 的 verdict 仍 committed，若 memo 被当已处理就是静默丢学习样本。下一步查 MemoQueue commit 语义，MISSING 应保留队列/不 commit。",
+      "run": "exp-b11-revise-20261031-20261031-063621",
+      "by": "unknown",
+      "at": "2026-10-30T22:41:41.938Z"
     }
   ],
   "verdicts": [
