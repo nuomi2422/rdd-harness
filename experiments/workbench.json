@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T07:33:42.836Z",
+  "updated_at": "2026-10-30T07:35:30.507Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -429,6 +429,13 @@
       "run": "exp-learn-b1-20261030-152158",
       "by": "unknown",
       "at": "2026-10-30T07:33:42.835Z"
+    },
+    {
+      "exp_id": "learn-chain-gap",
+      "note": "断点：LearnerReviewer 只产草稿+门禁(publishable)，落盘唯一路径是 experience_learn 工具；r4/r5/r6/B1 四轮零调用 => memo 90 条、exp 投送 0 条、experience-<uuid>.jsonl 不存在",
+      "run": "exp-learn-b1-20261030-152158",
+      "by": "unknown",
+      "at": "2026-10-30T07:35:30.506Z"
     }
   ],
   "verdicts": [
