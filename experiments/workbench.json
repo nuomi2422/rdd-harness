@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T21:19:31.770Z",
+  "updated_at": "2026-10-30T21:33:26.855Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -506,6 +506,13 @@
       "run": "exp-b4-save-20261031-20261031-051114",
       "by": "unknown",
       "at": "2026-10-30T21:19:31.768Z"
+    },
+    {
+      "exp_id": "b4-craft-table",
+      "note": "2026-10-31 05:32 B4 campaign（V-20261031-09 ✅）：exp-b4-campaign-20261031-20261031-052238，母版 B5 副本（oak_log 4），goal「用已有 4 原木合成工作台」。3 次 craft（21:24:02/05/07，目标入队后 ~14s）；inventory-after crafting_table=1、oak_log 4→3、planks 2→2；0 死亡/0 干预；rdd_save ok（205ms）；keptForNextRun=true；无 reviewed/auto_learn；exp refs=0。归因：B3 没做工作台 vs B4 做了 = goal 明确度/资源分配，不是学习。setup：world 目录尾号 051551 vs runId 051546，首次 FATAL 未进游戏，已改正重跑。",
+      "run": "exp-b4-campaign-20261031-20261031-052238",
+      "by": "unknown",
+      "at": "2026-10-30T21:33:26.854Z"
     }
   ],
   "verdicts": [
