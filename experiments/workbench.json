@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T22:55:24.675Z",
+  "updated_at": "2026-10-30T23:05:15.622Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -562,6 +562,13 @@
       "run": "exp-b12-dedup-20261031-20261031-065049",
       "by": "unknown",
       "at": "2026-10-30T22:55:24.673Z"
+    },
+    {
+      "exp_id": "b13-chest-exact",
+      "note": "2026-10-31 07:03 B13（V-20261031-18 ✅）：exp-b13-chest-20261031-20261031-065749（campaign，06:57–07:03，17 calls，0 死亡/0 干预）。interact_at 22:59:11 开箱 → transfer 22:59:14 精确 10 cobble（slot53→0，剩29）→ inspect_gui 22:59:16 显示 0: cobblestone x10 → close_gui；inventory 39→29；rdd_save ok 282ms。学习：无 reviewed/auto_learn（6 tool_failure_intake），keptForNextRun=true，exp refs=0。旁记：B12 的 2 条 REVISE auto_learn id 与目标 entry_ref 逐字一致（type+title 从 target id 取生效），155 字长目标仍未命中。",
+      "run": "exp-b13-chest-20261031-20261031-065749",
+      "by": "unknown",
+      "at": "2026-10-30T23:05:15.620Z"
     }
   ],
   "verdicts": [
