@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T23:11:19.289Z",
+  "updated_at": "2026-10-30T23:19:35.630Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -576,6 +576,13 @@
       "run": "exp-b14-persist-20261031-20261031-070651",
       "by": "unknown",
       "at": "2026-10-30T23:11:19.287Z"
+    },
+    {
+      "exp_id": "b15-retrieve-craft",
+      "note": "2026-10-31 07:18 B15（V-20261031-20 ✅）：exp-b15-pickaxe-20261031-20261031-071307（campaign，07:13–07:18，13 calls，0 死亡/0 干预）。inspect_gui 23:14:28 箱子 0: cobblestone x10 → transfer 23:14:53 整栈取回 10 → craft 23:14:57 在 165,69,684 合成 stone_pickaxe（耗 3 cobble + 2 stick）。inventory：cobble 29→36、stick 2→0、stone_pickaxe 1；rdd_save ok 201ms。取回后未再 inspect 箱子（空箱 INFERRED）。",
+      "run": "exp-b15-pickaxe-20261031-20261031-071307",
+      "by": "unknown",
+      "at": "2026-10-30T23:19:35.628Z"
     }
   ],
   "verdicts": [
