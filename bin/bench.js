@@ -705,9 +705,16 @@ function brief(argv) {
     console.log('时序尾:\n  ' + runBlock.tail.join('\n  '));
     console.log('完整时序: node bench.js timeline <runDir>   （共 ' + runBlock.events + ' 条事件）');
   }
-  console.log('\n## ⚠ 坑与护栏（open tips —— 实验前必读，照护栏做）');
+  // ★ 2026-10-30：open tips 已到 17 条，全打出来 brief 抬头就看不见目标了。
+  //   默认只给前 5 条 + 一行「还剩 N 条」，其余用 --all 展开；条数与命令都写出来，不许静默截断。
+  const tipLimit = has(argv, '--all') ? openTips.length : 5;
+  const shownTips = openTips.slice(0, tipLimit);
+  console.log('\n## ⚠ 坑与护栏（open tips ' + openTips.length + ' 条，本次给 ' + shownTips.length + ' 条 —— 实验前必读，照护栏做）');
   if (!openTips.length) console.log('（无 open tips）');
-  for (const t of openTips) console.log('[' + t.id + ' · ' + t.kind + '] ' + t.symptom + '\n  假象: ' + t.fake + '\n  真因: ' + t.cause + '\n  护栏: ' + t.guard + (t.link ? '\n  链接: ' + t.link : ''));
+  for (const t of shownTips) console.log('[' + t.id + ' · ' + t.kind + '] ' + t.symptom + '\n  假象: ' + t.fake + '\n  真因: ' + t.cause + '\n  护栏: ' + t.guard + (t.link ? '\n  链接: ' + t.link : ''));
+  if (shownTips.length < openTips.length) {
+    console.log('… 还有 ' + (openTips.length - shownTips.length) + ' 条未显示（不是没有）：node bin/bench.js brief --all 看全部；按状态筛用 node bin/bench.js pit --status watching');
+  }
   console.log('\n## 前面实验的结论（verdicts —— 别重复踩，别重跑已判 INCONCLUSIVE 的场景）');
   if (!w.verdicts.length) console.log('（无）');
   for (const v of w.verdicts) console.log('[' + v.result + '] ' + v.exp_id + '  card=' + v.card + '\n  why: ' + v.why + '\n  judge: ' + v.judge);
@@ -1048,6 +1055,18 @@ function selfTest() {
   cases.push(['brief 首屏有目标/边界/live/core/限制',
     c19.code === 0 && c19.out.includes('本轮目标与边界') && c19.out.includes('测试目标') && c19.out.includes('core 入口') && c19.out.includes('已知限制') && c19.out.includes('不是每轮模型收到的工具定义数'),
     c19.out.trim().slice(0, 200)]);
+  // 2026-10-30：open tips 默认只给 5 条，且必须显式说出"还剩几条"，不许静默截断
+  for (let i = 0; i < 7; i++) {
+    run(['tip', 'add', '--kind', 'pitfall', '--symptom', 'st' + i, '--fake', 'f', '--cause', 'c', '--guard', 'g']);
+  }
+  const c19b = run(['brief', '--session', 'selftest-session']);
+  const shown = (c19b.out.match(/\[TIP-/g) || []).length;
+  cases.push(['brief 默认只给 5 条 open tips 并报剩余数',
+    c19b.code === 0 && shown === 5 && /还有 \d+ 条未显示/.test(c19b.out), 'shown=' + shown]);
+  const c19c = run(['brief', '--all', '--session', 'selftest-session']);
+  const shownAll = (c19c.out.match(/\[TIP-/g) || []).length;
+  cases.push(['brief --all 展开全部 open tips',
+    c19c.code === 0 && shownAll > 5 && !/还有 \d+ 条未显示/.test(c19c.out), 'shownAll=' + shownAll]);
   let usageLines = [];
   try { usageLines = fs.readFileSync(usageF, 'utf8').split(/\r?\n/).filter(Boolean).map((l) => JSON.parse(l)); } catch {}
   const briefUsage = usageLines.filter((r) => r.cmd === 'bench brief').pop();
