@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T07:17:18.002Z",
+  "updated_at": "2026-10-30T07:33:42.836Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -422,6 +422,13 @@
       "run": "exp-zero-r4/r5/r6",
       "by": "unknown",
       "at": "2026-10-30T07:17:18.001Z"
+    },
+    {
+      "exp_id": "exp-learn-b1",
+      "note": "B1：同 UUID 7585332f 跨轮成功、keptForNextRun=true，但 expmem 仍 0 条 exp:*；根因 config/numen 下没有 experience-7585332f.jsonl，而 memos 有 90 条 -> 断在 memo->experience 落盘，不是投送",
+      "run": "exp-learn-b1-20261030-152158",
+      "by": "unknown",
+      "at": "2026-10-30T07:33:42.835Z"
     }
   ],
   "verdicts": [
