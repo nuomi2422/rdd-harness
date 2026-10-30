@@ -120,6 +120,25 @@ function portOpen(port, timeoutMs) {
   });
 }
 function sleep(ms) { return new Promise((r) => setTimeout(r, ms)); }
+
+/**
+ * 2026-10-31（V-20261031-12）：找本轮最后一次 learner_review 的 review_id。
+ * 复盘是异步 LLM；runner 在强杀前要轮询它的 state，避免结果随进程丢失。
+ */
+function latestReviewId(runDir) {
+  try {
+    const p = path.join(runDir, 'evidence', 'tools.jsonl');
+    const lines = fs.readFileSync(p, 'utf8').split(/\r?\n/).filter(Boolean);
+    let id = null;
+    for (const line of lines) {
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (e.type !== 'tool_result' || !e.data || e.data.tool !== 'learner_review') continue;
+      let r; try { r = JSON.parse(e.data.result); } catch { continue; }
+      if (r && r.data && r.data.review_id) id = String(r.data.review_id);
+    }
+    return id;
+  } catch { return null; }
+}
 function mcp(tool, companion, args, timeoutMs) {
   const argv = [MCP_CALL, tool];
   // 空串要保留：create_companion 这类"没有 companion 参数"的工具，必须占住第 2 个位置，
@@ -875,6 +894,28 @@ async function cmdRun(opts) {
   saveEnv();
 
   const ts = mcp('task_stop', companionName, null, 20000);
+  // 2026-10-31（V-20261031-12）：若本轮发起过 learner_review，强杀前轮询它到非 RUNNING。
+  // B6 实测：review 21:50:50 发起、21:52:51 停机时仍无 reviewed —— 异步结果随强杀丢失。
+  // 上限 180s；超时如实记 TIMEOUT_AFTER_180S，不伪造完成。
+  const reviewId = latestReviewId(runDir);
+  if (reviewId) {
+    const rw0 = Date.now();
+    let last = null;
+    while (Date.now() - rw0 < 180000) {
+      const st = mcp('learner_status', companionName, { review_id: reviewId }, 20000);
+      if (!st.ok) { last = { review_id: reviewId, state: 'STATUS_CALL_FAILED', ms: Date.now() - rw0, out: st.out }; break; }
+      let rec = null;
+      try { rec = JSON.parse(st.out); } catch { /* 解析失败 → 当作仍在跑，下一轮再读 */ }
+      const state = rec && rec.data ? String(rec.data.state || '') : '';
+      last = { review_id: reviewId, state: state || 'UNKNOWN', ms: Date.now() - rw0, out: st.out };
+      if (state && state !== 'RUNNING') break;
+      await sleep(3000);
+    }
+    if (!last) last = { review_id: reviewId, state: 'NO_POLL', ms: Date.now() - rw0 };
+    if (last.state === 'RUNNING') last.state = 'TIMEOUT_AFTER_180S';
+    fs.writeFileSync(path.join(runDir, 'evidence', 'review-wait.json'), JSON.stringify(last, null, 2));
+    log(runDir, 'stop', 'review wait: ' + reviewId + ' state=' + last.state + ' ms=' + last.ms);
+  }
   // 2026-10-31（V-20261031-08）：强杀前先落盘。此前收尾是 task_stop → 宽限 → Stop-Process -Force，
   // 没有优雅 stop；同伴背包只在 autosave 落盘，最后几分钟的物品会在下一轮丢失（B2 2 原木 → B3 0）。
   // rdd_save 只 flush 区块/玩家数据，不改世界，不记 admin_command_used。
