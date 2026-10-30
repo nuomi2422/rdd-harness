@@ -1327,6 +1327,32 @@ function runSelftest() {
     chk(`声明的门禁项都已接线（${wired.length}/${declared.length}）`, unwired.length === 0,
       unwired.length ? '★ registry 里声明了但代码从没 record() 过 —— 等于没有这一项：' + unwired.join(', ') : 'preflight + postflight 全部接上了');
   }
+
+  // ★★★ 1b. 【分组必须覆盖全部判据】自检（2026-10-30 加）。
+  // gates.groups 把 42 项按「写代码 / 验证 / 记录」三门 + 提醒桶归组。这条不变式的意义：
+  // 以后谁想加一条门禁，必须同时决定它属于哪一门 —— **不许只加不归**。
+  // 漏归 / 重复归 / 归到不存在的 id 都算 FAIL，这样"门禁只增不减"就多了一道刹车。
+  {
+    const declared = [...REG.gates.preflight.checks, ...REG.gates.postflight.checks].map((c) => c.id);
+    const groups = (REG.gates && REG.gates.groups) || {};
+    const covered = [];
+    for (const k of Object.keys(groups)) {
+      const g = groups[k];
+      if (!g || !Array.isArray(g.checks)) continue;
+      covered.push(...g.checks);
+    }
+    const dup = covered.filter((x, i) => covered.indexOf(x) !== i);
+    const missing = declared.filter((x) => !covered.includes(x));
+    const extra = covered.filter((x) => !declared.includes(x));
+    const gateCount = Object.keys(groups).filter((k) => /^GK-/.test(k)).length;
+    chk(`门禁分组覆盖全部判据（${covered.length}/${declared.length}，${gateCount} 门）`,
+      dup.length === 0 && missing.length === 0 && extra.length === 0,
+      [
+        dup.length ? '重复归组：' + [...new Set(dup)].join(', ') : '',
+        missing.length ? '漏归组（找不到属于哪一门）：' + missing.join(', ') : '',
+        extra.length ? '归了不存在的判据：' + extra.join(', ') : '',
+      ].filter(Boolean).join(' | ') || '每条判据恰好属于一个组');
+  }
   const paths = [
     ['roots.workspace', REG.roots.workspace], ['roots.docs', REG.roots.docs],
     ['roots.docsUnified', REG.roots.docsUnified], ['roots.numen', REG.roots.numen],
@@ -1613,7 +1639,46 @@ function printResults() {
   console.log('');
 }
 
+function groupState(ids) {
+  const st = ids.map((id) => (results.find((r) => r.id === id) || {}).state).filter(Boolean);
+  if (!st.length) return SKIP;
+  if (st.includes(BLOCK)) return BLOCK;
+  if (st.includes(WARN)) return WARN;
+  if (st.includes(ASK)) return ASK;
+  if (st.includes(SKIP)) return SKIP;
+  return PASS;
+}
+
+/**
+ * ★ 2026-10-30：三门总判（写代码 / 验证 / 记录 + 提醒桶）。
+ * 42 项明细照旧全打（判据强度一点没改），但**先给 3+1 行总判**，
+ * 人只需要读 4 行就知道这轮能不能交付；红了再往下翻明细。
+ * 分组只影响怎么读，不改任何单项的 level。
+ */
+function printGroups() {
+  const groups = (REG.gates && REG.gates.groups) || {};
+  const keys = Object.keys(groups).filter((k) => groups[k] && Array.isArray(groups[k].checks));
+  if (!keys.length) return;
+  const ICON = { PASS: '✔', BLOCK: '✘', WARN: '!', ASK: '☞', SKIP: '-' };
+  console.log('');
+  console.log('────────── 三门总判（明细在下面，判据未改） ──────────');
+  let gateBlock = 0;
+  for (const k of keys) {
+    const g = groups[k];
+    const s = groupState(g.checks);
+    const isGate = /^GK-/.test(k);
+    if (isGate && s === BLOCK) gateBlock++;
+    console.log(` ${ICON[s] || '·'} ${k.padEnd(7)} ${String(s).padEnd(5)} ${g.name}`);
+    if (isGate && s === BLOCK) {
+      const bad = g.checks.filter((id) => (results.find((r) => r.id === id) || {}).state === BLOCK);
+      console.log(`           ✘ ${bad.join(' ')}`);
+    }
+  }
+  console.log(` ▸ GK-0  ${gateBlock === 0 ? '三门通过（提醒桶不影响总判）' : gateBlock + ' 门有 BLOCK —— 本轮不可交付'}`);
+}
+
 function verdict() {
+  printGroups();
   const nb = results.filter((r) => r.state === BLOCK).length;
   const nw = results.filter((r) => r.state === WARN).length;
   const np = results.filter((r) => r.state === PASS).length;
