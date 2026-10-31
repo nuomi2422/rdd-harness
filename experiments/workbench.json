@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:34:30.005Z",
+  "updated_at": "2026-10-31T00:42:36.044Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -639,6 +639,13 @@
       "run": "exp-b23-audit-20261031-20261031-082848",
       "by": "unknown",
       "at": "2026-10-31T00:34:30.003Z"
+    },
+    {
+      "exp_id": "b24-clean-trial",
+      "note": "2026-10-31 08:41 B24（V-20261031-28 ✅）：exp-b24-clean-trial-20261031-20261031-083601（campaign，08:36–08:41，18 calls，0 死亡/0 干预）。publish 00:37:52 DRAFT→TRIAL（execution|goto 的寻路以『净位移』判定进度，绕行…）；goto (150,68,700) 00:38:02 水平达 y 高 2 格未达，回 (163,68,684) 00:38:14 达；request_delivered 13 中 10 含该 ref；请求体 10 次 goto 正文、0 次 craft 正文；publish 00:38:17 TRIAL→SUSPENDED；save ok 353ms。学习线「真实经验（内容正确）→ TRIAL → 进请求 → 清理」setup 下完整走通。",
+      "run": "exp-b24-clean-trial-20261031-20261031-083601",
+      "by": "unknown",
+      "at": "2026-10-31T00:42:36.042Z"
     }
   ],
   "verdicts": [
