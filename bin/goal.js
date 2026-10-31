@@ -385,6 +385,20 @@ function cmdProve() {
       it.cmd = provided
       if (argv.expect) it.expect = String(argv.expect)
       console.log('⚠ 判据已改（--rejudge）：' + it.judgeHistory[it.judgeHistory.length - 1].old + '  →  ' + it.cmd)
+    } else if (argv.expect && String(it.expect || '') !== String(argv.expect)) {
+      // ★ 2026-10-31 实机（166 B3）：判据**命令没变、但脚本输出串变了**时，
+      //   原实现不进上面那个分支，于是 expect 永远改不掉 —— batch 门一直判"输出不匹配"，
+      //   人只能去手改 goal.json（绕过留痕）。这里补上"只改期望串"的合法通道，同样要 --rejudge。
+      if (!argv.rejudge) {
+        die(2, '期望输出对不上：\n' +
+          '   本条目记的期望：' + String(it.expect || '（空）') + '\n' +
+          '   你这次给的期望：' + String(argv.expect) + '\n' +
+          '   → 改期望串也要显式加 --rejudge（旧值会写进 judgeHistory 留痕）。')
+      }
+      it.judgeHistory = it.judgeHistory || []
+      it.judgeHistory.push({ at: new Date().toISOString(), old: String(it.expect || ''), new: String(argv.expect), note })
+      it.expect = String(argv.expect)
+      console.log('⚠ 期望输出已改（--rejudge）：' + it.judgeHistory[it.judgeHistory.length - 1].old + '  →  ' + it.expect)
     }
     if (!it.cmd) {
       // add 时没给 --cmd（手工条目）→ 用这条实跑命令当机器判据（升级成机器可验）
