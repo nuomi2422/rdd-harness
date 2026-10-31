@@ -1,0 +1,1 @@
+去平原村庄：先 locate_biome minecraft:plains，然后按 goto 的分段路点逐步走到那里；到村后清点干草块，用 rdd_report_yield 上报实际数量并尽量全部搬走。不要自己另起目标。
