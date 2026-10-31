@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-30T23:49:41.371Z",
+  "updated_at": "2026-10-31T00:00:10.022Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -604,6 +604,13 @@
       "run": "",
       "by": "unknown",
       "at": "2026-10-30T23:49:41.370Z"
+    },
+    {
+      "exp_id": "b19-strict-stage-fidelity",
+      "note": "2026-10-31 07:59 B19（V-20261031-24 ✅）：exp-b19-strict-20261031-20261031-075135（campaign，07:51–07:59，21 calls，0 死亡/0 干预）。mine 23:52:58 → 23:53:08 gathered 10/10 cobblestone；craft 23:53:10 1x furnace（8 cobble，table 165,69,684）；inspect_gui 23:53:15 箱 furnace x2；transfer 23:53:24 存 1；inspect_gui 23:53:27 furnace x3；cobble 20→22；rdd_save ok 285ms。对照 B18：硬约束下不跳步，B18 更像效率选择（INFERRED），但未显式必须时仍会跳步（保真度风险）。",
+      "run": "exp-b19-strict-20261031-20261031-075135",
+      "by": "unknown",
+      "at": "2026-10-31T00:00:10.020Z"
     }
   ],
   "verdicts": [
