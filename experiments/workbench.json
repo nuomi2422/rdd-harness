@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T04:02:21.719Z",
+  "updated_at": "2026-10-31T04:14:28.847Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -793,6 +793,20 @@
       "run": "exp-b40-chain-isolation-20261031-20261031-114915",
       "by": "unknown",
       "at": "2026-10-31T04:02:21.717Z"
+    },
+    {
+      "exp_id": "b41-stop-pause-noop",
+      "note": "2026-10-31 12:12 B41（V-20261031-45 🟡 UNKNOWN）：exp-b41-stop-order-20261031-20261031-120453（campaign，12:04–12:12，14 调用，0 死亡/0 干预）。stop 顺序改为 standby→task_stop→save；但 rdd_standby 回执 failed「current subtask is COMPLETED（only RUNNING/PENDING/STALLED）」——pause 在 COMPLETED 时 no-op。postStopRequests=0，但本轮没有 rdd_supervisor_submit、只有 inventory×10+world_probe/stop/save，situations=NONE；0 不能记成修好。",
+      "run": "exp-b41-stop-order-20261031-20261031-120453",
+      "by": "unknown",
+      "at": "2026-10-31T04:14:25.816Z"
+    },
+    {
+      "exp_id": "b41-no-submit-confounded",
+      "note": "2026-10-31 12:12 B41 盲点（OBSERVED，待定位）：goal 明确要求 rdd_supervisor_submit 建链，AI 却只查了 10 次背包 + world_probe，没有调用 submit；2 次 llm_request 里没有 standby/待命 文案。世界副本来自 B40（停机时 pause 过），怀疑 <rdd> 处于 paused/owner-pause 或链状态导致 AI 不干活；需看首请求的 <rdd> 块。",
+      "run": "exp-b41-stop-order-20261031-20261031-120453",
+      "by": "unknown",
+      "at": "2026-10-31T04:14:28.846Z"
     }
   ],
   "verdicts": [
