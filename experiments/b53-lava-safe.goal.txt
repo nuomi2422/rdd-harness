@@ -1,0 +1,1 @@
+你已有下界门和铁装。进下界后不要直冲：允许改变地形（goto 时 may_alter_terrain=true），先用圆石/泥土把脚下的岩浆坑、断崖垫出安全路（垫脚/架桥），再沿 locate_structure minecraft:fortress 的方向赶路；到堡垒后打烈焰人拿烈焰棒（目标 ≥12）。全程留在 the_nether。
