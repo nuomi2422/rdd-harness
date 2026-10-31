@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:00:10.022Z",
+  "updated_at": "2026-10-31T00:17:34.707Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -611,6 +611,20 @@
       "run": "exp-b19-strict-20261031-20261031-075135",
       "by": "unknown",
       "at": "2026-10-31T00:00:10.020Z"
+    },
+    {
+      "exp_id": "b20-trial-delivery",
+      "note": "2026-10-31 08:10 B20（V-20261031-25 🟡）：exp-b20-trial-20261031-20261031-080229。experience_publish 00:03:49 DRAFT→TRIAL（execution|goto 以净位移…）；goto (150,68,700) 水平到达但 y 高 2 格未达，回 (163,68,684) 达；request_delivered 14 条中 12 条含该 exp ref；save ok 206ms；0 死亡/0 干预。TRIAL→DRAFT 被拒（ILLEGAL_TRANSITION），条目留 TRIAL；B21 00:14:26 TRIAL→SUSPENDED 清理（config 确认）。",
+      "run": "exp-b20-trial-20261031-20261031-080229",
+      "by": "unknown",
+      "at": "2026-10-31T00:17:33.575Z"
+    },
+    {
+      "exp_id": "b20-revise-body-mismatch",
+      "note": "2026-10-31 08:10 B20 发现（OBSERVED，学习线数据完整性）：id execution|goto 以净位移判定进度，绕行地形中会因方向反转中止 的 config 正文是 craft 配方网格（2x2/3x3），不是 goto 净位移。根因：B10 的 tf-craft memo 经 REVISE 把 craft 正文合并进 goto 标题条目——LearnerReviewTool 只覆写 type/title，正文仍取草稿。后果：进执行请求的是「goto 标题 + craft 正文」。下一轮修 REVISE 正文合并策略（用目标正文或拒绝跨主题修订）。",
+      "run": "exp-b20-trial-20261031-20261031-080229",
+      "by": "unknown",
+      "at": "2026-10-31T00:17:34.705Z"
     }
   ],
   "verdicts": [
