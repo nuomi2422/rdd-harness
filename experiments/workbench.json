@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T03:46:14.409Z",
+  "updated_at": "2026-10-31T04:02:21.719Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -779,6 +779,20 @@
       "run": "exp-b39-chain-exec-20261031-20261031-112858",
       "by": "unknown",
       "at": "2026-10-31T03:46:14.407Z"
+    },
+    {
+      "exp_id": "b40-goaljson-noop",
+      "note": "2026-10-31 12:00 B40（V-20261031-44 🟡）：exp-b40-chain-isolation-20261031-20261031-114915（campaign，11:49–12:00，52 调用，0 死亡/0 干预）。prepare「目标清理: 无 goal.json」（goalReset=[]）——清 goal.json 是 no-op；submit 03:51:34，supervisor_input=1；submit 前 0 条 subtask_completed（B39 旧链未复现）；03:59:32 两条（铁料/工作台）；save ok 319ms。根因不是 goal.json，旧链载体 UNKNOWN。",
+      "run": "exp-b40-chain-isolation-20261031-20261031-114915",
+      "by": "unknown",
+      "at": "2026-10-31T04:02:19.778Z"
+    },
+    {
+      "exp_id": "b40-poststop-123",
+      "note": "2026-10-31 12:00 B40 盲点（OBSERVED，逐轮升高）：postStopRequests=123（B39 118、B38 67、B37 64）——task_stop 后 60s 宽限内 AI 仍发 123 条请求。停机没有真正止住动作，需查宽限内工具序列（大概率是 task_status/状态查询被隐藏后换成别的轮询，或事件重放）。",
+      "run": "exp-b40-chain-isolation-20261031-20261031-114915",
+      "by": "unknown",
+      "at": "2026-10-31T04:02:21.717Z"
     }
   ],
   "verdicts": [
