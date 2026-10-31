@@ -492,19 +492,21 @@ async function cmdRun(opts) {
     if (p.error) fail(runDir, 'prepare', 'zero-start 改 level.dat 失败: ' + p.error, 3);
     log(runDir, 'prepare', 'zero-start：副本 level.dat → ' + JSON.stringify(p.changed.length ? p.changed : p.note));
 
-    // A0：会话历史也是实验材料（88 §1.2）。清会话必须发生在 launch 之前，
-    // 否则 ConvoLog 已经把旧历史加载进首个请求。--keep-session 只用于复现 DIRTY 反例。
-    if (!opts.keepSession) {
-      const boundary = A0.appendClearBoundary(path.join(NUMEN, 'companions'), { reason: 'zero-start' });
-      fs.writeFileSync(path.join(runDir, 'evidence', 'session-clear.json'), JSON.stringify(boundary, null, 2));
-      env.sessionClear = boundary;
-      log(runDir, 'prepare', 'A0 会话边界：' + (boundary.injected
-        ? '追加 clear ×' + boundary.injected + '（' + boundary.files.map((f) => f.uuid).join(',') + '）'
-        : '未注入（' + (boundary.skipped.join(',') || boundary.reason) + '）'));
-    } else {
-      env.sessionClear = { skipped: true, reason: '--keep-session（复现 DIRTY 反例用）' };
-      log(runDir, 'prepare', 'A0 会话边界：--keep-session → 保留历史（本轮预期判 DIRTY）');
-    }
+  }
+
+  // 2026-10-31（V-20261031-45 实测）：A0 会话清理原来只在 --zero-start 里，campaign 模式从不清理，
+  // 旧会话/旧 task_finished 事件被带进首个请求（B41：AI 只查 10 次背包、不 submit）。
+  // 提到 zeroStart 外面：默认每轮清会话，--keep-session 才保留（复现 DIRTY 反例用）。
+  if (!opts.keepSession) {
+    const boundary = A0.appendClearBoundary(path.join(NUMEN, 'companions'), { reason: 'zero-start' });
+    fs.writeFileSync(path.join(runDir, 'evidence', 'session-clear.json'), JSON.stringify(boundary, null, 2));
+    env.sessionClear = boundary;
+    log(runDir, 'prepare', 'A0 会话边界：' + (boundary.injected
+      ? '追加 clear ×' + boundary.injected + '（' + boundary.files.map((f) => f.uuid).join(',') + '）'
+      : '未注入（' + (boundary.skipped.join(',') || boundary.reason) + '）'));
+  } else {
+    env.sessionClear = { skipped: true, reason: '--keep-session（复现 DIRTY 反例用）' };
+    log(runDir, 'prepare', 'A0 会话边界：--keep-session → 保留历史（本轮预期判 DIRTY）');
   }
 
   // 存档外状态快照（受控复位基线）
