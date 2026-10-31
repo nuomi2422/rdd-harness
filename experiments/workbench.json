@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T06:50:19.806Z",
+  "updated_at": "2026-10-31T07:23:18.138Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -856,6 +856,13 @@
       "run": "",
       "by": "unknown",
       "at": "2026-10-31T06:50:19.804Z"
+    },
+    {
+      "exp_id": "b49-portal-cycle",
+      "note": "2026-10-31 15:17 B49（V-20261031-54 ✅）：exp-b49-portal-20261031-20261031-145630（campaign，14:56–15:17，106 调用，0 死亡/0 干预）。8 级链第 2/3 级：挖废墟门 obsidian + build 16/16（placed 10）搭门；07:15:07 打火石点亮（block_nearby nether_portal 完成）；07:15:39 dimension=the_nether 完成（server_world_fact）；latest.log 15:16:18 portal-fallback the_nether→overworld 回主世界；world-after overworld；rdd_save.ok 299ms；postStop 51。旁记：use_portal 三次报失败（工具层不知道 fallback）；进下界后站门 100 tick 被 fallback 弹回；learner 源码领先 jar 曾挡首跑，部署 287D2A5F 后重跑，H 冻结点 07d701a63 再部署 73D86679。",
+      "run": "exp-b49-portal-20261031-20261031-145630",
+      "by": "unknown",
+      "at": "2026-10-31T07:23:18.137Z"
     }
   ],
   "verdicts": [
