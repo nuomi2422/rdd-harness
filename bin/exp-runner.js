@@ -937,6 +937,10 @@ async function cmdRun(opts) {
       + ' drift=' + env.world.drift);
   saveEnv();
 
+  // 2026-10-31（V-20261031-44 实测）：停机先 pause 链，再 task_stop。
+  // B40 顺序是 task_stop → save → standby，结果 03:59:36 仍有「【开工】…做一把铁剑」推给 AI，
+  // 停机后 123 请求。先让 RDD 进入 owner-pause，能挡住随后的开工/催工推。
+  const sbEarly = mcp('rdd_standby', companionName, null, 20000);
   const ts = mcp('task_stop', companionName, null, 20000);
   // 2026-10-31（V-20261031-12）：若本轮发起过 learner_review，强杀前轮询它到非 RUNNING。
   // B6 实测：review 21:50:50 发起、21:52:51 停机时仍无 reviewed —— 异步结果随强杀丢失。
@@ -955,9 +959,9 @@ async function cmdRun(opts) {
   // rdd_save 只 flush 区块/玩家数据，不改世界，不记 admin_command_used。
   const sv = mcp('rdd_save', companionName, null, 60000);
   fs.writeFileSync(path.join(runDir, 'evidence', 'save.json'), JSON.stringify({ rdd_save: sv }, null, 2));
-  const sb = mcp('rdd_standby', companionName, null, 20000);
-  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ task_stop: ts, rdd_save: sv, rdd_standby: sb }, null, 2));
-  log(runDir, 'stop', 'task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed') + '；rdd_standby → ' + (sb.ok ? 'ok' : 'failed'));
+  const sb = sbEarly;
+  fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ rdd_standby: sb, task_stop: ts, rdd_save: sv }, null, 2));
+  log(runDir, 'stop', 'rdd_standby → ' + (sb.ok ? 'ok' : 'failed') + '；task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed'));
   // 60s 宽限：数一数还有没有新的 llm_request
   let postStopRequests = 0;
   const graceEnd = Date.now() + 60000;
