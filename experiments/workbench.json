@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T07:23:18.138Z",
+  "updated_at": "2026-10-31T07:54:34.136Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -863,6 +863,13 @@
       "run": "exp-b49-portal-20261031-20261031-145630",
       "by": "unknown",
       "at": "2026-10-31T07:23:18.137Z"
+    },
+    {
+      "exp_id": "b50-nether-stuck",
+      "note": "2026-10-31 15:52 B50（V-20261031-55 🟡）：exp-b50-nether-fortress-20261031-20261031-152449（campaign，15:24–15:52，163 调用）。07:32:37 dimension=the_nether（get_world_info 07:35:52 确认）；netherrack 70/iron_nugget 40；但链停在 primary-2「进下界落地」r5-2（primary_expanded 仅 1/2，rdd_settle_stage 2 次仍停）；locate_structure 3 次查 ruined_portal（69/100/101 格），07:41:47 工具已提示 the_nether 用 fortress/bastion 仍继续查；无堡垒、无 blaze_rod；07:49:17 回 overworld；envelope 0 死/0 干预，world-after.self.deaths=7 为累计统计；rdd_save.ok 199ms；postStop 26。盲点：链不推进 + 查错结构 id + 回主世界。",
+      "run": "exp-b50-nether-fortress-20261031-20261031-152449",
+      "by": "unknown",
+      "at": "2026-10-31T07:54:34.134Z"
     }
   ],
   "verdicts": [
