@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:49:00.983Z",
+  "updated_at": "2026-10-31T01:58:18.234Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -709,6 +709,13 @@
       "run": "exp-b31-natural-verify-20261031-20261031-093910",
       "by": "unknown",
       "at": "2026-10-31T01:49:00.982Z"
+    },
+    {
+      "exp_id": "b32-no-poll-instruction",
+      "note": "2026-10-31 09:55 B32（V-20261031-36 🟡）：exp-b32-no-poll-20261031-20261031-095104（campaign，09:51–09:55，62 动作，0 死亡/0 干预）。显式指令「goto 受理后不要调用 task_status」把轮询从 B31 的 28 次压到 1 次（01:52:41 t2 running 2s）。goto t1 01:52:29 blocked（no route without altering terrain）；t2 01:52:38 开路后 arrived beside chest 164,69,684（未按 goal 返回 163,68,684）；随后 36 次 inspect_block + build 2 + craft 1 + transfer 1；save ok 409ms。结论：轮询可被显式指令纠正（28→1），但任务保真/过度观测仍差。",
+      "run": "exp-b32-no-poll-20261031-20261031-095104",
+      "by": "unknown",
+      "at": "2026-10-31T01:58:18.233Z"
     }
   ],
   "verdicts": [
