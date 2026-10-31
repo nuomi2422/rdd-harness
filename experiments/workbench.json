@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:59:44.522Z",
+  "updated_at": "2026-10-31T01:09:41.676Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -660,6 +660,13 @@
       "run": "exp-b26-published-20261031-20261031-085225",
       "by": "unknown",
       "at": "2026-10-31T00:59:44.521Z"
+    },
+    {
+      "exp_id": "b27-verified-published",
+      "note": "2026-10-31 09:07 B27（V-20261031-31 ✅）：exp-b27-verified-published-20261031-20261031-090153（campaign，09:01–09:07，30 calls，0 死亡/0 干预）。experience_verify 01:03:21 被拒 NEVER_DELIVERED（本会话未完整交付）；01:03:27 成功 maturity=VERIFIED/verified_count=1/presented_count=22；01:03:29 SUSPENDED→PUBLISHED；goto 来回；request_delivered 17 中 9 含该 ref；01:03:52 PUBLISHED→SUSPENDED；config publication=SUSPENDED, maturity=VERIFIED, verified=1；save ok 397ms。EXECUTOR 两条通路（trial=B24/B25、VERIFIED=B27）均实机闭合；PUBLISHED+OBSERVED 不投送（B26）。另修旧卡失效坐标（rdd.jsonl:500 已轮转），Q20 恢复 PASS。",
+      "run": "exp-b27-verified-published-20261031-20261031-090153",
+      "by": "unknown",
+      "at": "2026-10-31T01:09:41.674Z"
     }
   ],
   "verdicts": [
