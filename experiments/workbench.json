@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:37:16.037Z",
+  "updated_at": "2026-10-31T01:47:18.175Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -688,6 +688,20 @@
       "run": "exp-b30-retrial-20261031-20261031-093029",
       "by": "unknown",
       "at": "2026-10-31T01:37:16.036Z"
+    },
+    {
+      "exp_id": "b31-natural-verify-not-triggered",
+      "note": "2026-10-31 09:45 B31（V-20261031-35 🟡）：exp-b31-natural-verify-20261031-20261031-093910（campaign，09:39–09:45，66 动作，0 死亡/0 干预）。01:41:10 SUSPENDED→TRIAL；goto 150,68,700 01:41:19 未达 y、回 163,68,684 01:41:31 达；01:41:37 TRIAL→SUSPENDED；save ok 345ms。goal 未提 verify，experience_verify 0 次（NOT_TRIGGERED）——自然 verify 未观测。",
+      "run": "exp-b31-natural-verify-20261031-20261031-093910",
+      "by": "unknown",
+      "at": "2026-10-31T01:47:16.583Z"
+    },
+    {
+      "exp_id": "b31-post-goal-runaway",
+      "note": "2026-10-31 09:45 B31 观察（OBSERVED）：三步在 01:41:37 完成，但 AI 继续活动到 01:44:53——task_status 28 次、goto 7 次、attack 3 次、mine 2 次；postStopRequests=81。完成目标后没有 rdd_standby/待命，出现未要求的攻击/挖掘。属超长线执行的收尾/空闲缺口；原因（侧任务/nudge/空闲循环）未定位。",
+      "run": "exp-b31-natural-verify-20261031-20261031-093910",
+      "by": "unknown",
+      "at": "2026-10-31T01:47:18.173Z"
     }
   ],
   "verdicts": [
