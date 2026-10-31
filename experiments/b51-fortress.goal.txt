@@ -1,0 +1,1 @@
+进下界后立刻离开传送门（不要站门里超过 5 秒），用 locate_structure minecraft:fortress 找最近的地狱堡垒，走到堡垒后打烈焰人拿烈焰棒（目标 ≥12）；全程留在 the_nether，不要回主世界。不要自己另起目标。
