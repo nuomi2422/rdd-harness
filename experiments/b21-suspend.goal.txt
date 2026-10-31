@@ -1,0 +1,1 @@
+实验清理：调用 experience_publish 把 id 为 `execution|goto 以净位移判定进度，绕行地形中会因方向反转中止` 的条目发布为 SUSPENDED（因为正文与标题不符）。做完报回执，不要做别的。
