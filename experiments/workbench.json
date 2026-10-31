@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T06:08:40.306Z",
+  "updated_at": "2026-10-31T06:50:19.806Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -849,6 +849,13 @@
       "run": "exp-b47-goto-seg-20261031-20261031-135226",
       "by": "unknown",
       "at": "2026-10-31T06:08:40.305Z"
+    },
+    {
+      "exp_id": "camera-six-criteria-api-pass",
+      "note": "2026-10-31 14:49 numencam 相机（V-20261031-53 ✅ API 路径）：camera jar 2687D9C1（mutation-20261031-143813-2b6a59）部署；start-rdd 起 live 世界；8767 Listen，日志「相机控制口已开」；/state inWorld=true；POST /shot target=RDD → targetVisible=true；POST /follow on → 「已切旁观者档（关牵引时恢复成 creative）」body=spectator；goto(230,685) 让 RDD 走 ~69 格 → body 跟进 (206,67,681)、follow.status「已离开客户端加载区 → 静默补传（服务端直调，不走 /tp）」；POST /lens gamma=1.0 → gamma 1.0 + cam_interventions.log 14:46:28 gamma=1.00；POST /off → mode OFF/follow off/body creative/gamma 0.5/rec off。限制：聊天 /cam 路径没验通（oc-cmd 的 /gamemode、/cam lens 无效果）；/off 判据写 survival 但 live 世界原本 creative；强杀 javaw 未 save-all；日志只记 set 不记 restore。",
+      "run": "",
+      "by": "unknown",
+      "at": "2026-10-31T06:50:19.804Z"
     }
   ],
   "verdicts": [
