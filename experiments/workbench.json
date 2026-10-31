@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:26:44.563Z",
+  "updated_at": "2026-10-31T00:34:30.005Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -632,6 +632,13 @@
       "run": "exp-b22-topic-20261031-20261031-082152",
       "by": "unknown",
       "at": "2026-10-31T00:26:44.561Z"
+    },
+    {
+      "exp_id": "b23-audit-revoked",
+      "note": "2026-10-31 08:33 B23（V-20261031-27 ✅，setup）：exp-b23-audit-20261031-20261031-082848（diagnostic，08:28–08:33，21 calls，0 死亡/0 干预）。审计 8 条经验，人工判 4 条正文/标题不符（craft/inspect_block/坠落保护/inspect 幂等）；00:30:19 四条 experience_publish：SUSPENDED→REVOKED（1）、DRAFT→REVOKED（3）；config 4 条 REVOKED；其余 4 条保持 DRAFT；rdd_save ok 319ms。另记 2 条 bigram 误报（短 title vs 长正文），线上守卫比 title vs title 不受影响。",
+      "run": "exp-b23-audit-20261031-20261031-082848",
+      "by": "unknown",
+      "at": "2026-10-31T00:34:30.003Z"
     }
   ],
   "verdicts": [
