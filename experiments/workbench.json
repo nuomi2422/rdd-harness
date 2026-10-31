@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:26:22.529Z",
+  "updated_at": "2026-10-31T01:37:16.037Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -681,6 +681,13 @@
       "run": "exp-b29-diamond-pickaxe-20261031-20261031-092021",
       "by": "unknown",
       "at": "2026-10-31T01:26:22.528Z"
+    },
+    {
+      "exp_id": "b30-retrial",
+      "note": "2026-10-31 09:36 B30（V-20261031-34 ✅）：exp-b30-retrial-20261031-20261031-093029（campaign，09:30–09:36，27 calls，0 死亡/0 干预）。改动 PublicationState 允许 SUSPENDED→TRIAL（不恢复 DRAFT），dde169c02，部署 5E9B63A3…，:experience-core:test 过。publish 01:31:56 SUSPENDED→TRIAL 成功；goto 150,68,700 01:32:07 水平达 y 未达，回 163,68,684 01:32:18 达；verify 01:32:29 success=false → ATTEMPTED/verified 0/counters 1→2；publish 01:32:31 TRIAL→SUSPENDED；save ok 448ms。re-trial 缺口闭合。",
+      "run": "exp-b30-retrial-20261031-20261031-093029",
+      "by": "unknown",
+      "at": "2026-10-31T01:37:16.036Z"
     }
   ],
   "verdicts": [
