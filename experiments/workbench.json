@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T02:17:16.356Z",
+  "updated_at": "2026-10-31T02:45:26.978Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -723,6 +723,13 @@
       "run": "exp-b34-note-nopoll-20261031-20261031-101105",
       "by": "unknown",
       "at": "2026-10-31T02:17:16.355Z"
+    },
+    {
+      "exp_id": "b36-water-bucket",
+      "note": "2026-10-31 10:44 B36（V-20261031-40 ✅，通关第①步）：exp-b36-iron-bucket-20261031-20261031-103217（campaign，10:32–10:44，62 调用，0 死亡/0 干预）。mine 两次中断后 02:34:26 gathered 1/1 iron_ore；熔炉 163,70,683 熔炼出铁锭（3 个）；02:35:25 craft bucket（3 iron，table 165,69,684）；02:36:18 装水 bucket→water_bucket；inventory water_bucket=1、iron_ingot=0、coal=1；save ok 289ms。方向：主人 10:32 裁定学习线暂停、自主通关 MC；水桶为黑曜石/传送门关键。",
+      "run": "exp-b36-iron-bucket-20261031-20261031-103217",
+      "by": "unknown",
+      "at": "2026-10-31T02:45:26.977Z"
     }
   ],
   "verdicts": [
