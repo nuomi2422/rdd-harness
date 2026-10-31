@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T08:26:31.834Z",
+  "updated_at": "2026-10-31T08:52:33.172Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -877,6 +877,13 @@
       "run": "exp-b51-fortress-20261031-20261031-155650",
       "by": "unknown",
       "at": "2026-10-31T08:26:31.832Z"
+    },
+    {
+      "exp_id": "b52-lava-death-java-died",
+      "note": "2026-10-31 16:49 B52（V-20261031-57 ❌）：exp-b52-fortress-direct-20261031-20261031-162817（16:28 起，watch 1171s）。08:30:21 locate_structure → minecraft:fortress -416,0,-240（~716 格）；08:42:16 只到中途 waypoint(-150,40,-60)；16:49:32~33 hurt-blocked src=lava、hp=2、「RDD 试图在岩浆里游泳」死亡（deaths PRESENT 1）；16:49:37 java died；rdd_save/world-after ECONNREFUSED 8765；无 crash-report/hs_err；inventory 无 blaze_rod；postStop 0。教训：goto 默认不架桥，下界直冲岩浆会掉。",
+      "run": "exp-b52-fortress-direct-20261031-20261031-162817",
+      "by": "unknown",
+      "at": "2026-10-31T08:52:33.170Z"
     }
   ],
   "verdicts": [
