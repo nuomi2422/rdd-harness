@@ -1,0 +1,1 @@
+实验 setup，严格按顺序做三步：1) 调用 experience_publish 把 id 为 `execution|goto 的寻路以『净位移』判定进度：当目标在需要绕远的地形中（洞穴、坑洼、树林、单格宽通道）时，寻路会在两个等效绕行方向间反复切换，累计走了约 10 格而净位移仍为 0，超阈值即中止并返回 route unusable: no net progress, direction keeps reversing。` 的条目发布为 TRIAL；2) 用 goto 走到 (150,68,700)，到了再走回 (163,68,684)，如实记录到没到；3) 最后把同一条目发布回 SUSPENDED。
