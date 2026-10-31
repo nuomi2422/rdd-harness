@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:17:34.707Z",
+  "updated_at": "2026-10-31T00:26:44.563Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -625,6 +625,13 @@
       "run": "exp-b20-trial-20261031-20261031-080229",
       "by": "unknown",
       "at": "2026-10-31T00:17:34.705Z"
+    },
+    {
+      "exp_id": "b22-topic-guard-unit",
+      "note": "2026-10-31 08:25 B22（V-20261031-26 🟡/UNKNOWN）：LearnerReviewTool 加 REVISE 主题守卫（title bigram Jaccard <0.10 → REVISE_TOPIC_MISMATCH，不落库），代码 029bac668、部署 D656E7B4…；:plugins:learner:test 5 例 BUILD SUCCESSFUL（同标题>0.9、无关<0.1）。实机 exp-b22-topic-20261031-20261031-082152：reviewed 10/10 无 REVISE、无 auto_learn ⇒ 守卫未触发（live UNKNOWN）；0 死亡/0 干预；save ok 340ms。既有数据债：config 仍有 4 条「goto 标题 + 不相干正文」（SUSPENDED craft 1、DRAFT inspect/craft 3），DRAFT 不进 EXECUTOR；下一步做正文/title 审计。",
+      "run": "exp-b22-topic-20261031-20261031-082152",
+      "by": "unknown",
+      "at": "2026-10-31T00:26:44.561Z"
     }
   ],
   "verdicts": [
