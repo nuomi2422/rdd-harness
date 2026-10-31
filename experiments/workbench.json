@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:50:44.963Z",
+  "updated_at": "2026-10-31T00:59:44.522Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -653,6 +653,13 @@
       "run": "exp-b25-long-trial-20261031-20261031-084404",
       "by": "unknown",
       "at": "2026-10-31T00:50:44.962Z"
+    },
+    {
+      "exp_id": "b26-published-maturity-gate",
+      "note": "2026-10-31 08:58 B26（V-20261031-30 🟡）：exp-b26-published-20261031-20261031-085225（campaign，08:52–08:58，20 calls，0 死亡/0 干预）。publish 00:53:47 SUSPENDED→PUBLISHED；goto 来回；00:54:13 PUBLISHED→SUSPENDED；save ok 381ms。request_delivered 11 条 0 命中：RoleViewSelector.java:48-51 的 EXECUTOR 要求 trial=true 或 maturity>=VERIFIED；PUBLISHED+OBSERVED 不进执行视图（G5g 冻结语义）。对发布门的含义：只人批 PUBLISHED 不够，必须同时走 experience_verify 或 trial。",
+      "run": "exp-b26-published-20261031-20261031-085225",
+      "by": "unknown",
+      "at": "2026-10-31T00:59:44.521Z"
     }
   ],
   "verdicts": [
