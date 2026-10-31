@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T07:54:34.136Z",
+  "updated_at": "2026-10-31T08:26:31.834Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -870,6 +870,13 @@
       "run": "exp-b50-nether-fortress-20261031-20261031-152449",
       "by": "unknown",
       "at": "2026-10-31T07:54:34.134Z"
+    },
+    {
+      "exp_id": "b51-fortress-located",
+      "note": "2026-10-31 16:25 B51（V-20261031-56 🟡）：exp-b51-fortress-20261031-20261031-155650（campaign，15:56–16:25，197 调用，0 死亡/0 干预）。08:02:38 进 the_nether；08:17:36 locate_structure 返回 minecraft:fortress 320,0,160（233 格）；08:24:27 world-after 仍 the_nether（没弹回）；未走到堡垒、无 blaze_rod；save ok 321ms；postStop 23。盲点：进下界后 15 分钟才查堡垒（world_fact_probe 13/get_world_info 12/build 8/transfer 4），链仍停 primary-2，233 格 25 分钟没走完。",
+      "run": "exp-b51-fortress-20261031-20261031-155650",
+      "by": "unknown",
+      "at": "2026-10-31T08:26:31.832Z"
     }
   ],
   "verdicts": [
