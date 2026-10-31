@@ -14,20 +14,26 @@
  *   - **有界**：每个流只保留尾部 ring（内存有界），文件按 offset 增量读，不整文件重读。
  *   - **纯渲染**：renderX(state) 是纯函数，给同一份 state 必得同一份 md —— 离线可测。
  *
- * 事件归一（monitor 五条流 → 六类标签）：
+ * 事件归一（monitor 五条流 → 七类标签）：
  *   chain  taskchain_snapshot / requirement_manifest / goal_kickoff / subtask_* / chain_recovering …
  *   ctx    numen_context / supervisor_input|context|output / runtime_state / planning_input_verbatim
- *   chat   ai.jsonl assistant、turn；context.jsonl user_prompt、llm_response.response.content
+ *   chat   ai.jsonl assistant、turn；context.jsonl user_prompt、supervisor 的 llm_response
+ *   act    执行 AI 的 llm_response.tool_calls（**参数只有这里有**；tools.jsonl 的 tool_call 只记 args_chars）
  *   proto  tools.jsonl tool_call / tool_result
  *   death  instrumentation.jsonl death / starvation_death
  *   event  events.jsonl 其余
+ *
+ * 视图（VIEWS）：snapshot / chain / chat / context / strand。
+ *   strand 把「说（ai.jsonl assistant）、做（act 的 tool_calls）、果（tool_result）、链（状态迁移）、死」
+ *   按时间串成一条 —— 这是用户 2026-11-01 要的「自动组装成一串」。
+ *   ★ 拼不出来的只有「思考」：llm_response.excluded 含 hidden_reasoning，监控里根本没有。
  *
  * 用法见 bin/bench-watch.js（引擎）与 bin/bench.js live（开关）。
  */
 const fs = require('fs');
 const path = require('path');
 
-const VIEWS = ['snapshot', 'chain', 'chat', 'context'];
+const VIEWS = ['snapshot', 'chain', 'chat', 'context', 'strand'];
 const DEFAULT_MONITOR = 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen\\monitor';
 const MAX_TEXT = 4000;      // 单个 ctx 文本最长落盘字符数
 const MAX_LINE = 20000;     // 单行最长保留（防超长请求体撑爆内存）
@@ -99,7 +105,9 @@ function newState(meta) {
     pid: process.pid,
     ticks: 0,
     files: {},                    // name -> {offset,size,mtime,lastEventAt,lines,missing}
-    ring: { chain: [], ctx: [], chat: [], proto: [], death: [], event: [] },
+    ring: { chain: [], ctx: [], chat: [], act: [], proto: [], death: [], event: [] },
+    calls: Object.create(null),      // tool_call_id -> {name,args,t}，strand 用来把「果」配回工具名/参数
+    callsN: 0,
     counters: Object.create(null),
     last: { chain: null, numen: null, supervisorOut: null, supervisorIn: null, runtime: null, manifest: null, gaps: null, retrieval: null, observer: null, planIn: null },
     errors: [],
@@ -164,6 +172,7 @@ function normalize(file, ev) {
       }
       return { kind: 'chain', rec: { t, type, assets: { dim, facilities: fac, missing }, brief: 'facilities=' + fac.length + (dim ? ' dim=' + dim : ''), companion: d.companionId } };
     }
+    if (type === 'goal_kickoff') return { kind: 'chain', rec: { t, type, brief: 'goal=' + (d.taskId || '?') + ' primary=' + (d.primaryId || '?') + ' subtask=' + (d.subtaskId || '?'), companion: d.companionId } };
     if (type === 'subtask_stalled' || type === 'subtask_resumed' || type === 'subtask_stall_escalated') {
       return { kind: 'chain', rec: { t, type, brief: 'source=' + (d.source || '?') + ' reason=' + clip(d.reason || '', 60) + ' subtask=' + (d.subtask || '?'), companion: d.companionId } };
     }
@@ -180,11 +189,24 @@ function normalize(file, ev) {
   if (file === 'context.jsonl') {
     if (type === 'user_prompt') return { kind: 'chat', rec: { t, type, who: '用户', text: d.text || '' } };
     if (type === 'llm_response') {
-      // 只留规划 AI 的回应：执行 AI 的回应与 ai.jsonl assistant 重复，留在 chat 里会一条当两条证据。
-      if (d.actor !== 'supervisor') return null;
-      const r = d.response || {};
-      const calls = (r.tool_calls || []).map((c) => c.name).filter(Boolean);
-      return { kind: 'chat', rec: { t, type, who: '规划 AI', text: (r.content || '') + (calls.length ? '  ⟨' + calls.join(',') + '⟩' : ''), phase: d.phase, model: d.model } };
+      const res = d.response || {};
+      if (d.actor === 'supervisor') {
+        // 规划 AI 的回应进 chat（执行 AI 的正文与 ai.jsonl assistant 重复，留在 chat 会一条当两条证据）。
+        const names = (res.tool_calls || []).map((c) => c.name).filter(Boolean);
+        return { kind: 'chat', rec: { t, type, who: '规划 AI', text: (res.content || '') + (names.length ? '  ⟨' + names.join(',') + '⟩' : ''), phase: d.phase, model: d.model } };
+      }
+      // ★ 执行 AI 的 tool_calls：只有这里有**参数正文**（tools.jsonl 的 tool_call 只记 args_chars），
+      //   单独归一成 act，供 strand 串「她想做什么」。没有调用的纯说话响应不进 act（说由 ai.jsonl 负责）。
+      const calls = (res.tool_calls || []).map((c) => {
+        const fn = (c && c.function) || {};
+        return {
+          id: (c && c.id) || null,
+          name: (c && c.name) || fn.name || '?',
+          args: c && c.args != null ? c.args : (c && c.arguments != null ? c.arguments : (fn.arguments != null ? fn.arguments : '')),
+        };
+      }).filter((c) => c.name && c.name !== '?');
+      if (!calls.length) return null;
+      return { kind: 'act', rec: { t, type, requestId: d.requestId || null, model: d.model, phase: d.phase, actor: d.actor, calls } };
     }
     if (type === 'llm_request') {
       const msgs = ((d.request || {}).messages || []);
@@ -197,11 +219,16 @@ function normalize(file, ev) {
   }
 
   if (file === 'tools.jsonl') {
-    if (type === 'tool_call') return { kind: 'proto', rec: { t, type, text: '→ ' + (d.tool || '?') + ' ' + clip(d.args || d.arguments || '', 120) } };
+    if (type === 'tool_call') {
+      // 参数正文不在这条事件里（只有 args_chars）——「做」的可读参数在 context.jsonl 的 llm_response.tool_calls。
+      return { kind: 'proto', rec: { t, type, callId: d.tool_call_id || null, tool: d.tool || '?',
+        text: '→ ' + (d.tool || '?') + (d.args_chars ? '（参数 ' + d.args_chars + ' 字）' : '') } };
+    }
     if (type === 'tool_result') {
       let ok = null, msg = '';
       try { const r = JSON.parse(d.result || '{}'); ok = r.success; msg = r.message || ''; } catch { msg = String(d.result || ''); }
-      return { kind: 'proto', rec: { t, type, ok, text: (ok === false ? '✘ ' : ok === true ? '✔ ' : '? ') + clip(msg, 140) } };
+      return { kind: 'proto', rec: { t, type, callId: d.tool_call_id || null, tool: d.tool || null, ok,
+        text: (ok === false ? '✘ ' : ok === true ? '✔ ' : '? ') + clip(msg, 140) } };
     }
     return null;
   }
@@ -232,6 +259,15 @@ function apply(state, file, items, nowMs) {
     state.counters[it.rec.type] = (state.counters[it.rec.type] || 0) + 1;
     const f = state.files[file] || (state.files[file] = { lines: 0 });
     f.lastEventAt = it.rec.t || now;
+    if (it.kind === 'act') {
+      for (const c of (it.rec.calls || [])) if (c && c.id) state.calls[c.id] = { name: c.name, args: c.args, t: it.rec.t };
+      state.callsN = (state.callsN || 0) + 1;
+      if (state.callsN > 8000) {   // 有界：只留最近 4000 个 callId
+        const ks = Object.keys(state.calls);
+        for (let i = 0; i < ks.length - 4000; i++) delete state.calls[ks[i]];
+        state.callsN = 4000;
+      }
+    }
     // last 视图
     if (it.kind === 'chain' && it.rec.chain) state.last.chain = it.rec;
     if (it.kind === 'chain' && it.rec.manifest) state.last.manifest = it.rec.manifest;
@@ -474,7 +510,93 @@ function renderContext(state, meta) {
   return L.join('\n') + '\n';
 }
 
-const RENDERERS = { snapshot: renderSnapshot, chain: renderChain, chat: renderChat, context: renderContext };
+// ── strand：把「说 / 做 / 果 / 链 / 死」按时间串成一条 ──────────────────────
+/** 链里值得进活线的类型（周期快照走「状态迁移折叠」，资产/事实快照是噪声，不进） */
+const STRAND_CHAIN_TYPES = new Set([
+  'requirement_manifest', 'requirement_gaps_changed', 'subtask_stalled', 'subtask_resumed',
+  'subtask_stall_escalated', 'carrier_alarm', 'chain_recovering', 'goal_kickoff',
+]);
+
+function renderStrand(state, meta) {
+  const now = (meta && meta.now) || Date.now();
+  const items = [];
+  // key：去重键。monitor 有「同一逻辑事件被两个生产者各写一遍」（如 tool_result 的 client / server-async，
+  // event_id 不同、callId 与正文相同），所以「果」按 callId+正文去重，而不是按 event_id。
+  const push = (t, kind, text, id, key) => { if (t == null) return; items.push({ t, kind, text, id: id || null, key: key || null }); };
+  // 说 / 用户 / 规划：对话流（她说的那句来自 ai.jsonl assistant；执行 AI 的正文不重复进）
+  for (const r of state.ring.chat) {
+    if (r.type === 'assistant') push(r.t, '说', clip(r.text, 300), r.id, 'say:' + r.t + '|' + clip(r.text, 300));
+    else if (r.type === 'user_prompt') push(r.t, '用户', clip(r.text, 200), r.id, 'user:' + r.t + '|' + clip(r.text, 200));
+    else if (r.type === 'llm_response') push(r.t, '规划', clip(r.text, 200), r.id, 'plan:' + r.t + '|' + clip(r.text, 200));
+  }
+  // 做：执行 AI 每次响应里的 tool_calls（带参数；参数只有 context.jsonl 有）
+  for (const r of state.ring.act) {
+    for (const c of (r.calls || [])) {
+      const t2 = clip(c.name + (c.args ? ' ' + String(c.args) : ''), 260);
+      push(r.t, '做', t2, r.id, 'act:' + (c.id || r.t + '#' + t2));
+    }
+  }
+  // 果：tool_result（按 tool_call_id 把工具名配回来）
+  for (const r of state.ring.proto) {
+    if (r.type !== 'tool_result') continue;
+    const known = r.callId && state.calls[r.callId];
+    const txt2 = clip((known ? known.name + ' ' : '') + r.text, 280);
+    push(r.t, '果', txt2, r.id, 'res:' + (r.callId || 't' + r.t) + '|' + txt2);
+  }
+  // 链：状态迁移 + 明确事件（同一状态连续快照折叠）
+  let prevKey = null;
+  for (const r of state.ring.chain) {
+    if (r.chain) {
+      const c = r.chain;
+      const key = (c.primaryStatus || '?') + '|' + (c.currentSubtaskId || '?') + '|' + (c.stateVersion == null ? '?' : c.stateVersion);
+      if (key === prevKey) continue;
+      prevKey = key;
+      push(r.t, '链', clip('status=' + (c.primaryStatus || '?') + ' v=' + (c.stateVersion == null ? '?' : c.stateVersion) + ' stage=' + (c.currentSubtaskId || '?'), 200), r.id, r.id ? null : 'chain:' + r.t + '|' + key);
+    } else if (STRAND_CHAIN_TYPES.has(r.type)) {
+      const extra = r.gaps ? String(r.gaps) : (r.brief || '');
+      const txt3 = clip(r.type + (extra ? ' ' + extra : ''), 200);
+      push(r.t, '链', txt3, r.id, 'chain:' + r.t + '|' + txt3);
+    }
+  }
+  // 死
+  for (const r of state.ring.death) push(r.t, '死', clip(r.text, 200), r.id, 'death:' + r.t + '|' + clip(r.text, 200));
+
+  items.sort((a, b) => (a.t || 0) - (b.t || 0));
+  // monitor 里确实存在同 event_id 的重复行（实测 tools.jsonl 1200 行里 64 条重复），按 id 去重。
+  const seen = new Set();
+  const uniq = [];
+  for (const it of items) {
+    const k = it.key || (it.id ? 'id:' + it.id + '|' + it.kind : 'txt:' + it.kind + '|' + it.t + '|' + it.text);
+    if (seen.has(k)) continue;
+    seen.add(k);
+    uniq.push(it);
+  }
+  items.length = 0;
+  items.push(...uniq);
+  const MAX = 80;
+  const shown = items.slice(-MAX);
+
+  const L = [];
+  L.push('# 实验台 live · strand（说 / 做 / 果 / 链 / 死，按时间串成一条）');
+  L.push('captured_at=' + ts(now) + '  条目=' + items.length + '（各流 ring 上限 ' + RING + '；只留最近 ' + MAX + ' 条）');
+  L.push('规则：说=ai.jsonl assistant（内脑自述）｜做=执行 AI 响应里的 tool_calls（参数只存在 context.jsonl）｜果=tools.jsonl tool_result｜链=任务链状态迁移｜死=死亡');
+  L.push('⚠ 思考（hidden reasoning）不在监控数据里：llm_response 写着 excluded=[credentials,hidden_reasoning]，这一串只有「她说 / 她做 / 结果」，没有「她想」。');
+  L.push('');
+  if (!items.length) {
+    L.push('未观测到可串的事件（ring 里还没有 assistant / llm_response.tool_calls / tool_result / 链迁移）。');
+    L.push('这**不是**「她没说没做」——是本进程还没吃到这些流，或 watch.json 关掉了 strand。');
+    return L.join('\n') + '\n';
+  }
+  if (items.length > shown.length) L.push('（更早的 ' + (items.length - shown.length) + ' 条已滚动丢弃）');
+  L.push('## 最近 ' + shown.length + ' 条（旧 → 新）');
+  L.push('');
+  for (const it of shown) L.push('[' + ts(it.t) + '] ' + it.kind + '  ' + it.text);
+  L.push('');
+  L.push('> 只读拼接：来自 monitor/*.jsonl；不补缺项，「没观测到」不写成「没做」。');
+  return L.join('\n') + '\n';
+}
+
+const RENDERERS = { snapshot: renderSnapshot, chain: renderChain, chat: renderChat, context: renderContext, strand: renderStrand };
 
 function render(view, state, meta) {
   const fn = RENDERERS[view];
@@ -491,7 +613,7 @@ function renderAll(state, meta, views) {
 
 module.exports = {
   VIEWS, DEFAULT_MONITOR, MAX_TEXT, RING,
-  newState, readTail, normalize, apply, render, renderAll, chainView,
+  newState, readTail, normalize, apply, render, renderAll, renderStrand, chainView,
   loadControl, saveControl, writeAtomic, ts, ago, clip,
 };
 

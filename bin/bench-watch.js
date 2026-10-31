@@ -10,11 +10,11 @@
  * 常驻进程每 15s 拉一次等于自己打自己；而 jsonl 就在盘上，按 offset 增量读是 O(新行)。
  *
  * 开关（不用重启进程）：experiments/live/watch.json
- *   { enabled: true|false, views: ["snapshot","chain","chat","context"], interval_s: 15 }
+ *   { enabled: true|false, views: ["snapshot","chain","chat","context","strand"], interval_s: 15 }
  *   引擎每拍重读。改它用：node bin/bench.js live on|off|only chat,chain|interval 10
  *
  * 用法：
- *   node bench-watch.js                       # 常驻，默认 15s，写全部 4 个视图
+ *   node bench-watch.js                       # 常驻，默认 15s，写全部视图（含 strand 一条串）
  *   node bench-watch.js --once                # 只跑一拍（验收/自测用）
  *   node bench-watch.js --interval 30 --views snapshot,chain
  *   node bench-watch.js --monitor <dir> --out <dir>
@@ -63,7 +63,7 @@ function collectOnce(state, opt) {
       if (!line.trim()) continue;
       const ev = (() => { try { return JSON.parse(line); } catch { return null; } })();
       const n = L.normalize(f, ev);
-      if (n) items.push(n);
+      if (n) { n.rec.id = (ev && ev.event_id) || null; items.push(n); }   // event_id 供 strand 去重
     }
     L.apply(state, f, items, now);
     collected += items.length;
@@ -169,8 +169,13 @@ function selfTest() {
     { timestamp: T('00:06'), type: 'assistant', data: { text: '天黑了，我先睡一觉' } },
   ]);
   w('context.jsonl', [
-    { timestamp: T('00:07'), type: 'llm_response', data: { actor: 'supervisor', phase: 'planning', model: 'm', response: { content: '垫脚料没了', tool_calls: [{ name: 'mine' }] } } },
-    { timestamp: T('00:08'), type: 'retrieval_snapshot', data: { entries: 8, status: 'PARTIAL', chars: 4122, truncationReasons: ['max_candidates=8'] } },
+    { timestamp: T('00:07'), type: 'llm_response', data: { actor: 'numen', phase: 'execution', model: 'm', requestId: 'req-1', response: { content: '我去挖铁矿', tool_calls: [{ id: 'call_1', name: 'mine', arguments: '{"block_ids":["minecraft:iron_ore"],"count":2}' }] } } },
+    { timestamp: T('00:08'), type: 'llm_response', data: { actor: 'supervisor', phase: 'planning', model: 'm', response: { content: '垫脚料没了', tool_calls: [{ name: 'mine' }] } } },
+    { timestamp: T('00:10'), type: 'retrieval_snapshot', data: { entries: 8, status: 'PARTIAL', chars: 4122, truncationReasons: ['max_candidates=8'] } },
+  ]);
+  w('tools.jsonl', [
+    { event_id: 'tools-dup-1', timestamp: T('00:09'), type: 'tool_result', data: { tool_call_id: 'call_1', tool: 'mine', success: true, result: '{"success":true,"message":"挖到 2 个"}' } },
+    { event_id: 'tools-dup-1', timestamp: T('00:09'), type: 'tool_result', data: { tool_call_id: 'call_1', tool: 'mine', success: true, result: '{"success":true,"message":"挖到 2 个"}' } },
   ]);
   w('instrumentation.jsonl', [
     { timestamp: T('00:09'), type: 'death', data: { deathCauseMsg: 'RDD was killed', deathKind: 'unknown' } },
@@ -183,7 +188,15 @@ function selfTest() {
   const r1 = collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15, now: Date.parse(T('00:11')) });
   const read = (v) => fs.readFileSync(path.join(out, v + '.md'), 'utf8');
   const cases = [];
-  cases.push(['四份视图都落盘', r1.writes.length === 4 && L.VIEWS.every((v) => fs.existsSync(path.join(out, v + '.md'))), r1.writes.join(',')]);
+  cases.push(['五份视图都落盘', r1.writes.length === L.VIEWS.length && L.VIEWS.every((v) => fs.existsSync(path.join(out, v + '.md'))), r1.writes.join(',')]);
+  { const s = read('strand');
+    cases.push(['strand 串出她说', /天黑了/.test(s), '']);
+    cases.push(['strand 串出她要做的行为（带参数）', /做\s+mine\s+\{"block_ids"/.test(s), s.slice(0, 400)]);
+    cases.push(['strand 串出结果（按 callId 配回工具名）', /果\s+mine\s+✔/.test(s), s.slice(0, 400)]);
+    cases.push(['strand 按时间排序（说→做→果）', s.indexOf('天黑了') > -1 && s.indexOf('天黑了') < s.indexOf('做  mine') && s.indexOf('做  mine') < s.indexOf('果  mine'), '']);
+    cases.push(['strand 明说思考拼不出', /hidden_reasoning/.test(s), '']);
+    cases.push(['strand 同 event_id 去重', (s.match(/挖到 2 个/g) || []).length === 1, 'count=' + (s.match(/挖到 2 个/g) || []).length]);
+  }
   cases.push(['快照含任务链状态', /status=ACTIVE/.test(read('snapshot')) && /凑够10个黑曜石/.test(read('snapshot')), '']);
   cases.push(['快照含第二视角身体', /pos=\(163,8,745\)/.test(read('snapshot')), '']);
   cases.push(['chain 含一级目标与清单', /挖黑曜石/.test(read('chain')) && /minecraft:obsidian/.test(read('chain')), '']);

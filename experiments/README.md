@@ -22,10 +22,10 @@
 
 ## 环境工作台（world-view）与实验台（bench）
 
-**状态（2026-10-29）：v0.3 已写码、离线自测绿；live 视图 10-29 10:36 后停（进程死），Observer stale。**
+**状态（2026-11-01）：v0.4 已写码、离线自测绿；live 常驻在跑（五视图：snapshot/chain/chat/context/strand），Observer 是否有样本看 `snapshot.md`。**
 
 - `bin/world-view.js`：world_probe snapshot → `world-view-<phase>.md/.json`；`--render` 离线、无 `--render` 走 MCP 采集；自测 4/4。
-- `bin/bench.js`：共享账本（tips / signals / verdicts / queue / masters / health/ probe）+ 开工包（brief）+ 工具分层（layers）+ 使用证据（usage）；
+- `bin/bench.js`：共享账本（tips / signals / verdicts / queue / masters / health/ probe）+ 开工包（brief）+ 工具分层（layers）+ 使用证据（usage）+ 常驻视图开关（live）；
 - `verification-queue.json`：跨多轮通关复用的待验证判据与证据匹配规则；`verification-history.jsonl` 汇总每轮对照状态，完整证据报告留在各 run 目录。
 - `experiments/workbench.json`：探针 + tips + signal + verdicts + master 共享账本（数值以 `bench catalog` 为准，不在文档里抄死）。
 - `experiments/usage.jsonl`：append-only 使用账本（时间/session/命令/run/card/status；不记正文）。
@@ -46,6 +46,7 @@
     node bin\bench.js usage [--limit N]       # 谁在什么时候读过 bench（append-only experiments/usage.jsonl）
     node bin\bench.js timeline <runDir>       # 完整时序一条命令读全（阶段/目标/回合/调用/结果/任务链/死亡）
     node bin\bench.js probe add --id <id> --title "..." --source "..." --fields a,b,c --note "..."   # AI 自己登记要读的数据
+    node bin\bench.js live show strand        # ★ 说/做/果/链/死 按时间串成一条（2026-11-01 新增）
     node bin\bench.js health <runDir>         # 收工：这轮材料能不能用（会写一条 usage）
     node bin\bench.js coverage <runDir>       # 收工：对照待验队列，报告候选证据（不自动 PASS）
 
