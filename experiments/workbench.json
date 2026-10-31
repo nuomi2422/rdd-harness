@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T05:22:51.464Z",
+  "updated_at": "2026-10-31T06:08:40.306Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -835,6 +835,20 @@
       "run": "exp-b45-yield-20261031-20261031-130659",
       "by": "unknown",
       "at": "2026-10-31T05:22:51.463Z"
+    },
+    {
+      "exp_id": "b46-goto-deadloop",
+      "note": "2026-10-31 13:45 B46（V-20261031-50 🟡 UNKNOWN）：exp-b46-hay-village-20261031-20261031-132702（15 分钟，133 调用，0 死亡/0 干预）。locate_biome 6 次：plains 286~344 格、savanna 1999 格；goto 到 344 格目标直接 no path，AI 重复同一目标 5 次（05:33~05:38），15 分钟没出基地 400 格；无 rdd_report_yield/yield 事件；inventory 无 hay（wheat 仍 4）；save ok 195ms；postStop=112。新盲点：长距离移动卡死。",
+      "run": "exp-b46-hay-village-20261031-20261031-132702",
+      "by": "unknown",
+      "at": "2026-10-31T06:08:38.935Z"
+    },
+    {
+      "exp_id": "b47-waypoint-advice-works",
+      "note": "2026-10-31 14:07 B47（V-20261031-51 🟡）：exp-b47-goto-seg-20261031-20261031-135226（12 分钟，104 调用，0 死亡/0 干预）。core 11875fc8a 新增分段路点文案；blocked 回执出现「This target is … blocks away — too far for one path. First goto x=… z=…」；AI 按路点 goto 688,768，06:06:50 reached（y=65），从 (684,11,675) 爬出洞、水平 ~93 格；仍未到村（差 ~237 格），无 report_yield；save ok 372ms；postStop=71。具体路点打破原地重复死循环。",
+      "run": "exp-b47-goto-seg-20261031-20261031-135226",
+      "by": "unknown",
+      "at": "2026-10-31T06:08:40.305Z"
     }
   ],
   "verdicts": [
