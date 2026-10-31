@@ -1,0 +1,6 @@
+实验清理，请按顺序对下面 4 个 id 各调用一次 experience_publish，target 都是 REVOKED（原因：正文与标题不符）。
+1) execution|goto 以净位移判定进度，绕行地形中会因方向反转中止
+2) tool_defect|goto 以净位移判定进度，绕行地形中会因方向反转中止
+3) policy|debug_kill 走原版死亡流程（entity.kill()，当刻结算），因此背包全部物品会立刻进入死亡资产记账并可能被判 confirmed_lost
+4) execution|goto 的寻路以『净位移』判定进度
+做完逐条报回执，不要做别的。
