@@ -1,0 +1,1 @@
+主线：用 rdd_supervisor_submit 给『通关 Minecraft（下界→烈焰棒→末影珍珠→要塞→末地→龙）』建一条任务链，register=true。链建好后按它的第一个子任务开始执行，不要自己另起目标。
