@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T05:05:55.840Z",
+  "updated_at": "2026-10-31T05:22:51.464Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -828,6 +828,13 @@
       "run": "exp-b44-long-observe-20261031-20261031-123826",
       "by": "unknown",
       "at": "2026-10-31T05:05:55.838Z"
+    },
+    {
+      "exp_id": "b45-yield-tool-visible",
+      "note": "2026-10-31 13:21 B45（V-20261031-49 🟡）：exp-b45-yield-20261031-20261031-130659（campaign，13:06–13:21，131 调用，0 死亡/0 干预）。首请求 50 工具 has_report_yield=true；rdd_report_yield 2 次（05:17:58 r4-1 target 3、05:18:31 r5-0 target 1），均 observed=0/changed=false；yield_reported 2 条、无 yield_target_raised；AI 05:15:32 上报本村无干草块并用面包 14 个结算；inventory-after 无 hay（wheat 2→4），但有 obsidian 6/flint_and_steel 1/iron_chestplate 2；save ok 281ms；postStop=0。工具链打通，向上调 target 待有干草村复验。",
+      "run": "exp-b45-yield-20261031-20261031-130659",
+      "by": "unknown",
+      "at": "2026-10-31T05:22:51.463Z"
     }
   ],
   "verdicts": [
