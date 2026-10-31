@@ -527,6 +527,20 @@ async function cmdRun(opts) {
   const baselineManifest = manifestOf(baseDir);
   log(runDir, 'prepare', '存档外状态快照 files=' + baselineManifest.sha256.slice(0, 16) + '…（' + (baseFiles.length + NUMEN_STATE_DIRS.length) + ' 项）');
 
+  // 2026-10-31（V-20261031-43 实测）：实验隔离——同伴 goal.json 随 config/numen 跨轮残留，
+  // 新一轮启动会按旧目标先规划/完成旧子任务（B39：新 submit 前 03:30:26 旧「挖石头 3→10」先完成）。
+  // 每轮 prepare 清掉 goal.json（restore 会还原基线，下一轮再清），让链从干净状态开始。
+  const clearedGoals = [];
+  const companionsDir = path.join(NUMEN, 'companions');
+  if (fs.existsSync(companionsDir)) {
+    for (const d of fs.readdirSync(companionsDir)) {
+      const g = path.join(companionsDir, d, 'goal.json');
+      if (fs.existsSync(g)) { fs.unlinkSync(g); clearedGoals.push(path.relative(NUMEN, g)); }
+    }
+  }
+  log(runDir, 'prepare', '目标清理（实验隔离）: ' + (clearedGoals.length ? clearedGoals.join(', ') : '无 goal.json'));
+  env.goalReset = clearedGoals;
+
   // mods jar 身份
   const modsDir = path.join(GAME, 'mods');
   const jars = fs.readdirSync(modsDir).filter((f) => f.endsWith('.jar')).map((f) => ({ file: f, sha256: sha256File(path.join(modsDir, f)) }));
