@@ -1,0 +1,1 @@
+用 rdd_supervisor_submit 建链：目标是『在村庄把干草块尽量全部收走并做成面包，数量以现场实际上报为准』，register=true。链展开后到村庄，先用 rdd_report_yield 上报现场干草块数量，再按上调后的数量收集；不要自己另起目标。
