@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:58:18.234Z",
+  "updated_at": "2026-10-31T02:17:16.356Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -716,6 +716,13 @@
       "run": "exp-b32-no-poll-20261031-20261031-095104",
       "by": "unknown",
       "at": "2026-10-31T01:58:18.233Z"
+    },
+    {
+      "exp_id": "b34-note-nopoll-fail",
+      "note": "2026-10-31 10:16 B34（V-20261031-38 ❌）：exp-b34-note-nopoll-20261031-20261031-101105（campaign，10:11–10:16，55 调用，0 死亡/0 干预）。回执已改「不要调用 task_status 轮询」，但 task_status 13 次（B31 28 / B32 显式 1 / B33 9 / B34 13）——prompt/文案都压不住，轮询是模型行为。goto t3/t4 水平达 y 未达、t6 改去箱子；save ok 553ms。游戏已停：无 java 进程、8765 无监听、envelope javaExited=true。",
+      "run": "exp-b34-note-nopoll-20261031-20261031-101105",
+      "by": "unknown",
+      "at": "2026-10-31T02:17:16.355Z"
     }
   ],
   "verdicts": [
