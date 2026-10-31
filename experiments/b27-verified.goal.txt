@@ -1,0 +1,1 @@
+实验 setup，严格按顺序做四步：1) 调用 experience_verify，id 为 `execution|goto 的寻路以『净位移』判定进度，绕行地形中会因方向反转中止`，success=true，note 写 'manual setup: verify for VERIFIED+PUBLISHED delivery'；2) 调用 experience_publish 把同一条目发布为 PUBLISHED；3) 用 goto 走到 (150,68,700)，到了再走回 (163,68,684)；4) 最后把同一条目发布回 SUSPENDED。
