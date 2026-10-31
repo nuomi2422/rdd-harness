@@ -1,0 +1,1 @@
+用 rdd_supervisor_submit 建链：目标是『找到平原或热带草原的村庄，清点村里的干草块，用 rdd_report_yield 上报实际数量并全部搬回基地』，register=true。链展开后按子任务执行；不要自己另起目标。
