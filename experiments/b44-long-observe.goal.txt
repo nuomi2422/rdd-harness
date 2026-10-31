@@ -1,0 +1,1 @@
+用 rdd_supervisor_submit 给『通关 Minecraft（下界→烈焰棒→末影珍珠→要塞→末地→龙）』建一条任务链，register=true。链展开后按当前子任务执行，连续推进；不要自己另起目标。
