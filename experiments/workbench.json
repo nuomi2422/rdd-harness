@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T04:14:28.847Z",
+  "updated_at": "2026-10-31T04:28:23.309Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -807,6 +807,13 @@
       "run": "exp-b41-stop-order-20261031-20261031-120453",
       "by": "unknown",
       "at": "2026-10-31T04:14:28.846Z"
+    },
+    {
+      "exp_id": "b42-session-clear",
+      "note": "2026-10-31 12:26 B42（V-20261031-46 ✅）：exp-b42-session-clear-20261031-20261031-121703（campaign，12:17–12:26，86 调用，0 死亡/0 干预）。prepare「A0 会话边界：追加 clear ×1」（injected=1）；session=CLEAN(msgs=7)；04:19:18 rdd_supervisor_submit 受理，supervisor_input=1（goal_sink）；04:19:21 decomposing；04:19:29「探索找到一座村庄」completed；首阶段「立足与安家」；save ok 390ms；postStopRequests=47。改动 a3cb2fe：A0 清理从 zero-start 移到所有 campaign 模式。",
+      "run": "exp-b42-session-clear-20261031-20261031-121703",
+      "by": "unknown",
+      "at": "2026-10-31T04:28:23.307Z"
     }
   ],
   "verdicts": [
