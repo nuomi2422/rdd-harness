@@ -1,0 +1,1 @@
+实验 setup，严格按顺序做三步：1) 调用 experience_publish 把 id 为 `execution|goto 的寻路以『净位移』判定进度，绕行地形中会因方向反转中止` 的条目发布为 PUBLISHED（人批路径测试）；2) 用 goto 走到 (150,68,700)，到了再走回 (163,68,684)；3) 最后把同一条目发布回 SUSPENDED。
