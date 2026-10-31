@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T00:42:36.044Z",
+  "updated_at": "2026-10-31T00:50:44.963Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -646,6 +646,13 @@
       "run": "exp-b24-clean-trial-20261031-20261031-083601",
       "by": "unknown",
       "at": "2026-10-31T00:42:36.042Z"
+    },
+    {
+      "exp_id": "b25-long-trial",
+      "note": "2026-10-31 08:49 B25（V-20261031-29 ✅）：exp-b25-long-trial-20261031-20261031-084404（campaign，08:44–08:49，26 calls，0 死亡/0 干预）。publish 00:45:30 DRAFT→TRIAL，id 逐字等于 155 字目标（ID_EXACT true ×3）；goto 150,68,700 00:45:40 水平达 y 未达，回 163,68,684 00:45:51 达；request_delivered 14 中 11 含该 ref；publish 00:45:55 TRIAL→SUSPENDED（id 仍一致）；save ok 341ms。长 id 未截断、投送命中；与 B24 短 id 一起覆盖两种长度。",
+      "run": "exp-b25-long-trial-20261031-20261031-084404",
+      "by": "unknown",
+      "at": "2026-10-31T00:50:44.962Z"
     }
   ],
   "verdicts": [
