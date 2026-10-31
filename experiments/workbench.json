@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T03:27:18.322Z",
+  "updated_at": "2026-10-31T03:46:14.409Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -758,6 +758,27 @@
       "run": "exp-b38-single-plan-20261031-20261031-111257",
       "by": "unknown",
       "at": "2026-10-31T03:27:18.320Z"
+    },
+    {
+      "exp_id": "b39-chain-exec",
+      "note": "2026-10-31 11:43 B39（V-20261031-43 🟡）：exp-b39-chain-exec-20261031-20261031-112858（campaign，11:28–11:43，109 调用，0 死亡/0 干预）。submit 03:31:00（supervisor_input=1）；03:31:10 链 active；随后 village/bed/chest/stocked/light 等 subtask_completed；动作集中 base（mine 6/build 5/craft 3/sleep 2/goto 12）；无下界；save ok 555ms。",
+      "run": "exp-b39-chain-exec-20261031-20261031-112858",
+      "by": "unknown",
+      "at": "2026-10-31T03:46:08.178Z"
+    },
+    {
+      "exp_id": "b39-old-chain-carryover",
+      "note": "2026-10-31 11:43 B39 盲点①（OBSERVED，候选 bug）：世界副本带入了旧 RDD 链——03:30:26（新 submit 03:31:00 之前）rdd.jsonl 出现旧目标子任务 completed：「用铁镐挖石头 3→10」「把这 10 个圆石堆一摞」（B18/B19 旧 goal-a43d753e-1 的描述）。说明链状态随存档持久化；新一轮在同一副本上 submit 会与旧链并存（两个 primary），实验隔离不干净。修法：每轮开始前清链（rdd_clear/新母版）或在 exp-runner 的 prepare 阶段清理 rdd-side 链状态。",
+      "run": "exp-b39-chain-exec-20261031-20261031-112858",
+      "by": "unknown",
+      "at": "2026-10-31T03:46:11.272Z"
+    },
+    {
+      "exp_id": "b39-base-first-stop118",
+      "note": "2026-10-31 11:43 B39 盲点②③（OBSERVED）：② 新链仍 base-first（village→bed→chest→存粮→光→铁料），12 分钟无下界进展；③ postStopRequests=118（本轮最高），rdd_get_inventory=22，task_status=0（B35 隐藏生效）。",
+      "run": "exp-b39-chain-exec-20261031-20261031-112858",
+      "by": "unknown",
+      "at": "2026-10-31T03:46:14.407Z"
     }
   ],
   "verdicts": [
