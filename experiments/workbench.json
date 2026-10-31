@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:47:18.175Z",
+  "updated_at": "2026-10-31T01:49:00.983Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -702,6 +702,13 @@
       "run": "exp-b31-natural-verify-20261031-20261031-093910",
       "by": "unknown",
       "at": "2026-10-31T01:47:18.173Z"
+    },
+    {
+      "exp_id": "b31-runaway-was-threat-response",
+      "note": "更正（2026-10-31 09:50 OBSERVED）：B31 完成目标后的 4 分钟活动不是无端游荡——首请求显示夜晚（day6 22:xx-00:00）+ 苦力怕 P0 警告（22:23 creeper=4、23:33 creeper=6 ignited=true）+ night P1；attack 回执 fought off 0 hostiles、goto 为拉开距离。真正的问题是 task_status 28 次轮询（回执明说不要轮询）与夜里无床/无掩体。此前「目标完成后继续活动」的归因不完整，已更正卡 35/#398/CHECKPOINT。",
+      "run": "exp-b31-natural-verify-20261031-20261031-093910",
+      "by": "unknown",
+      "at": "2026-10-31T01:49:00.982Z"
     }
   ],
   "verdicts": [
