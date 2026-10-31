@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T04:36:49.250Z",
+  "updated_at": "2026-10-31T05:05:55.840Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -821,6 +821,13 @@
       "run": "",
       "by": "unknown",
       "at": "2026-10-31T04:36:49.248Z"
+    },
+    {
+      "exp_id": "b44-chain-observe",
+      "note": "2026-10-31 13:03 B44（V-20261031-48 🟡）：exp-b44-long-observe-20261031-20261031-123826（campaign，12:38–13:03，watch 1200s，133 调用，0 死亡/0 干预）。8 级链含下界准备/堡垒/烈焰棒/珍珠/要塞/终局；5 个 base 子任务完成（床 04:43:03、食物 04:58:05≈15min、存粮、光源、墙/顶 05:01:26）；build 23/25（2 格被实体挡）；rdd_decline_side 2；future_need_spotted 7；report_yield 0；inspect_block 36/inventory 36；save ok 610ms；postStop 79。干草根因：描述「全部」但硬判据 wheat≥9；rdd_report_yield 不在 executor 白名单（44 工具里没有）→ B2 不可用；已把 6 个工具加进白名单（51→57，setup）。",
+      "run": "exp-b44-long-observe-20261031-20261031-123826",
+      "by": "unknown",
+      "at": "2026-10-31T05:05:55.838Z"
     }
   ],
   "verdicts": [
