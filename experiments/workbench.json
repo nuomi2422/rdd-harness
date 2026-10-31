@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:09:41.676Z",
+  "updated_at": "2026-10-31T01:18:44.202Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -667,6 +667,13 @@
       "run": "exp-b27-verified-published-20261031-20261031-090153",
       "by": "unknown",
       "at": "2026-10-31T01:09:41.674Z"
+    },
+    {
+      "exp_id": "b28-suspended-no-retrial",
+      "note": "2026-10-31 09:17 B28（V-20261031-32 ❌）：exp-b28-verify-outcome-20261031-20261031-091147（campaign，09:11–09:17，34 calls，0 死亡/0 干预）。experience_publish 01:13:23 被拒 ILLEGAL_TRANSITION: SUSPENDED 不能直接迁到 TRIAL（状态机只允许 SUSPENDED→PUBLISHED/REVOKED；无 SUSPENDED→TRIAL/DRAFT），试用一次性。goto 150,68,700 01:13:44 水平达 y 高 2 格未达；回 163,68,684 01:13:57 达。experience_verify 01:14:06 被 NEVER_DELIVERED 拒；01:14:13 成功 success=false → maturity=ATTEMPTED, verified_count=0, counterexamples=1（按真实结局降级）。save ok 380ms。下一步：裁定 re-trial 路径或新学 DRAFT 再试。",
+      "run": "exp-b28-verify-outcome-20261031-20261031-091147",
+      "by": "unknown",
+      "at": "2026-10-31T01:18:44.200Z"
     }
   ],
   "verdicts": [
