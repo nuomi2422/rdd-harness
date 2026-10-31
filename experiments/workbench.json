@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T02:45:26.978Z",
+  "updated_at": "2026-10-31T03:27:18.322Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -730,6 +730,34 @@
       "run": "exp-b36-iron-bucket-20261031-20261031-103217",
       "by": "unknown",
       "at": "2026-10-31T02:45:26.977Z"
+    },
+    {
+      "exp_id": "b37-supervisor-chain",
+      "note": "2026-10-31 11:02 B37（V-20261031-41 🟡）：exp-b37-supervisor-mc-20261031-20261031-104742（campaign，10:47–11:02，162 调用，0 死亡/0 干预）。rdd_supervisor_submit 02:49:37 受理；链 active，首条件 minecraft:bread≥6、subtask r1-3；AI 整轮做食物/农耕（farm 2、craft 8、sleep 1）；task_status 56、rdd_get_inventory 23、postStopRequests 64；save ok 787ms。链已建但 12 分钟无下界进展。",
+      "run": "exp-b37-supervisor-mc-20261031-20261031-104742",
+      "by": "unknown",
+      "at": "2026-10-31T03:06:58.028Z"
+    },
+    {
+      "exp_id": "b37-supervisor-double-planning",
+      "note": "2026-10-31 11:02 B37 盲点①（OBSERVED，候选 bug）：同一次 rdd_supervisor_submit（register=true）触发了**两条** supervisor_input——02:49:37.009 source=goal_sink 与 02:49:37.073 source=rdd_supervisor_submit。原因推测：GoalSinks.submit 的注册 sink 自己会规划一次，submitSupervisorGoal 又显式 beginPlanning 一次。需去重（register 只登记不规划，或工具路径跳过重复）。",
+      "run": "exp-b37-supervisor-mc-20261031-20261031-104742",
+      "by": "unknown",
+      "at": "2026-10-31T03:06:59.017Z"
+    },
+    {
+      "exp_id": "b38-single-plan",
+      "note": "2026-10-31 11:24 B38（V-20261031-42 ✅）：exp-b38-single-plan-20261031-20261031-111257（campaign，11:12–11:24，71 调用，0 死亡/0 干预）。submit 03:17:02；supervisor_input 恰好 1 条（goal_sink 03:17:02.003598），B37 为 2 条；rdd_status 03:17:07 decomposing → 03:17:13 active=true/primary PENDING（blocks 44/food 10/wood 6）；save ok 305ms。双份规划修复生效。",
+      "run": "exp-b38-single-plan-20261031-20261031-111257",
+      "by": "unknown",
+      "at": "2026-10-31T03:27:15.987Z"
+    },
+    {
+      "exp_id": "b38-instruct-not-obeyed",
+      "note": "2026-10-31 11:24 B38 副观察（OBSERVED，盲点）：goal 明确「建好后等链出现……先不要自己执行」，AI 仍做 inspect_block 22、build 4、craft 4、interact_at 11、mine 1、sleep 2；postStopRequests=67。链还在 awaiting expansion 时就开始备料/动手，属指令服从与等待行为的盲点。",
+      "run": "exp-b38-single-plan-20261031-20261031-111257",
+      "by": "unknown",
+      "at": "2026-10-31T03:27:18.320Z"
     }
   ],
   "verdicts": [
