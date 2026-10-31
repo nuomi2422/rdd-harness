@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T01:18:44.202Z",
+  "updated_at": "2026-10-31T01:26:22.529Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -674,6 +674,13 @@
       "run": "exp-b28-verify-outcome-20261031-20261031-091147",
       "by": "unknown",
       "at": "2026-10-31T01:18:44.200Z"
+    },
+    {
+      "exp_id": "b29-diamond-pickaxe",
+      "note": "2026-10-31 09:25 B29（V-20261031-33 ✅）：exp-b29-diamond-pickaxe-20261031-20261031-092021（campaign，09:20–09:25，22 calls，0 死亡/0 干预）。craft 01:21:42 4x stick（2 oak_planks，2x2）；01:21:45 1x diamond_pickaxe（3 diamond + 2 stick，table 165,69,684）；inventory diamond_pickaxe 1、diamond 0、stick 3（1+4−2，判据 stick=0 不成立）；save ok 390ms。AI 自发 learner_review 01:23:49（reviewed 12/committed 12/restored 2）；auto_learn stored 0（1 条 draft 缺字段被 SKIPPED）。",
+      "run": "exp-b29-diamond-pickaxe-20261031-20261031-092021",
+      "by": "unknown",
+      "at": "2026-10-31T01:26:22.528Z"
     }
   ],
   "verdicts": [
