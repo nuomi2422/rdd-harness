@@ -71,6 +71,15 @@ function numenTask() {
   })();
 }
 
+// 任务语义 60s 缓存：每次都走一次 JSON-RPC 会把采样拖慢，而且重启期间必然超时
+let TASK_CACHE = { at: 0, val: null };
+async function taskCached() {
+  if (Date.now() - TASK_CACHE.at < 60000) return TASK_CACHE.val;
+  const v = await numenTask();
+  TASK_CACHE = { at: Date.now(), val: v };
+  return v;
+}
+
 function lastSample() {
   const txt = (() => { try { return fs.readFileSync(PATROL, 'utf8'); } catch { return ''; } })();
   const lines = txt.split(/\r?\n/).filter(Boolean);
@@ -104,7 +113,7 @@ async function sample() {
     gameTime: st.gameTime || null,
   };
   // 任务语义：判断「它是在等，还是真卡住」
-  const task = await numenTask();
+  const task = await taskCached();
   if (task && task.message) {
     rec.task = task.message.slice(0, 140);
     const idle = /身体空闲/.test(task.message);
@@ -125,11 +134,16 @@ async function sample() {
     if (prev && prev.tpos && tpos) {
       const dt = (Date.now() - Date.parse(prev.ts)) / 1000;
       const moved = Math.hypot(tpos.x - prev.tpos.x, tpos.y - prev.tpos.y, tpos.z - prev.tpos.z);
-      // 挂着定时器（等炉子/等天亮）时不动是「在等」，不是卡住 —— 两种要分开记
-      if (dt >= 45 && moved < 0.5 && !rec.waiting) {
-        flags.push('maybe-stuck（' + Math.round(dt) + 's 内位置只动了 ' + moved.toFixed(1) + ' 格）');
-      } else if (dt >= 45 && moved < 0.5 && rec.waiting) {
-        flags.push('waiting（' + Math.round(dt) + 's 未动，但有定时器在跑）');
+      // 三种「不动」要分开：在等定时器 / 真卡住（任务说要走却在原地）/ 单纯闲着
+      const moving = /走向|goto|挖|mine|开采|搭/.test(rec.task || '');
+      if (dt >= 60 && moved < 0.5) {
+        if (rec.waiting) {
+          flags.push('waiting（' + Math.round(dt) + 's 未动，但有定时器在跑）');
+        } else if (moving) {
+          flags.push('suspect-stuck（任务说「' + (rec.task || '').slice(0, 24) + '」，' + Math.round(dt) + 's 只动 ' + moved.toFixed(1) + ' 格）');
+        } else {
+          flags.push('idle（' + Math.round(dt) + 's 未动，任务不像在赶路）');
+        }
       }
     }
   } catch { /* ignore */ }

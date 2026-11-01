@@ -172,6 +172,48 @@ const rows = entries.map((e, i) => {
     '<div class="meta">' + e.take + ' · ' + (e.seconds || '?') + 's · ' + e.clips + ' 段</div></div></div>';
 }).join('\n');
 
+// ── 事件序列：把巡查采样里的任务变化抽成「它干了什么」的列表 ──────────────
+// 目的：就算某一段没拍到画面，也能从状态里讲出「它先挖矿、再回村、再烧铁」的顺序。
+function buildEpisodes() {
+  const file = path.join(SHOTS, '_photographer', 'patrol.jsonl');
+  let lines = [];
+  try { lines = fs.readFileSync(file, 'utf8').split(/\r?\n/).filter(Boolean); } catch { return []; }
+  const eps = [];
+  let cur = null;
+  for (const l of lines) {
+    let o; try { o = JSON.parse(l); } catch { continue; }
+    if (o.kind !== 'sample' || !o.task) continue;
+    const short = o.task.replace(/\s+/g, ' ').trim();
+    // 任务文本里带进度数字（0/13 → 1/13），不归一化就每一条都算「新事件」
+    const key = short.replace(/\d+/g, '#');
+    if (!cur || cur.key !== key) {
+      cur = { key, text: short, from: o.ts, to: o.ts, n: 1, ymin: o.tpos ? o.tpos.y : null, ymax: o.tpos ? o.tpos.y : null };
+      eps.push(cur);
+    } else {
+      cur.to = o.ts; cur.n++; cur.text = short;
+      if (o.tpos) { cur.ymin = Math.min(cur.ymin ?? o.tpos.y, o.tpos.y); cur.ymax = Math.max(cur.ymax ?? o.tpos.y, o.tpos.y); }
+    }
+  }
+  // 只留「不是一句话就过去」的片段，太碎的看着累
+  return eps.filter((e) => e.n >= 2).slice(-14);
+}
+
+// ── 事件表 ────────────────────────────────────────────────────────────────
+let episodesHtml = '';
+{
+  const eps = buildEpisodes();
+  if (eps.length) {
+    episodesHtml = '<div class="card"><h2>它干了什么（任务变化序列） <span class="r">' + eps.length + ' 段</span></h2>' +
+      '<table><tr><th>开始</th><th>持续</th><th>在做什么</th><th>高度</th></tr>' +
+      eps.map((e) => {
+        const mins = Math.max(1, Math.round((Date.parse(e.to) - Date.parse(e.from)) / 60000));
+        const y = e.ymin == null ? '' : (e.ymin === e.ymax ? e.ymin : e.ymin + '~' + e.ymax);
+        return '<tr><td>' + localTime(e.from).slice(11, 16) + '</td><td>' + mins + ' 分</td><td>' +
+          e.text.replace(/[<>]/g, '') + '</td><td>' + y + '</td></tr>';
+      }).join('') + '</table></div>';
+  }
+}
+
 // ── 轨迹图（俯视路线 + 高度曲线）─────────────────────────────────────────
 let trackHtml = '';
 {
@@ -214,7 +256,7 @@ const html = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>干
   '.track{display:flex;gap:24px;align-items:flex-start}.cap{font:11px/1.8 Consolas,monospace;color:#5A5D63}</style>' +
   '<h1>AI 干活历程 · 实拍摘要</h1>' +
   '<div class="sub">' + entries.length + ' 段 / ' + total.toFixed(1) + 's · 由 numencam 相机逐轮拍摄，按「画面有变化」筛出</div>' +
-  trackHtml + rows + '</html>';
+  episodesHtml + trackHtml + rows + '</html>';
 const htmlFile = path.join(OUT, 'storyboard.html');
 fs.writeFileSync(htmlFile, html, 'utf8');
 
