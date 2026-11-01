@@ -112,12 +112,16 @@ function aiTaskNow() {
   // 目标跑出渲染范围是最常见的「拍空」原因：先自己补位一次，补不回来才放弃。
   // （这不是猜测：body 停在旧位置，目标走远后相机就对着空气。）
   if (st.target && !st.targetVisible) {
-    console.log('[film] 目标不在渲染范围 → 开牵引补位（dist 64），等 3s 再看');
+    // 它走路时会短暂离开加载区，一次补位常常不够 —— 给 3 次机会，每次 4 秒
+    console.log('[film] 目标不在渲染范围 → 开牵引补位（dist 64），最多重试 3 次');
     await call('POST', '/follow', { on: true, dist: 64 });
-    await new Promise((r) => setTimeout(r, 3000));
-    const st2 = await call('GET', '/state');
-    if (!st2 || !st2.targetVisible) die('补位后仍看不到目标 ' + st.target + '（可能已死亡/未传送）', 3);
-    st = st2;
+    let ok = false;
+    for (let i = 0; i < 3 && !ok; i++) {
+      await new Promise((r) => setTimeout(r, 4000));
+      const st2 = await call('GET', '/state');
+      if (st2 && st2.targetVisible) { st = st2; ok = true; console.log('[film] 第 ' + (i + 1) + ' 次补位后可见'); }
+    }
+    if (!ok) die('3 次补位后仍看不到目标 ' + st.target + '（可能已死亡/在别的维度/未传送）', 3);
   }
 
   const cam0 = st.camera || {}, tgt0 = st.targetEntity || {};
