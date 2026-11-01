@@ -64,8 +64,8 @@ for (const tk of takes) {
   let meta = {};
   try { meta = JSON.parse(fs.readFileSync(path.join(cutDir, 'highlights.json'), 'utf8')); } catch { /* 老目录没有 json */ }
   const clips = (meta.clips || []);
-  // 封面取「分数最高那一段」的中点，不是第一段 —— 第一段经常是镜头刚打开的空镜
-  const mid = clips.length ? clips.reduce((a, b) => (b.score > a.score ? b : a)) : null;
+  // 封面取「最长那一段」的中点：分最高的往往是镜头猛地扫过一片树叶，作封面反而看不懂
+  const mid = clips.length ? clips.reduce((a, b) => ((b.end - b.start) > (a.end - a.start) ? b : a)) : null;
   // 用同一条 take 里最靠前那一段的中点帧当封面
   let cover = null;
   if (mid) {
