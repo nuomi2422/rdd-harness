@@ -194,6 +194,15 @@ function aiTaskNow() {
   const taskNow = await aiTaskNow();
   if (taskNow) console.log('[film] 它现在：' + taskNow.slice(0, 90));
 
+  // 只在「真在干活」的时候拍：身体空闲 + 挂着定时器 = 等炉子/等天亮，拍下来是静止画面。
+  // 用户明确说过不要拍太多 —— 这一条就是省存储的第一道闸。
+  if (taskNow && /身体空闲/.test(taskNow) && /挂着\s*\d+\s*个表/.test(taskNow)) {
+    die('它在等定时器（' + taskNow.slice(0, 60) + '），不拍，省存储', 6);
+  }
+  if (taskNow && /身体空闲/.test(taskNow) && !/挂着/.test(taskNow)) {
+    console.log('[film] 提示：它现在空闲（没有任务），这轮大概率拍不到动作');
+  }
+
   const before = new Set(fs.existsSync(SHOTS) ? fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')) : []);
   const start = await call('POST', '/rec', { on: true, fps: FPS });
   if (!start || !start.ok) die('开录失败：' + JSON.stringify(start).slice(0, 160));

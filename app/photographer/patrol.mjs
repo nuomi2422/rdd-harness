@@ -201,8 +201,16 @@ function clean({ keepDays = 3, keepRaw = 2, apply = false } = {}) {
     if (fs.existsSync(cut) && ageDays > 0.007) {
       // 有成品：删掉帧序列（它就是那 90% 的体积），保留 cut/ 与 take 根下的 mp4
       let n = 0;
+      // 帧序列 + 中间产物（base.mp4 / clip_*.mp4 / take 根的原始 mp4）都删，
+      // 只留 cut/highlight.mp4 和联系表 —— 成片才是要保留的东西。
       for (const f of fs.readdirSync(t.dir)) {
-        if (/^f_\d{5}\.png$/.test(f) || f === 'base.mp4') { try { fs.unlinkSync(path.join(t.dir, f)); n++; } catch { /* ignore */ } }
+        const del = /^f_\d{5}\.png$/.test(f) || f === 'base.mp4' || /^clip_\d+\.mp4$/.test(f) || /\.mp4$/i.test(f);
+        if (del) { try { fs.unlinkSync(path.join(t.dir, f)); n++; } catch { /* ignore */ } }
+      }
+      const cutDir2 = path.join(t.dir, 'cut');
+      for (const f of (fs.existsSync(cutDir2) ? fs.readdirSync(cutDir2) : [])) {
+        if (f === 'highlight.mp4' || f === 'sheet.png' || f === 'highlights.json' || f === 'concat.txt') continue;
+        try { fs.unlinkSync(path.join(cutDir2, f)); n++; } catch { /* ignore */ }
       }
       const after = dirSize(t.dir);
       freed += before - after;
