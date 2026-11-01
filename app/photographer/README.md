@@ -82,3 +82,14 @@
 
 `film.mjs --auto` 会读 `get_world_info` 的 `is_dark_outside`：暗就开夜视，天亮自动还原。
 夜视是干预，`cam_interventions.log` 有记录，成片里要标。
+
+## 第十一轮：SHOULDER vs CINEMATIC 的 A/B（02:05 实测）
+
+同一片针叶林、同一时刻，参数都取 4.5 格：
+
+| 机位 | 站定时 | 走路时 |
+|---|---|---|
+| SHOULDER | 构图正常 | 人物被自己的模型挡住，只露出一条手臂 |
+| CINEMATIC | 略近、无气泡、更干净 | 人物完整、背景有河岸和树 |
+
+结论：默认 CINEMATIC，SHOULDER 只在需要「贴着背」的主观镜头时才用。
