@@ -45,6 +45,15 @@ function get(endpoint, ms = 2500) {
   });
 }
 
+function lastSample() {
+  const txt = (() => { try { return fs.readFileSync(PATROL, 'utf8'); } catch { return ''; } })();
+  const lines = txt.split(/\r?\n/).filter(Boolean);
+  for (let i = lines.length - 1; i >= 0; i--) {
+    try { const o = JSON.parse(lines[i]); if (o.kind === 'sample' && o.tpos) return o; } catch { /* ignore */ }
+  }
+  return null;
+}
+
 function append(line) {
   fs.appendFileSync(PATROL, JSON.stringify({ ts: new Date().toISOString(), ...line }) + '\n', 'utf8');
 }
@@ -55,8 +64,11 @@ async function sample() {
   const cam = st.camera || {};
   const tgt = st.targetEntity || null;
   const dist = tgt ? Math.hypot(cam.x - tgt.x, cam.y - tgt.y, cam.z - tgt.z) : null;
+  // 位置也记下来：卡住不动是「拍摄能发现 bug」的主要判据之一
+  const tpos = tgt ? { x: Math.round(tgt.x * 10) / 10, y: Math.round(tgt.y * 10) / 10, z: Math.round(tgt.z * 10) / 10 } : null;
   const rec = {
     kind: 'sample',
+    tpos,
     inWorld: !!st.inWorld,
     mode: st.mode, target: st.target, targetVisible: !!st.targetVisible,
     dist: dist === null ? null : Number(dist.toFixed(2)),
@@ -71,6 +83,16 @@ async function sample() {
   if (dist !== null && dist > 24) flags.push('target-too-far（' + dist.toFixed(0) + ' 格，超过 24）');
   if (dist !== null && dist < 1.2) flags.push('target-too-close（贴脸，画面里只剩一个头）');
   if (!st.inWorld) flags.push('not-in-world');
+  // 卡住判据：连续两次采样位置几乎没变、且间隔够长 → 记一条 stuck
+  // （只记事实，不下结论：站着不动也可能是在合成、翻箱子、等天亮）
+  try {
+    const prev = lastSample();
+    if (prev && prev.tpos && tpos) {
+      const dt = (Date.now() - Date.parse(prev.ts)) / 1000;
+      const moved = Math.hypot(tpos.x - prev.tpos.x, tpos.y - prev.tpos.y, tpos.z - prev.tpos.z);
+      if (dt >= 45 && moved < 0.5) flags.push('maybe-stuck（' + Math.round(dt) + 's 内位置只动了 ' + moved.toFixed(1) + ' 格）');
+    }
+  } catch { /* ignore */ }
   if (flags.length) rec.flags = flags;
   append(rec);
   return { ok: true, rec, flags };
