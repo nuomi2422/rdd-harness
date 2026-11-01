@@ -224,6 +224,18 @@ function clean({ keepDays = 3, keepRaw = 2, apply = false } = {}) {
     }
   });
 
+  // 成片库上限：留最近 N 条带 highlight 的 take，更老的整条删（成片在 story 里已有）
+  const MAX_KEEP_TAKES = Number(process.env.PHOTO_MAX_TAKES || 20);
+  const withCut = takes.filter((t) => fs.existsSync(path.join(t.dir, 'cut', 'highlight.mp4')));
+  if (withCut.length > MAX_KEEP_TAKES) {
+    for (const t of withCut.slice(MAX_KEEP_TAKES)) {
+      const before = dirSize(t.dir);
+      fs.rmSync(t.dir, { recursive: true, force: true });
+      freed += before;
+      log.push(t.name + '：超出保留上限（' + MAX_KEEP_TAKES + ' 条）→ 整条删，省 ' + (before / 1048576).toFixed(1) + 'MB');
+    }
+  }
+
   return { freedMb: Number((freed / 1048576).toFixed(1)), log, shotsMb: Number((dirSize(SHOTS) / 1048576).toFixed(1)) };
 }
 
