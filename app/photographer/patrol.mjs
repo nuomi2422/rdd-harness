@@ -179,11 +179,12 @@ function clean({ keepDays = 3, keepRaw = 2, apply = false } = {}) {
 
     if (!apply) {
       // 演练模式：只报计划，不动文件。删素材是不可逆的，默认不该发生。
-      if (fs.existsSync(cut) && ageDays > 0.02) log.push(t.name + '：将删帧序列（保留 cut/），预计省 ' + (before / 1048576 * 0.9).toFixed(1) + 'MB');
+      if (fs.existsSync(cut) && ageDays > 0.007) log.push(t.name + '：将删帧序列（保留 cut/），预计省 ' + (before / 1048576 * 0.9).toFixed(1) + 'MB');
       else if (i >= keepRaw && ageDays > keepDays) log.push(t.name + '：将整卷删（' + ageDays.toFixed(1) + ' 天未剪），' + (before / 1048576).toFixed(1) + 'MB');
       return;
     }
-    if (fs.existsSync(cut) && ageDays > 0.02) {
+    // 10 分钟就够了：剪完的帧序列没有保留价值，放着就是占盘
+    if (fs.existsSync(cut) && ageDays > 0.007) {
       // 有成品：删掉帧序列（它就是那 90% 的体积），保留 cut/ 与 take 根下的 mp4
       let n = 0;
       for (const f of fs.readdirSync(t.dir)) {
