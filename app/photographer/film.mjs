@@ -160,7 +160,10 @@ function aiTaskNow() {
     const dense = /forest|taiga|jungle|swamp/.test(biome) || (y !== null && y < 62);
     let mode = underground ? 'BODY' : (dense ? 'CINEMATIC' : 'ORBIT');
     const prev = readJson(FRAMING_FILE);
-    if (prev && prev.result === 'no-clips' && prev.mode === mode) mode = (mode === 'CINEMATIC' ? 'ORBIT' : 'CINEMATIC');
+    // 只有「画面被挡/全同色」才换机位；「主体没动」不换（换了也是同一面墙）
+    if (prev && prev.result === 'blocked' && prev.mode === mode) {
+      mode = mode === 'CINEMATIC' ? 'BODY' : (mode === 'ORBIT' ? 'CINEMATIC' : 'ORBIT');
+    }
     const shot = mode === 'BODY' ? { mode: 'BODY' }
       : mode === 'CINEMATIC'
         ? { mode: 'CINEMATIC', distance: 6.0, height: 1.6, shoulder: 0.8 }
@@ -183,7 +186,20 @@ function aiTaskNow() {
   const start = await call('POST', '/rec', { on: true, fps: FPS });
   if (!start || !start.ok) die('开录失败：' + JSON.stringify(start).slice(0, 160));
 
-  await new Promise((r) => setTimeout(r, SECONDS * 1000));
+  // 录制期间盯距离：CINEMATIC 的 maxZoom 会把镜头拉到贴脸（画面全是气泡/大头），
+  // 这种素材画面变化很大、却是废片。每隔 2s 采一次，记最小距离，当作质量门。
+  let minDist = Infinity, maxDist = 0;
+  for (let t = 0; t < SECONDS; t += 2) {
+    await new Promise((r) => setTimeout(r, 2000));
+    const s2 = await call('GET', '/state');
+    const c2 = s2 && s2.camera, g2 = s2 && s2.targetEntity;
+    if (c2 && g2) {
+      const d2 = Math.hypot(c2.x - g2.x, c2.y - g2.y, c2.z - g2.z);
+      if (d2 < minDist) minDist = d2;
+      if (d2 > maxDist) maxDist = d2;
+    }
+  }
+  if (minDist !== Infinity) console.log('[film] 录制期间机位距离：最近 ' + minDist.toFixed(1) + ' 格 / 最远 ' + maxDist.toFixed(1) + ' 格');
   await call('POST', '/rec', { on: false });
   await new Promise((r) => setTimeout(r, 2500));
 
@@ -203,10 +219,18 @@ function aiTaskNow() {
 
   const highlight = path.join(takeDir, 'cut', 'highlight.mp4');
   if (!fs.existsSync(highlight)) {
-    // 记下「这个机位在这类机位下没素材」，下一轮 --auto 会换
+    // 区分两种「没素材」：画面被挡（桌面大小 PNG 很小、全同色）还是主体没动（画面有细节但帧间不变）。
+    // 前者要换机位，后者换机位也没用 —— 这一条是这轮踩出来的。
+    const frames = fs.readdirSync(takeDir).filter((f) => /^f_\d{5}\.png$/.test(f)).sort();
+    const midFile = path.join(takeDir, frames[Math.floor(frames.length / 2)] || frames[0]);
+    let pngBytes = 0;
+    try { pngBytes = fs.statSync(midFile).size; } catch { /* ignore */ }
+    const blocked = pngBytes < 250000;
     const prevF = readJson(FRAMING_FILE) || {};
-    writeJson(FRAMING_FILE, { ...prevF, result: 'no-clips', at: new Date().toISOString() });
-    die('没产出 highlight.mp4（这一段没有可剪的变化）', 5);
+    writeJson(FRAMING_FILE, { ...prevF, result: blocked ? 'blocked' : 'static', pngBytes, at: new Date().toISOString() });
+    die(blocked
+      ? '没产出 highlight.mp4（画面被挡，PNG 只有 ' + Math.round(pngBytes / 1024) + 'KB → 下一轮换机位）'
+      : '没产出 highlight.mp4（主体在这 ' + SECONDS + 's 里没动，PNG ' + Math.round(pngBytes / 1024) + 'KB）', 5);
   }
   {
     const prevF = readJson(FRAMING_FILE) || {};
@@ -218,7 +242,9 @@ function aiTaskNow() {
   fs.mkdirSync(path.dirname(tl), { recursive: true });
   fs.appendFileSync(tl, JSON.stringify({
     ts: new Date().toISOString(), kind: 'take', take: takeName, frames, fps: FPS, seconds: SECONDS,
-    reason: REASON || null, task: taskNow || null, highlight: path.relative(SHOTS, highlight),
+    reason: REASON || null, task: taskNow || null,
+    minDist: minDist === Infinity ? null : Number(minDist.toFixed(2)), maxDist: maxDist ? Number(maxDist.toFixed(2)) : null,
+    highlight: path.relative(SHOTS, highlight),
   }) + '\n', 'utf8');
 
   // ── 4 清 ────────────────────────────────────────────────────────────────

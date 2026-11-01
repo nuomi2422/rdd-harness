@@ -42,12 +42,25 @@ const CURATION = path.join(SHOTS, '_photographer', 'curation.json');
 let exclude = new Set();
 try { exclude = new Set((JSON.parse(fs.readFileSync(CURATION, 'utf8')).exclude) || []); } catch { /* 没配就全收 */ }
 
+// 质量门：录制期间机位距离过近（<2.5 格）的 take 直接不收 —— 画面里全是气泡/大头。
+// 这个判据来自 film.mjs 每 2 秒采一次的实测距离，不是猜的。
+function takeMeta(name) {
+  try {
+    const tl = fs.readFileSync(path.join(SHOTS, '_timeline', 'numencam.jsonl'), 'utf8').split(/\r?\n/).filter(Boolean);
+    return tl.map((l) => { try { return JSON.parse(l); } catch { return null; } })
+      .filter((o) => o && o.kind === 'take' && o.take === name).pop() || null;
+  } catch { return null; }
+}
+
+let skippedClose = 0;
 const entries = [];
 for (const tk of takes) {
   const cutDir = path.join(tk.dir, 'cut');
   const hl = path.join(cutDir, 'highlight.mp4');
   if (!fs.existsSync(hl)) continue;
   if (exclude.has(tk.name)) continue;
+  const meta0 = takeMeta(tk.name);
+  if (meta0 && meta0.minDist != null && meta0.minDist < 2.5) { skippedClose++; continue; }
   let meta = {};
   try { meta = JSON.parse(fs.readFileSync(path.join(cutDir, 'highlights.json'), 'utf8')); } catch { /* 老目录没有 json */ }
   const clips = (meta.clips || []);
@@ -198,6 +211,7 @@ fs.writeFileSync(path.join(OUT, 'story.json'), JSON.stringify({
   takes: entries.map((e) => ({ take: e.take, at: e.at, seconds: e.seconds, note: e.note })),
 }, null, 2), 'utf8');
 
+if (skippedClose) console.log('[story] 按「机位贴脸」跳过滤掉 ' + skippedClose + ' 条 take');
 console.log('[story] ' + entries.length + ' 段 / ' + total.toFixed(1) + 's → ' + story);
 console.log('[story] 分镜页 → ' + htmlFile);
 
