@@ -1,0 +1,198 @@
+{
+  "version": 1,
+  "generatedAt": "2026-11-01T08:50:17",
+  "policy": "文档指针规范.md",
+  "note": "只登记指针：id / 层级 / 标题 / 归属 / 时间。正文不进公开仓库，也不在此处摘录。",
+  "layers": {
+    "public": "正文可公开",
+    "internal": "只放指针",
+    "restricted": "连指针都不登记"
+  },
+  "projects": {
+    "agene": {
+      "repo": "private",
+      "docs": [
+        {
+          "id": "agene-architecture-v1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene Architecture v1",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "blueprint-input",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene Harness：蓝图输入与已确认边界",
+          "owner": "agene",
+          "updatedAt": "2026-10-23",
+          "verifiedAt": null
+        },
+        {
+          "id": "console-soulbridge-construction-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 控制台与 Soulbridge 契约 v0.1 施工单",
+          "owner": "agene",
+          "updatedAt": "2026-10-23",
+          "verifiedAt": null
+        },
+        {
+          "id": "construction-emotion-state-machine-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "施工单：情感状态机 v0.1（先做，可逆）",
+          "owner": "agene",
+          "updatedAt": "2026-10-31",
+          "verifiedAt": null
+        },
+        {
+          "id": "construction-mem0-poc-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "施工单：Mem0 PoC v0.1（后做，schema 先酝酿）",
+          "owner": "agene",
+          "updatedAt": "2026-10-31",
+          "verifiedAt": null
+        },
+        {
+          "id": "docs-governance-v0-2-construction",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 文档治理 v0.2 施工单",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "downstream-video-code-animation",
+          "layer": "internal",
+          "kind": "source",
+          "title": "下游视频模块：video.code-animation（俯仰代码动画）",
+          "owner": "agene",
+          "updatedAt": "2026-10-31",
+          "verifiedAt": null
+        },
+        {
+          "id": "experiment-spec-v1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 实验规范 v1",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "harness-engineering-loop-architecture",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene Harness 主线：1+3 工程轮回",
+          "owner": "agene",
+          "updatedAt": "2026-10-25",
+          "verifiedAt": null
+        },
+        {
+          "id": "harness-engineering-loop-l1-construction",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene Harness L1 施工单：1+3 工序层",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "harness-multi-project-construction-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "多项目 Harness：项目特化与按需展开施工单 v0.1",
+          "owner": "agene",
+          "updatedAt": "2026-10-25",
+          "verifiedAt": null
+        },
+        {
+          "id": "harness-bootstrap-construction-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene Harness v0.1 施工单",
+          "owner": "agene",
+          "updatedAt": "2026-10-23",
+          "verifiedAt": null
+        },
+        {
+          "id": "hycine-first-verified-card",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Hycine 的第一张 VERIFIED 卡：第一次「活着」",
+          "owner": "agene",
+          "updatedAt": "2026-10-31",
+          "verifiedAt": null
+        },
+        {
+          "id": "index",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 文档索引",
+          "owner": "agene",
+          "updatedAt": "2026-10-31",
+          "verifiedAt": null
+        },
+        {
+          "id": "project-architecture",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 总体架构：Hycine、Harness 与 Soulbridge",
+          "owner": "agene",
+          "updatedAt": "2026-10-22",
+          "verifiedAt": null
+        },
+        {
+          "id": "project-profile-interface-v1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 项目 Profile 接口 v1",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "upstream-candidates-assessment",
+          "layer": "internal",
+          "kind": "source",
+          "title": "上游候选评估（C4 记录，2026-10-23）",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "upstream-openpets-construction-v0-1",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 上游 OpenPets 接入施工单 v0.1",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        },
+        {
+          "id": "",
+          "layer": "internal",
+          "kind": "source",
+          "title": "Agene 文档目录规范（v1）",
+          "owner": "agene",
+          "updatedAt": "2026-10-24",
+          "verifiedAt": null
+        }
+      ],
+      "recordsCount": 18
+    },
+    "rdd": {
+      "repo": "private",
+      "docs": [],
+      "recordsCount": 0
+    }
+  },
+  "thisRepo": {
+    "note": "本仓自己的文档按 public 处理，此处不重复登记；新增前先过《文档指针规范》第 9 节清单。"
+  }
+}
