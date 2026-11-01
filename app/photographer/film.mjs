@@ -53,6 +53,36 @@ function call(method, endpoint, body, ms = 4000) {
 
 const die = (msg, code = 1) => { console.error('[film] ' + msg); process.exit(code); };
 
+// ── 游戏内 AI 当时在干什么（只读工具；get_events 是消费式收件箱，绝对不碰）──
+function numenCall(cfg, tool, args2) {
+  const post = (body) => new Promise((resolve) => {
+    const payload = Buffer.from(JSON.stringify(body), 'utf8');
+    const req = http.request({
+      host: cfg.host || '127.0.0.1', port: cfg.port, path: '/mcp', method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': payload.length,
+        accept: 'application/json, text/event-stream', ...(cfg.token ? { authorization: 'Bearer ' + cfg.token } : {}) },
+      timeout: 3000,
+    }, (r) => { let b = ''; r.setEncoding('utf8'); r.on('data', (c) => b += c); r.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } }); });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.write(payload); req.end();
+  });
+  return (async () => {
+    await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'photographer', version: '1' } } });
+    const r = await post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: args2 || {} } });
+    const txt = ((r && r.result && r.result.content) || []).map((c) => c.text).filter(Boolean).join('\n');
+    try { return JSON.parse(txt); } catch { return null; }
+  })();
+}
+
+function aiTaskNow() {
+  const cfgFile = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'mcp_server.json');
+  let cfg = null;
+  try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return null; }
+  if (!cfg || !cfg.port) return null;
+  return numenCall(cfg, 'task_status', { companion: 'RDD' }).then((r) => (r && r.message) || null).catch(() => null);
+}
+
 (async () => {
   // ── 0 取景前检查 ─────────────────────────────────────────────────────────
   let st = await call('GET', '/state');
@@ -78,6 +108,9 @@ const die = (msg, code = 1) => { console.error('[film] ' + msg); process.exit(co
     ' 夜视=' + (st.lens && st.lens.nightVision ? '开' : '关') + ' 计划 ' + SECONDS + 's @' + FPS + 'fps');
 
   // ── 1 录 ────────────────────────────────────────────────────────────────
+  const taskNow = await aiTaskNow();
+  if (taskNow) console.log('[film] 它现在：' + taskNow.slice(0, 90));
+
   const before = new Set(fs.existsSync(SHOTS) ? fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')) : []);
   const start = await call('POST', '/rec', { on: true, fps: FPS });
   if (!start || !start.ok) die('开录失败：' + JSON.stringify(start).slice(0, 160));
@@ -108,7 +141,7 @@ const die = (msg, code = 1) => { console.error('[film] ' + msg); process.exit(co
   fs.mkdirSync(path.dirname(tl), { recursive: true });
   fs.appendFileSync(tl, JSON.stringify({
     ts: new Date().toISOString(), kind: 'take', take: takeName, frames, fps: FPS, seconds: SECONDS,
-    reason: REASON || null, highlight: path.relative(SHOTS, highlight),
+    reason: REASON || null, task: taskNow || null, highlight: path.relative(SHOTS, highlight),
   }) + '\n', 'utf8');
 
   // ── 4 清 ────────────────────────────────────────────────────────────────
