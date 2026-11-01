@@ -55,11 +55,20 @@ const die = (msg, code = 1) => { console.error('[film] ' + msg); process.exit(co
 
 (async () => {
   // ── 0 取景前检查 ─────────────────────────────────────────────────────────
-  const st = await call('GET', '/state');
+  let st = await call('GET', '/state');
   if (!st || !st.ok) die('相机控制口不通（游戏没开？）', 2);
   if (!st.inWorld) die('还没进世界', 2);
   if (st.rec && st.rec.recording) die('已经有一路录像在跑，不抢', 2);
-  if (st.target && !st.targetVisible) die('目标 ' + st.target + ' 不在渲染范围 —— 死了没传送回来？先让驱动器补齐再拍', 3);
+  // 目标跑出渲染范围是最常见的「拍空」原因：先自己补位一次，补不回来才放弃。
+  // （这不是猜测：body 停在旧位置，目标走远后相机就对着空气。）
+  if (st.target && !st.targetVisible) {
+    console.log('[film] 目标不在渲染范围 → 开牵引补位（dist 64），等 3s 再看');
+    await call('POST', '/follow', { on: true, dist: 64 });
+    await new Promise((r) => setTimeout(r, 3000));
+    const st2 = await call('GET', '/state');
+    if (!st2 || !st2.targetVisible) die('补位后仍看不到目标 ' + st.target + '（可能已死亡/未传送）', 3);
+    st = st2;
+  }
 
   const cam = st.camera || {}, tgt = st.targetEntity || {};
   const dist = (cam.x != null && tgt.x != null) ? Math.hypot(cam.x - tgt.x, cam.y - tgt.y, cam.z - tgt.z) : null;

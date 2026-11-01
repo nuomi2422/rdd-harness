@@ -126,7 +126,12 @@ const filter = midFrames.map((_, i) => '[' + i + ':v]scale=426:240,setsar=1[v' +
   ';' + midFrames.map((_, i) => '[v' + i + ']').join('') + 'xstack=inputs=' + midFrames.length +
   ':layout=' + midFrames.map((_, i) => (i % cols) * 426 + '_' + Math.floor(i / cols) * 240).join('|') + '[out]';
 try {
-  execFileSync(FFMPEG, ['-y', '-loglevel', 'error', ...sheetInputs, '-filter_complex', filter, '-map', '[out]', '-frames:v', '1', sheet], { stdio: 'inherit' });
+  if (midFrames.length === 1) {
+    // 只有一段时 xstack 的 inputs 下限是 2，会直接报错 —— 单帧直接拷过去
+    fs.copyFileSync(path.join(dir, frames[midFrames[0]]), sheet);
+  } else {
+    execFileSync(FFMPEG, ['-y', '-loglevel', 'error', ...sheetInputs, '-filter_complex', filter, '-map', '[out]', '-frames:v', '1', sheet], { stdio: 'inherit' });
+  }
 } catch (e) { console.error('[cut] 联系表没做出来：' + e.message); }
 
 // ── 7 事件语义：挂上巡查快照 / 行为台账里最近的记录 ────────────────────────
