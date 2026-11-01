@@ -199,9 +199,10 @@ function buildEpisodes() {
 }
 
 // ── 事件表 ────────────────────────────────────────────────────────────────
+const EPS = buildEpisodes();
 let episodesHtml = '';
 {
-  const eps = buildEpisodes();
+  const eps = EPS;
   if (eps.length) {
     episodesHtml = '<div class="card"><h2>它干了什么（任务变化序列） <span class="r">' + eps.length + ' 段</span></h2>' +
       '<table><tr><th>开始</th><th>持续</th><th>在做什么</th><th>高度</th></tr>' +
@@ -255,7 +256,8 @@ const html = '<!doctype html><html lang="zh-CN"><meta charset="utf-8"><title>干
   '.card h2 .r{float:right;color:#5A5D63;letter-spacing:.06em;text-transform:none}' +
   '.track{display:flex;gap:24px;align-items:flex-start}.cap{font:11px/1.8 Consolas,monospace;color:#5A5D63}</style>' +
   '<h1>AI 干活历程 · 实拍摘要</h1>' +
-  '<div class="sub">' + entries.length + ' 段 / ' + total.toFixed(1) + 's · 由 numencam 相机逐轮拍摄，按「画面有变化」筛出</div>' +
+  '<div class="sub">' + entries.length + ' 段 / ' + total.toFixed(1) + 's · 由 numencam 相机逐轮拍摄，按「画面有变化」筛出' +
+  (EPS.length >= 2 ? '<br>这段时间它在做的事：' + EPS[0].text.slice(0, 40) + ' … → ' + EPS[EPS.length - 1].text.slice(0, 40) : '') + '</div>' +
   episodesHtml + trackHtml + rows + '</html>';
 const htmlFile = path.join(OUT, 'storyboard.html');
 fs.writeFileSync(htmlFile, html, 'utf8');
