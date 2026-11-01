@@ -201,6 +201,7 @@ function aiTaskNow() {
   // 录制期间盯距离：CINEMATIC 的 maxZoom 会把镜头拉到贴脸（画面全是气泡/大头），
   // 这种素材画面变化很大、却是废片。每隔 2s 采一次，记最小距离，当作质量门。
   let minDist = Infinity, maxDist = 0;
+  let switched = false;
   for (let t = 0; t < SECONDS; t += 2) {
     await new Promise((r) => setTimeout(r, 2000));
     const s2 = await call('GET', '/state');
@@ -209,6 +210,17 @@ function aiTaskNow() {
       const d2 = Math.hypot(c2.x - g2.x, c2.y - g2.y, c2.z - g2.z);
       if (d2 < minDist) minDist = d2;
       if (d2 > maxDist) maxDist = d2;
+      // 拍摄中自我纠正：镜头被挤到贴脸（<2.3 格）就停录、切 BODY、继续录。
+      // 这一条是「树叶墙/大头」反复出现之后加的，比事后丢弃划算。
+      if (d2 < 2.3 && !switched) {
+        switched = true;
+        await call('POST', '/rec', { on: false });
+        await new Promise((r) => setTimeout(r, 1200));
+        await call('POST', '/shot', { mode: 'BODY' });
+        await new Promise((r) => setTimeout(r, 900));
+        await call('POST', '/rec', { on: true, fps: FPS });
+        console.log('[film] 机位贴到 ' + d2.toFixed(1) + ' 格 → 停录、切 BODY、续录');
+      }
     }
   }
   if (minDist !== Infinity) console.log('[film] 录制期间机位距离：最近 ' + minDist.toFixed(1) + ' 格 / 最远 ' + maxDist.toFixed(1) + ' 格');
