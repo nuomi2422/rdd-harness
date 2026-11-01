@@ -75,6 +75,26 @@ function numenCall(cfg, tool, args2) {
   })();
 }
 
+function aiStatus() {
+  const cfgFile = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'mcp_server.json');
+  let cfg = null;
+  try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return Promise.resolve(null); }
+  if (!cfg || !cfg.port) return Promise.resolve(null);
+  return numenCall(cfg, 'get_self_status', { companion: 'RDD' }).catch(() => null);
+}
+
+function worldInfo() {
+  const cfgFile = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'mcp_server.json');
+  let cfg = null;
+  try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return Promise.resolve(null); }
+  if (!cfg || !cfg.port) return Promise.resolve(null);
+  return numenCall(cfg, 'get_world_info', { companion: 'RDD' }).catch(() => null);
+}
+
+const FRAMING_FILE = path.join(SHOTS, '_photographer', 'framing.json');
+const readJson = (f) => { try { return JSON.parse(fs.readFileSync(f, 'utf8')); } catch { return null; } };
+const writeJson = (f, o) => { try { fs.mkdirSync(path.dirname(f), { recursive: true }); fs.writeFileSync(f, JSON.stringify(o, null, 2), 'utf8'); } catch { /* ignore */ } };
+
 function aiTaskNow() {
   const cfgFile = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'mcp_server.json');
   let cfg = null;
@@ -100,10 +120,52 @@ function aiTaskNow() {
     st = st2;
   }
 
-  const cam = st.camera || {}, tgt = st.targetEntity || {};
-  const dist = (cam.x != null && tgt.x != null) ? Math.hypot(cam.x - tgt.x, cam.y - tgt.y, cam.z - tgt.z) : null;
-  if (dist !== null && dist > 24) die('机位离目标 ' + dist.toFixed(0) + ' 格，太远（画面里只剩个点）', 3);
+  const cam0 = st.camera || {}, tgt0 = st.targetEntity || {};
+  let dist = (cam0.x != null && tgt0.x != null) ? Math.hypot(cam0.x - tgt0.x, cam0.y - tgt0.y, cam0.z - tgt0.z) : null;
+  if (dist !== null && dist > 24) {
+    // 机位被甩在几百格开外（切机位/传送后常见）——先补位再看，别直接放弃
+    console.log('[film] 机位离目标 ' + dist.toFixed(0) + ' 格 → 开牵引补位');
+    await call('POST', '/follow', { on: true, dist: 64 });
+    await new Promise((r) => setTimeout(r, 4000));
+    st = (await call('GET', '/state')) || st;
+    const cam1 = st.camera || {}, tgt1 = st.targetEntity || {};
+    dist = (cam1.x != null && tgt1.x != null) ? Math.hypot(cam1.x - tgt1.x, cam1.y - tgt1.y, cam1.z - tgt1.z) : null;
+    if (dist === null || dist > 24) die('补位后仍离目标 ' + (dist === null ? '?' : dist.toFixed(0)) + ' 格', 3);
+  }
 
+  // ── 自动机位 + 自动夜视（--auto 才开）──────────────────────────────────
+  if (args.includes('--auto')) {
+    const self = await aiStatus();
+    const world = await worldInfo();
+    const biome = (self && self.biome) || '';
+    const y = self && self.position ? self.position.y : null;
+    const dark = !!(world && (world.is_dark_outside === true || world.is_bright_outside === false));
+    // 夜视：天暗就开，天亮就还。干预会写 cam_interventions.log，取证时要标。
+    if (dark && !(st.lens && st.lens.nightVision)) {
+      await call('POST', '/lens', { nightVision: true });
+      console.log('[film] 天暗 → 开夜视');
+    } else if (!dark && st.lens && st.lens.nightVision) {
+      await call('POST', '/lens', { restore: true });
+      console.log('[film] 天亮 → 收回夜视');
+    }
+    // 机位：密林/地下 → BODY（第一人称不会穿墙）；开阔 → ORBIT。
+    // 上一轮用同一个机位没剪出东西 → 换一个再试（自纠正，不靠人肉试错）。
+    // 读代码才发现的关键一条：只有 CINEMATIC/SHOULDER 走 numencam$maxZoom（8 角射线拉近），
+    // ORBIT 是硬算坐标、完全不躲方块 —— 所以密林/洞里要 CINEMATIC，不是 BODY。
+    const dense = /forest|taiga|jungle|swamp/.test(biome) || (y !== null && y < 62);
+    let mode = dense ? 'CINEMATIC' : 'ORBIT';
+    const prev = readJson(FRAMING_FILE);
+    if (prev && prev.result === 'no-clips' && prev.mode === mode) mode = (mode === 'CINEMATIC' ? 'ORBIT' : 'CINEMATIC');
+    const shot = mode === 'CINEMATIC'
+      ? { mode: 'CINEMATIC', distance: 6.0, height: 1.6, shoulder: 0.8 }
+      : { mode: 'ORBIT', distance: 6.5, height: 2.2, bearing: -35, pitch: -8 };
+    const r2 = await call('POST', '/shot', shot);
+    console.log('[film] 自动机位 → ' + mode + '（biome=' + biome + ' y=' + (y === null ? '?' : Math.round(y)) +
+      ' 天暗=' + dark + '）' + (r2 && r2.msg ? ' · ' + r2.msg : ''));
+    writeJson(FRAMING_FILE, { mode, biome, y, dark, at: new Date().toISOString() });
+  }
+
+  if (args.includes('--auto')) st = (await call('GET', '/state')) || st; // 机位刚改过，重读一次再报
   console.log('[film] 取景 OK：mode=' + st.mode + ' target=' + st.target + ' dist=' + (dist === null ? '?' : dist.toFixed(1)) +
     ' 夜视=' + (st.lens && st.lens.nightVision ? '开' : '关') + ' 计划 ' + SECONDS + 's @' + FPS + 'fps');
 
@@ -134,7 +196,16 @@ function aiTaskNow() {
   }
 
   const highlight = path.join(takeDir, 'cut', 'highlight.mp4');
-  if (!fs.existsSync(highlight)) die('没产出 highlight.mp4（这一段没有可剪的变化）', 5);
+  if (!fs.existsSync(highlight)) {
+    // 记下「这个机位在这类机位下没素材」，下一轮 --auto 会换
+    const prevF = readJson(FRAMING_FILE) || {};
+    writeJson(FRAMING_FILE, { ...prevF, result: 'no-clips', at: new Date().toISOString() });
+    die('没产出 highlight.mp4（这一段没有可剪的变化）', 5);
+  }
+  {
+    const prevF = readJson(FRAMING_FILE) || {};
+    writeJson(FRAMING_FILE, { ...prevF, result: 'clips', at: new Date().toISOString() });
+  }
 
   // ── 3 记一笔 ────────────────────────────────────────────────────────────
   const tl = path.join(SHOTS, '_timeline', 'numencam.jsonl');
