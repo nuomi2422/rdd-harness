@@ -159,14 +159,11 @@ function aiTaskNow() {
     const underground = y !== null && y < 50;
     const dense = /forest|taiga|jungle|swamp/.test(biome) || (y !== null && y < 62);
     let mode = underground ? 'BODY' : (dense ? 'CINEMATIC' : 'ORBIT');
-    const prev = readJson(FRAMING_FILE);
-    // 只有「画面被挡/全同色」才换机位；「主体没动」不换（换了也是同一面墙）
-    if (prev && prev.result === 'blocked' && prev.mode === mode) {
-      mode = mode === 'CINEMATIC' ? 'BODY' : (mode === 'ORBIT' ? 'CINEMATIC' : 'ORBIT');
-    }
+    // ★ 不再自动换机位：两次实测证明「PNG 小」不等于「画面被挡」（水下/暗处/大色块都小），
+    //   自动翻转反而把能用的 CINEMATIC 换成了更差的 ORBIT。机位改由摄影师看帧决定。
     const shot = mode === 'BODY' ? { mode: 'BODY' }
       : mode === 'CINEMATIC'
-        ? { mode: 'CINEMATIC', distance: 6.0, height: 1.6, shoulder: 0.8 }
+        ? { mode: 'CINEMATIC', distance: 4.5, height: 1.15, shoulder: 0.8 }
         : { mode: 'ORBIT', distance: 6.5, height: 2.2, bearing: -35, pitch: -8 };
     const r2 = await call('POST', '/shot', shot);
     console.log('[film] 自动机位 → ' + mode + '（biome=' + biome + ' y=' + (y === null ? '?' : Math.round(y)) +
