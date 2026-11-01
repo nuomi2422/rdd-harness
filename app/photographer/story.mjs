@@ -110,6 +110,18 @@ for (const tk of takes) {
 
 if (entries.length === 0) { console.error('[story] 没有任何 take 有成片（先跑 film.mjs）'); process.exit(2); }
 
+// 成片要「简单」：超长就从最旧的开始丢，保住最近这一段完整的干活链
+const CAP_SECONDS = Number(process.env.STORY_MAX_SECONDS || 70);
+const MAX_SEGMENTS = Number(process.env.STORY_MAX_SEGMENTS || 6);
+let dropped = 0;
+// 前缀和不可靠（老 take 的 clipSeconds 可能缺失），所以两道闸：段数 + 时长估计
+while (entries.length > MAX_SEGMENTS) { entries.shift(); dropped++; }
+while (entries.length > 1 && entries.reduce((s, e) => s + (e.seconds || 8), 0) > CAP_SECONDS) {
+  entries.shift();
+  dropped++;
+}
+if (dropped) console.log('[story] 成片要短：丢掉最早的 ' + dropped + ' 段（保留最近 ' + entries.length + ' 段）');
+
 // ── 拼片 ──────────────────────────────────────────────────────────────────
 const listFile = path.join(OUT, 'concat.txt');
 fs.writeFileSync(listFile, entries.map((e) => "file '" + e.file.replace(/'/g, "'\\''") + "'").join('\n') + '\n', 'utf8');

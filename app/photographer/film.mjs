@@ -171,6 +171,21 @@ function aiTaskNow() {
     const r2 = await call('POST', '/shot', shot);
     console.log('[film] 自动机位 → ' + mode + '（biome=' + biome + ' y=' + (y === null ? '?' : Math.round(y)) +
       ' 天暗=' + dark + '）' + (r2 && r2.msg ? ' · ' + r2.msg : ''));
+    // 试镜头：CINEMATIC 的 maxZoom 可能把机位拉到贴脸（气泡占满画面），
+    // 先试 1.6s 量一下实际距离，太近就退到 BODY，再开录。
+    await new Promise((r) => setTimeout(r, 1600));
+    const probe = await call('GET', '/state');
+    const pc = probe && probe.camera, pg = probe && probe.targetEntity;
+    if (pc && pg) {
+      const d = Math.hypot(pc.x - pg.x, pc.y - pg.y, pc.z - pg.z);
+      if (d < 3 && mode !== 'BODY') {
+        await call('POST', '/shot', { mode: 'BODY' });
+        mode = 'BODY';
+        console.log('[film] 试镜头只有 ' + d.toFixed(1) + ' 格（会拍成大头）→ 退到 BODY');
+      } else {
+        console.log('[film] 试镜头 ' + d.toFixed(1) + ' 格，可用');
+      }
+    }
     writeJson(FRAMING_FILE, { mode, biome, y, dark, at: new Date().toISOString() });
   }
 
