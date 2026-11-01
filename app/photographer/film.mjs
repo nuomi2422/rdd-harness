@@ -139,10 +139,13 @@ function aiTaskNow() {
     const world = await worldInfo();
     const biome = (self && self.biome) || '';
     const y = self && self.position ? self.position.y : null;
-    const dark = !!(world && (world.is_dark_outside === true || world.is_bright_outside === false));
+    // 天暗 或 目标在地下（y<50）都算「看不清」——地表是白天、洞里还是黑
+    const dark = !!(world && (world.is_dark_outside === true || world.is_bright_outside === false)) ||
+      (y !== null && y < 50);
     // 夜视：天暗就开，天亮就还。干预会写 cam_interventions.log，取证时要标。
     if (dark && !(st.lens && st.lens.nightVision)) {
-      await call('POST', '/lens', { nightVision: true });
+      // 只开夜视，gamma 保持 0.5 —— 两个一起上会整片泛白（这轮踩到的）
+      await call('POST', '/lens', { nightVision: true, gamma: 0.5 });
       console.log('[film] 天暗 → 开夜视');
     } else if (!dark && st.lens && st.lens.nightVision) {
       await call('POST', '/lens', { restore: true });
@@ -152,13 +155,16 @@ function aiTaskNow() {
     // 上一轮用同一个机位没剪出东西 → 换一个再试（自纠正，不靠人肉试错）。
     // 读代码才发现的关键一条：只有 CINEMATIC/SHOULDER 走 numencam$maxZoom（8 角射线拉近），
     // ORBIT 是硬算坐标、完全不躲方块 —— 所以密林/洞里要 CINEMATIC，不是 BODY。
+    // 地下挖矿：第三人称会被 maxZoom 拉到贴脸（画面里只剩一个大头），第一人称反而是「它在挖什么」
+    const underground = y !== null && y < 50;
     const dense = /forest|taiga|jungle|swamp/.test(biome) || (y !== null && y < 62);
-    let mode = dense ? 'CINEMATIC' : 'ORBIT';
+    let mode = underground ? 'BODY' : (dense ? 'CINEMATIC' : 'ORBIT');
     const prev = readJson(FRAMING_FILE);
     if (prev && prev.result === 'no-clips' && prev.mode === mode) mode = (mode === 'CINEMATIC' ? 'ORBIT' : 'CINEMATIC');
-    const shot = mode === 'CINEMATIC'
-      ? { mode: 'CINEMATIC', distance: 6.0, height: 1.6, shoulder: 0.8 }
-      : { mode: 'ORBIT', distance: 6.5, height: 2.2, bearing: -35, pitch: -8 };
+    const shot = mode === 'BODY' ? { mode: 'BODY' }
+      : mode === 'CINEMATIC'
+        ? { mode: 'CINEMATIC', distance: 6.0, height: 1.6, shoulder: 0.8 }
+        : { mode: 'ORBIT', distance: 6.5, height: 2.2, bearing: -35, pitch: -8 };
     const r2 = await call('POST', '/shot', shot);
     console.log('[film] 自动机位 → ' + mode + '（biome=' + biome + ' y=' + (y === null ? '?' : Math.round(y)) +
       ' 天暗=' + dark + '）' + (r2 && r2.msg ? ' · ' + r2.msg : ''));
