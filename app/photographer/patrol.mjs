@@ -45,6 +45,32 @@ function get(endpoint, ms = 2500) {
   });
 }
 
+// ── 游戏内 AI 的任务语义（只读；get_events 是消费式收件箱，不碰）──────────
+function numenTask() {
+  const cfgFile = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'mcp_server.json');
+  let cfg = null;
+  try { cfg = JSON.parse(fs.readFileSync(cfgFile, 'utf8').replace(/^\uFEFF/, '')); } catch { return Promise.resolve(null); }
+  if (!cfg || !cfg.port) return Promise.resolve(null);
+  const post = (body) => new Promise((resolve) => {
+    const payload = Buffer.from(JSON.stringify(body), 'utf8');
+    const req = http.request({
+      host: cfg.host || '127.0.0.1', port: cfg.port, path: '/mcp', method: 'POST',
+      headers: { 'content-type': 'application/json', 'content-length': payload.length,
+        accept: 'application/json, text/event-stream', ...(cfg.token ? { authorization: 'Bearer ' + cfg.token } : {}) },
+      timeout: 3000,
+    }, (r) => { let b = ''; r.setEncoding('utf8'); r.on('data', (c) => b += c); r.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } }); });
+    req.on('error', () => resolve(null));
+    req.on('timeout', () => { req.destroy(); resolve(null); });
+    req.write(payload); req.end();
+  });
+  return (async () => {
+    await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'patrol', version: '1' } } });
+    const r = await post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: 'task_status', arguments: { companion: 'RDD' } } });
+    const txt = ((r && r.result && r.result.content) || []).map((c) => c.text).filter(Boolean).join('\n');
+    try { return JSON.parse(txt); } catch { return null; }
+  })();
+}
+
 function lastSample() {
   const txt = (() => { try { return fs.readFileSync(PATROL, 'utf8'); } catch { return ''; } })();
   const lines = txt.split(/\r?\n/).filter(Boolean);
@@ -77,6 +103,15 @@ async function sample() {
     gamma: st.lens ? st.lens.gamma : null,
     gameTime: st.gameTime || null,
   };
+  // 任务语义：判断「它是在等，还是真卡住」
+  const task = await numenTask();
+  if (task && task.message) {
+    rec.task = task.message.slice(0, 140);
+    const idle = /身体空闲/.test(task.message);
+    const timers = /挂着\s*\d+\s*个表/.test(task.message) || /挂着\s*\d+\s*个表/.test(task.message);
+    rec.waiting = !!(idle && timers);
+  }
+
   // 判据：目标不可见 / 距离异常 → 这一刻的画面大概率是废片，当场标出来
   const flags = [];
   if (st.target && !st.targetVisible) flags.push('target-not-visible（目标不在渲染范围：死了没传送/走太远）');
@@ -90,7 +125,12 @@ async function sample() {
     if (prev && prev.tpos && tpos) {
       const dt = (Date.now() - Date.parse(prev.ts)) / 1000;
       const moved = Math.hypot(tpos.x - prev.tpos.x, tpos.y - prev.tpos.y, tpos.z - prev.tpos.z);
-      if (dt >= 45 && moved < 0.5) flags.push('maybe-stuck（' + Math.round(dt) + 's 内位置只动了 ' + moved.toFixed(1) + ' 格）');
+      // 挂着定时器（等炉子/等天亮）时不动是「在等」，不是卡住 —— 两种要分开记
+      if (dt >= 45 && moved < 0.5 && !rec.waiting) {
+        flags.push('maybe-stuck（' + Math.round(dt) + 's 内位置只动了 ' + moved.toFixed(1) + ' 格）');
+      } else if (dt >= 45 && moved < 0.5 && rec.waiting) {
+        flags.push('waiting（' + Math.round(dt) + 's 未动，但有定时器在跑）');
+      }
     }
   } catch { /* ignore */ }
   if (flags.length) rec.flags = flags;
