@@ -168,7 +168,7 @@ function aiTaskNow() {
     const shot = mode === 'BODY' ? { mode: 'BODY' }
       : mode === 'CINEMATIC'
         ? { mode: 'CINEMATIC', distance: 4.5, height: 1.15, shoulder: 0.8 }
-        : { mode: 'ORBIT', distance: 6.5, height: 2.2, bearing: -35, pitch: -8 };
+        : { mode: 'SHOULDER', distance: 4.5, height: 1.2, shoulder: 0.4 };
     const r2 = await call('POST', '/shot', shot);
     console.log('[film] 自动机位 → ' + mode + '（biome=' + biome + ' y=' + (y === null ? '?' : Math.round(y)) +
       ' 天暗=' + dark + '）' + (r2 && r2.msg ? ' · ' + r2.msg : ''));
