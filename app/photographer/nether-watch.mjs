@@ -61,13 +61,20 @@ for (;;) {
       log('/cam tp → ' + r.trim().slice(0, 120));
       await new Promise((res) => setTimeout(res, 3000));
       await cam('/rec', { on: true, fps: 6 });
-      await new Promise((res) => setTimeout(res, 20000));
+      await new Promise((res) => setTimeout(res, 60000));
       await cam('/rec', { on: false });
       await new Promise((res) => setTimeout(res, 2500));
       const take = fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')).sort().pop();
       log('入界后录制完成：' + take);
     }
     lastDim = dim;
+  }
+  // 目标走出视野就追：等维度事件太被动，长距离 goto 掉岩浆那 20 秒就是这么丢的
+  const st2 = await cam('/state');
+  if (st2 && st2.inWorld && st2.targetVisible === false && Date.now() - lastPortalAt > 30000) {
+    lastPortalAt = Date.now();
+    const r = await ps('/cam tp');
+    log('目标不可见 → /cam tp ' + r.trim().slice(0, 80));
   }
   await new Promise((res) => setTimeout(res, 5000));
 }
