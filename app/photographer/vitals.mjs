@@ -74,7 +74,11 @@ const tick = async () => {
     const moved = Math.hypot(rec.pos[0] - prev.pos[0], rec.pos[1] - prev.pos[1], rec.pos[2] - prev.pos[2]);
     if (dHp <= -2) console.log('[vitals] ⚠ 掉血 ' + dHp.toFixed(1) + ' → ' + rec.hp + '  @' + rec.ts);
     if (rec.hp <= 0 || (prev.hp > 0 && rec.pos[1] > prev.pos[1] + 20 && moved > 50)) console.log('[vitals] ⚠ 可能死亡/重生  @' + rec.ts);
-    if (rec.main !== prev.main) console.log('[vitals] 换手 ' + prev.main + ' → ' + rec.main + '  @' + rec.ts);
+    if (rec.main !== prev.main) {
+      console.log('[vitals] 换手 ' + prev.main + ' → ' + rec.main + '  @' + rec.ts);
+      // 主手从「有东西」变空 = 可能工具损坏（木镐挖 34 格圆石就没了），这类隐性成本不该只靠日志
+      if (prev.main && !rec.main) console.log('[vitals] ⚠ 主手清空（可能工具损坏）之前的 ' + prev.main + '  @' + rec.ts);
+    }
     if (rec.dim !== prev.dim) console.log('[vitals] 换维度 ' + prev.dim + ' → ' + rec.dim + '  @' + rec.ts);
     // 饥饿警戒：背包空 + 饥饿低 = 接下来必然掉血，提前报，不用等人死
     if (rec.hunger <= 8 && (rec.bag || 0) === 0) console.log('[vitals] ⚠ 饥饿警戒 hunger=' + rec.hunger + ' 背包空  @' + rec.ts);
