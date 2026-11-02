@@ -44,11 +44,38 @@ function isDir(p) { try { return fs.statSync(p).isDirectory(); } catch { return 
 function mtime(p) { try { return fs.statSync(p).mtime; } catch { return null; } }
 function listDir(p) { try { return fs.readdirSync(p); } catch { return []; } }
 
+/**
+ * 解析 --since。返回 Date；参数写得解析不了时返回 null（由调用方当场报错退出）。
+ *
+ * ★ 2026-11-03：旧写法 `new Date(a[i+1] + 'T00:00:00')` 对 `2026/11/03`、完整 ISO 时间、
+ *   `2026-13-01` 都返回 Invalid Date，而调用点没人检查 —— 门禁一路跑到 builtinChecks，
+ *   才在 `since.toISOString()` 处崩成「门禁自身崩了（这不是门禁结果，是 bug）」。
+ *   实测复现：`node bin/harness-gate.js postflight --since 2026/11/03` → RangeError，
+ *   退出码 3，拿不到任何判据。参数写错必须当场说清，不能伪装成门禁自己有 bug。
+ */
 function today() {
   const a = process.argv;
   const i = a.indexOf('--since');
-  if (i >= 0 && a[i + 1]) return new Date(a[i + 1] + 'T00:00:00');
-  const d = new Date(); d.setHours(0, 0, 0, 0); return d;
+  if (i < 0) { const d = new Date(); d.setHours(0, 0, 0, 0); return d; }
+  const d = parseSince(a[i + 1]);
+  if (!d) return null;
+  d.setHours(0, 0, 0, 0);
+  return d;
+}
+
+/** 认 `YYYY-MM-DD` / `YYYY/MM/DD` / 完整 ISO 时间；其余一律 null（含 2026-02-31 这类溢出日期）。 */
+function parseSince(raw) {
+  const s = String(raw == null ? '' : raw).trim();
+  if (!s) return null;
+  const m = /^(\d{4})[-/](\d{1,2})[-/](\d{1,2})$/.exec(s);
+  if (m) {
+    const y = +m[1], mo = +m[2], da = +m[3];
+    const d = new Date(y, mo - 1, da);
+    // 溢出日期会被 Date 静默顺延（2 月 31 日 → 3 月 3 日）：月份/日必须原样回来才认。
+    return (d.getFullYear() === y && d.getMonth() === mo - 1 && d.getDate() === da) ? d : null;
+  }
+  const t = Date.parse(s);
+  return Number.isFinite(t) ? new Date(t) : null;
 }
 function arg(name, dflt) {
   const a = process.argv; const i = a.indexOf(name);
@@ -1555,6 +1582,23 @@ function runSelftest() {
     chk('P14 白名单: 任意 .jsonl 不自动放行', wl('experiments/workbench.jsonl') === false);
   }
 
+  // 10. ★ 2026-11-03：--since 解析必须是「坏参数当场报错」，不能崩在门禁中段。
+  //     为什么进 selftest：解析坏了不会让门禁变红，只会让某一天的判据全部错位
+  //     （或直接崩成 exit 3），而门禁看起来仍是"跑过了"。这条钉住解析本身的输入输出。
+  {
+    const okDate = (raw, y, mo, da) => {
+      const d = parseSince(raw);
+      return !!d && d.getFullYear() === y && d.getMonth() === mo && d.getDate() === da;
+    };
+    chk('--since: 2026-11-03 可解析', okDate('2026-11-03', 2026, 10, 3));
+    chk('--since: 2026/11/03 也认', okDate('2026/11/03', 2026, 10, 3));
+    chk('--since: 完整 ISO 时间可解析', okDate('2026-11-03T12:34:56+08:00', 2026, 10, 3));
+    chk('--since: 坏值返回 null，不产生 Invalid Date',
+      parseSince('2026/13/45') === null && parseSince('昨天') === null);
+    chk('--since: 溢出日期 2026-02-31 不认（防静默顺延）', parseSince('2026-02-31') === null);
+    chk('--since: 空值/缺值返回 null', parseSince('') === null && parseSince(undefined) === null);
+  }
+
   console.log('══════════ RDD harness 门禁 · SELFTEST（体检门禁自身）═══════════');
   // ★ 2026-10-22：selftest 绿 ≠ 门禁绿，两个必须在输出里分清。
   //   用户原话：「体检和日报里每个『绿』必须注明是 selftest 绿还是 实跑绿。」
@@ -1767,6 +1811,14 @@ function main() {
   }
   if (mode === 'selftest') return runSelftest();
   const since = today();
+  if (!since) {
+    // 参数错就停在这里：往下走只会让 since 变成 Invalid Date，在门禁中段炸成栈。
+    const raw = process.argv[process.argv.indexOf('--since') + 1];
+    console.error('✘ --since 不可解析：' + (raw ? JSON.stringify(raw) : '(缺少值)'));
+    console.error('   期望形如 2026-11-03（也接受 2026/11/03 或完整 ISO 时间）。');
+    console.error('   门禁没有运行：这不是 PASS，也不是 FAIL。');
+    return 2;
+  }
   const ctx = {
     since,
     keyword: arg('--keyword', 'numencam'),
