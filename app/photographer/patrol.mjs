@@ -231,6 +231,22 @@ function clean({ keepDays = 3, keepRaw = 2, apply = false } = {}) {
     }
   });
 
+  // 没剪出成片的 take（nether-watch 直接录的那种）帧序列也要回收，
+  // 否则它们永远不进「已剪过」分支，会一直躺在盘上（今天就积了 200MB）
+  if (apply) {
+    for (const t of takes) {
+      const cut = path.join(t.dir, 'cut', 'highlight.mp4');
+      const ageDays = (now - t.mtime) / 86400000;
+      if (fs.existsSync(cut) || ageDays < 0.08) continue;
+      let n = 0, bytes = 0;
+      for (const f of fs.readdirSync(t.dir)) {
+        if (!/^f_\d{5}\.png$/.test(f)) continue;
+        try { bytes += fs.statSync(path.join(t.dir, f)).size; fs.unlinkSync(path.join(t.dir, f)); n++; } catch { /* ignore */ }
+      }
+      if (n) { freed += bytes; log.push(t.name + '：无成片且超过 2 小时 → 删 ' + n + ' 帧，省 ' + (bytes / 1048576).toFixed(1) + 'MB'); }
+    }
+  }
+
   // 成片库上限：留最近 N 条带 highlight 的 take，更老的整条删（成片在 story 里已有）
   const MAX_KEEP_TAKES = Number(process.env.PHOTO_MAX_TAKES || 20);
   const withCut = takes.filter((t) => fs.existsSync(path.join(t.dir, 'cut', 'highlight.mp4')));
