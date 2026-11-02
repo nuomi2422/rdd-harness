@@ -59,6 +59,19 @@ const tick = async () => {
     dim: st.dimension, main: (st.equipment && st.equipment.mainhand && st.equipment.mainhand.item) || null,
     bag: st.backpack_slots && st.backpack_slots.used,
   };
+  // 任务链进度：主目标 / 条件 / 资产数 / 状态（rdd_status 只读，失败不影响采样）
+  const rs = await call('rdd_status', { companion: 'RDD' });
+  if (rs && rs.success && rs.data) {
+    rec.chain = {
+      primary: rs.data.primary_goal,
+      cond: rs.data.condition && rs.data.condition.asset_key,
+      assets: rs.data.assets,
+      status: rs.data.primary_status,
+    };
+    if (prev && prev.chain && prev.chain.primary !== rec.chain.primary) {
+      console.log('[vitals] 主目标切换 ' + prev.chain.primary + ' → ' + rec.chain.primary + '  @' + rec.ts);
+    }
+  }
   const cs = await camState();
   if (cs && cs.body) {
     rec.owner = [Math.round(cs.body.x), Math.round(cs.body.y), Math.round(cs.body.z)];
