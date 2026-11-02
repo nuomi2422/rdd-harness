@@ -47,6 +47,9 @@ const cam = (endpoint, body) => new Promise((resolve) => {
   req.end();
 });
 const ps = (script) => new Promise((resolve) => execFile('powershell', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', script], { timeout: 30000 }, (e, so, se) => resolve((so || '') + (se || ''))));
+// 机位位移必须可复原：owner 就是机位玩家，移动它会干扰 respawn（2026-11-02 事故）
+const GUARD = 'D:\\rdd\\worktrees\\photographer\\app\\photographer\\cam-guard.mjs';
+const guard = (act) => new Promise((resolve) => execFile('node', [GUARD, act], { timeout: 30000 }, (e, so, se) => resolve(((so || '') + (se || '')).trim())));
 
 let lastDim = null;
 let lastPortalAt = 0;
@@ -57,6 +60,8 @@ for (;;) {
   if (dim && dim !== lastDim) {
     log('维度变化 ' + lastDim + ' → ' + dim);
     if (lastDim && dim === 'minecraft:the_nether') {
+      const saved = await guard('save');
+      log('拍前记录 owner 位置: ' + saved.slice(0, 80));
       const r = await ps('/cam tp');
       log('/cam tp → ' + r.trim().slice(0, 120));
       await new Promise((res) => setTimeout(res, 3000));
@@ -66,6 +71,8 @@ for (;;) {
       await new Promise((res) => setTimeout(res, 2500));
       const take = fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')).sort().pop();
       log('入界后录制完成：' + take);
+      const back = await guard('restore');
+      log('拍完复原 owner: ' + back.slice(0, 80));
     }
     lastDim = dim;
   }
