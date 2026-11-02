@@ -39,6 +39,7 @@ async function call(tool, args) {
 }
 
 let prev = null;
+let stillRun = 0;
 const tick = async () => {
   const st = await call('get_self_status', { companion: 'RDD' });
   if (!st || st.name === undefined) { console.log('[vitals] 拿不到状态'); return; }
@@ -57,6 +58,11 @@ const tick = async () => {
     if (rec.hp <= 0 || (prev.hp > 0 && rec.pos[1] > prev.pos[1] + 20 && moved > 50)) console.log('[vitals] ⚠ 可能死亡/重生  @' + rec.ts);
     if (rec.main !== prev.main) console.log('[vitals] 换手 ' + prev.main + ' → ' + rec.main + '  @' + rec.ts);
     if (rec.dim !== prev.dim) console.log('[vitals] 换维度 ' + prev.dim + ' → ' + rec.dim + '  @' + rec.ts);
+    // 饥饿警戒：背包空 + 饥饿低 = 接下来必然掉血，提前报，不用等人死
+    if (rec.hunger <= 8 && (rec.bag || 0) === 0) console.log('[vitals] ⚠ 饥饿警戒 hunger=' + rec.hunger + ' 背包空  @' + rec.ts);
+    // 原地不动超过 5 分钟（按位置去重计数）
+    if (rec.pos.join(',') === prev.pos.join(',')) { stillRun = (stillRun || 0) + 1; } else { stillRun = 0; }
+    if (stillRun === 10) console.log('[vitals] 位置 5 分钟未变 ' + rec.pos.join(',') + '  @' + rec.ts);
   }
   prev = rec;
 };
