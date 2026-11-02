@@ -153,3 +153,21 @@
 
 对 take 191624（入界后 60 秒）跑 video_analyze：切点 0、单镜头 60s、dx/dy 均 0.00%/s、能量 0.0
 —— 这是「落点安全、没有下落/走位」的客观证据，比肉眼更硬。
+
+## 救援：rdd_admin_command 的真实约束（2026-11-02 踩出来的）
+
+读 \`RddAdminCommandTool.java\` + 三次实测：
+
+- 参数必须是 **\`command\` / \`stuck\` / \`confirm:true\`**（不是 \`reason\`；缺 \`stuck\` 会被拒）
+- 白名单只看第一个词：\`give / setblock / fill / summon / gamemode / time / weather / tp\`
+- 禁词：\`op deop ban kick stop kill difficulty gamerule @a @e @r\`
+- 冷却 **60 秒**
+- **\`execute\` 不在白名单** → 跨维度传送不能用 \`execute in <dim> run tp\`
+
+跨维度救援的唯一可行姿势：
+1. 用聊天注入把**机位玩家**（旁观者）tp 到目标点：\`/execute in minecraft:overworld run tp @s 355 65 599\`
+2. 再用 \`rdd_admin_command\` 让同伴跟过来：\`{companion:"RDD", command:"tp @s RDD0", stuck:"…", confirm:true}\`
+3. 前后各取一次 \`get_self_status\`，只有位置/维度真的变了才记 SUCCESS
+
+失败会返回三种原文，要逐条记录，不能笼统写「完成」：
+\`'stuck' reason required\` / \`'<x>' is not whitelisted\` / \`cooldown-60s\`
