@@ -187,6 +187,33 @@ function aiTaskNow() {
         console.log('[film] 试镜头 ' + d.toFixed(1) + ' 格，可用');
       }
     }
+    // 室内/贴墙探测：先录 1 帧看细节量。墙、地板、纯色块压缩后很小（今天实测 137KB vs 正常 400~600KB）。
+    // 太小就换 BODY 再探一次；还小就这一轮不拍，省下 90 帧的废片。
+    async function probeDetail(label) {
+      await call('POST', '/rec', { on: true, fps: 1 });
+      await new Promise((r) => setTimeout(r, 1400));
+      await call('POST', '/rec', { on: false });
+      await new Promise((r) => setTimeout(r, 2500));
+      const dirs = fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')).sort();
+      const dir = path.join(SHOTS, dirs[dirs.length - 1] || '');
+      const frames = fs.existsSync(dir) ? fs.readdirSync(dir).filter((x) => /^f_\d{5}\.png$/.test(x)) : [];
+      if (!frames.length) return 0;
+      const kb = Math.round(fs.statSync(path.join(dir, frames[0])).size / 1024);
+      console.log('[film] 细节探测(' + label + ')：' + kb + 'KB');
+      return kb;
+    }
+    let kb = await probeDetail(mode);
+    if (kb > 0 && kb < 220 && mode !== 'BODY') {
+      await call('POST', '/shot', { mode: 'BODY' });
+      mode = 'BODY';
+      await new Promise((r) => setTimeout(r, 1200));
+      kb = await probeDetail('BODY');
+    }
+    if (kb > 0 && kb < 220) {
+      writeJson(FRAMING_FILE, { mode, biome, y, dark, result: 'enclosed', kb, at: new Date().toISOString() });
+      die('画面像墙/室内（探测帧只有 ' + kb + 'KB），这轮不拍，省存储', 8);
+    }
+
     writeJson(FRAMING_FILE, { mode, biome, y, dark, at: new Date().toISOString() });
   }
 
