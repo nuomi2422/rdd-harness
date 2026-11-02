@@ -67,6 +67,21 @@ const turnStats = (() => {
   } catch { return null; }
 })();
 
+// 死亡：从 instrumentation.jsonl 统计（摘要之间发生的事不会漏）
+const deaths = (() => {
+  try {
+    const p = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'monitor', 'instrumentation.jsonl');
+    const out = [];
+    for (const l of fs.readFileSync(p, 'utf8').trim().split(/\r?\n/).slice(-5000)) {
+      let j; try { j = JSON.parse(l); } catch { continue; }
+      if (j.type !== 'death') continue;
+      const t = Date.parse(j.timestamp || '');
+      if (t >= from) out.push({ at: j.timestamp, msg: (j.data && (j.data.deathCauseMsg || j.data.reason)) || '?', task: (j.data && j.data.task) || '' });
+    }
+    return out;
+  } catch { return null; }
+})();
+
 // 触发事件
 const trig = readJsonl(path.join(OUT_DIR, 'trigger-log.jsonl')).filter((o) => Date.parse(o.ts) >= from);
 
@@ -103,6 +118,10 @@ const md = '# 剪辑摘要 · ' + (samples.length ? local(samples[0].ts) + ' →
   '## 本段素材\n\n- 新 take **' + takes.length + '** 条，其中有成片 **' + takes.filter((t) => t.cut).length + '** 条\n' +
   (takes.length ? '- 最近 5 条：' + takes.slice(-5).map((t) => '\`' + t.n + '\`' + (t.cut ? '(已成片)' : '(未成片)')).join('、') + '\n' : '') + '\n' +
   '## 触发事件\n\n' + (trig.length ? trig.map((t) => '- ' + local(t.ts) + '：' + (t.reasons || []).join(' / ') + ' → \`' + t.take + '\`').join('\n') : '- 本段无触发') + '\n\n' +
+  '## 死亡\n\n' +
+  (deaths === null ? '- 读不到 instrumentation.jsonl\n'
+    : deaths.length === 0 ? '- 本段 **0 次死亡**\n'
+    : '- 本段 **' + deaths.length + ' 次死亡**：\n' + deaths.map((d) => '  - ' + local(d.at) + ' ' + d.msg + '（' + (d.task || '').slice(-12) + '）').join('\n') + '\n') + '\n' +
   '## 存储\n\n- D 盘余量 **' + (freeGB ?? '?') + 'GB（' + (freePct ?? '?') + '%）**\n' +
   (offline.length ? '- 游戏离线采样 **' + offline.length + '** 条（' + local(offline[0].ts) + ' → ' + local(offline[offline.length - 1].ts) + '）\n' : '') + '\n' +
   '## 异常\n\n' + (anomalies.length ? anomalies.map((a) => '- ⚠️ ' + a).join('\n') : '- 无') + '\n';
