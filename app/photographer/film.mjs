@@ -200,6 +200,9 @@ function aiTaskNow() {
       if (!frames.length) return 0;
       const kb = Math.round(fs.statSync(path.join(dir, frames[0])).size / 1024);
       console.log('[film] 细节探测(' + label + ')：' + kb + 'KB');
+      // 探测用的 1~2 帧没有保留价值，读完立刻删，否则每轮都堆一条空 take
+      // （2 小时内堆了 51 条 take，其中 46 条是探测残渣）
+      try { fs.rmSync(dir, { recursive: true, force: true }); } catch { /* ignore */ }
       return kb;
     }
     let kb = await probeDetail(mode);
