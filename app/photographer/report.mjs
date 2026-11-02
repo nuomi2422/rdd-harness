@@ -31,13 +31,18 @@ for (const l of lines) {
 if (!samples.length) { console.log('[report] 这段时间没有采样'); process.exit(2); }
 
 // ── 状态占比（按采样间隔加权，采样是等间隔的，所以数量≈时间）──────────────
-let working = 0, idle = 0, waiting = 0, unknown = 0;
+let working = 0, idle = 0, waiting = 0, unknown = 0, dead = 0;
 const taskKinds = new Map();
 const episodes = [];
 let cur = null;
 for (const s of samples) {
   const task = (s.task || '').trim();
   if (!task) { unknown++; continue; }
+  // 「她刚死了，正在复活途中」不是干活，是死亡态；以前被算进 working，虚高了 14 个采样
+  if (/刚死了|复活途中/.test(task)) {
+    if (!(task in {})) dead++;
+    continue;
+  }
   const isIdle = /身体空闲/.test(task);
   const hasTimer = /挂着\s*\d+\s*个表/.test(task);
   if (isIdle && hasTimer) waiting++;
@@ -82,6 +87,7 @@ md += '| 状态 | 采样数 | 占比 |\n|---|---|---|\n';
 md += '| 在干活 | ' + working + ' | ' + pct(working) + ' |\n';
 md += '| 空闲（无任务） | ' + idle + ' | ' + pct(idle) + ' |\n';
 md += '| 等定时器 | ' + waiting + ' | ' + pct(waiting) + ' |\n';
+md += '| 死亡/复活中 | ' + dead + ' | ' + pct(dead) + ' |\n';
 md += '| 无任务数据 | ' + unknown + ' | ' + pct(unknown) + ' |\n\n';
 if (taskKinds.size) {
   md += '干活时的任务种类：' + [...taskKinds.entries()].sort((a, b) => b[1] - a[1]).map(([k, v]) => k + '×' + v).join('、') + '\n\n';

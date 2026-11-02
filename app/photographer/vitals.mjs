@@ -62,7 +62,11 @@ const tick = async () => {
   const cs = await camState();
   if (cs && cs.body) {
     rec.owner = [Math.round(cs.body.x), Math.round(cs.body.y), Math.round(cs.body.z)];
-    if (prev && prev.owner && rec.owner.join(',') !== prev.owner.join(',')) rec.ownerMoved = true;
+    // 机位是跟着同伴走的，每步都在动；只有「一步跨了 >32 格」才算我主动搬了 owner
+    if (prev && prev.owner) {
+      const d = Math.hypot(rec.owner[0] - prev.owner[0], rec.owner[1] - prev.owner[1], rec.owner[2] - prev.owner[2]);
+      if (d > 32) rec.ownerJump = Math.round(d);
+    }
   }
   fs.appendFileSync(OUT, JSON.stringify(rec) + '\n', 'utf8');
   if (prev) {
