@@ -25,7 +25,10 @@ const from = Date.now() - hours * 3600 * 1000;
 const local = (t) => new Date(Date.parse(t) + 8 * 3600000).toISOString().replace('T', ' ').slice(0, 19);
 
 // 巡查采样
-const samples = readJsonl(path.join(OUT_DIR, 'patrol.jsonl')).filter((o) => o.kind === 'sample' && Date.parse(o.ts) >= from);
+const allPatrol = readJsonl(path.join(OUT_DIR, 'patrol.jsonl')).filter((o) => Date.parse(o.ts) >= from);
+const samples = allPatrol.filter((o) => o.kind === 'sample');
+// 离线时段也要计入，否则「游戏关着」会被摘要悄悄吞掉
+const offline = allPatrol.filter((o) => o.kind === 'offline');
 const cnt = { working: 0, idle: 0, waiting: 0, dead: 0, unknown: 0 };
 for (const s of samples) {
   const st = s.state || (s.task ? (/刚死了|复活途中/.test(s.task) ? 'dead' : (/身体空闲/.test(s.task) ? 'idle' : 'working')) : 'unknown');
@@ -65,7 +68,8 @@ const md = '# 剪辑摘要 · ' + (samples.length ? local(samples[0].ts) + ' →
   '## 本段素材\n\n- 新 take **' + takes.length + '** 条，其中有成片 **' + takes.filter((t) => t.cut).length + '** 条\n' +
   (takes.length ? '- 最近 5 条：' + takes.slice(-5).map((t) => '\`' + t.n + '\`' + (t.cut ? '(已成片)' : '(未成片)')).join('、') + '\n' : '') + '\n' +
   '## 触发事件\n\n' + (trig.length ? trig.map((t) => '- ' + local(t.ts) + '：' + (t.reasons || []).join(' / ') + ' → \`' + t.take + '\`').join('\n') : '- 本段无触发') + '\n\n' +
-  '## 存储\n\n- D 盘余量 **' + (freeGB ?? '?') + 'GB（' + (freePct ?? '?') + '%）**\n\n' +
+  '## 存储\n\n- D 盘余量 **' + (freeGB ?? '?') + 'GB（' + (freePct ?? '?') + '%）**\n' +
+  (offline.length ? '- 游戏离线采样 **' + offline.length + '** 条（' + local(offline[0].ts) + ' → ' + local(offline[offline.length - 1].ts) + '）\n' : '') + '\n' +
   '## 异常\n\n' + (anomalies.length ? anomalies.map((a) => '- ⚠️ ' + a).join('\n') : '- 无') + '\n';
 
 console.log(md);
