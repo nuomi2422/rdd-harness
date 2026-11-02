@@ -46,10 +46,12 @@ const cam = (endpoint, body) => new Promise((resolve) => {
 });
 
 // 触发判据单独成函数，方便离线自测（改判据时先跑 --selftest，别等真事件才发现写错）
-function reasonsFor(prev, st, msg) {
+function reasonsFor(prev, st, msg, stillSec) {
   const out = [];
   if (!prev || !st || typeof st.hp !== 'number') return out;
   if (prev.hp - st.hp >= 4) out.push('hp_drop ' + prev.hp + '->' + st.hp);
+  // 静止/原地循环 >2 分钟 = 卡死嫌疑（目标要求必留）
+  if (stillSec >= 120 && !prev.stillFired) out.push('static ' + stillSec + 's');
   if (st.dimension !== prev.dim) out.push('dim ' + prev.dim + '->' + st.dimension);
   const main = (st.equipment && st.equipment.mainhand && st.equipment.mainhand.item) || null;
   if (prev.main && !main) out.push('tool_lost ' + prev.main);
@@ -70,10 +72,12 @@ if (process.argv.includes('--selftest')) {
     ['工具丢失', base, st(20, OW, null), '身体空闲', ['tool_lost ' + SW]],
     ['战斗开始', prev(20, OW, SW, '身体空闲'), st(20, OW, SW), 't9(战斗 0/10) running', ['combat t9(战斗 0/10) running']],
     ['战斗进行中不重复', prev(20, OW, SW, 't9(战斗 3/10) running'), st(20, OW, SW), 't9(战斗 4/10) running', []],
+    ['静止 130 秒触发', base, st(20, OW, SW), '身体空闲', ['static 130s'], 130],
+    ['静止 90 秒不触发', base, st(20, OW, SW), '身体空闲', [], 90],
   ];
   let bad = 0;
-  for (const [name, pv, cur, msg, expect] of cases) {
-    const got = reasonsFor(pv, cur, msg);
+  for (const [name, pv, cur, msg, expect, still] of cases) {
+    const got = reasonsFor(pv, cur, msg, still || 0);
     const ok = JSON.stringify(got) === JSON.stringify(expect);
     if (!ok) bad++;
     console.log((ok ? 'PASS ' : 'FAIL ') + name + '  got=' + JSON.stringify(got) + (ok ? '' : '  expect=' + JSON.stringify(expect)));
@@ -82,7 +86,7 @@ if (process.argv.includes('--selftest')) {
 }
 
 console.log('[trigger] 启动：血量骤降 / 战斗 / 工具丢失 / 换维度 → 录 ' + RECORD_SEC + 's');
-let prev = null, lastFire = 0, recording = false;
+let prev = null, lastFire = 0, recording = false, stillSince = 0, lastPos = null, stillFired = false;
 for (;;) {
   const st = await mcp('get_self_status', { companion: 'RDD' });
   const task = await mcp('task_status', { companion: 'RDD' });
@@ -90,7 +94,16 @@ for (;;) {
   const now = Date.now();
   if (st && typeof st.hp === 'number' && prev) {
     const msg = (task && task.message) || '';
-    const reasons = reasonsFor(prev, st, msg);
+    // 静止计时：位置不变就累计，变了就清零并解除已触发标记
+    if (st.position && lastPos && st.position.x === lastPos.x && st.position.y === lastPos.y && st.position.z === lastPos.z) {
+      if (!stillSince) stillSince = now;
+    } else {
+      stillSince = 0; stillFired = false;
+      lastPos = st.position ? { x: st.position.x, y: st.position.y, z: st.position.z } : null;
+    }
+    const stillSec = stillSince ? Math.round((now - stillSince) / 1000) : 0;
+    prev.stillFired = stillFired;
+    const reasons = reasonsFor(prev, st, msg, stillSec);
     const main = (st.equipment && st.equipment.mainhand && st.equipment.mainhand.item) || null;
     if (reasons.length && !recording && now - lastFire > COOLDOWN_MS && state && state.inWorld) {
       lastFire = now; recording = true;
@@ -101,6 +114,7 @@ for (;;) {
       await cam('/rec', { on: false });
       await new Promise((r) => setTimeout(r, 2500));
       const take = fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')).sort().pop();
+      if (reasons.some((r) => r.startsWith('static'))) stillFired = true;
       log({ take, reasons, recordSec: RECORD_SEC, hp: st.hp, pos: st.position, dim: st.dimension });
       recording = false;
     }

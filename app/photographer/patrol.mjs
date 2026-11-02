@@ -231,6 +231,24 @@ function clean({ keepDays = 3, keepRaw = 2, apply = false } = {}) {
     }
   });
 
+  // 存储红线：D 盘余量 <20% 时，优先清「无标记」片段（没有 highlight 的 take），
+  // 不等 2 小时窗口。标记过的（有 highlight / 进了 story）一律不动。
+  let freePct = null;
+  try {
+    const st = fs.statfsSync ? fs.statfsSync('D:') : null;
+    if (st) freePct = (st.bavail * st.bsize) / (st.blocks * st.bsize) * 100;
+  } catch { /* ignore */ }
+  if (freePct !== null && freePct < 20 && apply) {
+    log.push('⚠ 磁盘余量 ' + freePct.toFixed(1) + '% < 20% → 优先删无标记片段');
+    for (const t of takes) {
+      if (fs.existsSync(path.join(t.dir, 'cut', 'highlight.mp4'))) continue;
+      const frames = fs.readdirSync(t.dir).filter((f) => /^f_\d{5}\.png$/.test(f));
+      let bytes = 0;
+      for (const f of frames) { try { bytes += fs.statSync(path.join(t.dir, f)).size; fs.unlinkSync(path.join(t.dir, f)); } catch { /* ignore */ } }
+      if (bytes) { freed += bytes; log.push(t.name + '：磁盘红线 → 删 ' + frames.length + ' 帧，省 ' + (bytes / 1048576).toFixed(1) + 'MB'); }
+    }
+  }
+
   // 没剪出成片的 take（nether-watch 直接录的那种）帧序列也要回收，
   // 否则它们永远不进「已剪过」分支，会一直躺在盘上（今天就积了 200MB）
   if (apply) {
