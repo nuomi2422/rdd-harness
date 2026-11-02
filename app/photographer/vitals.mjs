@@ -31,6 +31,15 @@ function post(body) {
   });
 }
 
+// owner 就是机位玩家 RDDDev；把它坐标一起记下，任何观察者效应都能事后审计
+const camState = () => new Promise((resolve) => {
+  const req = http.request({ host: '127.0.0.1', port: 8767, path: '/state', method: 'GET', timeout: 4000 },
+    (r) => { let b = ''; r.setEncoding('utf8'); r.on('data', (c) => b += c); r.on('end', () => { try { resolve(JSON.parse(b)); } catch { resolve(null); } }); });
+  req.on('error', () => resolve(null));
+  req.on('timeout', () => { req.destroy(); resolve(null); });
+  req.end();
+});
+
 async function call(tool, args) {
   await post({ jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'vitals', version: '1' } } });
   const r = await post({ jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: args || {} } });
@@ -50,6 +59,11 @@ const tick = async () => {
     dim: st.dimension, main: (st.equipment && st.equipment.mainhand && st.equipment.mainhand.item) || null,
     bag: st.backpack_slots && st.backpack_slots.used,
   };
+  const cs = await camState();
+  if (cs && cs.body) {
+    rec.owner = [Math.round(cs.body.x), Math.round(cs.body.y), Math.round(cs.body.z)];
+    if (prev && prev.owner && rec.owner.join(',') !== prev.owner.join(',')) rec.ownerMoved = true;
+  }
   fs.appendFileSync(OUT, JSON.stringify(rec) + '\n', 'utf8');
   if (prev) {
     const dHp = rec.hp - prev.hp;
