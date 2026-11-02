@@ -65,7 +65,9 @@ const tick = async () => {
     // 机位是跟着同伴走的，每步都在动；只有「一步跨了 >32 格」才算我主动搬了 owner
     if (prev && prev.owner) {
       const d = Math.hypot(rec.owner[0] - prev.owner[0], rec.owner[1] - prev.owner[1], rec.owner[2] - prev.owner[2]);
-      if (d > 32) rec.ownerJump = Math.round(d);
+      // 机位跟着同伴走，同伴一跳机位也跟着跳 —— 只有「机位跳了、同伴没动」才是我搬了 owner
+      const dp = Math.hypot(rec.pos[0] - prev.pos[0], rec.pos[1] - prev.pos[1], rec.pos[2] - prev.pos[2]);
+      if (d > 32 && dp < 10) rec.ownerJump = Math.round(d);
     }
   }
   fs.appendFileSync(OUT, JSON.stringify(rec) + '\n', 'utf8');
