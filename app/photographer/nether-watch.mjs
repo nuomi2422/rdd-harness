@@ -60,6 +60,16 @@ for (;;) {
   if (dim && dim !== lastDim) {
     log('维度变化 ' + lastDim + ' → ' + dim);
     if (lastDim && dim === 'minecraft:the_nether') {
+      // ★ 2026-11-02 事故后改策略：不再自动把 owner 送进下界。
+      // 证据：14:34:24 我 /cam tp 把 RDDDev 送进下界拍入界 → 14:34:56 同伴死亡后就近复活在下界 (61,37,34)。
+      // 跟拍会改变复活点，这是对实验的实质干扰。默认只「看」，不「搬」。
+      const allowTp = process.argv.includes('--allow-tp');
+      if (!allowTp) {
+        log('检测到入下界，但按策略不搬 owner（要拍下界需显式 --allow-tp）');
+        lastDim = dim;
+        await new Promise((res) => setTimeout(res, 5000));
+        continue;
+      }
       const saved = await guard('save');
       log('拍前记录 owner 位置: ' + saved.slice(0, 80));
       const r = await ps('/cam tp');
