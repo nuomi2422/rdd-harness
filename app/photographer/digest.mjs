@@ -45,6 +45,28 @@ const takes = fs.readdirSync(SHOTS).filter((n) => n.startsWith('numencam_')).map
   return { n, mtime, cut };
 }).filter((t) => t.mtime >= from).sort((a, b) => a.n.localeCompare(b.n));
 
+// 真实活跃度：ai.jsonl 的 turn 事件（每次 AI 决策一轮），不受「身体空闲」误导
+const turnStats = (() => {
+  try {
+    const p = path.join(process.env.RDD_LIVE || 'D:\\rdd\\mc\\The Best of Twilight Forest', 'config', 'numen', 'monitor', 'ai.jsonl');
+    const all = fs.readFileSync(p, 'utf8').trim().split(/\r?\n/).slice(-20000);
+    const ts = [];
+    for (const l of all) {
+      let j; try { j = JSON.parse(l); } catch { continue; }
+      if (j.type !== 'turn') continue;
+      const t = Date.parse(j.timestamp || '');
+      if (t >= from) ts.push(t);
+    }
+    ts.sort((a, b) => a - b);
+    const gaps = [];
+    for (let i = 1; i < ts.length; i++) gaps.push((ts[i] - ts[i - 1]) / 1000);
+    gaps.sort((a, b) => a - b);
+    const median = gaps.length ? gaps[Math.floor(gaps.length / 2)] : null;
+    const long = gaps.filter((g) => g >= 120).length;
+    return { n: ts.length, median, long, total: gaps.length };
+  } catch { return null; }
+})();
+
 // 触发事件
 const trig = readJsonl(path.join(OUT_DIR, 'trigger-log.jsonl')).filter((o) => Date.parse(o.ts) >= from);
 
@@ -56,8 +78,14 @@ try {
 } catch { /* ignore */ }
 
 const anomalies = [];
+// 口径提醒：'身体空闲' 是任务状态，不是活跃度。实测 2026-11-03 03:36 它连续调用 build/eat/set_timer，
+// 而 task_status 仍显示"身体空闲"——所以 idle 占比会高估"没干活"。
+if (cnt.idle / total > 0.5) anomalies.push('口径：idle 是「没有长任务」，不等于没做事（它可能在做 build/eat 等前台调用）');
 if (cnt.dead > total * 0.1) anomalies.push('死亡/复活采样占 ' + pct(cnt.dead) + '（>10%）');
-if (cnt.idle > total * 0.6) anomalies.push('空闲采样占 ' + pct(cnt.idle) + '（>60%，派工节奏可疑）');
+// 只有「turn 也少」时，空闲才算问题；否则 turn 正常就说明它在做事
+if (cnt.idle > total * 0.6 && (!turnStats || turnStats.n < hours * 20)) {
+  anomalies.push('空闲 ' + pct(cnt.idle) + ' 且 turn 仅 ' + (turnStats ? turnStats.n : '?') + ' 个（每 5 分钟不足 2 轮）');
+}
 if (freePct !== null && freePct < 20) anomalies.push('磁盘余量 ' + freePct + '%（<20%，需优先删无标记片段）');
 if (trig.length === 0 && takes.length > 0) anomalies.push('有 ' + takes.length + ' 条新 take 但零触发事件（触发器可能没命中）');
 
@@ -65,6 +93,13 @@ const md = '# 剪辑摘要 · ' + (samples.length ? local(samples[0].ts) + ' →
   '> 覆盖 ' + hours + ' 小时，' + samples.length + ' 个采样。异常项以 ⚠️ 开头。\n\n' +
   '## 状态分布\n\n| 状态 | 采样 | 占比 |\n|---|---|---|\n' +
   Object.entries(cnt).map(([k, v]) => '| ' + k + ' | ' + v + ' | ' + pct(v) + ' |').join('\n') + '\n\n' +
+  '## 真实活跃度（turn 口径）\n\n' +
+  (turnStats
+    ? '- 本段 **' + turnStats.n + ' 个 turn**（AI 决策轮次）' +
+      (turnStats.median != null ? '，间隔中位数 **' + turnStats.median.toFixed(1) + ' 秒**' : '') + '\n' +
+      '- ≥2 分钟的停顿：' + turnStats.long + ' 次' + (turnStats.total ? '（占 ' + (turnStats.long / turnStats.total * 100).toFixed(1) + '%）' : '') + '\n' +
+      '- 注：「身体空闲」只表示没有长任务，不代表没做事\n\n'
+    : '- 读不到 ai.jsonl\n\n') +
   '## 本段素材\n\n- 新 take **' + takes.length + '** 条，其中有成片 **' + takes.filter((t) => t.cut).length + '** 条\n' +
   (takes.length ? '- 最近 5 条：' + takes.slice(-5).map((t) => '\`' + t.n + '\`' + (t.cut ? '(已成片)' : '(未成片)')).join('、') + '\n' : '') + '\n' +
   '## 触发事件\n\n' + (trig.length ? trig.map((t) => '- ' + local(t.ts) + '：' + (t.reasons || []).join(' / ') + ' → \`' + t.take + '\`').join('\n') : '- 本段无触发') + '\n\n' +
