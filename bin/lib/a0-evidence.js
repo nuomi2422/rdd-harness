@@ -1114,6 +1114,12 @@ function cmdDelivery(dirArg, sinceIso) {
     const p = path.join(dir, rel);
     return fs.existsSync(p) ? parseJsonl(fs.readFileSync(p, 'utf8')).rows : null;
   };
+  // 给了 --since 却解析不了：当场报错。静默按"全部"处理会让人以为自己看的是某个窗口
+  // （2026-11-03 自查发现：--since garbage 会打出 "since garbage" 却统计全量）。
+  if (sinceIso && !Number.isFinite(Date.parse(sinceIso))) {
+    console.error('--since 不可解析: ' + JSON.stringify(sinceIso) + '（期望 ISO 时间，如 2026-11-03T01:00:00Z）');
+    return 2;
+  }
   const ctxRows = readRows('monitor/context.jsonl');
   const memRows = readRows('monitor/expmem.jsonl');
   if (ctxRows == null && memRows == null) {
