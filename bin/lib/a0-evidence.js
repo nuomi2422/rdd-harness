@@ -1037,8 +1037,23 @@ function selftest() {
     assert(noSeq.entries[0] && noSeq.entries[0].seq === null, '⑪ 缺 deathSeq 不得编一个 seq 出来', fails);
   }
 
+  // ⑫ 2026-11-03（外部学习者）：delivery --since 的过滤口径。
+  //    为什么钉住：漏一条就是静默漏采；坏时间戳不能因为过滤被丢掉。
+  {
+    const rows = [
+      { timestamp: iso(T0 - 1000) },
+      { timestamp: iso(T0 + 1000) },
+      { timestamp: 'not-a-time' },
+      {},
+    ];
+    assert(filterSince(rows, null).length === 4, '⑫ 无 since 应全留');
+    const filtered = filterSince(rows, iso(T0));
+    assert(filtered.length === 3, '⑫ since 应去掉更早的一条，坏/缺时间戳不丢，实得 ' + filtered.length);
+    assert(filterSince(rows, 'garbage').length === 4, '⑫ 非法 since 不得把数据清空');
+  }
+
   const lines = [];
-  lines.push('A0 selftest · 11 组判据');
+  lines.push('A0 selftest · 12 组判据');
   lines.push(fails.length ? ('FAIL ' + fails.length + ' 项:') : 'PASS 全过');
   for (const f of fails) lines.push('  ✗ ' + f);
   console.log(lines.join('\n'));
@@ -1071,15 +1086,78 @@ function cmdBackfill(runDir) {
   return 0;
 }
 
+/**
+ * 按时间过滤事件行（CLI delivery 用）。坏时间戳的行**不丢**——丢了就成了静默漏采；
+ * 交给 collectDelivery 如实计入，读的人自己看得见。
+ */
+function filterSince(rows, sinceIso) {
+  if (!sinceIso) return rows || [];
+  const t = Date.parse(sinceIso);
+  if (!Number.isFinite(t)) return rows || [];
+  return (rows || []).filter((r) => {
+    const ms = Date.parse(r && r.timestamp);
+    return !Number.isFinite(ms) || ms >= t;
+  });
+}
+
+/**
+ * 2026-11-03（外部学习者）：给**没有 envelope 的长跑**直接算投送漏斗。
+ * 为什么需要：`backfill` 要求 runDir/envelope.json，而长跑（start-rdd 起的局）没有 envelope，
+ * 于是 context_delivery 永远是 UNKNOWN，只能靠人手数 expmem。这里只读 monitor 两份日志，
+ * 复用同一个 collectDelivery，不新增采集、不写文件。
+ *
+ * 用法：node a0-evidence.js delivery <config/numen 目录> [--since 2026-11-03T01:00:00Z]
+ */
+function cmdDelivery(dirArg, sinceIso) {
+  const dir = path.resolve(dirArg);
+  const readRows = (rel) => {
+    const p = path.join(dir, rel);
+    return fs.existsSync(p) ? parseJsonl(fs.readFileSync(p, 'utf8')).rows : null;
+  };
+  const ctxRows = readRows('monitor/context.jsonl');
+  const memRows = readRows('monitor/expmem.jsonl');
+  if (ctxRows == null && memRows == null) {
+    console.error('no monitor/context.jsonl and no monitor/expmem.jsonl under ' + dir);
+    return 2;
+  }
+  const d = collectDelivery({
+    contextRows: filterSince(ctxRows, sinceIso),
+    expmemRows: filterSince(memRows, sinceIso),
+  });
+  const line = (k, v) => console.log('  ' + String(k).padEnd(20) + v);
+  console.log('A0 delivery · ' + dir + (sinceIso ? ('  since ' + sinceIso) : '  (all)'));
+  line('status', d.status);
+  line('recalled', d.recalled.refs_status + ' / snapshots=' + d.recalled.snapshots
+    + ' entriesAggregate=' + d.recalled.entriesAggregate);
+  line('delivered', d.delivered.events + ' 次 / ' + d.delivered.refs.length + ' 个 ref');
+  line('kept', d.kept.source + ' / ' + d.kept.refs.length + ' 个 ref');
+  line('dropped', d.dropped.count + ' (' + d.dropped.source + ')'
+    + (Object.keys(d.dropped.reasons || {}).length ? ' ' + JSON.stringify(d.dropped.reasons) : ''));
+  line('truncated', d.truncated.refs.length + ' 个 ref'
+    + (d.truncated.reasons && d.truncated.reasons.length ? ' reasons=' + d.truncated.reasons.join(',') : ''));
+  line('deliveredNoRender', d.deliveredWithoutRender.count);
+  console.log('  top kept:');
+  for (const r of d.kept.refs.slice(0, 8)) console.log('    - ' + String(r).slice(0, 100));
+  console.log('  ★ 这是投送侧事实，不是采用/效果证据；recalled 为 AGGREGATE_ONLY 时没有 per-ref。');
+  return 0;
+}
+
 if (require.main === module) {
-  const [cmd, arg] = process.argv.slice(2);
+  const argv = process.argv.slice(2);
+  const cmd = argv[0];
   if (cmd === 'selftest') process.exit(selftest());
-  if (cmd === 'backfill' && arg) process.exit(cmdBackfill(arg));
-  console.error('usage: a0-evidence.js selftest | backfill <runDir>');
+  if (cmd === 'backfill' && argv[1]) process.exit(cmdBackfill(argv[1]));
+  if (cmd === 'delivery' && argv[1]) {
+    const i = argv.indexOf('--since');
+    const since = i >= 0 ? argv[i + 1] : null;
+    process.exit(cmdDelivery(argv[1], since));
+  }
+  console.error('usage: a0-evidence.js selftest | backfill <runDir> | delivery <config/numen dir> [--since <iso>]');
   process.exit(2);
 }
 
 module.exports = {
+  filterSince,
   collectDebugTools,
   A0_VERSION, KINDS, ACTORS, SOURCES,
   parseJsonl, classifySession, appendClearBoundary, normalizeIntervention, collectInterventions,
