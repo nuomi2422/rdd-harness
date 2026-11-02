@@ -121,6 +121,13 @@ async function sample() {
     rec.waiting = !!(idle && timers);
   }
 
+  // 单一事实来源：状态只在这里判一次，别让每个分析脚本各写一套正则（我为「死亡当干活」已经错过一次）
+  // working / idle / waiting(有定时器) / dead(死亡或复活中) / unknown(没有任务文本)
+  const taskText = (rec.task || '').trim();
+  rec.state = !taskText ? 'unknown'
+    : (/刚死了|复活途中/.test(taskText) ? 'dead'
+    : (/身体空闲/.test(taskText) ? (/挂着\s*\d+\s*个表/.test(taskText) ? 'waiting' : 'idle') : 'working'));
+
   // 判据：目标不可见 / 距离异常 → 这一刻的画面大概率是废片，当场标出来
   const flags = [];
   if (st.target && !st.targetVisible) flags.push('target-not-visible（目标不在渲染范围：死了没传送/走太远）');
