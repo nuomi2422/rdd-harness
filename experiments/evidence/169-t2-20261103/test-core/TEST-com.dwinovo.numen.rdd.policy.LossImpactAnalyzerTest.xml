@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.655Z" hostname="497opf704wt6o4j" time="0.028">
+  <properties/>
+  <testcase name="natureGuesserIsConservative()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.001"/>
+  <testcase name="a5_lossWithoutRequirementEvidenceCannotClaimBackup()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.019"/>
+  <testcase name="a4_unreadableInventoryNeverClaimsEnough()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="goalCancelledMeansIrrelevantNeedsNothing()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="unconfirmedLossAsksToConfirmFirst()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.002"/>
+  <testcase name="a3_confirmedNetLossWithGapNeedsSupplement()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.001"/>
+  <testcase name="a2_realEmptyInventoryStillAsksToConfirm()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="foodLossWhileHungryCannotBeNone()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.001"/>
+  <testcase name="recoveredLossIsNotPermanent()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="a1_backupInBaseLetsHerKeepGoing()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.001"/>
+  <testcase name="importantLossWithBackupContinues()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="capabilityGapNeedsSupplement()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.001"/>
+  <testcase name="secondaryLossJustReconfirms()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="a6_partialBackupDoesNotHideTheGap()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <testcase name="normalConsumptionIsNotLoss()" classname="com.dwinovo.numen.rdd.policy.LossImpactAnalyzerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

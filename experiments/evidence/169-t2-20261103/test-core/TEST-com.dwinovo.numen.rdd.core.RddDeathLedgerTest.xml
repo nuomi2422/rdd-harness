@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.549Z" hostname="497opf704wt6o4j" time="0.04">
+  <properties/>
+  <testcase name="recoveredDropsAreNoLongerRecoveryTargets()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.005"/>
+  <testcase name="ledgersArePerCompanionAndClearable()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="ledgerIsBoundedSoACrashLoopCannotInflateThePayload()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.013"/>
+  <testcase name="twoDeathsSixteenSecondsApartKeepSeparateCountdowns()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="onlyConfirmedLossMayBeCalledPermanentlyGone()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="dropsAreStillRecoverableForFiveMinutes()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="renderTellsHerToGoWhenThereIsTimeAndToStopWhenThereIsNot()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="renderExplainsWhichOfTwoToDoFirst()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.001"/>
+  <testcase name="nothingRecordedMeansNothingToRecover()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.002"/>
+  <testcase name="recoverableIsOrderedSoTheMostUrgentComesFirst()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

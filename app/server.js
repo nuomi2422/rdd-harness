@@ -287,6 +287,152 @@ function safeOpen(p) {
   return { ok: true, abs };
 }
 
+// ───────────────────────────────────────────── 摄影师（numencam）数据层
+// 相机控制口是游戏内的回环 HTTP（127.0.0.1:8767）；这里只做读 + 代理，
+// 所有判断（改机位、开夜视、开录）都留给调用方，面板不当自动驾驶。
+const PHOTO = {
+  api: process.env.NUMENCAM_API || 'http://127.0.0.1:8767',
+  dir: path.join(R.live || path.join(WS, 'mc', 'The Best of Twilight Forest'), 'screenshots'),
+};
+PHOTO.timeline = path.join(PHOTO.dir, '_timeline', 'numencam.jsonl');
+
+function photoCall(method, endpoint, body, ms) {
+  return new Promise((resolve) => {
+    let u;
+    try { u = new URL(PHOTO.api + endpoint); } catch (e) { return resolve({ ok: false, why: '相机地址坏了：' + e.message }); }
+    const payload = method === 'GET' ? null : Buffer.from(JSON.stringify(body || {}), 'utf8');
+    const req = http.request({
+      host: u.hostname, port: u.port || 80, path: u.pathname, method,
+      headers: payload ? { 'content-type': 'application/json', 'content-length': payload.length } : {},
+      timeout: ms || 1500,
+    }, (r) => {
+      let b = ''; r.setEncoding('utf8');
+      r.on('data', (c) => b += c);
+      r.on('end', () => { try { resolve(JSON.parse(b)); } catch (e) { resolve({ ok: false, why: '非 JSON（' + r.statusCode + '）：' + b.slice(0, 160) }); } });
+    });
+    req.on('error', (e) => resolve({ ok: false, why: '连不上相机控制口（游戏没开？）：' + e.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ ok: false, why: '相机控制口超时（客户端线程没响应）' }); });
+    if (payload) req.write(payload);
+    req.end();
+  });
+}
+
+/** 素材目录里的 take：一目录一条，帧数/首末帧/封盘 mp4/体积/摘要都从落盘事实算，不猜。 */
+function photoTakes(limit) {
+  const out = [];
+  let ents = [];
+  try { ents = fs.readdirSync(PHOTO.dir, { withFileTypes: true }); } catch (e) { return out; }
+  for (const e of ents) {
+    if (!e.isDirectory() || !/^numencam_/.test(e.name)) continue;
+    const d = path.join(PHOTO.dir, e.name);
+    let files = [];
+    try { files = fs.readdirSync(d); } catch (err) { continue; }
+    const frames = files.filter((f) => /^f_\d{5}\.png$/.test(f)).sort();
+    const mp4 = files.find((f) => f.toLowerCase().endsWith('.mp4')) || null;
+    let bytes = 0;
+    for (const f of files) { try { bytes += fs.statSync(path.join(d, f)).size; } catch (err) { /* 跳过 */ } }
+    let mtime = 0; try { mtime = fs.statSync(d).mtimeMs; } catch (err) { /* 跳过 */ }
+    out.push({
+      name: e.name, frames: frames.length, first: frames[0] || null, last: frames[frames.length - 1] || null,
+      mp4, bytes, mtime, summary: readText(path.join(d, 'numencam.txt'), '').trim().split(/\r?\n/).join(' · '),
+    });
+  }
+  out.sort((a, b) => b.mtime - a.mtime);
+  return limit ? out.slice(0, limit) : out;
+}
+
+function photoTimeline(n) {
+  const txt = readText(PHOTO.timeline, '');
+  if (!txt) return [];
+  return txt.split(/\r?\n/).filter(Boolean).slice(-(n || 40)).map((l) => {
+    try { return JSON.parse(l); } catch (e) { return { ts: '', kind: 'raw', text: l.slice(0, 160) }; }
+  });
+}
+
+function photoStorage() {
+  const takes = photoTakes();
+  let used = 0;
+  for (const t of takes) used += t.bytes;
+  let free = null;
+  try { const st = fs.statfsSync(PHOTO.dir); free = Math.round((st.bavail * st.bsize) / 1048576); } catch (e) { /* 可能盘还不存在 */ }
+  return { dir: PHOTO.dir, takesBytes: used, takesCount: takes.length, diskFreeMb: free, budgetMb: 6144 };
+}
+
+// ── 游戏内 AI 的现状（Numen MCP 的只读工具）──
+// ★ 这里只调 get_self_status / task_status 这两个**只读**工具。
+//   get_events 是消费式收件箱（读一次就没了），摄影师读它会把事件从驱动器那边吃掉，
+//   等于偷主线 AI 的消息 —— 这类「观测量本身有副作用」的接口，面板一律不碰。
+const NUMEN_CFG = path.join(R.live || '', 'config', 'numen', 'mcp_server.json');
+let NUMEN_CACHE = { at: 0, val: null };
+
+function numenPost(cfg, body, ms) {
+  return new Promise((resolve) => {
+    const payload = Buffer.from(JSON.stringify(body), 'utf8');
+    const req = http.request({
+      host: cfg.host || '127.0.0.1', port: cfg.port, path: '/mcp', method: 'POST',
+      headers: {
+        'content-type': 'application/json',
+        'content-length': payload.length,
+        accept: 'application/json, text/event-stream',
+        ...(cfg.token ? { authorization: 'Bearer ' + cfg.token } : {}),
+      },
+      timeout: ms || 2500,
+    }, (r) => {
+      let b = ''; r.setEncoding('utf8');
+      r.on('data', (c) => b += c);
+      r.on('end', () => {
+        try { resolve(JSON.parse(b)); }
+        catch (e) {
+          const line = b.split(/\r?\n/).find((l) => l.startsWith('data:'));
+          try { resolve(line ? JSON.parse(line.slice(5).trim()) : null); } catch (e2) { resolve(null); }
+        }
+      });
+    });
+    req.on('error', (e) => resolve({ __err: e.message }));
+    req.on('timeout', () => { req.destroy(); resolve({ __err: 'Numen MCP 超时' }); });
+    req.write(payload);
+    req.end();
+  });
+}
+
+async function numenCall(cfg, tool, args) {
+  await numenPost(cfg, { jsonrpc: '2.0', id: 1, method: 'initialize', params: { protocolVersion: '2024-11-05', capabilities: {}, clientInfo: { name: 'rdd-panel', version: '1' } } }, 2500);
+  const r = await numenPost(cfg, { jsonrpc: '2.0', id: 2, method: 'tools/call', params: { name: tool, arguments: args || {} } }, 4000);
+  if (!r || r.__err) return null;
+  const txt = ((r.result && r.result.content) || []).map((c) => c.text).filter(Boolean).join('\n');
+  try { return JSON.parse(txt); } catch (e) { return txt ? { text: txt } : null; }
+}
+
+async function numenAi() {
+  const now = Date.now();
+  if (now - NUMEN_CACHE.at < 3000 && NUMEN_CACHE.val) return NUMEN_CACHE.val;
+  const cfg = readJson(NUMEN_CFG, null);
+  if (!cfg || !cfg.port) return { ok: false, why: '没有 mcp_server.json（Numen MCP 没配）' };
+  const [self, task, rdd] = [await numenCall(cfg, 'get_self_status', { companion: 'RDD' }),
+                             await numenCall(cfg, 'task_status', { companion: 'RDD' }),
+                             await numenCall(cfg, 'rdd_status', { companion: 'RDD' })];
+  // 注意：Numen 的 MCP 回的就是工具原生结果（不是 mcp-call.mjs 那种 {ok,tool,result} 包装），
+  // 所以这里不能再多剥一层 .result —— 之前多剥一层导致整张卡空白。
+  const ai = { ok: !!(self || task || rdd), self: self || null, task: task || null, rdd: rdd || null };
+  if (!ai.self && !ai.task) ai.why = '游戏内 MCP 8765 没回（游戏没开？）';
+  NUMEN_CACHE = { at: now, val: ai };
+  return ai;
+}
+
+async function photoSnapshot() {
+  const [state, takes, ai] = [await photoCall('GET', '/state'), photoTakes(12), await numenAi()];
+  return {
+    ok: true, now: Date.now(),
+    api: PHOTO.api,
+    ai,
+    state,
+    latest: takes[0] || null,
+    takes,
+    timeline: photoTimeline(50),
+    storage: photoStorage(),
+  };
+}
+
 const server = http.createServer((req, res) => {
   const u = url.parse(req.url);
   const p = u.pathname;
@@ -648,6 +794,52 @@ const server = http.createServer((req, res) => {
       if (stt) { stt.docRev = (stt.docRev || 0) + 1; writeAtomic(sp, JSON.stringify(stt, null, 2)); }
       return send(res, 200, { ok: true, docPath: r.docPath || null, file: r.file || null, item: r.item });
     });
+  }
+
+  // ───────────────────────────────────────── 摄影师（numencam）
+  // 为什么放在面板里：相机在游戏进程里，人不可能一边看游戏一边盯素材目录。
+  // 这一页只做三件事：「镜头现在是什么样」「刚才拍了什么」「AI 干了什么」。
+  if (p === '/api/photo') {
+    return photoSnapshot().then((o) => send(res, 200, o));
+  }
+  if (p === '/api/photo/op' && req.method === 'POST') {
+    return readBody(req).then(async (b) => {
+      if (!b || !b.op) return send(res, 400, { ok: false, why: '缺 op' });
+      const map = { lens: '/lens', shot: '/shot', follow: '/follow', rec: '/rec', off: '/off', state: '/state' };
+      const ep = map[b.op];
+      if (!ep) return send(res, 400, { ok: false, why: '不认识的 op：' + b.op });
+      const r = await photoCall(ep === '/state' ? 'GET' : 'POST', ep, b.body || {});
+      return send(res, 200, { ok: true, op: b.op, result: r });
+    });
+  }
+  // 拍一张：借游戏内录制器抓 1~2 帧再停。为什么不用窗口截图：
+  // PrintWindow 会把 Numen 聊天面板一起拍进来，取证画面必须是「渲染输出」而不是「窗口长什么样」。
+  if (p === '/api/photo/snap' && req.method === 'POST') {
+    return (async () => {
+      const st = await photoCall('GET', '/state');
+      if (!st || !st.ok) return send(res, 503, { ok: false, why: (st && st.why) || '相机控制口不可用' });
+      if (st.rec && st.rec.recording) return send(res, 409, { ok: false, why: '正在录像，先停了再拍单张' });
+      await photoCall('POST', '/rec', { on: true, fps: 1 });
+      await new Promise((r) => setTimeout(r, 1800));
+      await photoCall('POST', '/rec', { on: false });
+      await new Promise((r) => setTimeout(r, 1200));
+      const takes = photoTakes(1);
+      return send(res, 200, { ok: true, take: takes[0] || null });
+    })();
+  }
+
+  if (p === '/api/photo/frame') {
+    const q = url.parse(req.url, true).query;
+    const take = String(q.take || '');
+    const file = String(q.f || '');
+    if (!/^numencam_[A-Za-z0-9_-]+$/.test(take) || !/^(f_\d{5}\.png|numencam\.txt)$/.test(file)) {
+      return send(res, 400, { ok: false, why: '参数不合法' });
+    }
+    const abs = path.join(PHOTO.dir, take, file);
+    if (!exists(abs)) return send(res, 404, { ok: false, why: '没有这个文件' });
+    const buf = fs.readFileSync(abs);
+    res.writeHead(200, { 'content-type': file.endsWith('.png') ? 'image/png' : 'text/plain; charset=utf-8', 'cache-control': 'no-store' });
+    return res.end(buf);
   }
 
   if (p === '/api/repo') {

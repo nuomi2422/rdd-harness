@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.G1aAcquireUnknownBaselineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.723Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="s35_currentNullAndTrueEmptyAreIndistinguishable()" classname="com.dwinovo.numen.rdd.core.G1aAcquireUnknownBaselineTest" time="0.001"/>
+  <testcase name="s35_unknownBaselineWithExistingStockMustNotPass()" classname="com.dwinovo.numen.rdd.core.G1aAcquireUnknownBaselineTest" time="0.001"/>
+  <testcase name="s36_trueEmptyBaselineIsLegitimate()" classname="com.dwinovo.numen.rdd.core.G1aAcquireUnknownBaselineTest" time="0.001"/>
+  <testcase name="s37_normalBaselineUnchanged()" classname="com.dwinovo.numen.rdd.core.G1aAcquireUnknownBaselineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

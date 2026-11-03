@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.AssetKeysTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.534Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="生成的键必须能对上预算表里的形状()" classname="com.dwinovo.numen.rdd.policy.AssetKeysTest" time="0.001"/>
+  <testcase name="抗火药映射到预算键()" classname="com.dwinovo.numen.rdd.policy.AssetKeysTest" time="0.001"/>
+  <testcase name="空效果不生成假键()" classname="com.dwinovo.numen.rdd.policy.AssetKeysTest" time="0.0"/>
+  <testcase name="普通水药水也能映射_说明映射是通例而非验收特例()" classname="com.dwinovo.numen.rdd.policy.AssetKeysTest" time="0.001"/>
+  <testcase name="带命名空间也认()" classname="com.dwinovo.numen.rdd.policy.AssetKeysTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.911Z" hostname="497opf704wt6o4j" time="0.004">
+  <properties/>
+  <testcase name="factsOfOtherGoal_areExcluded()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <testcase name="emptyRegistry_isUnknownHeldAndSaysSo()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.001"/>
+  <testcase name="factColumnIsNotJoined_butStated()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <testcase name="auditDoesNotMutateEitherSide()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <testcase name="noManifest_isReported()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <testcase name="nullRegistry_isUnknownHeldForEverything()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.001"/>
+  <testcase name="missingKeyInRegistry_isUnknownHeld_notGap()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <testcase name="identicalKeyString_isReportedAsExactButStillFlagged()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.001"/>
+  <testcase name="heldAboveMinimum_isMeetsMinimum()" classname="com.dwinovo.numen.rdd.policy.RequirementAssetAuditTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

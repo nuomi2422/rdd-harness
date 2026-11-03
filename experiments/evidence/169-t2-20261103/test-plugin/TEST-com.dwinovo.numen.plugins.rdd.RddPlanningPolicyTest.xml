@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.173Z" hostname="497opf704wt6o4j" time="0.012">
+  <properties/>
+  <testcase name="stage_b最终请求含策略约束()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.002"/>
+  <testcase name="策略约束与经验知识可以同时进请求_且知识缺失不影响策略()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.002"/>
+  <testcase name="stage_a最终请求含策略约束()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.0"/>
+  <testcase name="观测摘要只记决策结果不含推理()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.001"/>
+  <testcase name="高风险目标带分诊与回退约束()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.001"/>
+  <testcase name="策略块在未要求时写明延后而不是默默省略()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.0"/>
+  <testcase name="主人明确要求时才放行可选升级()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.0"/>
+  <testcase name="普通目标也要写出通用风险约束()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.001"/>
+  <testcase name="通关目标不默认放行可选升级()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningPolicyTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

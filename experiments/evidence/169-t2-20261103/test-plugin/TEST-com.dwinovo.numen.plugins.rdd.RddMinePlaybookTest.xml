@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.942Z" hostname="497opf704wt6o4j" time="0.006">
+  <properties/>
+  <testcase name="不写死数量与坐标()" classname="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" time="0.003"/>
+  <testcase name="四个关键动作都在()" classname="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" time="0.001"/>
+  <testcase name="无关目标不注入()" classname="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" time="0.0"/>
+  <testcase name="有界()" classname="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" time="0.0"/>
+  <testcase name="谈下矿时注入()" classname="com.dwinovo.numen.plugins.rdd.RddMinePlaybookTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

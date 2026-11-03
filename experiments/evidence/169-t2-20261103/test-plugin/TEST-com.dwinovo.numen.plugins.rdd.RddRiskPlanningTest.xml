@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" tests="23" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.334Z" hostname="497opf704wt6o4j" time="0.089">
+  <properties/>
+  <testcase name="smeltIronWithoutOreGetsMiningPrep()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.061"/>
+  <testcase name="firstStageNeverGetsInjectedWaitFor()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="tradeStageDoesNotWaitForEmeraldItProduces()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.002"/>
+  <testcase name="smeltPrepNeverExceedsMaxStages()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="prepHintMentionsBackupForEnd()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.007"/>
+  <testcase name="ensurePrepStageSkipsLowRiskAndExistingPrep()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="stageThatProducesBreadDoesNotWaitForBread()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="prepHintListsRequirementsForNether()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="injectWaitForOnlyIntoRiskyStage()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.004"/>
+  <testcase name="highRiskStageCarriesBackupSet()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="ensurePrepStageInjectedBeforeFirstRiskyStage()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="lowRiskStageHasNoBackupRequirement()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="smeltIronWithPriorMiningDoesNotDuplicatePrep()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="smeltPrepAtFirstStageAlsoRespectsMax()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="ensurePrepStageRespectsMaxStages()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="acceptanceStageDoesNotGetNetherGates()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="prepHintMentionsRecoveryPointForHighRisk()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="injectWaitForMergesWithExistingTakingMax()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <testcase name="prepHintEmptyForNormal()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="negationPhraseKeepsFinalAcceptanceOutOfNether()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="smeltIronWithOreInHandDoesNotAddPrep()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.0"/>
+  <testcase name="genericBedIdIsNotAWaitForGate()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.003"/>
+  <testcase name="foodProducingStageDoesNotWaitForCookedBeef()" classname="com.dwinovo.numen.plugins.rdd.RddRiskPlanningTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

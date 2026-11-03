@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.671Z" hostname="497opf704wt6o4j" time="14.937">
+  <properties/>
+  <testcase name="aiAssistedConfirmationAdvancesLikeHardCodedDoes()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="applyAiAssistedResultRejectsStaleSubtaskId()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="scanMechanismItselfWorks()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="5.6"/>
+  <testcase name="nullDetectionModeIsRejected()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="recheckOnUnchangedIsCarriedAsAGivenFlag()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="hardCodedRequiresANonEmptyCondition()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="bothModesRejectMissingIdentityFields()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.01"/>
+  <testcase name="applyAiAssistedResultRejectsWhenNotRunning()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="aiAssistedIntervalIsCarriedInSecondsNotTicks()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="applyAiAssistedResultRejectsHardCodedSubtasks()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="conditionMapIsDefensivelyCopied()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="hardCodedZeroesTheAiOnlyFields()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="aiOnlyFieldsHaveNoProductionReaderYet()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="4.875"/>
+  <testcase name="applyAiAssistedResultOnlyAcceptsTheExactWordConfirmed()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="applyAiAssistedResultHasNoProductionCallerYet()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="1.447"/>
+  <testcase name="hardCodedWithBodyKeepsAiFieldsZeroed()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="hardCodedIsTheOnlyModeReachableFromThePlanner()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="1.36"/>
+  <testcase name="aiAssistedForcesAnEmptyCondition()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.0"/>
+  <testcase name="applyAiAssistedResultRejectsNullResult()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="aiAssistedRequiresPositiveIntervalAndMaxChecks()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="0.001"/>
+  <testcase name="aiAssistedHasNoProductionCallerYet()" classname="com.dwinovo.numen.rdd.core.SubtaskModeContractTest" time="1.628"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

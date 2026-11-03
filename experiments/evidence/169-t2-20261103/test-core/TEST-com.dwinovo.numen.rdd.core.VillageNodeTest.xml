@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.VillageNodeTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.059Z" hostname="497opf704wt6o4j" time="0.05">
+  <properties/>
+  <testcase name="unsearchedWithResourcesRanksFirst()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.031"/>
+  <testcase name="searchedFlagFromState()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.015"/>
+  <testcase name="extractsVillageFacts()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.001"/>
+  <testcase name="renderEmptySafe()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.001"/>
+  <testcase name="nonVillageAssetsIgnored()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.0"/>
+  <testcase name="missingResourcesMapIsSafe()" classname="com.dwinovo.numen.rdd.core.VillageNodeTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

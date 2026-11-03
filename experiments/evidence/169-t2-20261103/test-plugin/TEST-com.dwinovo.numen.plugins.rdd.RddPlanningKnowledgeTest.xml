@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.139Z" hostname="497opf704wt6o4j" time="0.032">
+  <properties/>
+  <testcase name="attach_空基础提示不炸()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.003"/>
+  <testcase name="注入时把目标与失败事实带给知识源()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.008"/>
+  <testcase name="知识源抛Error时安全降级()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.003"/>
+  <testcase name="stage_b_最终请求含经验()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="知识不超预算时请求长度等于基础加知识()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="不相关经验不会被拼进来()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="fallback_最终请求含经验()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="知识源抛运行时异常时安全降级()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="知识源返回null时请求不变()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.007"/>
+  <testcase name="stage_a_最终请求含经验()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="知识源为null时走宿主实现而不是崩溃()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <testcase name="无经验时请求与原来逐字相同()" classname="com.dwinovo.numen.plugins.rdd.RddPlanningKnowledgeTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

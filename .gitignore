@@ -19,3 +19,9 @@ experiments/journal/*.jsonl
 # run-curve.ps1 是本机曲线循环驱动：默认 --Goal 指向会话 .tmp 下的 goal 文件，
 # 换台机器就跑不了。它是「本机启动脚本」，不是可移植工具 → 不入仓。
 bin/run-curve.ps1
+
+# ── 2026-11-03 清账：experiments/evidence 下的大快照属于运行数据 ──
+# crash 全量日志与全量 jsonl 快照（单个数十 MB）不入仓；
+# 小的测试报告（*.xml / *.txt）仍入仓，作为取证。
+experiments/evidence/**/*.jsonl
+experiments/evidence/**/*.log

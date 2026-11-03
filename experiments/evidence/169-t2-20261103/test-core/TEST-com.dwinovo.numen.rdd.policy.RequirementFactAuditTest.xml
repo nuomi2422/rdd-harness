@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.916Z" hostname="497opf704wt6o4j" time="0.007">
+  <properties/>
+  <testcase name="emptyRequirementsList_isAlsoNoManifest()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.0"/>
+  <testcase name="noManifest_isReportedNotTreatedAsFine()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.001"/>
+  <testcase name="prefixMatchIsStatedNotSilent()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.001"/>
+  <testcase name="requirementWithMatchingFact_isCovered()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.001"/>
+  <testcase name="auditDoesNotMutateEitherSide()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.0"/>
+  <testcase name="duplicateRequirement_isCountedOnce_andNoted()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.001"/>
+  <testcase name="reworkSignalIsNotFakedBecauseStoreDedups()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.0"/>
+  <testcase name="requirementWithoutFact_saysNoFactRecord_notNotDone()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.001"/>
+  <testcase name="factsOfAnotherGoal_areNotCounted()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.0"/>
+  <testcase name="emptyFacts_isNotAnError()" classname="com.dwinovo.numen.rdd.policy.RequirementFactAuditTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

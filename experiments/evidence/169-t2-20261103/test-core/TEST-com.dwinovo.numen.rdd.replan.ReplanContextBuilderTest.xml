@@ -1,0 +1,8 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.replan.ReplanContextBuilderTest" tests="2" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.283Z" hostname="497opf704wt6o4j" time="0.009">
+  <properties/>
+  <testcase name="renderEmptyContextIsSafe()" classname="com.dwinovo.numen.rdd.replan.ReplanContextBuilderTest" time="0.008"/>
+  <testcase name="renderIncludesFailureAssetsCompletedAndRisk()" classname="com.dwinovo.numen.rdd.replan.ReplanContextBuilderTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

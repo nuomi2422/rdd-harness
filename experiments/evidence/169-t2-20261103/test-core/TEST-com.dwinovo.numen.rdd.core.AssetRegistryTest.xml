@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.AssetRegistryTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:13.991Z" hostname="497opf704wt6o4j" time="0.191">
+  <properties/>
+  <testcase name="invalidateByTypeMarksOnlyMatchingObservedEntries()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.047"/>
+  <testcase name="usableCountsUnmodifiable()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.001"/>
+  <testcase name="keepsObservationHistoryAndUsableProjection()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.001"/>
+  <testcase name="usableCountsRejectsNonIntegerNegativeNaNInfinity()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.001"/>
+  <testcase name="invalidateByTypeIgnoresBlank()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.001"/>
+  <testcase name="forgetIsIdempotent()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.0"/>
+  <testcase name="currentAssetsRoundTripWithoutPersistingAnUnboundedHistory()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.134"/>
+  <testcase name="usableCountsOnlyInventoryScanObserved()" classname="com.dwinovo.numen.rdd.core.AssetRegistryTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

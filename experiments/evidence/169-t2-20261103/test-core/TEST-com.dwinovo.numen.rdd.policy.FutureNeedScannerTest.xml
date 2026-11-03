@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.FutureNeedScannerTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.598Z" hostname="497opf704wt6o4j" time="0.024">
+  <properties/>
+  <testcase name="emptyOrUnknownInputsAreSafe()" classname="com.dwinovo.numen.rdd.policy.FutureNeedScannerTest" time="0.002"/>
+  <testcase name="thingsWithZeroSeenAreNotReported()" classname="com.dwinovo.numen.rdd.policy.FutureNeedScannerTest" time="0.001"/>
+  <testcase name="reportsInventoryAndNearbySeparatelyAndMarksWhetherTheGateIsAlreadyEnough()" classname="com.dwinovo.numen.rdd.policy.FutureNeedScannerTest" time="0.005"/>
+  <testcase name="isBoundedEvenWhenEverythingIsSatisfied()" classname="com.dwinovo.numen.rdd.policy.FutureNeedScannerTest" time="0.016"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

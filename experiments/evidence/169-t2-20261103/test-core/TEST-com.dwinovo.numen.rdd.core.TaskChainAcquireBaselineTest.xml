@@ -1,0 +1,19 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:31.609Z" hostname="497opf704wt6o4j" time="0.049">
+  <properties/>
+  <testcase name="oldSaveWithoutBaselineKeyLoadsAsNoBaseline()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.002"/>
+  <testcase name="replanningForgetsBaselineOfReusedSubtasks()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="startCurrentWithCountsCapturesBaselineSoTheNeverSatisfiedGuardIsNeverHit()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="captureIsIdempotentSoRetryDoesNotMoveTheGoalpost()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.0"/>
+  <testcase name="captureAcquireBaselineKeepsTheFirstSnapshot()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="nullCountsCaptureYieldsEmptyBaselineRatherThanNull()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="restoredBaselinePointingAtUnknownSubtaskIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.005"/>
+  <testcase name="replacingPlanForgetsBaselinesOfFreedSubtasks()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="snapshotStillOmitsBaselineNoiseButRoundTrips()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.034"/>
+  <testcase name="baselineSurvivesRestartThroughJson()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="baselineIsCapturedAndReadBack()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.001"/>
+  <testcase name="baselineIsDefensivelyCopied()" classname="com.dwinovo.numen.rdd.core.TaskChainAcquireBaselineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[[rdd] 恢复时丢弃未知节点的 acquireBaselines：[ghost-99]
+]]></system-err>
+</testsuite>

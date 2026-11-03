@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.G1c2FingerprintTest" tests="3" skipped="3" failures="0" errors="0" timestamp="2026-11-03T06:08:46.380Z" hostname="497opf704wt6o4j" time="0.002">
+  <properties/>
+  <testcase name="sameIdsStillHitCache()" classname="com.dwinovo.numen.plugins.rdd.G1c2FingerprintTest" time="0.001">
+    <skipped/>
+  </testcase>
+  <testcase name="fingerprintIsEmptyForUnexpanded()" classname="com.dwinovo.numen.plugins.rdd.G1c2FingerprintTest" time="0.001">
+    <skipped/>
+  </testcase>
+  <testcase name="sameCountButDifferentIdsInvalidates()" classname="com.dwinovo.numen.plugins.rdd.G1c2FingerprintTest" time="0.0">
+    <skipped/>
+  </testcase>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

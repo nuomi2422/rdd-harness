@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.177Z" hostname="497opf704wt6o4j" time="0.085">
+  <properties/>
+  <testcase name="absentFacts_isNotUntrustworthy()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.019"/>
+  <testcase name="validJsonButNoStagesKey_isUntrustworthy()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.005"/>
+  <testcase name="sameStageKeyInDifferentLineages_doesNotCollapse()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.003"/>
+  <testcase name="failureWithoutCancel_isNotAContradiction()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.005"/>
+  <testcase name="withRealFactBaseline_cleanIsMeaningful()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.003"/>
+  <testcase name="absentFacts_isNotACleanBillOfHealth()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.006"/>
+  <testcase name="missingFactsFile_isNotUntrustworthy()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.003"/>
+  <testcase name="reconcile_doesNotModifyEitherSide()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.005"/>
+  <testcase name="factKeysUseLineagePlusStageKey()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.003"/>
+  <testcase name="canceledThenSuccessInLedger_isReported()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.007"/>
+  <testcase name="sameKeyCompletedButFailed_isReported()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.006"/>
+  <testcase name="missingUsageLedger_isUntrustworthy()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.004"/>
+  <testcase name="realShape_withNoCollisions_isClean()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.004"/>
+  <testcase name="realCompletedFactStoreShape_isParsedIntoKeys()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.003"/>
+  <testcase name="readableButUnparseable_isAlsoUntrustworthy()" classname="com.dwinovo.numen.rdd.fact.FactShadowReconcilerTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.side.death.RecoveryTerminalTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.534Z" hostname="497opf704wt6o4j" time="0.159">
+  <properties/>
+  <testcase name="都没有时返回空串而不是null()" classname="com.dwinovo.numen.rdd.side.death.RecoveryTerminalTest" time="0.158"/>
+  <testcase name="认得产出侧的下划线键()" classname="com.dwinovo.numen.rdd.side.death.RecoveryTerminalTest" time="0.001"/>
+  <testcase name="也认得历史驼峰键()" classname="com.dwinovo.numen.rdd.side.death.RecoveryTerminalTest" time="0.0"/>
+  <testcase name="驼峰优先且忽略空值()" classname="com.dwinovo.numen.rdd.side.death.RecoveryTerminalTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

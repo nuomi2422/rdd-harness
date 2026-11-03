@@ -197,7 +197,7 @@
 
 <script>
 const $ = (i)=>document.getElementById(i);
-let OV=null, PAGE='老板台', TOOLS=null, TOOLQ='', GRP='*';
+let OV=null, PAGE='老板台', TOOLS=null, TOOLQ='', GRP='*', PHOTO=null;
 const esc = s => String(s==null?'':s).replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
 const kb = n => n>1048576 ? (n/1048576).toFixed(1)+'M' : n>1024 ? (n/1024).toFixed(1)+'K' : n+'B';
 
@@ -225,7 +225,7 @@ async function saveDoc(id, content){
 
 const NAV = [
   ['老板台','boss'], ['等你拍板','decide'], ['总览','ov'],
-  ['工具','tools'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
+  ['工具','tools'], ['摄影师','photo'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
   // ★ 2026-10-21：stage 已降级为可选，导航里隐藏（URL 直达 #stage 仍可用）。
   //   用户原话「原本的 stage 就可以差不多废弃和隐藏了」。
   //   为什么还留着：万一要开 stage，历史任务还能翻；只是默认不摆在台面上。
@@ -850,6 +850,132 @@ async function paintTree(){
   return s;
 }
 
+// ══════════════════════════════════════════════ 摄影师（numencam）
+// 这一页只回答三个问题：镜头现在是什么样 / 刚才拍了什么 / 游戏里的 AI 干了什么。
+// 为什么单独一页：总览页是「流程健康」，摄影是「取证画面」，两件事的刷新节奏差一个量级。
+function paintPhoto(){
+  const P = PHOTO;
+  if(!P) return '<div class="card cut"><div class="note">正在读摄影师数据…</div></div>';
+  if(!P.ok) return '<div class="card cut"><div class="note bad">[!] 读不到摄影师数据：'+esc(P.err||P.why||'')+'</div></div>';
+  const st = (P.state && P.state.ok) ? P.state : null;
+  const stWhy = (P.state && !P.state.ok) ? (P.state.why||'') : '';
+  const S = P.storage || {};
+  let s = '<div class="grid g3">';
+
+  // ── 1 镜头状态 ──
+  s += '<div class="card cut"><h2>镜头现在是什么样</h2>';
+  if(st){
+    s += '<div class="kv">';
+    s += '<b>机位</b><span>'+esc(st.mode)+'　目标 <b>'+esc(st.target||'（无）')+'</b> '+
+         (st.targetVisible?'<span class="tag ok">可见</span>':'<span class="tag bad">不在渲染范围</span>')+'</span>';
+    s += '<b>构图</b><span>距离 '+(st.rig?st.rig.distance:'?')+' 格　高度 '+(st.rig?st.rig.height:'?')+
+         '　方位 '+(st.rig?st.rig.bearing:'?')+'°</span>';
+    s += '<b>镜头</b><span>亮度 '+(st.lens?st.lens.gamma:'?')+'　'+
+         (st.lens&&st.lens.nightVision?'<span class="tag warn">夜视（拍摄干预）</span>':'自然光')+'</span>';
+    s += '<b>录像</b><span>'+(st.rec&&st.rec.recording?'<span class="tag bad">在录</span>':'已停')+
+         '　'+esc((st.rec&&st.rec.status)||'')+'</span>';
+    s += '<b>牵引</b><span>'+(st.follow&&st.follow.on?'开（'+(st.follow.maxDist||'?')+' 格）':'关')+'</span>';
+    s += '<b>世界</b><span>'+(st.inWorld?'在世界里':'没进世界')+'　游戏刻 '+esc(String(st.gameTime||'?'))+'</span>';
+    s += '</div>';
+  }else{
+    s += '<div class="note bad">[!] '+esc(stWhy||'相机控制口不可达（游戏没开？）')+'</div>';
+  }
+  s += '</div>';
+
+  // ── 2 最新一帧 ──
+  const L = P.latest;
+  s += '<div class="card cut" style="grid-column:span 2"><h2>最新一帧 <span class="r">'+
+       '<button class="b" onclick="snapPhoto()">拍一张</button> '+esc(L?L.name:'—')+'</span></h2>';
+  if(L && L.last){
+    const src = '/api/photo/frame?take='+encodeURIComponent(L.name)+'&f='+encodeURIComponent(L.last)+'&t='+(P.now||0);
+    s += '<a href="'+src+'" target="_blank"><img src="'+src+'" alt="latest frame" '+
+         'style="width:100%;display:block;border:1px solid var(--line-strong);image-rendering:pixelated"></a>';
+    s += '<div class="note">'+esc(L.summary||'')+'　·　'+L.frames+' 帧（'+esc(L.first||'')+' … '+esc(L.last||'')+'）</div>';
+  }else{
+    s += '<div class="empty">还没有 take。开一次：<code>POST /api/photo/op {"op":"rec","body":{"on":true,"fps":2}}</code></div>';
+  }
+  s += '</div>';
+
+  // ── 2.5 游戏内 AI 在干什么（只读工具，不碰 get_events）──
+  const AI = P.ai || {};
+  s += '<div class="card cut" style="grid-column:1/-1"><h2>游戏内 AI 在干什么 <span class="r">'+esc((AI.self&&AI.self.name)||'RDD')+'</span></h2>';
+  if(AI.self){
+    const a = AI.self;
+    s += '<div class="kv">';
+    s += '<b>位置</b><span>('+Math.round(a.position.x)+', '+Math.round(a.position.y)+', '+Math.round(a.position.z)+')　'+esc(a.biome||'')+'　'+esc(a.dimension||'')+'</span>';
+    s += '<b>身体</b><span>HP '+a.hp+'/'+a.max_hp+'　饥饿 '+a.hunger+'　'+esc(a.game_mode||'')+'　背包 '+a.backpack_slots.used+'/'+a.backpack_slots.total+'　'+(a.on_ground?'着地':'空中')+'</span>';
+    const mh = a.equipment && a.equipment.mainhand;
+    s += '<b>主手</b><span>'+(mh&&mh.item ? (esc(mh.item)+' × '+((mh.count==null||mh.count===0)?1:mh.count)) : '空手')+'</span>';
+    s += '</div>';
+  }
+  if(AI.task && AI.task.message) s += '<div class="note acc">'+esc(AI.task.message)+'</div>';
+  if(AI.rdd && AI.rdd.data){
+    const d = AI.rdd.data, c = d.condition || {};
+    s += '<div class="kv" style="margin-top:6px">';
+    s += '<b>任务链</b><span>'+esc(AI.rdd.message||'')+'　子任务 '+esc(d.subtask_status||'?')+'　资产 '+esc(String(d.assets==null?'?':d.assets))+'</span>';
+    s += '<b>当前条件</b><span>'+esc(c.asset_key||'?')+' ≥ '+esc(String(c.minimum==null?'?':c.minimum))+
+         '　'+(d.condition_matches?'<span class="tag ok">已满足</span>':'<span class="tag warn">未满足</span>')+'</span>';
+    s += '</div>';
+  }
+  ((AI.task&&AI.task.data&&AI.task.data.timers)||[]).forEach(function(t){
+    s += '<div class="note">计时 '+esc(t.timer_id)+' · '+t.remaining_s+' 秒后：'+esc(t.reason)+'</div>';
+  });
+  if(!AI.self && !AI.task) s += '<div class="note warn">[!] '+esc(AI.why||'读不到游戏内 AI 状态（MCP 8765 没回）')+'</div>';
+  s += '</div>';
+
+  // ── 3 素材库 ──
+  s += '<div class="card cut" style="grid-column:1/-1"><h2>素材库 <span class="r">'+
+       (S.takesCount||0)+' 条 · '+kb(S.takesBytes||0)+' · 盘剩 '+(S.diskFreeMb==null?'?':S.diskFreeMb)+' MB'+
+       (S.takesBytes > (S.budgetMb||6144)*1048576 ? ' <span class="tag bad">超预算</span>' : '')+'</span></h2>';
+  if(!(P.takes && P.takes.length)){
+    s += '<div class="empty">还没有素材。</div>';
+  }else{
+    s += '<table><tr><th>take</th><th>帧</th><th>体积</th><th>mp4</th><th>摘要</th><th></th></tr>';
+    for(const t of P.takes){
+      s += '<tr><td><code>'+esc(t.name)+'</code></td><td class="num">'+t.frames+'</td><td class="num">'+kb(t.bytes)+'</td>'+
+           '<td>'+(t.mp4?'<span class="tag ok">有</span>':'<span class="tag">无</span>')+'</td>'+
+           '<td>'+esc(t.summary||'')+'</td>'+
+           '<td>'+(t.last?'<a href="/api/photo/frame?take='+encodeURIComponent(t.name)+'&f='+encodeURIComponent(t.last)+'" target="_blank">看末帧</a>':'')+'</td></tr>';
+    }
+    s += '</table>';
+  }
+  s += '</div>';
+
+  // ── 4 行为时间线 ──
+  const tl = P.timeline || [];
+  s += '<div class="card cut" style="grid-column:1/-1"><h2>AI 干活历程（镜头 + 行为） <span class="r">'+tl.length+' 条</span></h2>';
+  if(!tl.length){
+    s += '<div class="empty">时间线还空着。每次改机位 / 开夜视 / 开录 / 停录，摄影师都会往 '+
+         '<code>_timeline/numencam.jsonl</code> 写一条 —— 只拍不记，过后没人知道这段画面在证明什么。</div>';
+  }else{
+    s += '<div style="max-height:360px;overflow:auto">';
+    for(const e of tl.slice().reverse()){
+      const ts = String(e.ts||'').replace('T',' ').replace('Z','').slice(5,19);
+      s += '<div style="display:grid;grid-template-columns:92px 72px 1fr;gap:10px;padding:3px 0;'+
+           'border-bottom:1px solid var(--line)">'+
+           '<span style="font:11.5px/1.7 var(--mono);color:var(--tx-3)">'+esc(ts)+'</span>'+
+           '<span class="tag '+(e.kind==='auto'?'cy':'')+'">'+esc(e.kind||'?')+'</span>'+
+           '<span style="font-size:12.5px">'+esc(e.text||e.note||e.media||'')+'</span></div>';
+    }
+    s += '</div>';
+  }
+  s += '</div>';
+
+  s += '</div>';
+  return s;
+}
+
+window.snapPhoto = async function(){
+  toast('拍照中…（借游戏内录制器抓 1 帧）');
+  try{
+    const r = await post('/api/photo/snap', {});
+    if(!r.ok){ toast('[!] '+(r.why||'拍失败'), true); return; }
+    PHOTO = await J('/api/photo');
+    paint();
+    toast('[+] 已拍：'+((r.take&&r.take.name)||''));
+  }catch(e){ toast('[!] 拍照失败：'+e.message, true); }
+};
+
 window.treeOpen = async function(rel){
   try{
     const d = await J('/api/doc/' + encodeURIComponent(rel));
@@ -864,13 +990,13 @@ window.treeOpen = async function(rel){
 };
 
 const PAINT = {boss:paintBoss, decide:paintDecide, ov:paintOverview, dec:paintStageDecide, stage:paintStage, tools:paintTools,
-               rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
+               photo:paintPhoto, rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
 let curTab = null;
 function paint(){
   paintNav();
   const k = NAV.find(x=>x[0]===PAGE)[1];
   // 规则页重绘会把光标弹走，所以只在第一次或换页时才整体重绘
-  if(k===curTab && k!=='rules') return;
+  if(k===curTab && k!=='rules' && k!=='photo') return;
   curTab = k;
   const fn = PAINT[k]||paintOverview;
   const out = fn();
@@ -891,6 +1017,8 @@ async function refresh(){
     if(needTools) TOOLS = await J('/api/tools');
     // 老板台要单独拉日报列表（不进 overview，避免总览变慢）
     if(PAGE==='老板台'){ try{ BOSS = await J('/api/boss'); }catch(e){ BOSS = {ok:false,items:[],err:e.message}; } }
+    // 摄影师页每轮都重拉：这页的价值就是「现在镜头里是什么」
+    if(PAGE==='摄影师'){ try{ PHOTO = await J('/api/photo'); }catch(e){ PHOTO = {ok:false,err:e.message}; } }
     // 「等你拍板」页要拉独立决策队列（不依赖 stage）
     if(PAGE==='等你拍板'){ try{ DEC = await J('/api/decide-inbox'); }catch(e){ DEC = {ok:false,pending:[],resolved:[],err:e.message}; } }
     // 文件树（老板台左栏用）

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.740Z" hostname="497opf704wt6o4j" time="0.008">
+  <properties/>
+  <testcase name="snapshotExposesAttemptsAndVersions()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.001"/>
+  <testcase name="resultFromTheUnknownFutureAttemptIsAlsoIgnored()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.0"/>
+  <testcase name="legacyTwoArgCallStillWorks()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.0"/>
+  <testcase name="staleAttemptResultIsIgnoredButCounted()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.001"/>
+  <testcase name="stateVersionBumpsOnCommitsAndNeverOnReads()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.001"/>
+  <testcase name="stateVersionSurvivesRoundTrip()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.001"/>
+  <testcase name="oldSaveWithoutStateVersionLoadsAsZero()" classname="com.dwinovo.numen.rdd.core.G3bAttemptCasTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" tests="16" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.505Z" hostname="497opf704wt6o4j" time="0.042">
+  <properties/>
+  <testcase name="recoveredQuantityIsCappedAtWhatWasActuallyLost()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.013"/>
+  <testcase name="restoreTrimsToMaxEntriesAndKeepsNewest()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.004"/>
+  <testcase name="latestOpenIgnoresOlderBatchSoOldDropsCannotPayNewDeath()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.007"/>
+  <testcase name="restoreKeepsNextSeqAheadOfDiskSoSeqNeverCollides()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.007"/>
+  <testcase name="batchWithoutMatchingSeqIsNotMatched()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.0"/>
+  <testcase name="justRecordedDeathDoesNotMatchItself()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="oldRecordWithoutLostItemsIsToleratedAndNeverAutoSatisfied()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="snapshotOfUnknownCompanionIsEmptyNotNull()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.0"/>
+  <testcase name="batchRecoveryRequiresEveryItemOfThatBatch()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="lostItemsAreDefensivelyCopied()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="snapshotRoundTripsThroughRestore()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="closedBatchCannotBeSatisfiedAgain()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <testcase name="restoreWithNullSnapshotIsNoOp()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.0"/>
+  <testcase name="repeatDeathDetectedOnlyInsideWindowAndRadius()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.002"/>
+  <testcase name="repeatDeathIgnoresUnparseableDeathLocation()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.0"/>
+  <testcase name="nextSeqMeansTheSeqTheNextRecordWillUse()" classname="com.dwinovo.numen.rdd.core.RddDeathLedgerBatchTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

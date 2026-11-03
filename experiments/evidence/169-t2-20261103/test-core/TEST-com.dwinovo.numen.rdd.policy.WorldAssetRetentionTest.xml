@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.251Z" hostname="497opf704wt6o4j" time="0.031">
+  <properties/>
+  <testcase name="b1_baseSurvivesEntityFlood()" classname="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" time="0.017"/>
+  <testcase name="b5_allBaseOverCapacityKeepsEverythingRatherThanDeletingHome()" classname="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" time="0.002"/>
+  <testcase name="b3_unknownAgeGetsGraceInsteadOfBeingWiped()" classname="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" time="0.0"/>
+  <testcase name="b4_victimOrderPutsEntitiesFirstAndRespectsRank()" classname="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" time="0.001"/>
+  <testcase name="b2_entityTtlBoundaryIsExact()" classname="com.dwinovo.numen.rdd.policy.WorldAssetRetentionTest" time="0.009"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

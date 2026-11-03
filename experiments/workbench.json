@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-10-31T08:52:33.172Z",
+  "updated_at": "2026-11-01T08:08:09.784Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -385,6 +385,18 @@
       "link": "exp-zero-r4 / 151",
       "added_by": "unknown",
       "added_at": "2026-10-30T06:32:35.781Z"
+    },
+    {
+      "id": "TIP-20261101-01",
+      "kind": "pitfall",
+      "symptom": "夜里没睡、还空手出门被怪打死",
+      "fake": "睡眠支线给了提醒但她不肯睡/模型行为问题",
+      "cause": "SleepSideTaskTrigger 在 dayTime=11800 就 fires，此刻 isDay() 仍为真 → decide() 走 daytime_no_sleep_needed；SideTaskEngine(7a4826fb3) 把 SKIP 记进 handledGameDay → 整夜不再触发",
+      "guard": "先查 rdd.jsonl 有没有 side_task_created(typeId=sleep)；只有 skipped_occurrence 且 handledGameDay 有当日 = 支线没开，别当模型行为归因",
+      "status": "open",
+      "link": "docs/rdd-docs/rdd架构/杂项记录/2026-11.md#423",
+      "added_by": "session-a63677d8",
+      "added_at": "2026-11-01T08:08:09.784Z"
     }
   ],
   "signals": [

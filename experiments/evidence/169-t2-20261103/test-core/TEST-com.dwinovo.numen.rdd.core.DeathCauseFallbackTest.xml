@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.713Z" hostname="497opf704wt6o4j" time="0.004">
+  <properties/>
+  <testcase name="只有实体名时按名字词表判()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.0"/>
+  <testcase name="伤害来源也读不到时仍诚实报unknown()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.0"/>
+  <testcase name="兜底不抛异常()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.001"/>
+  <testcase name="原分类已知时兜底不插手()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.001"/>
+  <testcase name="玩家凶手不被兜底吞成怪()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.0"/>
+  <testcase name="genericKill用最后伤害来源救回来()" classname="com.dwinovo.numen.rdd.core.DeathCauseFallbackTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

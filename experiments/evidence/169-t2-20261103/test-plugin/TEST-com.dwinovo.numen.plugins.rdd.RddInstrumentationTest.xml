@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.552Z" hostname="497opf704wt6o4j" time="0.12">
+  <properties/>
+  <testcase name="recentDeathWindow()" classname="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" time="0.008"/>
+  <testcase name="noisyTypesAreThrottled()" classname="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" time="0.035"/>
+  <testcase name="writeFailureBumpsDroppedAndSelfReportsOnNextSuccess()" classname="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" time="0.008"/>
+  <testcase name="changeRecordsInstrumentationChange()" classname="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" time="0.005"/>
+  <testcase name="publishesParseableJsonlLines()" classname="com.dwinovo.numen.plugins.rdd.RddInstrumentationTest" time="0.062"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

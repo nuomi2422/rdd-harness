@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.694Z" hostname="497opf704wt6o4j" time="0.007">
+  <properties/>
+  <testcase name="countShortfallIsReported()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.003"/>
+  <testcase name="decideAlwaysExecutes()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.0"/>
+  <testcase name="completesOnlyWhenItemIsBack()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.001"/>
+  <testcase name="triggerOnlyFiresWhenExpected()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.001"/>
+  <testcase name="createCarriesPendingPayload()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.0"/>
+  <testcase name="noItemSpecifiedNeverCompletes()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.0"/>
+  <testcase name="deadlineIsBounded()" classname="com.dwinovo.numen.rdd.side.recovery.RecoverySideTaskTypeTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

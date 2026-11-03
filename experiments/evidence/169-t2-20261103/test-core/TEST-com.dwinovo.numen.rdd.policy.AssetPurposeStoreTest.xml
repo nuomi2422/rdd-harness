@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.AssetPurposeStoreTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.538Z" hostname="497opf704wt6o4j" time="0.006">
+  <properties/>
+  <testcase name="reserveAndQueryDeathRecoveryRole()" classname="com.dwinovo.numen.rdd.policy.AssetPurposeStoreTest" time="0.004"/>
+  <testcase name="jsonRoundTrip()" classname="com.dwinovo.numen.rdd.policy.AssetPurposeStoreTest" time="0.001"/>
+  <testcase name="defaultsAreZeroAndNegativeClamps()" classname="com.dwinovo.numen.rdd.policy.AssetPurposeStoreTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.544Z" hostname="497opf704wt6o4j" time="0.007">
+  <properties/>
+  <testcase name="roomAvailableNeverWarns()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.002"/>
+  <testcase name="firstTimeNearFullWarns()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="messageHandlesZeroFreeWithoutNegativeNumbers()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="stopsWarningOnceThereIsRoomAgain()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="messageSaysWhatWhoAndWhatToDo()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="plentyOfRoomIsNotNearFull()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="warnsAgainAfterCooldown()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="warnsAgainWhenItGetsTighter()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="thresholdLeavesRoomToFinishTheCurrentTrip()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="cooldownBoundaryCounts()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.001"/>
+  <testcase name="doesNotRepeatWithinCooldownAtTheSameLevel()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <testcase name="atOrBelowThresholdIsNearFull()" classname="com.dwinovo.numen.rdd.policy.BackpackSpaceTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

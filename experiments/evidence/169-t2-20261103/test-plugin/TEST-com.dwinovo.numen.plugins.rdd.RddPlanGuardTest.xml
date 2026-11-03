@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" tests="32" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.020Z" hostname="497opf704wt6o4j" time="0.117">
+  <properties/>
+  <testcase name="已持有的资产步骤被去掉并记为复用()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.024"/>
+  <testcase name="违规可选与已持有混合时_违规项绝不复活()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.002"/>
+  <testcase name="未要求时可选工程阶段被整条丢弃()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.002"/>
+  <testcase name="描述要用钻石镐但背包只有石镐_isToolGap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="背包意图配世界方块判据_isGap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="未要求时书架与满级相关步骤被丢弃()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="同句混合_不下界但打烈焰人_仍报护甲缺()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="途中不下界的走路步骤不报护甲缺()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="判据是方块组时不算Gap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="可选分支与必要阶段混合时只丢可选()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="未要求时全部可选分支必须返回空阶段表用于安全降级()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="全部已持有时保留原计划_不制造空计划()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="acquire垫脚不归一成不可完成的group条件()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.006"/>
+  <testcase name="去下界而背包无甲_isArmorGap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="过滤时把工具前提不成立的步骤丢弃()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="有胸甲时不报护甲缺()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="种植步骤用item_used_isGap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="空输入不炸()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="主人明确要求时可选升级被放行()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="描述要三十二块方块而判据只认铁剑_isGap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="过滤时把判据不覆盖的步骤丢弃并给出理由()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="不要进入下界的准备步骤不报护甲缺()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="骨粉使用仍允许item_used()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="单一材料步骤不被改写()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="顺序产出工具时后续步骤不误丢()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.002"/>
+  <testcase name="持有数量不足时仍然保留该步骤()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.0"/>
+  <testcase name="没有方块数量要求时不报Gap()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="明确要求生电时阶段放行()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.037"/>
+  <testcase name="正常计划原样通过()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.015"/>
+  <testcase name="描述是制作工具时不算缺()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="整条计划全是违规时安全降级为空表()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <testcase name="垫脚多选材料条件归一为方块组()" classname="com.dwinovo.numen.plugins.rdd.RddPlanGuardTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

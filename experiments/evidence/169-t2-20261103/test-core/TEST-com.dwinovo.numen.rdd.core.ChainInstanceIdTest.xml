@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:14.211Z" hostname="497opf704wt6o4j" time="0.186">
+  <properties/>
+  <testcase name="并发构造不产生重复实例id()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.121"/>
+  <testcase name="重启往返保持同一实例id()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.032"/>
+  <testcase name="快照带链实例id()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.005"/>
+  <testcase name="同一链对象反复读是同一个id()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.001"/>
+  <testcase name="分配即非空且同伴重提同目标得到不同实例id()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.003"/>
+  <testcase name="旧存档无该字段读作null并当场分配_不伪造历史()" classname="com.dwinovo.numen.rdd.core.ChainInstanceIdTest" time="0.02"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

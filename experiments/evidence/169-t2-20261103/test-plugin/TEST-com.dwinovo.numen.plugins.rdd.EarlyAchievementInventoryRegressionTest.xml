@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.EarlyAchievementInventoryRegressionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:44.094Z" hostname="497opf704wt6o4j" time="2.036">
+  <properties/>
+  <testcase name="strategicDerivationRemainsAvailableOutsideCompletion()" classname="com.dwinovo.numen.plugins.rdd.EarlyAchievementInventoryRegressionTest" time="0.11"/>
+  <testcase name="wheatAndInsufficientBreadNeverSatisfyBreadHold()" classname="com.dwinovo.numen.plugins.rdd.EarlyAchievementInventoryRegressionTest" time="1.554"/>
+  <testcase name="realInventoryStillSatisfiesHold()" classname="com.dwinovo.numen.plugins.rdd.EarlyAchievementInventoryRegressionTest" time="0.368"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

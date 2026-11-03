@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.042Z" hostname="497opf704wt6o4j" time="0.079">
+  <properties/>
+  <testcase name="rejectsAmbiguousUnknownAndInvalidGroupConditions()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.004"/>
+  <testcase name="matchesWhenCountAtLeastMinimum()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <testcase name="woodAndBlocksCombineWithoutCountingUnrelatedEquipment()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <testcase name="combinesFoodButNotIngredientsOrUnsafeFood()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.032"/>
+  <testcase name="groupAcquireIsFailClosed()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.002"/>
+  <testcase name="rejectsNegativeMinimum()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <testcase name="bareNameFallsBackToVariantFamily()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <testcase name="rejectsMissingOrBlankKey()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <testcase name="defaultsMinimumToOne()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.CoordRangeValidationTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:14.546Z" hostname="497opf704wt6o4j" time="0.017">
+  <properties/>
+  <testcase name="正常坐标有效()" classname="com.dwinovo.numen.rdd.core.CoordRangeValidationTest" time="0.015"/>
+  <testcase name="超出世界高度的_y_判无效()" classname="com.dwinovo.numen.rdd.core.CoordRangeValidationTest" time="0.001"/>
+  <testcase name="缺一个坐标仍然无效()" classname="com.dwinovo.numen.rdd.core.CoordRangeValidationTest" time="0.001"/>
+  <testcase name="水平坐标离谱也判无效()" classname="com.dwinovo.numen.rdd.core.CoordRangeValidationTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

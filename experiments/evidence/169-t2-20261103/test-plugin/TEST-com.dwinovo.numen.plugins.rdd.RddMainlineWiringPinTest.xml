@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" tests="24" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.675Z" hostname="497opf704wt6o4j" time="0.266">
+  <properties/>
+  <testcase name="m4_eventIsPublishedWithARealEvidenceSource()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.019"/>
+  <testcase name="m4_bodyIsClearedOnBothExitPaths()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.036"/>
+  <testcase name="m4_serverVerdictIsWrittenBackFirst()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.006"/>
+  <testcase name="conditionMatchesRoutesToBothRealSourcesAndNoOther()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.005"/>
+  <testcase name="b1_newPlanningDiscardsPreviousGoalBeforeStageA()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.002"/>
+  <testcase name="supervisionGateStillShortCircuitsTheNudge()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.009"/>
+  <testcase name="m4_factIsRecordedBeforeTheStageIsConfirmed()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.015"/>
+  <testcase name="m5_recordSubtaskFactIsExplicitlyInMemoryOnly()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.007"/>
+  <testcase name="m3_aiAssistedIsStillHandedBackToTheModel()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.009"/>
+  <testcase name="m5_recordStageFactPersistsToDisk()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.01"/>
+  <testcase name="m3_rddRuntimeIsRefreshedBeforeTheNullCheck()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.003"/>
+  <testcase name="nudgeThrottleIsPerStateNotGlobal()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.018"/>
+  <testcase name="m3_stallSupervisionRunsBeforeVerdict()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.005"/>
+  <testcase name="staleNegotiationIsDiscardedWithAnEvent()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.004"/>
+  <testcase name="extractionMechanismItselfWorks()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.006"/>
+  <testcase name="theWholePinSetStillFindsTheRealFiles()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.001"/>
+  <testcase name="pauseRecheckAlwaysClearsThePausedMark()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.002"/>
+  <testcase name="ownerPauseNeverExpires()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.002"/>
+  <testcase name="m4_completedEventIsPublishedOnlyAfterRealConfirmation()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.034"/>
+  <testcase name="m3_negotiationIsHeardBeforeAnyVerdict()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.011"/>
+  <testcase name="m5_optionalSkipPathAlsoConfirmsAndRecords()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.003"/>
+  <testcase name="kickoffNudgeFiresPerSubtaskAndCannotBeThrottledAway()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.026"/>
+  <testcase name="m4_stageConfirmationIsGuardedByAwaitingSupervisor()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.004"/>
+  <testcase name="b1_oldTaskDeletionFailureBlocksPlanning()" classname="com.dwinovo.numen.plugins.rdd.RddMainlineWiringPinTest" time="0.021"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.RddChainFactoryStagesTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.480Z" hostname="497opf704wt6o4j" time="0.016">
+  <properties/>
+  <testcase name="fromStagesDrivesLazyChainAcrossStageBoundaries()" classname="com.dwinovo.numen.rdd.core.RddChainFactoryStagesTest" time="0.011"/>
+  <testcase name="rejectsBlankOrTooManyStages()" classname="com.dwinovo.numen.rdd.core.RddChainFactoryStagesTest" time="0.002"/>
+  <testcase name="buildsAllStagesUnexpandedWithStableIds()" classname="com.dwinovo.numen.rdd.core.RddChainFactoryStagesTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:14.638Z" hostname="497opf704wt6o4j" time="1.074">
+  <properties/>
+  <testcase name="48% 的无凶手兜底 → UNKNOWN，不是 OTHER（那是「规则没覆盖」）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.012"/>
+  <testcase name="★ 无凶手兜底句不能被判成 PLAYER（48% 的真实死亡）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="id 缺失或不认得 → 退化到中文句子，不抛异常" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="永不抛异常：所有怪输入都返回一个合法桶" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="1.05"/>
+  <testcase name="不认得的 id → OTHER（保留「见过新死因类型」这个信号，不被 UNKNOWN 吞掉）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.0"/>
+  <testcase name="大写/混合大小写 id 也认（原版 msgId 是驼峰的 lightningBolt）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="实测样本：5 种形态都归到正确的桶" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="玩家攻击必须排在怪物之前（归因方向相反）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="仙人掌单独成桶（与窒息分开：那是「自己走错了」）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.002"/>
+  <testcase name="id 认得 → 不用去看中文句子（哪怕中文指向别的）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <testcase name="原版 msgId → 归类（lava/drown/fall 等）" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.0"/>
+  <testcase name="爆炸排在怪物攻击之前 —— TNT 的 msgId 是 explosion，先于泛化攻击" classname="com.dwinovo.numen.rdd.core.DeathCauseClassifierTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

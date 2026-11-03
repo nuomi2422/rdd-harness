@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.717Z" hostname="497opf704wt6o4j" time="0.027">
+  <properties/>
+  <testcase name="noManifest_isReportedAndNotUsable()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.004"/>
+  <testcase name="emptyRegistry_producesNoPreparationGaps_andSaysWhy()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.017"/>
+  <testcase name="nullRegistry_alsoProducesNoGaps()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.0"/>
+  <testcase name="withHeldData_itIsUsable()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.002"/>
+  <testcase name="preparationGaps_areNotIntersectedWithRequirementGaps()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.001"/>
+  <testcase name="riskLevelAndVerdict_areRecordedAsNotes()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.0"/>
+  <testcase name="viewDoesNotMutateAnything()" classname="com.dwinovo.numen.rdd.policy.PreparationGapViewTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.AssetDerivationTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.525Z" hostname="497opf704wt6o4j" time="0.007">
+  <properties/>
+  <testcase name="unknownTargetReturnsDirectOnly()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.004"/>
+  <testcase name="directHoldingPlusDerived()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.001"/>
+  <testcase name="breadCountsWheatEquivalents()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.0"/>
+  <testcase name="logToPlanksEquivalence()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.0"/>
+  <testcase name="rulesAreKnown()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.001"/>
+  <testcase name="nullSafety()" classname="com.dwinovo.numen.rdd.policy.AssetDerivationTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

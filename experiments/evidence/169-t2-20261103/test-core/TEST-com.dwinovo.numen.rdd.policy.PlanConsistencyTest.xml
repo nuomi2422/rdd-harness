@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.704Z" hostname="497opf704wt6o4j" time="0.012">
+  <properties/>
+  <testcase name="consistentPlanIsSilent()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.005"/>
+  <testcase name="digitsAreParsedToo()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.001"/>
+  <testcase name="catchesTheExactContradictionFromTheRun()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.001"/>
+  <testcase name="emptyInputsAreSafe()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.0"/>
+  <testcase name="singleSetProseIsNotAWarning()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.0"/>
+  <testcase name="missingItemIsNotAccused()" classname="com.dwinovo.numen.rdd.policy.PlanConsistencyTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

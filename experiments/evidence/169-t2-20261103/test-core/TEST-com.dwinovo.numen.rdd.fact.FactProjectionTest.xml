@@ -1,0 +1,17 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.fact.FactProjectionTest" tests="11" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.156Z" hostname="497opf704wt6o4j" time="0.019">
+  <properties/>
+  <testcase name="usageProjection_isIsolatedPerCompanion()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.006"/>
+  <testcase name="usageProjection_returnsAllKnownUsage()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.0"/>
+  <testcase name="briefRespectsBudgetAndReportsOmission()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.004"/>
+  <testcase name="projectionsKeepUnknownAsUnknown()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.001"/>
+  <testcase name="stageState_isTheNarrowContractForConsumers()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.001"/>
+  <testcase name="fullProjection_isCompleteAndOrderedByRecency()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.0"/>
+  <testcase name="taskProjectionWithNothingWanted_saysSo()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.0"/>
+  <testcase name="briefWithoutOmission_isNotMarkedTruncated()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.001"/>
+  <testcase name="briefDropsStaleUnlessAsked()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.001"/>
+  <testcase name="evidenceIncludedOnlyWhenAsked()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.001"/>
+  <testcase name="usageProjection_emptyWhenNoUsageSource()" classname="com.dwinovo.numen.rdd.fact.FactProjectionTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

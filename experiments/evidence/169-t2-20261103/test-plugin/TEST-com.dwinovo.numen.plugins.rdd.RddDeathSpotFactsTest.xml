@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.438Z" hostname="497opf704wt6o4j" time="0.032">
+  <properties/>
+  <testcase name="noDeathsMeansNoFailures()" classname="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" time="0.002"/>
+  <testcase name="failuresAreCapped()" classname="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" time="0.015"/>
+  <testcase name="unknownCauseStaysUnknown()" classname="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" time="0.0"/>
+  <testcase name="repeatDeathAtSameSpotIsCalledOut()" classname="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" time="0.007"/>
+  <testcase name="recentDeathCarriesCauseAndCoordinate()" classname="com.dwinovo.numen.plugins.rdd.RddDeathSpotFactsTest" time="0.006"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

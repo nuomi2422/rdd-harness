@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" tests="9" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.900Z" hostname="497opf704wt6o4j" time="0.049">
+  <properties/>
+  <testcase name="supervisionAndPause_defaultsAreOn()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.015"/>
+  <testcase name="redline_singleDriver_bodySubmissionIsOffByDefault()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.003"/>
+  <testcase name="redlinePinMechanismItselfWorks()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.004"/>
+  <testcase name="redline_singleDriver_switchIsRuntimeMutableNotCompileTimeConstant()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.002"/>
+  <testcase name="redline_lazyExpansionBudget_isPinned()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.001"/>
+  <testcase name="redline_stallThresholds_arePinned()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.0"/>
+  <testcase name="stallThresholds_keepNudgeAfterGrace()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.0"/>
+  <testcase name="redline_repeatDeathWindow_isPinned()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.019"/>
+  <testcase name="redline_replanBudget_isThree()" classname="com.dwinovo.numen.plugins.rdd.RedlineContractPinTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

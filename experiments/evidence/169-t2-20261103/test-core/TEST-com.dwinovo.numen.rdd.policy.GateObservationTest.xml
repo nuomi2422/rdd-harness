@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.GateObservationTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.624Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="背包里的药水键必须出现()" classname="com.dwinovo.numen.rdd.policy.GateObservationTest" time="0.001"/>
+  <testcase name="有条数上限防止日志膨胀()" classname="com.dwinovo.numen.rdd.policy.GateObservationTest" time="0.001"/>
+  <testcase name="空输入不抛()" classname="com.dwinovo.numen.rdd.policy.GateObservationTest" time="0.0"/>
+  <testcase name="要求项全部带出实有数量()" classname="com.dwinovo.numen.rdd.policy.GateObservationTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

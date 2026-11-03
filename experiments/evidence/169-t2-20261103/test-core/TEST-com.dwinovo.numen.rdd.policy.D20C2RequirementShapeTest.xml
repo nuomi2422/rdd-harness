@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.573Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="importanceEnumThreeLevels()" classname="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" time="0.001"/>
+  <testcase name="legacyConstructorKeepsDefaults()" classname="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" time="0.001"/>
+  <testcase name="newFieldsAreSettableAndReadable()" classname="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" time="0.0"/>
+  <testcase name="manifestOperationsUnchangedWithNewFields()" classname="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" time="0.0"/>
+  <testcase name="nullImportanceFallsBackToNormal()" classname="com.dwinovo.numen.rdd.policy.D20C2RequirementShapeTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

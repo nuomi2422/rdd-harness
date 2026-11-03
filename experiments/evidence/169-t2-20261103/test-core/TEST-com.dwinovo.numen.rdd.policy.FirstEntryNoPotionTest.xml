@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.FirstEntryNoPotionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.584Z" hostname="497opf704wt6o4j" time="0.013">
+  <properties/>
+  <testcase name="missingOnlyPotionIsAllowedForFirstEntry()" classname="com.dwinovo.numen.rdd.policy.FirstEntryNoPotionTest" time="0.011"/>
+  <testcase name="missingPotionPlusAnythingElseStaysBlocked()" classname="com.dwinovo.numen.rdd.policy.FirstEntryNoPotionTest" time="0.001"/>
+  <testcase name="normalAndEndUnaffected()" classname="com.dwinovo.numen.rdd.policy.FirstEntryNoPotionTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

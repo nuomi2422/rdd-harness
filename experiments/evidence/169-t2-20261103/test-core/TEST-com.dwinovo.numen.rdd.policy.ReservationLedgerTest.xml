@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.930Z" hostname="497opf704wt6o4j" time="0.098">
+  <properties/>
+  <testcase name="s48_twoReservationsNeverExceedHeld()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.088"/>
+  <testcase name="s50b_releaseAllOfAndRetainOnly()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.007"/>
+  <testcase name="zeroAndNegativeRequestsAreSafe()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.0"/>
+  <testcase name="s50_availableExcludesOthersOnly()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.001"/>
+  <testcase name="s48b_sameDemandIsIdempotentAndCanGrow()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.001"/>
+  <testcase name="s49_expiryReleasesThePromiseOnly()" classname="com.dwinovo.numen.rdd.policy.ReservationLedgerTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

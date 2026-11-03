@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" tests="17" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:14.453Z" hostname="497opf704wt6o4j" time="0.092">
+  <properties/>
+  <testcase name="similarObjectiveMustNotWronglySkipDifferentStage()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.013"/>
+  <testcase name="allStopwordDescriptionsFallBackToDistinctHashes()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.002"/>
+  <testcase name="unknownSatisfiedKeyIsIgnored()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.002"/>
+  <testcase name="legacyJsonWithoutSatisfiedStagesLoadsEmpty()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.002"/>
+  <testcase name="completedChainSnapshotAndJsonDoNotThrow()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.005"/>
+  <testcase name="differentCompanionDoesNotInherit()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <testcase name="satisfiedStagesSurviveJsonRoundTrip()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.009"/>
+  <testcase name="satisfiedStageDoesNotWaitOnAssets()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.017"/>
+  <testcase name="normalizerRecognizesWordingVariantsButNotSynonyms()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.014"/>
+  <testcase name="satisfiedStageIsNotFabricatedIntoStatuses()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.0"/>
+  <testcase name="satisfiedStageIsSkippedNotExpanded()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <testcase name="confirmAdvancesPastSatisfiedStages()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.011"/>
+  <testcase name="corruptedFactsJsonYieldsEmptyStore()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.004"/>
+  <testcase name="allStagesSatisfiedMakesChainCompleted()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <testcase name="similarObjectiveInheritsWhenFingerprintClose()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <testcase name="completedStageIsInheritedAndCurrentPrimarySkipsIt()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <testcase name="differentGoalLineageDoesNotInherit()" classname="com.dwinovo.numen.rdd.core.CompletedFactStoreTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

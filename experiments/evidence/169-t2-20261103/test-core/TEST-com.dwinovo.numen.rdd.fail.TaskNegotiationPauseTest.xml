@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.310Z" hostname="497opf704wt6o4j" time="0.041">
+  <properties/>
+  <testcase name="pauseAndCounterAreBothRoutable()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.03"/>
+  <testcase name="counterStillTriggersTheSupervisor()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.0"/>
+  <testcase name="pauseIsNotASupervisorAction()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.001"/>
+  <testcase name="unknownKindIsRejectedRatherThanSilentlyBecomingAccept()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.002"/>
+  <testcase name="pauseIsAdvertisedSoTheAgentCanActuallyChooseIt()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.0"/>
+  <testcase name="acceptIsNeither()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.0"/>
+  <testcase name="pauseRendersItsReasonSoOperatorsCanSeeWhyItStalled()" classname="com.dwinovo.numen.rdd.fail.TaskNegotiationPauseTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

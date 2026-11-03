@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.949Z" hostname="497opf704wt6o4j" time="0.015">
+  <properties/>
+  <testcase name="饿了没吃的提示去弄吃的()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.005"/>
+  <testcase name="空槽有更好护甲时提示换()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.0"/>
+  <testcase name="不饿就不说话()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.007"/>
+  <testcase name="身上更差时提示升级()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.001"/>
+  <testcase name="没有更好护甲就不说话()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.0"/>
+  <testcase name="饿了有吃的提示先吃()" classname="com.dwinovo.numen.plugins.rdd.RddNeedsTextTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

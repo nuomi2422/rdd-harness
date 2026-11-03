@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.TaskCostModelTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.084Z" hostname="497opf704wt6o4j" time="0.035">
+  <properties/>
+  <testcase name="villagePickupBeatsFarming()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.033"/>
+  <testcase name="huntAndPickupAreCheap()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.001"/>
+  <testcase name="farmingAndWaitIsWastefulForSmallGain()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.0"/>
+  <testcase name="explainAndCostsAreStable()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.0"/>
+  <testcase name="negativeInputsClamped()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.0"/>
+  <testcase name="scoreFormula()" classname="com.dwinovo.numen.rdd.policy.TaskCostModelTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

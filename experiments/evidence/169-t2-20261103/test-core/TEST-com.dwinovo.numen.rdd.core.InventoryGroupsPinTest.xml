@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" tests="18" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.183Z" hostname="497opf704wt6o4j" time="0.068">
+  <properties/>
+  <testcase name="pinnedGroupListMatchesWhatKnownAccepts()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="countDoesNotOverflowOnLargeStacks()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="rawMeatCountsAsFoodSoTheAiCanTellWhyItPassed()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="countOnlyCountsMembersOfTheRequestedGroup()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.012"/>
+  <testcase name="woodGroupRejectsNonWoodPlants()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.002"/>
+  <testcase name="countOnUnknownGroupOrNullInventoryIsZero()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="blocksGroupDoesNotAbsorbArbitraryPlanksLookingItems()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="woodGroupHasExactly51Members()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="blocksGroupHasExactly17OwnMembers()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.0"/>
+  <testcase name="seedAndPlantStuffsStayOutEvenThoughTheyGrowIntoFood()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="foodGroupKeepsSurvivalStaplesAndRejectsObviousNonFood()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="countIgnoresNonPositiveAndNullValues()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="foodGroupHasExactly32Members()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.0"/>
+  <testcase name="blocksGroupAbsorbsWoodThroughThePlanksSuffixRule()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.0"/>
+  <testcase name="woodGroupCoversEverySpeciesAndItsStrippedForm()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.036"/>
+  <testcase name="containsWithUnknownGroupIsAlwaysFalse()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="knownGroupsArePinnedToExactlyThree()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <testcase name="containsRequiresTheMinecraftNamespace()" classname="com.dwinovo.numen.rdd.core.InventoryGroupsPinTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

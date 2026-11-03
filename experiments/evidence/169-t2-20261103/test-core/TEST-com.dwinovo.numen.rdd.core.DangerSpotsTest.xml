@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.DangerSpotsTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:14.569Z" hostname="497opf704wt6o4j" time="0.068">
+  <properties/>
+  <testcase name="sameSpotAcrossHoursIsStillADangerSpot()" classname="com.dwinovo.numen.rdd.core.DangerSpotsTest" time="0.042"/>
+  <testcase name="describeIsEmptyWithoutSpots()" classname="com.dwinovo.numen.rdd.core.DangerSpotsTest" time="0.021"/>
+  <testcase name="differentPlacesAreNotClustered()" classname="com.dwinovo.numen.rdd.core.DangerSpotsTest" time="0.0"/>
+  <testcase name="singleDeathIsNotADangerSpot()" classname="com.dwinovo.numen.rdd.core.DangerSpotsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

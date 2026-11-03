@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.591Z" hostname="497opf704wt6o4j" time="0.01">
+  <properties/>
+  <testcase name="objectiveLengthCap_is4000()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.001"/>
+  <testcase name="stageCountCap_is12()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.001"/>
+  <testcase name="dropLiveWindow_isNotAccidentallySecondsOrMinutes()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.0"/>
+  <testcase name="ledgerEntryCap_is8()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.001"/>
+  <testcase name="subtaskCountCap_is8()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.003"/>
+  <testcase name="dropLiveWindow_isFiveMinutes()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.001"/>
+  <testcase name="ledgerEntryCap_isSmallEnoughToBite()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.0"/>
+  <testcase name="stageCap_staysAboveSubtaskCap()" classname="com.dwinovo.numen.rdd.core.RddRedlineContractPinTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

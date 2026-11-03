@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.424Z" hostname="497opf704wt6o4j" time="0.025">
+  <properties/>
+  <testcase name="missingAssetsComputesGap()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.015"/>
+  <testcase name="failedAttemptsClampedNonNegative()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.001"/>
+  <testcase name="renderIncludesReasonAndSuggestion()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.0"/>
+  <testcase name="nullTextFieldsNormalizeToEmpty()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.001"/>
+  <testcase name="eventDataIsFlatAndComplete()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.004"/>
+  <testcase name="nullReasonIsRejected()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.001"/>
+  <testcase name="noGapWhenAvailableMeetsRequired()" classname="com.dwinovo.numen.rdd.fail.TaskQualityReportTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

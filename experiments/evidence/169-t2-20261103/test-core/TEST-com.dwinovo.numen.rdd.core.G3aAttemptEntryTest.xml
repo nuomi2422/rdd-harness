@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" tests="12" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.727Z" hostname="497opf704wt6o4j" time="0.012">
+  <properties/>
+  <testcase name="baselinePolicyIsUnchangedByTheUnification()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="restoreKeepsCountsAndDoesNotInventOne()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.003"/>
+  <testcase name="readingStatusNeverChangesAttempts()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="activationStillHonoursDependencyGate()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="retryCountsAsANewAttempt()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.0"/>
+  <testcase name="activationWithRegistryCountsExactlyOnce()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.0"/>
+  <testcase name="activationWithSnapshotCountsExactlyOnce()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="waitForStillGatesWithSameSemantics()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="plainStartCountsExactlyOnce()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="attemptRequiresPendingEvenForActivation()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="countsVariantDoesNotDoubleCount()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.001"/>
+  <testcase name="activationCountsExactlyOnce()" classname="com.dwinovo.numen.rdd.core.G3aAttemptEntryTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.186Z" hostname="497opf704wt6o4j" time="0.024">
+  <properties/>
+  <testcase name="extractionMechanismItselfWorks()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.003"/>
+  <testcase name="normalDeathPicksUpDropsBeforeFetchingSpareGear()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.008"/>
+  <testcase name="normalDeathNudgeRepeatsTheSameOrder()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.001"/>
+  <testcase name="deathCoordinateIsAlwaysHandedOver()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.002"/>
+  <testcase name="fiveMinuteDropWindowStaysVisibleAndIsTheTaskDeadline()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.002"/>
+  <testcase name="guardSuppressionHappensBeforeAnyNudge()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.002"/>
+  <testcase name="repeatDeathReversesTheOrderButKeepsTheCountdown()" classname="com.dwinovo.numen.plugins.rdd.RddRepairDispatchPinTest" time="0.004"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

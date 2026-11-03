@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.fail.FailureClassifierTest" tests="6" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.287Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="unknownRepeatsToReplanElseRepair()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.001"/>
+  <testcase name="softwareDefectGoesToSelfCompile()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.0"/>
+  <testcase name="unrecoverableTargetReplans()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.0"/>
+  <testcase name="deathWithBackupAndBaseRecoversWithoutReplan()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.0"/>
+  <testcase name="deathWithoutBackupRepairsNotReplans()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.0"/>
+  <testcase name="resourceAndToolAndPathRepair()" classname="com.dwinovo.numen.rdd.fail.FailureClassifierTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

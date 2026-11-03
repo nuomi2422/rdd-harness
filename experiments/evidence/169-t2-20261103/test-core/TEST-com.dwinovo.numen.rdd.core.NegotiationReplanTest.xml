@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.NegotiationReplanTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.255Z" hostname="497opf704wt6o4j" time="0.174">
+  <properties/>
+  <testcase name="explicitOptionalTrueSkippableForAnyKind()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.001"/>
+  <testcase name="negotiationMapsToReplanNotSelfCompileOrRepair()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.032"/>
+  <testcase name="explicitOptionalFalseAlwaysBlocks()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.0"/>
+  <testcase name="unlabelledKeepsLegacyFoodPolicy()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.0"/>
+  <testcase name="stuckEntryRejectsRunningButNegotiationEntryAcceptsIt()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.002"/>
+  <testcase name="negotiationHasItsOwnFailureKind()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.123"/>
+  <testcase name="stuckEntryStillWorksForFailedSubtask()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.001"/>
+  <testcase name="negotiationRejectsUnexpandedPrimary()" classname="com.dwinovo.numen.rdd.core.NegotiationReplanTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

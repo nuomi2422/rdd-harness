@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.FarmProductionTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.577Z" hostname="497opf704wt6o4j" time="0.006">
+  <properties/>
+  <testcase name="flatOrConsumedIsNotProducing()" classname="com.dwinovo.numen.rdd.policy.FarmProductionTest" time="0.005"/>
+  <testcase name="noSamplesMeansUnknownNotZero()" classname="com.dwinovo.numen.rdd.policy.FarmProductionTest" time="0.0"/>
+  <testcase name="cropCountsIgnoreNonCrops()" classname="com.dwinovo.numen.rdd.policy.FarmProductionTest" time="0.0"/>
+  <testcase name="anyNetGainCountsAsProducing()" classname="com.dwinovo.numen.rdd.policy.FarmProductionTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

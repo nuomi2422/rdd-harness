@@ -1,0 +1,26 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" tests="20" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.457Z" hostname="497opf704wt6o4j" time="0.047">
+  <properties/>
+  <testcase name="responseGateFiresOnConsecutiveZeroToolCallTurns()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="endedWorkCannotKeepTheBusyGrace()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="parkedBucketAbsorbsJitterButSeparatesRealTravel()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="idleStillEscalatesAfterFifteenUnchangedChecks()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="theTwoArgOverloadIsByteForByteTheOldBehaviour()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="llmIdleNudgeDoesNotChangeTheCheckOutcome()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="llmIdleFiresOnceAtTheThresholdAndNotBefore()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.002"/>
+  <testcase name="realContainerOutputOrBodyProgressRestartsObservationWindow()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="responseGateNeverFiresWhileLlmIsInFlight()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="llmIdleNeverNudgesWorkThatIsActuallyRunning()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="llmIdleNudgeIsEarlierThanTheStallGrace()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="responseGateIsIndependentOfTheClock()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="furnaceCanProduceForTenMinutesWithoutInventoryChanging()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.004"/>
+  <testcase name="llmNotInFlightStillNudgesExactlyAtTheThreshold()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="activeBodyGetsBoundedGraceRatherThanPermanentExemption()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="responseGateIgnoresBusySources()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.013"/>
+  <testcase name="changingTaskIdentityWithoutWorkCannotRefreshGrace()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.016"/>
+  <testcase name="litButBlockedFurnaceStillEscalatesWhenNothingIsProduced()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.001"/>
+  <testcase name="llmInFlightSuppressesTheNudgeAtTheThreshold()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <testcase name="inFlightGateDoesNotTouchTheStateMachineOutcome()" classname="com.dwinovo.numen.plugins.rdd.RddStallPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

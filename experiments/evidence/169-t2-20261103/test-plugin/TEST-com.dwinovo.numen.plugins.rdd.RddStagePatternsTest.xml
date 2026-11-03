@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.448Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="只给形状不给硬数量()" classname="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" time="0.001"/>
+  <testcase name="骨架覆盖关键环节且带出口判据()" classname="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" time="0.0"/>
+  <testcase name="有界()" classname="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" time="0.001"/>
+  <testcase name="普通目标不注入()" classname="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" time="0.0"/>
+  <testcase name="长线目标注入骨架()" classname="com.dwinovo.numen.plugins.rdd.RddStagePatternsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

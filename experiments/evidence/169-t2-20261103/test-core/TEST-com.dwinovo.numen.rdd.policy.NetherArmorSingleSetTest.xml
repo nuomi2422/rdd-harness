@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.NetherArmorSingleSetTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.701Z" hostname="497opf704wt6o4j" time="0.003">
+  <properties/>
+  <testcase name="ironBackupIsARealRequirement()" classname="com.dwinovo.numen.rdd.policy.NetherArmorSingleSetTest" time="0.0"/>
+  <testcase name="diamondSetPlusTwoIronSetsIsEnough()" classname="com.dwinovo.numen.rdd.policy.NetherArmorSingleSetTest" time="0.0"/>
+  <testcase name="foodTorchFloorsAndEndUnaffected()" classname="com.dwinovo.numen.rdd.policy.NetherArmorSingleSetTest" time="0.001"/>
+  <testcase name="diamondSetIsStillRequired()" classname="com.dwinovo.numen.rdd.policy.NetherArmorSingleSetTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

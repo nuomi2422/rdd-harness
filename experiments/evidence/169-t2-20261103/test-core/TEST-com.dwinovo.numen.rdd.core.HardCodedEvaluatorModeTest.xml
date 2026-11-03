@@ -1,0 +1,21 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" tests="15" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.939Z" hostname="497opf704wt6o4j" time="0.096">
+  <properties/>
+  <testcase name="acquireIsUnsatisfiedWhenSheAlreadyHadThem()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.001"/>
+  <testcase name="chainFactoryAcceptsHoldAndAcquire()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.004"/>
+  <testcase name="nonStringOrBlankModeIsRejected()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.001"/>
+  <testcase name="negativeMinimumStillRejectedInBothModes()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="fractionalMinimumStillRejectedInBothModes()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="groupConditionsIgnoreModeButStillWork()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="acquireWithoutBaselineIsNeverSatisfied()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="nullConditionOrCountsStayFalse()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.001"/>
+  <testcase name="acquireIsNetDeltaSoConsumptionCountsAgainstIt()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="chainFactoryRejectsUnknownMode()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.009"/>
+  <testcase name="unknownModeIsRejectedNotSilentlyTreatedAsHold()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.001"/>
+  <testcase name="defaultModeIsHoldAndBehavesExactlyAsBefore()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="acquireMissingAssetKeyInBaselineCountsAsZeroBaseline()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.001"/>
+  <testcase name="explicitHoldEqualsAbsentMode()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.0"/>
+  <testcase name="acquireWithZeroMinimumIsSatisfiedOnceBaselineExists()" classname="com.dwinovo.numen.rdd.core.HardCodedEvaluatorModeTest" time="0.075"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.G3eSafePointTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:15.857Z" hostname="497opf704wt6o4j" time="0.077">
+  <properties/>
+  <testcase name="snapshotExposesSafePointAndEpoch()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.02"/>
+  <testcase name="purposeMismatchIsRejected()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.009"/>
+  <testcase name="revokeUnfreezesAndLeavesTokenConsumed()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.007"/>
+  <testcase name="expiredTokenIsRejectedAndDoesNotUnlockStructuralChange()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.018"/>
+  <testcase name="ownerEpochSurvivesJsonRoundTrip()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.009"/>
+  <testcase name="issuedTokenIsAcceptedOnceThenConsumed()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.001"/>
+  <testcase name="consumeUnfreezesTheChainAndNewAttemptsProceed()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.001"/>
+  <testcase name="tokenFromAnotherOwnerEpochIsStale()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.001"/>
+  <testcase name="secondIssueWhileOutstandingIsRefused()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.002"/>
+  <testcase name="outstandingTokenFreezesNewAttemptsButNotStatuses()" classname="com.dwinovo.numen.rdd.core.G3eSafePointTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.950Z" hostname="497opf704wt6o4j" time="0.015">
+  <properties/>
+  <testcase name="s1_criticalRequirementBecomesImportantSemantics()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.004"/>
+  <testcase name="s1_unrelatedLossStaysQuiet()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.003"/>
+  <testcase name="s1_renderSemanticNoteNamesTheAffectedGoal()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.002"/>
+  <testcase name="s1_normalRequirementStaysSecondary()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.001"/>
+  <testcase name="s1_confirmedCriticalLossYieldsSupplement()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.0"/>
+  <testcase name="s1_noManifestNoSemanticsStillAnalyzesWithFallback()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.001"/>
+  <testcase name="s1_staleKeyDegradesToIrrelevantNotDeleted()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.0"/>
+  <testcase name="s1_losingCriticalItemYieldsSupplementAndAffectedGoal()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.001"/>
+  <testcase name="s1_nullImpactRendersEmpty()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.001"/>
+  <testcase name="s1_sameKeyKeepsHigherImportance()" classname="com.dwinovo.numen.plugins.rdd.S1SemanticsWiringTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.G1c3TransformAttributionTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:46.385Z" hostname="497opf704wt6o4j" time="0.004">
+  <properties/>
+  <testcase name="unmetTextCarriesTheSameAttribution()" classname="com.dwinovo.numen.plugins.rdd.G1c3TransformAttributionTest" time="0.002"/>
+  <testcase name="needsBlockExplainsTransformInsteadOfTreatingItAsLoss()" classname="com.dwinovo.numen.plugins.rdd.G1c3TransformAttributionTest" time="0.001"/>
+  <testcase name="quantitiesAndOrderingAreUntouched()" classname="com.dwinovo.numen.plugins.rdd.G1c3TransformAttributionTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

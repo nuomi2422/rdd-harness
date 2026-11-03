@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.505Z" hostname="497opf704wt6o4j" time="0.02">
+  <properties/>
+  <testcase name="同一二级久跑且资产不变才提示()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.017"/>
+  <testcase name="文本块有界()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.001"/>
+  <testcase name="跨步骤毫无产出时提醒整条链在原地()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.0"/>
+  <testcase name="换步骤就重置_不算空转()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.0"/>
+  <testcase name="资产在涨就不算空转()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.0"/>
+  <testcase name="没有二级时不提示也不炸()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.001"/>
+  <testcase name="有产出就不提醒进度()" classname="com.dwinovo.numen.plugins.rdd.RddStuckWatchTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

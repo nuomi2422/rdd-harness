@@ -1,0 +1,13 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" tests="7" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.164Z" hostname="497opf704wt6o4j" time="0.083">
+  <properties/>
+  <testcase name="掉血时即使怪都远也要出现()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.003"/>
+  <testcase name="远处有怪但血满时不出现()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.006"/>
+  <testcase name="是事实不是指令()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.0"/>
+  <testcase name="贴身有怪时出现且带距离与数量()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.015"/>
+  <testcase name="血量百分比被夹在合法范围()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.001"/>
+  <testcase name="没有敌怪时为空串()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.001"/>
+  <testcase name="长度有界()" classname="com.dwinovo.numen.plugins.rdd.RddDangerFactsTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

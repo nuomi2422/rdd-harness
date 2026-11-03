@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.AssetHistoryTest" tests="8" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:13.873Z" hostname="497opf704wt6o4j" time="0.116">
+  <properties/>
+  <testcase name="jsonRoundTripPreservesEntries()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.107"/>
+  <testcase name="destroyedIsNotRecoverable()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.002"/>
+  <testcase name="currentOverwritesLostWhenReseen()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.001"/>
+  <testcase name="nullAndBlankAreIgnored()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.001"/>
+  <testcase name="recoverableSortedMostRecentFirst()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.001"/>
+  <testcase name="lostKeepsLocationAndSurfacesAsRecoverable()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.001"/>
+  <testcase name="badJsonFallsBackToEmpty()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.001"/>
+  <testcase name="worthRememberingFiltersJunk()" classname="com.dwinovo.numen.rdd.core.AssetHistoryTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.RddRuntimeTest" tests="1" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.610Z" hostname="497opf704wt6o4j" time="0.001">
+  <properties/>
+  <testcase name="publishesThroughFacadeWithoutChangingTaskAuthority()" classname="com.dwinovo.numen.rdd.core.RddRuntimeTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

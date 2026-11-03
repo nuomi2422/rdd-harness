@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.TaskChainPauseTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:31.828Z" hostname="497opf704wt6o4j" time="0.009">
+  <properties/>
+  <testcase name="pauseKeepsTheStepInPlaceAndDoesNotAdvance()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.0"/>
+  <testcase name="pauseReasonIsRequiredAndBlankIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <testcase name="pauseOnlyFromRunningOrPending()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <testcase name="pausedSurvivesRestartAndKeepsItsReason()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.002"/>
+  <testcase name="jsonWithoutPauseReasonsIsStillReadable()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <testcase name="pauseIsAllowedFromStalledBecauseThatIsWhenSoldiersActuallyReport()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <testcase name="pausedIsNotASkipAndNotAFailure()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <testcase name="pausedIsNotSatisfiedAndDoesNotCompleteTheChain()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.0"/>
+  <testcase name="replacingThePlanDropsThePauseMark()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.0"/>
+  <testcase name="resumeReopensTheSameStepInPlace()" classname="com.dwinovo.numen.rdd.core.TaskChainPauseTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

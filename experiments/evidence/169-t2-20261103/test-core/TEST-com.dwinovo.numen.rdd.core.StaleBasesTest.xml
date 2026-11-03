@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.StaleBasesTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.612Z" hostname="497opf704wt6o4j" time="0.056">
+  <properties/>
+  <testcase name="describeIsMarkedLazyAndCarriesAge()" classname="com.dwinovo.numen.rdd.core.StaleBasesTest" time="0.009"/>
+  <testcase name="emptyInputIsSafe()" classname="com.dwinovo.numen.rdd.core.StaleBasesTest" time="0.001"/>
+  <testcase name="richerBaseComesFirst()" classname="com.dwinovo.numen.rdd.core.StaleBasesTest" time="0.039"/>
+  <testcase name="findsOldBaseWithCriticalItemsAndExcludesHome()" classname="com.dwinovo.numen.rdd.core.StaleBasesTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

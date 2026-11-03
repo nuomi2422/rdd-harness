@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.VillageRankTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.244Z" hostname="497opf704wt6o4j" time="0.006">
+  <properties/>
+  <testcase name="tiesBreakByIdSoOrderIsReproducible()" classname="com.dwinovo.numen.rdd.policy.VillageRankTest" time="0.003"/>
+  <testcase name="villagersAndChestsDominate()" classname="com.dwinovo.numen.rdd.policy.VillageRankTest" time="0.001"/>
+  <testcase name="nullsAreTolerated()" classname="com.dwinovo.numen.rdd.policy.VillageRankTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

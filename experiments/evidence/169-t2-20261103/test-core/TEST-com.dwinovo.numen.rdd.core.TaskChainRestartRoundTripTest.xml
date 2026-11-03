@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:31.849Z" hostname="497opf704wt6o4j" time="0.107">
+  <properties/>
+  <testcase name="completedSkippedAndPausedSurviveRoundTrip()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.002"/>
+  <testcase name="oldSaveWithoutUnexpandedFieldIsTreatedAsExpanded()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="restoredChainCanStillBeDriven()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="acquireBaselineSurvivesRoundTrip()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.038"/>
+  <testcase name="factSatisfiedStagesAreNotWrittenIntoStatuses()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.013"/>
+  <testcase name="ownerPausePrefixIsPinned()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="snapshotReportsNullCurrentSubtaskForUnexpandedPrimary()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="acquireBaselineIsCapturedIdempotently()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.005"/>
+  <testcase name="allStagesFactSatisfiedGoesStraightToCompleted()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.009"/>
+  <testcase name="oldSaveWithoutAcquireBaselinesLoadsAsNoBaseline()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.003"/>
+  <testcase name="oldSaveWithoutSatisfiedStagesLoadsAsEmpty()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="satisfiedStagesSurviveRoundTripAndKeepTheirChineseKeys()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.014"/>
+  <testcase name="snapshotCarriesDetectionModePerSubtask()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="soldierPauseIsNotMistakenForOwnerPause()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="skipAndPauseReasonsSurviveRoundTrip()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="ownerPauseIdentitySurvivesRoundTrip()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="planRevisionNeverGoesBackwardsOnRestore()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.002"/>
+  <testcase name="planRevisionIsAdoptedFromPersistedSubtaskIdsWhenFieldMissing()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="legacySubtaskIdYieldsNoRevision()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="restoredAcquireSubtaskStillJudgesAgainstItsBaseline()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="oldSaveWithoutPauseReasonsLoadsAsNoPause()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.001"/>
+  <testcase name="snapshotIsStableAcrossRepeatedRoundTrips()" classname="com.dwinovo.numen.rdd.core.TaskChainRestartRoundTripTest" time="0.002"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

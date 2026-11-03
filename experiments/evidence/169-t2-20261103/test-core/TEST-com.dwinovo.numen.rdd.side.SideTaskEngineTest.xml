@@ -1,0 +1,28 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.side.SideTaskEngineTest" tests="22" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.378Z" hostname="497opf704wt6o4j" time="0.099">
+  <properties/>
+  <testcase name="interruptedWakeReturnsToSeeking()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.021"/>
+  <testcase name="sleepSkipsWhenMainlineKeepsNight()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.019"/>
+  <testcase name="deferredStateSurvivesRestart()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.007"/>
+  <testcase name="sleepSideTaskStillSkipsWhenTimeJumpsToRealDay()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.002"/>
+  <testcase name="deferThenExecuteAfterCooldown()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="deadlineSkipsInsteadOfFailing()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="triggersOnceThenNotAgainSameGameDay()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="sleepStartsAtPreDuskEvenWhileIsDayStillTrue()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="sleepDefersWhileBodyBusy()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="invalidMainlineTokenIsNotSaved()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="skipOccurrenceLocksDayAndEmits()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="sleepDefersOnCombat()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="cancelReleasesSlotAndEmitsEvent()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="noTriggerWithoutDayNightCycle()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="tokenRequiresSameChainInstance()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="deferReevaluatesNextNight()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="capturesMainlineToken()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="triggersDuringNightToo()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="persistsAndRestores()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.032"/>
+  <testcase name="noTriggerWhileDeathSideTaskOccupies()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <testcase name="generationAndInstanceIncreaseAcrossDays()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.001"/>
+  <testcase name="deathRecoveryPreemptsSleepingSideTask()" classname="com.dwinovo.numen.rdd.side.SideTaskEngineTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

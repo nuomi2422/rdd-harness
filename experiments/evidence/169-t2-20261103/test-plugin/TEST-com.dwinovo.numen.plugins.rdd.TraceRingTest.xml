@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.TraceRingTest" tests="14" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:48.966Z" hostname="497opf704wt6o4j" time="0.101">
+  <properties/>
+  <testcase name="traceRingsAreKeyedPerCompanionAndReadable()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.007"/>
+  <testcase name="ringEvictsOldestAndSaysItWasTruncated()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.003"/>
+  <testcase name="emptyRingIsNotNullAndSaysNothing()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.002"/>
+  <testcase name="snapshotAlwaysCarriesLenAndCapacity()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.002"/>
+  <testcase name="snapshotDoesNotConsumeTheWindow()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.002"/>
+  <testcase name="ringReflectsOnlyWhatWasActuallyWritten()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.028"/>
+  <testcase name="chainsAreKeptSeparatePerCompanion()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.012"/>
+  <testcase name="nonDeathEventsDoNotCarryTheSnapshot()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.006"/>
+  <testcase name="snapshotExcludesTheDeathItself()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.005"/>
+  <testcase name="ringKeepsOrderOldestFirstInSnapshot()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.002"/>
+  <testcase name="clearResetsTruncationFlag()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.001"/>
+  <testcase name="entryOnlyCarriesTheChosenFields()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.002"/>
+  <testcase name="deathEventFreezesThePrecedingChain()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.009"/>
+  <testcase name="eventsWithoutCompanionStillWriteButGetNoSnapshot()" classname="com.dwinovo.numen.plugins.rdd.TraceRingTest" time="0.006"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

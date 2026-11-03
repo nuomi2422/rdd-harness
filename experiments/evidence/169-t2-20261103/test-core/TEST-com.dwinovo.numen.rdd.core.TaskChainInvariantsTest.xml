@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" tests="25" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:31.683Z" hostname="497opf704wt6o4j" time="0.144">
+  <properties/>
+  <testcase name="activeUnexpandedPrimaryIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.016"/>
+  <testcase name="混合脏数据的账必须逐项点名()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.008"/>
+  <testcase name="subtaskIndexOutOfRangeIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.002"/>
+  <testcase name="duplicateSubtaskIdInGoalIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.022"/>
+  <testcase name="acquireBaselineReferencingUnknownSubtaskIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.016"/>
+  <testcase name="missingStatusTableEntirelyIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.02"/>
+  <testcase name="skipReasonOnNonSkippedIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="unexpandedPrimaryIsLegallyPending()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="acquireBaselineMayOutliveTheRunItWasCapturedIn()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="factSatisfiedCurrentPrimaryIsFineWhenChainIsCompleted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="staleSubtaskIdIsRejectedByEveryResultApplier()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.018"/>
+  <testcase name="skippedIsNeverPresentedAsCompleted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="unexpandedPrimaryWithNonZeroSubtaskIndexIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.002"/>
+  <testcase name="factSatisfiedCurrentPrimaryMustAlsoBeChainCompleted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="干净恢复时账为null而不是空对象()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="statusTableWithMissingKeyIsRegisteredAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="reasonReferencingUnknownSubtaskIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.008"/>
+  <testcase name="attemptsReferencingUnknownSubtaskIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.003"/>
+  <testcase name="terminalSubtaskIndexNeverMovesPastTheEnd()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.0"/>
+  <testcase name="statusTableExactlyMatchesGoalSubtaskIds()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="pauseReasonOnNonPausedIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.003"/>
+  <testcase name="everyMutationStaysInsideTheDeclaredStatusSet()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="resultCannotBeAppliedTwiceToTheSameSubtask()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.0"/>
+  <testcase name="statusTableWithExtraKeyIsCleanedAndAccounted()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <testcase name="primaryIndexOutOfRangeIsRejected()" classname="com.dwinovo.numen.rdd.core.TaskChainInvariantsTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[[rdd] 恢复时清理了脏状态：丢弃 [ghost]，补登记 [s2]
+[rdd] 恢复时丢弃未知节点的 attempts：[ghost2]
+[rdd] 恢复时丢弃不成立的 skipReasons：[s2]
+[rdd] 恢复时丢弃未知节点的 acquireBaselines：[ghost]
+[rdd] 恢复时丢弃不成立的 skipReasons：[s1]
+[rdd] 恢复时清理了脏状态：丢弃 []，补登记 [s2]
+[rdd] 恢复时丢弃不成立的 skipReasons：[ghost]
+[rdd] 恢复时丢弃不成立的 pauseReasons：[ghost]
+[rdd] 恢复时丢弃未知节点的 attempts：[ghost]
+[rdd] 恢复时丢弃不成立的 pauseReasons：[s1]
+[rdd] 恢复时清理了脏状态：丢弃 [ghost]，补登记 []
+]]></system-err>
+</testsuite>

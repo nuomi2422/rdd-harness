@@ -1,0 +1,29 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" tests="21" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:31.975Z" hostname="497opf704wt6o4j" time="0.056">
+  <properties/>
+  <testcase name="executionIdentityTracksAttemptsAndRuntimeId()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.0"/>
+  <testcase name="registryUnknownOrInvalidNeverSatisfiesDependencyGate()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.003"/>
+  <testcase name="pendingChainRestoresAsPendingNotRecovering()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="persistedAttemptsSurviveRoundTrip()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="needMoreEvidenceDoesNotAbuseWaitingSemantics()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="awaitingSupervisorRestoresAsAwaitingNotRecovering()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="primaryReadyHonorsRegistryUsableCounts()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.0"/>
+  <testcase name="executionIdentityPersistsButClearsOnRecovering()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="resumeRecoveringClearsExecutionMetadata()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.02"/>
+  <testcase name="restoreCleansUnknownAttemptSubtaskWithAccounting()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.003"/>
+  <testcase name="restoreRejectsActiveUnexpandedCombination()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="replaceSubtasksClearsExecutionMetadata()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="resumeReplanningClearsExecutionMetadata()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.0"/>
+  <testcase name="deferStopsAtAwaitingUntilResolved()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="replanningRejectsReplaceWhenNotReplanning()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="recoveringResumeRequiresExplicitHostVerdict()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.002"/>
+  <testcase name="restoreCleansSkipReasonOnNonSkippedWithAccounting()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.003"/>
+  <testcase name="replanningCanResumeSamePlan()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.0"/>
+  <testcase name="replaceRejectsMatchesOutsideReplacedPrimary()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="replanningCanReplaceSubtasks()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.001"/>
+  <testcase name="recoveredChainNeverKeepsStaleExecutionIdAcrossReboots()" classname="com.dwinovo.numen.rdd.core.TaskChainStateMachineExitTest" time="0.009"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[[rdd] 恢复时丢弃未知节点的 attempts：[ghost]
+[rdd] 恢复时丢弃不成立的 skipReasons：[s1]
+]]></system-err>
+</testsuite>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" tests="10" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:33.051Z" hostname="497opf704wt6o4j" time="0.005">
+  <properties/>
+  <testcase name="everyBudgetKeyCarriesTheMinecraftNamespace()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.001"/>
+  <testcase name="riskLevelsAreExactlyTheseFour()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.0"/>
+  <testcase name="budgetTablesAreImmutable()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.001"/>
+  <testcase name="netherBudgetIsExactlyTwoSetsPlusThreePotions()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.0"/>
+  <testcase name="endBudgetIsExactlyBowArrowPearlBucketGoldenApple()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.001"/>
+  <testcase name="normalBudgetStaysEmpty()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.0"/>
+  <testcase name="thresholdIsStrictlyLessThanSoExactlyEnoughPasses()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.001"/>
+  <testcase name="everyRiskLevelHasAStableNonNullTable()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.0"/>
+  <testcase name="everyBudgetValueIsPositive()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.001"/>
+  <testcase name="miningBudgetIsExactlyTorch16Bread4()" classname="com.dwinovo.numen.rdd.policy.ResourceBudgetPinTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" tests="5" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.750Z" hostname="497opf704wt6o4j" time="0.159">
+  <properties/>
+  <testcase name="realFactsFile_shadowAuditSeesThemAsComparable()" classname="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" time="0.035"/>
+  <testcase name="case2_doneButNotEnoughHeld_isFlagged()" classname="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" time="0.022"/>
+  <testcase name="case3_noAssetRegistry_isUnknownHeld_neverZero()" classname="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" time="0.005"/>
+  <testcase name="realFactsFile_parsesThroughProductionDeserializer()" classname="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" time="0.091"/>
+  <testcase name="case1_doneAndEnoughHeld_needsNoAttention()" classname="com.dwinovo.numen.rdd.policy.RealDataSemanticsTest" time="0.005"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

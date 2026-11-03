@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.plugins.rdd.RddExpansionPolicyTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:47.531Z" hostname="497opf704wt6o4j" time="0.007">
+  <properties/>
+  <testcase name="shouldFireWithinBudgetAfterCooldown()" classname="com.dwinovo.numen.plugins.rdd.RddExpansionPolicyTest" time="0.004"/>
+  <testcase name="inFlightOrEscalatedNeverFires()" classname="com.dwinovo.numen.plugins.rdd.RddExpansionPolicyTest" time="0.001"/>
+  <testcase name="exhaustedBudgetNeverFiresEvenWithNoCooldown()" classname="com.dwinovo.numen.plugins.rdd.RddExpansionPolicyTest" time="0.001"/>
+  <testcase name="budgetExhaustsAtMaxAttempts()" classname="com.dwinovo.numen.plugins.rdd.RddExpansionPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

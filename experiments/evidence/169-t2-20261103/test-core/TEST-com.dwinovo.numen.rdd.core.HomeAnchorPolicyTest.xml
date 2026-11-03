@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.HomeAnchorPolicyTest" tests="3" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:16.125Z" hostname="497opf704wt6o4j" time="0.006">
+  <properties/>
+  <testcase name="laterBindsDoNotMoveTheHome()" classname="com.dwinovo.numen.rdd.core.HomeAnchorPolicyTest" time="0.005"/>
+  <testcase name="unboundRespawnMeansNoHomeYet()" classname="com.dwinovo.numen.rdd.core.HomeAnchorPolicyTest" time="0.001"/>
+  <testcase name="firstBindBecomesHome()" classname="com.dwinovo.numen.rdd.core.HomeAnchorPolicyTest" time="0.0"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>

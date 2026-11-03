@@ -1,0 +1,115 @@
+---- Minecraft Crash Report ----
+// Uh... Did I do that?
+
+Time: 2026-11-03 14:43:58
+Description: Exception in server tick loop
+
+java.lang.NoClassDefFoundError: com/dwinovo/numen/plugins/learner/core/ArtifactOutbox$JsonArrayShim
+	at TRANSFORMER/learner@0.1.3-dev/com.dwinovo.numen.plugins.learner.core.ArtifactOutbox.submit(ArtifactOutbox.java:181) ~[numen-plugin-learner-1.21.1-0.1.3-dev.jar%23190!/:?] {re:classloading}
+	at TRANSFORMER/learner@0.1.3-dev/com.dwinovo.numen.plugins.learner.LearnerReviewTool.submit(LearnerReviewTool.java:1117) ~[numen-plugin-learner-1.21.1-0.1.3-dev.jar%23190!/:?] {re:classloading}
+	at TRANSFORMER/learner@0.1.3-dev/com.dwinovo.numen.plugins.learner.LearnerReviewTool.deliverArtifacts(LearnerReviewTool.java:1085) ~[numen-plugin-learner-1.21.1-0.1.3-dev.jar%23190!/:?] {re:classloading}
+	at TRANSFORMER/learner@0.1.3-dev/com.dwinovo.numen.plugins.learner.LearnerReviewTool.completeOnServer(LearnerReviewTool.java:512) ~[numen-plugin-learner-1.21.1-0.1.3-dev.jar%23190!/:?] {re:classloading}
+	at TRANSFORMER/learner@0.1.3-dev/com.dwinovo.numen.plugins.learner.LearnerReviewTool.lambda$onServerCall$0(LearnerReviewTool.java:220) ~[numen-plugin-learner-1.21.1-0.1.3-dev.jar%23190!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.TickTask.run(TickTask.java:18) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.doRunTask(BlockableEventLoop.java:148) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.ReentrantBlockableEventLoop.doRunTask(ReentrantBlockableEventLoop.java:23) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.doRunTask(MinecraftServer.java:872) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.doRunTask(MinecraftServer.java:170) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.pollTask(BlockableEventLoop.java:122) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.pollTaskInternal(MinecraftServer.java:855) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.pollTask(MinecraftServer.java:849) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.util.thread.BlockableEventLoop.runAllTasks(BlockableEventLoop.java:111) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.waitUntilNextTick(MinecraftServer.java:825) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.runServer(MinecraftServer.java:712) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at TRANSFORMER/minecraft@1.21.1/net.minecraft.server.MinecraftServer.lambda$spin$2(MinecraftServer.java:267) ~[client-1.21.1-20240808.144430-srg.jar%23183!/:?] {re:classloading,pl:accesstransformer:B}
+	at java.base/java.lang.Thread.run(Thread.java:1583) [?:?] {}
+Caused by: java.lang.ClassNotFoundException: com.dwinovo.numen.plugins.learner.core.ArtifactOutbox$JsonArrayShim
+	at cpw.mods.securejarhandler/cpw.mods.cl.ModuleClassLoader.loadClass(ModuleClassLoader.java:220) ~[securejarhandler-3.0.8.jar:?] {}
+	at java.base/java.lang.ClassLoader.loadClass(ClassLoader.java:526) ~[?:?] {}
+	... 18 more
+
+
+A detailed walkthrough of the error, its code path and all known details is as follows:
+---------------------------------------------------------------------------------------
+
+-- System Details --
+Details:
+	Minecraft Version: 1.21.1
+	Minecraft Version ID: 1.21.1
+	Operating System: Windows Server 2022 (amd64) version 10.0
+	Java Version: 21.0.12.1, Eclipse Adoptium
+	Java VM Version: OpenJDK 64-Bit Server VM (mixed mode, sharing), Eclipse Adoptium
+	Memory: 545693672 bytes (520 MiB) / 1067450368 bytes (1018 MiB) up to 3221225472 bytes (3072 MiB)
+	CPUs: 4
+	Processor Vendor: GenuineIntel
+	Processor Name: Intel(R) Xeon(R) Platinum
+	Identifier: Intel64 Family 6 Model 85 Stepping 4
+	Microarchitecture: Skylake (Server)
+	Frequency (GHz): 2.50
+	Number of physical packages: 1
+	Number of physical CPUs: 2
+	Number of logical CPUs: 4
+	Graphics card #0 name: AspDod controller
+	Graphics card #0 vendor: alibaba
+	Graphics card #0 VRAM (MiB): 0.00
+	Graphics card #0 deviceId: VideoController1
+	Graphics card #0 versionInfo: 18.4.50.343
+	Graphics card #1 name: NVIDIA GeForce RTX 2080 Ti
+	Graphics card #1 vendor: NVIDIA
+	Graphics card #1 VRAM (MiB): 11264.00
+	Graphics card #1 deviceId: VideoController2
+	Graphics card #1 versionInfo: 32.0.15.6094
+	Memory slot #0 capacity (MiB): 8192.00
+	Memory slot #0 clockSpeed (GHz): 0.00
+	Memory slot #0 type: RAM
+	Virtual memory max (MiB): 17034.71
+	Virtual memory used (MiB): 13046.71
+	Swap memory total (MiB): 9116.41
+	Swap memory used (MiB): 4611.44
+	Space in storage for jna.tmpdir (MiB): available: 4563.72, total: 40942.98
+	Space in storage for org.lwjgl.system.SharedLibraryExtractPath (MiB): available: 4563.72, total: 40942.98
+	Space in storage for io.netty.native.workdir (MiB): available: 4563.72, total: 40942.98
+	Space in storage for java.io.tmpdir (MiB): available: 22723.25, total: 81918.00
+	Space in storage for workdir (MiB): available: 4563.72, total: 40942.98
+	JVM Flags: 2 total; -Xmx3G -XX:HeapDumpPath=MojangTricksIntelDriversForPerformance_javaw.exe_minecraft.exe.heapdump
+	Server Running: true
+	Player Count: 2 / 8; [ServerPlayer['RDDDev'/110, l='ServerLevel[新的世界]', x=-357.76, y=80.88, z=770.00], NumenPlayer['RDD'/111, l='ServerLevel[新的世界]', x=-361.50, y=80.00, z=772.50]]
+	Active Data Packs: vanilla, mod_data, mod/numen_api (incompatible), mod/numen (incompatible), mod/settlement, mod/expmem, mod/client_controller (incompatible), mod/rdd, mod/selfcompile, mod/learner, mod/acx, mod/worldstate, mod/numencam, mod/neoforge
+	Available Data Packs: bundle, trade_rebalance, vanilla, mod/acx, mod/client_controller (incompatible), mod/expmem, mod/learner, mod/neoforge, mod/numen (incompatible), mod/numen_api (incompatible), mod/numencam, mod/rdd, mod/selfcompile, mod/settlement, mod/worldstate, mod_data
+	Enabled Feature Flags: minecraft:vanilla
+	World Generation: Stable
+	World Seed: 742432112344634959
+	Type: Integrated Server (map_client.txt)
+	Is Modded: Definitely; Client brand changed to 'neoforge'; Server brand changed to 'neoforge'
+	Launched Version: neoforge-21.1.233
+	ModLauncher: 11.0.5+main.901c6ea8
+	ModLauncher launch target: forgeclient
+	ModLauncher services: 
+		sponge-mixin-0.15.2+mixin.0.8.7.jar mixin PLUGINSERVICE 
+		loader-4.0.42.jar slf4jfixer PLUGINSERVICE 
+		loader-4.0.42.jar runtime_enum_extender PLUGINSERVICE 
+		at-modlauncher-10.0.1.jar accesstransformer PLUGINSERVICE 
+		loader-4.0.42.jar runtimedistcleaner PLUGINSERVICE 
+		modlauncher-11.0.5.jar mixin TRANSFORMATIONSERVICE 
+		modlauncher-11.0.5.jar fml TRANSFORMATIONSERVICE 
+	FML Language Providers: 
+		javafml@4.0
+		lowcodefml@4.0
+		minecraft@4.0
+	Mod List: 
+		numen-plugin-acx-1.21.1-0.1.3-dev.jar             |ACX Execution Plugin          |acx                           |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-experience-1.21.1-0.1.3-dev.jar      |Experience Memory             |expmem                        |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-learner-1.21.1-0.1.3-dev.jar         |Learner                       |learner                       |0.1.3-dev           |Manifest: NOSIGNATURE
+		client-1.21.1-20240808.144430-srg.jar             |Minecraft                     |minecraft                     |1.21.1              |Manifest: a1:d4:5e:04:4f:d3:d6:e0:7b:37:97:cf:77:b0:de:ad:4a:47:ce:8c:96:49:5f:0a:cf:8c:ae:b2:6d:4b:8a:3f
+		minecraft-client-controller-neoforge-1.0.0.jar    |Minecraft OpenClaw Controller |client_controller             |1.0.2               |Manifest: NOSIGNATURE
+		neoforge-21.1.233-universal.jar                   |NeoForge                      |neoforge                      |21.1.233            |Manifest: NOSIGNATURE
+		numen_api-neoforge-1.21.1-0.1.3-dev.jar           |Numen                         |numen_api                     |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-neoforge-1.21.1-0.1.3-dev.jar               |Numen                         |numen                         |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-camera-1.21.1-0.1.3-dev.jar          |Numen Camera Rig              |numencam                      |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-rdd-1.21.1-0.1.3-dev.jar             |RDD Asset Task Chain          |rdd                           |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-selfcompile-1.21.1-0.1.3-dev.jar     |Self Compile                  |selfcompile                   |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-settlement-1.21.1-0.1.3-dev.jar      |Settlement Plugin             |settlement                    |0.1.3-dev           |Manifest: NOSIGNATURE
+		numen-plugin-worldstate-1.21.1-0.1.3-dev.jar      |World State Plugin            |worldstate                    |0.1.3-dev           |Manifest: NOSIGNATURE
+	Crash Report UUID: fbbc1dd7-ae54-47d3-a644-8261eb9f1648
+	FML: 4.0.42
+	NeoForge: 21.1.233

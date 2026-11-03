@@ -1,0 +1,33 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" tests="27" skipped="0" failures="0" errors="0" timestamp="2026-11-03T06:08:32.111Z" hostname="497opf704wt6o4j" time="0.036">
+  <properties/>
+  <testcase name="positionWorldFactTypesSchemaIsValid()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="entityKilledRequiresEntityIdAndPositiveWholeMinimum()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.002"/>
+  <testcase name="pinnedTypeListMatchesWhatKnownTypeAccepts()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="组D_stocked和lit同形()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="biomeRequiresABiomeIdOrTag()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="unknownTypeIsRejectedLoudlyInSchema()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="blockNearbyNeedsABlockAndABoundedRadius()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="dimensionIsOptionalButMustBeWellFormedWhenPresent()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="组D_shelter拒绝非法参数()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="structureRequiresAValidStructureId()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="baseNeedsNothing()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="组D_shelter默认形状合法()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="tagHelpersStripTheHashAndRejectGarbage()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="positionWorldFactTypesRejectMalformed()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="knownTypeAndValidNeverDisagreeOnTheTypeToken()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="missingOrNonStringTypeIsRejected()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="coordWorldFactTypesSchemaIsValid()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="entityKilledMinimumDefaultsToOne()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="knownTypesArePinnedToTheFullSet()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="advancementRequiresAValidAdvancementId()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="radiusAndMinimumFallBackInsteadOfThrowing()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="assetKeyOrGroupMakesItNotAWorldFact()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <testcase name="structureAcceptsTagsAsWellAsExactIds()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="coordWorldFactTypesRejectMalformed()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.0"/>
+  <testcase name="statsWorldFactTypesRejectMalformed()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.002"/>
+  <testcase name="statsWorldFactTypesSchemaIsValid()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.002"/>
+  <testcase name="containerNearbyNeedsAnItemAndPositiveMinimum()" classname="com.dwinovo.numen.rdd.core.WorldFactConditionsPinTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
