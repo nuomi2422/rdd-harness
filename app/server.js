@@ -38,6 +38,7 @@ const PORT = parseInt(process.argv[2], 10) || 8891;
 const APP = __dirname;
 const HARNESS = path.resolve(APP, '..');
 const PAGE = fs.readFileSync(path.join(APP, 'index.html'), 'utf8');
+const SIMPLE = fs.readFileSync(path.join(APP, 'simple.html'), 'utf8');
 const REG_FILE = path.join(HARNESS, 'registry.json');
 
 // stage 的 decide.js 是 CJS，直接 require 复用（★ 不要在这里重写一遍决策逻辑）
@@ -439,9 +440,42 @@ const server = http.createServer((req, res) => {
 
   if (p === '/' || p === '/index.html') {
     res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
+    return res.end(SIMPLE);
+  }
+
+  if (p === '/classic') {
+    res.writeHead(200, { 'content-type': 'text/html; charset=utf-8', 'cache-control': 'no-store' });
     return res.end(PAGE);
   }
 
+    if (p === '/api/simple') {
+    const rr = readJson(REG_FILE, {});
+    const pf = (rr.gates && rr.gates.preflight && rr.gates.preflight.checks) || {};
+    const po = (rr.gates && rr.gates.postflight && rr.gates.postflight.checks) || {};
+    const cnt = (o) => Array.isArray(o) ? o.length : Object.keys(o || {}).filter((k) => k[0] !== '$').length;
+    const tools = Array.isArray(rr.tools) ? rr.tools.length : 0;
+    const docs = Array.isArray(rr.docNumbers) ? rr.docNumbers.length : Object.keys(rr.docNumbers || {}).length;
+    const docsRoot = path.dirname(R.docs);
+    const repDir = path.join(docsRoot, '知识库', '记录');
+    let reports = [];
+    try {
+      reports = fs.readdirSync(repDir).filter((n) => n.endsWith('.md') && n !== 'README.md').map((n) => {
+        const fp = path.join(repDir, n);
+        return { name: n, path: fp, mtime: fs.statSync(fp).mtime.toISOString().slice(0, 19).replace('T', ' ') };
+      }).sort((a, b) => b.mtime.localeCompare(a.mtime));
+    } catch (e) { }
+    const decFile = path.join(docsRoot, 'rdd存放', 'decisions.jsonl');
+    let decisions = [];
+    try {
+      decisions = fs.readFileSync(decFile, 'utf8').trim().split(/\\r?\\n/).slice(-8).map((l) => { try { return JSON.parse(l); } catch (e) { return null; } }).filter(Boolean);
+    } catch (e) { }
+    return send(res, 200, {
+      at: new Date().toISOString(),
+      gates: { thinPreCode: { installed: false }, preflight: cnt(pf), postflight: cnt(po) },
+      work: { coding: { tools, docs, articlesRead: null }, verify: { tools, gates: cnt(pf) + cnt(po) }, exit: { reports: reports.length, filesWritten: null } },
+      reports, decisions,
+    });
+  }
   if (p === '/api/overview') {
     const D = decide();
     const stage = stageState();
