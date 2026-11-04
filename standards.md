@@ -313,3 +313,18 @@ node stager\bin\stager.js check
 ### S-GATE-05 智能性错误必须留一条时间锁
 **「智能性错误」= 看起来做了 / 回执成功 / 静默通过，但实际没生效。**
 每条锁必须有 `guard`（现在靠什么防线挡住）—— 没有 guard 的锁不是锁，只是抱怨。
+
+
+### S-OBS-01 环境读取走统一观测读口（2026-11-05）
+
+任何"读世界"的新代码（时间/天气/身边方块/容器/背包/实体）**不许**自己扫 level 另起一套缓存；
+先查统一观测读口 `WorldObservationService`（用 `NumenApi.capability(...)` 取），规则：
+
+- **只读缓存**：`read` 不扫世界；要新数据显式 `refresh`，且只能在自己的 tick 里调（10 秒级限频）；
+- **四类状态**：没观测=`PENDING`、覆盖不全/过期最多 `PARTIAL`，只有"完整覆盖 + 当前"才是 `OK`；
+- **缺字段不填 0/false**；`PARTIAL` 不能证明"不存在"；
+- **读不到 ≠ 空**：容器读不到必须报错，不许落一条空快照；判定要给三态
+  `MATCHED / NOT_MATCHED / NOT_VERIFIABLE`，**NOT_VERIFIABLE 绝不能被当成满足**。
+
+设计正文与迁移表：`docs/rdd-docs/知识库/施工文档/039-统一世界观测请求接口与增量迁移设计.md`。
+违规案例：RddEnvBlock 曾把静态攻略当环境事实；RddContainerMemory 曾用旧快照盖住箱内真值（2026-11-05 实机抓到）。
