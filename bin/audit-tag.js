@@ -45,6 +45,7 @@ const REPOS = [
 const SNAP_ROOT = path.join(RDD, 'docs', 'rdd-docs', 'rdd架构', '审计快照');
 const DOCS = path.join(RDD, 'docs', 'rdd-docs', 'rdd架构');
 const MISC = path.join(DOCS, '杂项记录');
+const MISC_NEW = path.join(RDD, 'docs', 'rdd-docs', '知识库', '杂项记录');
 const REGISTRY = path.join(RDD, 'harness', 'rdd-harness', 'registry.json');
 const MODS = path.join(RDD, 'mc', 'The Best of Twilight Forest', 'mods');
 
@@ -167,16 +168,25 @@ function collectSnapshot(milestone) {
     }
   } catch { /* jar 读不到就留 null，不假装 */ }
 
-  // 债账快照：下一步表 + 时间锁
+  // 债账快照：下一步表 + 时间锁（2026-11-04：知识库\杂项记录 优先，旧 rdd架构\杂项记录 兜底）
   try {
-    const files = fs.readdirSync(MISC).filter((f) => /^\d{4}-\d{2}\.md$/.test(f)).sort();
-    if (files.length) {
-      const latest = path.join(MISC, files[files.length - 1]);
-      const text = fs.readFileSync(latest, 'utf8');
+    const cands = [];
+    for (const d of [MISC_NEW, MISC]) {
+      if (!fs.existsSync(d)) continue;
+      for (const f of fs.readdirSync(d)) {
+        if (!/\.md$/.test(f)) continue;
+        const fp = path.join(d, f);
+        cands.push({ p: fp, m: fs.statSync(fp).mtimeMs });
+      }
+    }
+    cands.sort((a, b) => b.m - a.m);
+    for (const c of cands) {
+      const text = fs.readFileSync(c.p, 'utf8');
       const i = text.indexOf('## 下一步');
       if (i >= 0) {
-        snap.debtsSource = path.relative(RDD, latest);
+        snap.debtsSource = path.relative(RDD, c.p);
         snap.debtsText = text.slice(i, i + 6000);
+        break;
       }
     }
   } catch { /* 没有就算了 */ }
@@ -204,13 +214,17 @@ function collectSnapshot(milestone) {
  */
 function collectUnavailable() {
   const out = [];
-  const verifyDir = path.join(DOCS, '实机验证');
+  const verifyDirs = [path.join(RDD, 'docs', 'rdd-docs', '知识库', '实验数据记录'), path.join(DOCS, '实机验证')];
   const RE = /影子|未实机|未部署|未生效|not_connected|占位|不回归|降档/;
   let srcFile = null;
   try {
     const month = new Date().toISOString().slice(0, 7) + '.md';
-    const p = path.join(verifyDir, month);
-    if (fs.existsSync(p)) {
+    let p = null;
+    for (const d of verifyDirs) {
+      const cand = path.join(d, month);
+      if (fs.existsSync(cand)) { p = cand; break; }
+    }
+    if (p) {
       srcFile = path.relative(RDD, p);
       const text = fs.readFileSync(p, 'utf8');
       const lines = text.split(/\r?\n/);

@@ -690,7 +690,8 @@ function brief(argv) {
     }
   }
   console.log('\n## 0.3 · 要进游戏才做的前置（纯文档/单测任务跳过）');
-  console.log('1) 读 harness/进游戏前必读-游戏内能力清单.md；2) preflight → BLOCK=0；3) 先把判据写死建验证卡（实机验证/YYYY-MM.md）；');
+  console.log('0) 要改代码：先 node bin/code-gate.js（薄门禁：8 条硬规则 + Bug台账查重）；');
+  console.log('1) 读 知识库/进游戏验证/001-进游戏核心工具.md（核心：实验台/任务链/指令+MCP/摄像机）；2) preflight → BLOCK=0；3) 先把判据写死建验证卡（知识库/实验数据记录/，V-YYYYMMDD-NN）；');
   console.log('4) 起游戏只走 start-rdd.ps1 或 run-mutation.ps1；5) 进游戏前把 card/runId 绑到本轮，收工用 bench health <runDir>。');
   console.log('\n## 0.4 · 已知限制（别把 unknown 当 0）');
   for (const x of ep.limits) console.log('- ' + x);

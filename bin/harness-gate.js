@@ -487,18 +487,22 @@ function preflight(ctx) {
   }
 
   {
-    // P13 ★ 用户 2026-10-04 明确要的那一条：进游戏之前让 AI 过一遍游戏内能力清单
-    const cl = path.join(REG.roots.harness, '进游戏前必读-游戏内能力清单.md');
+    // P13 ★ 用户 2026-10-04 定：进游戏前必须过一遍核心工具。
+    // 2026-11-04 主人改：清单收进知识库唯一真源；这条**直接打出核心工具**，
+    // 不能只说"去读某个文件"——进游戏阶段没有工具提示，等于这条门禁没接上。
+    const cl = path.join(REG.roots.knowledge, '进游戏验证', '001-进游戏核心工具.md');
     if (!isFile(cl)) {
-      record('P13', '进游戏前过一遍游戏内能力清单', 'ask', 'human', BLOCK,
-        `★ 清单文件不在：${cl} —— 这条门禁等于没有，先把清单补上`);
+      record('P13', '★ 进游戏前过一遍核心工具', 'ask', 'human', BLOCK,
+        `★ 核心工具清单不在：${cl} —— 这条门禁等于没有，先把清单补上`);
     } else {
-      const items = (readText(cl).match(/^## [1-9]\d* ·/gm) || []).length;
-      record('P13', '进游戏前过一遍游戏内能力清单', 'ask', 'human', ASK,
-        `★ 动手起游戏之前，先打开读一遍：\n` +
-        `       ${cl}\n` +
-        `       它列了 ${items} 项游戏内能力（说话/建伙伴/让内脑停/视觉/拍摄/追踪/相机/飞行/看监测台）` +
-        `各自的正确调用姿势和坑。\n` +
+      record('P13', '★ 进游戏前过一遍核心工具', 'ask', 'human', ASK,
+        `★ 唯一真源：${cl}\n` +
+        `       核心 4 个（主人 2026-11-04 标记）：\n` +
+        `       ① 实验台 bench / world-view / exp-runner / exp-judge —— 先看当前世界，别重复搭环境\n` +
+        `       ② 任务链 rdd_supervisor_submit（rdd_submit 是绕路，P18 会拦）\n` +
+        `       ③ 指令+MCP send-mc-command.ps1 / mcp-call.js\n` +
+        `       ④ 摄像机 numencam MCP 拍录 / /cam possess 跟人 / PrintWindow 兜底\n` +
+        `       ★ 环境坏了：先把 AI 传到远处（/tp）；真坏了再新建存档（002 §9）；换世界 ≠ 停服。\n` +
         `       ★ 别临场手写已有工具 —— 「游戏内截图能力=0」这类结论已经错了不止一次。`);
     }
   }
@@ -849,25 +853,28 @@ function postflight(ctx) {
   //   判据 = docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 本轮被改过，且里面有 V- 编号的卡。
   //   级别 WARN 不是 BLOCK：有的轮次确实不进游戏（纯文档/纯编译），那就不该被拦。
   {
-    const dir = path.join(REG.roots.docs, '实机验证');
+    // 2026-11-04 主人定：新记录进 知识库\实验数据记录\；旧 实机验证\YYYY-MM.md 迁移期继续可读。
+    const dirs = [path.join(REG.roots.docs, '实机验证'), path.join(REG.roots.knowledge, '实验数据记录')];
     const today = new Date();
     const month = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}.md`;
-    const file = path.join(dir, month);
-    const exists = fs.existsSync(file);
-    const fresh = exists && freshEnough(file, since);
-    const text = exists ? fs.readFileSync(file, 'utf8') : '';
-    // 卡标题允许 `##` 或 `###`（有人用 h2 当卡片级标题，别因为标题级别判成「0 张卡」）
-    const cards = (text.match(/^#{2,3} V-\d{8}-\d{2}/gm) || []).length;
-    const filled = (text.match(/\|\s*状态\s*\|\s*(?:✅|❌|🟡)/g) || []).length;
-    if (!exists) {
+    const legacyFile = path.join(dirs[0], month);
+    const mds = dirs.flatMap((d) => walk(d, 3, (n) => /\.md$/.test(n)));
+    const freshMds = mds.filter((f) => freshEnough(f, since));
+    const used = freshMds.length ? freshMds : (isFile(legacyFile) ? [legacyFile] : []);
+    const text = used.map(readText).join('\n');
+    const parsedCards = parseCards(text);
+    const cards = parsedCards.length;
+    const filled = parsedCards.filter((c) => c.filled).length;
+    const where = used.length ? used.map((f) => path.relative(REG.roots.docs, f)).join(', ') : '知识库\\实验数据记录\\';
+    if (!used.length) {
       record('Q13', '实机验证卡', WARN, 'trace', WARN,
-        `没有 实机验证/${month} —— 本轮若进过游戏，必须建卡（判据/数据/结果/原因/复现）`);
-    } else if (!fresh) {
+        `知识库\\实验数据记录\\ 和 实机验证/${month} 都没有卡 —— 本轮若进过游戏，必须建卡（判据/数据/结果/原因/复现）`);
+    } else if (!freshMds.length) {
       record('Q13', '实机验证卡', WARN, 'trace', WARN,
-        `本轮没动 实机验证/${month}（现有 ${cards} 张卡）。如果这轮进了游戏 = 漏写；没进游戏可忽略`);
+        `本轮没动 知识库\\实验数据记录\\ 或 实机验证/${month}（现有 ${cards} 张卡）。进了游戏 = 漏写；没进游戏可忽略`);
     } else {
       record('Q13', '实机验证卡', WARN, 'trace', filled > 0 ? PASS : WARN,
-        `实机验证/${month} 本轮已更新 · ${cards} 张卡 · 已回填结果 ${filled} 张` +
+        `${where} 本轮已更新 · ${cards} 张卡 · 已回填结果 ${filled} 张` +
         (filled === 0 ? '（还是待验状态，退游戏后记得填结果/原因/复现）' : ''));
     }
   }
@@ -882,7 +889,8 @@ function postflight(ctx) {
   //       只写文件名没写行号 —— H3 要求补，但不至于拦
   //   级别定 WARN：与 Q13 同口径，避免「今天没验就过不了门」把门禁钉死。
   {
-    const dir = path.join(REG.roots.docs, '实机验证');
+    // 2026-11-04：新记录在 知识库\实验数据记录\；旧 实机验证 迁移期一起查。
+    const dirs = [path.join(REG.roots.docs, '实机验证'), path.join(REG.roots.knowledge, '实验数据记录')];
     const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
     const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
     if (!fs.existsSync(checker)) {
@@ -892,13 +900,23 @@ function postflight(ctx) {
       record('Q14', '证据坐标', WARN, 'trace', WARN,
         `监测目录不存在（${monitor}）—— 无法核对证据坐标（环境问题，不是债）`);
     } else {
-      const r = require('child_process').spawnSync(
-        process.execPath,
-        [checker, '--cards', dir, '--monitor', monitor, '--json'],
-        { encoding: 'utf8', timeout: 60000 }
-      );
       let parsed = null;
-      try { parsed = JSON.parse(r.stdout || '{}'); } catch { /* 交给下面的降级分支 */ }
+      {
+        const hardAll = [];
+        const warnAll = [];
+        let ok = true;
+        for (const d of dirs) {
+          if (!isDir(d)) continue;
+          const r = require('child_process').spawnSync(process.execPath,
+            [checker, '--cards', d, '--monitor', monitor, '--json'],
+            { encoding: 'utf8', timeout: 60000 });
+          let one = null;
+          try { one = JSON.parse(r.stdout || '{}'); } catch { ok = false; break; }
+          hardAll.push(...(one.hard || []));
+          warnAll.push(...(one.warn || []));
+        }
+        if (ok) parsed = { hard: hardAll, warn: warnAll };
+      }
       if (!parsed) {
         record('Q14', '证据坐标', WARN, 'trace', WARN,
           `检查器没给出可解析结果（exit=${r.status}）—— 不能当 PASS，也不能当 BLOCK（环境/脚本问题）`);
@@ -961,9 +979,10 @@ function postflight(ctx) {
     //   挂在 stage 的必读清单等于**从没被执行过**。
     //   级别 ASK：机器判不了「文档写得好不好」，但必须把清单摆在面前。
     record('Q16', '退游戏后的文档书写清单（从 stage 搬来）', 'human', 'ask', ASK,
-      `★ 关游戏不是结束。按顺序做完这四件，再开下一轮：\n` +
-      `       ① 回填验证卡（判据/数据/结果/**原因**/复现）→ rdd架构\\实机验证\\YYYY-MM.md\n` +
-      `       ② 杂项记录加一行 #NNN（三态 + 下一步）→ rdd架构\\杂项记录\\YYYY-MM.md\n` +
+      `★ 关游戏不是结束。先读唯一入口：知识库\\退游戏\\001-退游戏检查单.md\n` +
+      `       按顺序做完这四件，再开下一轮：\n` +
+      `       ① 验证卡/实验数据（判据/数据/结果/**原因**/复现）→ 知识库\\实验数据记录\\（V-YYYYMMDD-NN + 状态 ✅/❌/🟡）\n` +
+      `       ② 坑/旧债/杂项 → 知识库\\踩过的坑记录\\ · 旧债记录\\001-旧债清单.md · 杂项记录\\\n` +
       `       ③ 新坑写时间锁（智能性错误必填 guard）→ harness\\registry.json\n` +
       `       ④ 经验实体写进记忆库 → rdd架构\\_memory\\memory.jsonl（append-only，只追加不重写）\n` +
       `       ★ 还有两件容易漏：\n` +
@@ -1105,11 +1124,21 @@ function postflight(ctx) {
       runsDir: path.join(REG.roots.harness, 'runs'),
       logsDir: path.join(REG.roots.live, 'logs'),
     });
-    const dir = path.join(REG.roots.docs, '实机验证');
+    // 2026-11-04 主人定：记录进知识库。机器判据迁移期两处都认：
+    //   新：知识库\实验数据记录\ 下任意本轮动过的 md 里的 V-YYYYMMDD-NN 卡
+    //   旧：rdd架构\实机验证\YYYY-MM.md（历史卡继续可读，不再要求新写）
+    const legacyDir = path.join(REG.roots.docs, '实机验证');
+    const newDir = path.join(REG.roots.knowledge, '实验数据记录');
     const month = `${since.getFullYear()}-${String(since.getMonth() + 1).padStart(2, '0')}.md`;
-    const file = path.join(dir, month);
+    const legacyFile = path.join(legacyDir, month);
     const todayYmd = ymdLocal(since);
-    const text = isFile(file) ? readText(file) : '';
+    const cardFiles = [
+      ...(isFile(legacyFile) ? [legacyFile] : []),
+      ...walk(newDir, 3, (n) => /\.md$/.test(n)),
+    ];
+    const freshCardFiles = cardFiles.filter((f) => freshEnough(f, since));
+    const freshNames = new Set(freshCardFiles.map((f) => path.basename(f)));
+    const text = freshCardFiles.map(readText).join('\n');
     const cards = parseCards(text);
     const todays = cards.filter((c) => c.date === todayYmd);
     const todaysFilled = todays.filter((c) => c.filled);
@@ -1125,14 +1154,17 @@ function postflight(ctx) {
       const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
       const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
       if (isFile(checker) && isDir(monitor)) {
-        const r = spawnSync(process.execPath, [checker, '--cards', dir, '--monitor', monitor, '--json'],
-          { encoding: 'utf8', timeout: 60000 });
-        const parsed = JSON.parse(r.stdout || '{}');
-        if (Array.isArray(parsed.hard)) {
-          const mine = parsed.hard.filter((x) => path.basename(String(x.md || '')) === month);
-          anchorHard = mine.length;
-          anchorOther = parsed.hard.length - mine.length;
+        const hard = [];
+        for (const d of [legacyDir, newDir]) {
+          if (!isDir(d)) continue;
+          const r = spawnSync(process.execPath, [checker, '--cards', d, '--monitor', monitor, '--json'],
+            { encoding: 'utf8', timeout: 60000 });
+          const parsed = JSON.parse(r.stdout || '{}');
+          if (Array.isArray(parsed.hard)) hard.push(...parsed.hard);
         }
+        const mine = hard.filter((x) => freshNames.has(path.basename(String(x.md || ''))));
+        anchorHard = mine.length;
+        anchorOther = hard.length - mine.length;
       }
     } catch { anchorHard = null; }
 
@@ -1140,16 +1172,16 @@ function postflight(ctx) {
       record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', SKIP,
         '本轮没有游戏痕迹（runs 封套 / latest.log / rdd-launch 日志 都不新）—— 纯离线轮，不拦。'
         + '\n       ★ 这条只在「真进过游戏」时才判：没进游戏一律 SKIP，不制造假红。');
-    } else if (!isFile(file) || !freshEnough(file, since)) {
+    } else if (!freshCardFiles.length) {
       record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
-        '★ 本轮进过游戏（' + g.reasons.slice(0, 2).join('；') + '），但 实机验证/' + month + ' '
-        + (isFile(file) ? '本轮没被改过' : '不存在') + '。\n'
+        '★ 本轮进过游戏（' + g.reasons.slice(0, 2).join('；') + '），但两个记录位置本轮都没动：\n'
+        + '       知识库\\实验数据记录\\（新）· 实机验证\\' + month + '（旧）。\n'
         + '       ⇒ 用户 2026-10-30 指的是这件事：进游戏能验，退游戏的记录却没落地。\n'
-        + '       修法：在 ' + file + ' 建一张卡（判据/数据/结果/原因/复现），至少把状态填成 ✅/❌/🟡。');
+        + '       修法：在 知识库\\实验数据记录\\ 建一张卡（V-YYYYMMDD-NN，判据/数据/结果/原因/复现），至少把状态填成 ✅/❌/🟡。');
     } else if (!todaysFilled.length) {
       record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
         '★ 本轮进过游戏（' + g.reasons.slice(0, 2).join('；') + '），但今天的卡一张都没回填。\n'
-        + '       ' + month + ' 里今天（' + todayYmd + '）的卡 ' + (todays.length ? todays.length + ' 张，全是 ⬜ 待验：'
+        + '       今天（' + todayYmd + '）的卡 ' + (todays.length ? todays.length + ' 张，全是 ⬜ 待验：'
           + todays.map((c) => c.id).join('、') : '一张都没有') + '。\n'
         + '       ⇒ 「写了卡」和「卡里有结果」是两件事。空卡不算证据（实机验证/_格式规范.md §4）。');
     } else if (anchorHard === null) {

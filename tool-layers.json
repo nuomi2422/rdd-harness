@@ -47,6 +47,7 @@
     "harness.census",
     "harness.decideInbox",
     "harness.auditTag",
+    "gate.code",
     "gate.runtime",
     "gate.flow",
     "gate.docFresh",

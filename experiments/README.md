@@ -12,8 +12,8 @@
 
 **完整复盘写 docs，不写这里**（registry 路由铁律 1）：
 
-- 判据/结果/原因/复现 → `D:\rdd\docs\rdd-docs\rdd架构\实机验证\YYYY-MM.md` 的 V-card；
-- 一行债/三态 → `D:\rdd\docs\rdd-docs\rdd架构\杂项记录\YYYY-MM.md` 的 #NNN；
+- 判据/结果/原因/复现 → `D:\rdd\docs\rdd-docs\知识库\实验数据记录\` 的 V-card；
+- 一行债/三态 → `D:\rdd\docs\rdd-docs\知识库\杂项记录\` 的 #NNN；
 - 格式与已踩坑 → `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\85-实验失败坑与写法-20261026.md`。
 
 索引行（只一行，链到卡）：

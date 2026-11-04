@@ -17,6 +17,7 @@
     "numen": "workspace/minecraft-numen",
     "scripts": "workspace/rdd-selfcompile/scripts",
     "live": "mc/The Best of Twilight Forest",
+    "knowledge": "docs/rdd-docs/知识库",
     "stageDocs": "workspace/stager/.stager/tasks",
     "runs": "harness/rdd-harness/runs"
   },
@@ -28,7 +29,9 @@
       "状态报告 → 本轮自己的 docs\\ 目录，不进 docsUnified、不进任何 read[]。",
       "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。",
       "工具选择的速查 → harness\\工具分类索引-20261005.md（回答「我要干 X 用哪条」）；机器真源仍是 registry.json。改 tools 必须同步改它。",
-      "stage 流（四阶段 / 阶段必读 / 机器门 / 完成动作）只放 rddharness\\stage.md，AGENTS.md 不承载 —— 2026-10-04 拆分。规则文件每多一份副本就多一次漂移（已实测丢过 182 行，TL-2026-10-04-03）。查这一条用 stager\\bin\\check-align.js 的「外层 B 版没有 stage 流残留」。"
+      "stage 流（四阶段 / 阶段必读 / 机器门 / 完成动作）只放 rddharness\\stage.md，AGENTS.md 不承载 —— 2026-10-04 拆分。规则文件每多一份副本就多一次漂移（已实测丢过 182 行，TL-2026-10-04-03）。查这一条用 stager\\bin\\check-align.js 的「外层 B 版没有 stage 流残留」。",
+      "★ 进游戏唯一入口 → 知识库\\进游戏验证\\001-进游戏核心工具.md（核心工具只由主人标记，标记带时间；P13 直接打印 4 个核心）。",
+      "★ 退出游戏唯一入口 → 知识库\\退游戏\\001-退游戏检查单.md（先写四行事实，再把数据记进知识库对应文件夹；不写旧 rdd架构 路径）。"
     ]
   },
   "env": {
@@ -44,6 +47,14 @@
     }
   },
   "tools": [
+    {
+      "id": "gate.code",
+      "name": "写代码前的薄门禁（8 条硬规则 + 规范/台账实物检查）",
+      "path": "harness/rdd-harness/bin/code-gate.js",
+      "side": "read",
+      "needsGame": false,
+      "note": "S-CODE-07 配套：改码前跑一次；只提醒与查实物，不替你做判断。"
+    },
     {
       "id": "c.codex",
       "name": "C 层桥（把 Codex 包成 MCP）",
