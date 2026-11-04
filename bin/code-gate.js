@@ -90,5 +90,6 @@ console.log('');
 console.log('改完第一件事：check-runtime-deployment.js（源码有没有领先 jar）');
 console.log('收工前：台账加一行 —— 修复时间 / 复现次数 / 怎么修改的 / 回归判据');
 console.log('');
+try { const r = block ? 'BLOCK' : (warn ? 'WARN' : 'PASS'); require('fs').appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), gate: 'code', result: r, note: 'block=' + block + ' warn=' + warn, items: STAGE_DOCS.map((x) => x[1]).concat(need.map((x) => x[0])) }) + '\n'); } catch (e) { }
 if (block) { console.log('VERDICT=BLOCK（' + block + ' 项实物缺失，先补齐再动手）'); process.exit(1); }
 console.log('VERDICT=OK（' + (warn ? warn + ' 条 WARN，不拦' : '无警告') + '）');
