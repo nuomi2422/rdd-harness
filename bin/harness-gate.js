@@ -1777,7 +1777,7 @@ function verdict() {
   console.log('────────────────────────────────────────────────────────────');
   console.log(` PASS=${np}  WARN=${nw}  BLOCK=${nb}  SKIP=${ns}  ASK=${na}`);
   console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
-  try { const fs2 = require('fs'); const m = (typeof mode === 'string') ? mode : 'unknown'; fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), gate: m, result: nb === 0 ? 'PASS' : 'BLOCK', note: `PASS=${np} WARN=${nw} BLOCK=${nb}`, items: results.map((r) => r.id) }) + '\n'); } catch (e) { }
+  try { const fs2 = require('fs'); const m = globalThis.__GATE_MODE || 'unknown'; fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), gate: m, result: nb === 0 ? 'PASS' : 'BLOCK', note: `PASS=${np} WARN=${nw} BLOCK=${nb}`, items: results.map((r) => r.id) }) + '\n'); } catch (e) { }
   if (nb) {
     console.log('');
     console.log(' ✘ BLOCK 项必须处理完才能进/出游戏：');
@@ -1833,6 +1833,7 @@ function registrySummary() {
 function main() {
   loadRegistry();
   const mode = process.argv[2] || 'help';
+  globalThis.__GATE_MODE = mode;
   if (mode === 'registry') { registrySummary(); return 0; }
   if (mode === 'help' || mode === '--help') {
     console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^#![^\n]*\n/, '').replace(/^ \* ?/gm, ''));

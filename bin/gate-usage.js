@@ -46,14 +46,14 @@ function readLedger() {
   try {
     for (const line of fs.readFileSync(LEDGER, 'utf8').split(/\r?\n/)) {
       if (!line.trim()) continue;
-      try { out.push(JSON.parse(line)); } catch (e) { }
+      try { const r = JSON.parse(line); if (r.gate === 'unknown') { const ids = Array.isArray(r.items) ? r.items : []; const hasP = ids.some((i) => String(i)[0] === 'P'); const hasQ = ids.some((i) => String(i)[0] === 'Q'); r.gate = hasP && hasQ ? 'selftest' : (hasQ ? 'postflight' : 'preflight'); } out.push(r); } catch (e) { }
     }
   } catch (e) { }
   return out;
 }
 
 function gateStatus(id, name, items, ledger) {
-  const mine = ledger.filter((x) => x.gate === id);
+  const mine = ledger.filter((x) => x.gate === id || (x.gate === 'selftest' && (id === 'preflight' || id === 'postflight')));
   const last = mine.length ? mine[mine.length - 1] : null;
   let health = 'UNUSED';
   if (last) {
