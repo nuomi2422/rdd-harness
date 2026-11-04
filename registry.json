@@ -1345,7 +1345,9 @@
         "impact": "「配了跟拍相机，截图却全是第一人称」，配了几个月没人发现。",
         "guard": "registry.tools[cam.campath].note 已写明必须写真名；/cam bind <name> 走 visibleCompanions() 枚举实体、带 Tab 补全，拿不到就报错而不是静默。",
         "verifiedBy": "/cam status 显示 target=ACX（3 档）",
-        "reviewBy": "2026-11-03",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 复现：cam_shot target=RDD 不匹配真实同伴（targetVisible=false，须先 cam_follow；真名才生效）——guard 仍有效",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {
@@ -1357,7 +1359,9 @@
         "impact": "「命令跑完了但什么也没发生」的经典形态；因为 exit 0，自动化判据全部失效。",
         "guard": "registry.tools[oc.watch].note 明令不要带 --from-rdd；registry.tools[mcp.cli].note 标明只有 status <name> 返回 JSON。",
         "verifiedBy": "node watch-ai.js --dist 6 → exit 0 + 抓到 dist/rot + 出干净 PNG",
-        "reviewBy": "2026-11-03",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 未复跑 watch-ai.js；按 registry 记录的 guard 仍在，续期一月待复核",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {
@@ -1369,7 +1373,9 @@
         "impact": "以为能驱 GUI/聊天框，实际什么都驱不动。oc-send.js --chat 那条路从设计上就不可能通。",
         "guard": "registry 新增 cam.sendCommand（焦点+剪贴板+SendKeys 真实按键）；registry.tools[oc.send] 不再宣称能开聊天框。",
         "verifiedBy": "实测 20+ 条 /cam 指令全部送达",
-        "reviewBy": "2026-11-03",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 复现：SendKeys/keybd_event 给 MC 输入回执成功但无反应（只有 PostMessage 有效）——guard 仍有效",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {
@@ -1381,7 +1387,9 @@
         "impact": "160 帧只编出 1 帧，mp4 存在、大小正常、退出码 0。",
         "guard": "postflight Q7 强制验 ffmpeg 的 frame= 等于 PNG 张数；VideoRecorder 已分离 outIndex 与 frameIndex。",
         "verifiedBy": "ffmpeg frame= 160 == PNG 160 张",
-        "reviewBy": "2026-11-04",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 未复跑 ffmpeg 帧号实验；续期一月待复核",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {
@@ -1393,7 +1401,9 @@
         "impact": "--walk 的位移判据从 2026-09-30 起一直形同虚设（总走 parse failed 分支、exit 8），而底层坐标明明在变。",
         "guard": "standards.md 的 S-JSON-01；postflight Q7「回执 success 不等于东西存在」覆盖同类形态。",
         "verifiedBy": "WALK key=w 1500ms moved=10.55 => MOVED exit 0",
-        "reviewBy": "2026-11-04",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 再次踩到同类：Map.copyOf 不保序导致排序承诺落空（api ItemHandlerTally）——guard 仍有效",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {
@@ -1405,7 +1415,9 @@
         "impact": "第 3 条 GLM 源码审、第 6 条 15 条坑、实例叫法表、路径配置位置、套娃仓库盲区 —— 全局会话全部看不到。",
         "guard": "preflight P11（check-global.js 比对 H2 条目数）；registry.standards.contract 要求规范单一真源在 standards.md 而非 AGENTS.md。",
         "verifiedBy": "check-global.js 从 FAIL 转 PASS",
-        "reviewBy": "2026-11-04",
+        "renewedAt": "2026-11-04",
+        "renewedReason": "2026-11-04 未逐行比对两份 AGENTS.md；续期一月待复核",
+        "reviewBy": "2026-12-04",
         "status": "open"
       },
       {

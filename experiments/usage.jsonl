@@ -111,3 +111,6 @@
 {"at":"2026-11-03T05:59:04.143Z","session":"session-d05a52d1-6f79-4948-8252-560c663b194f","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
 {"at":"2026-11-03T06:46:59.944Z","session":"session-c1897c90-9807-4964-8d0b-2c1f54060ffc","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
 {"at":"2026-11-03T07:16:06.165Z","session":"session-c1897c90-9807-4964-8d0b-2c1f54060ffc","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-11-04T07:43:38.717Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
+{"at":"2026-11-04T09:16:44.724Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-11-04T09:16:52.318Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}

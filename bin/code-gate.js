@@ -25,6 +25,9 @@ const MUT = path.join(R.scripts, 'run-mutation.ps1');
 
 const STAGE_DOCS = [
   ['编码规范', STD],
+  // 2026-11-04 用户要求：环境/任务判定增量共源；曾有env攻略冒事实、展示与准入时效分叉。
+  // 仅导航+现有WARN存在检查，不宣称接口已实现，也不新增业务BLOCK。
+  ['环境读取/任务判定：统一请求迁移设计（先查provider；未支持登记旁路；接口尚待实现）', path.join(R.knowledge, '施工文档', '039-统一世界观测请求接口与增量迁移设计.md')],
   ['进游戏', path.join(R.knowledge, '进游戏验证', '001-进游戏核心工具.md')],
   ['验证规范', path.join(R.knowledge, '进游戏验证', '002-游戏验证规范及盲点.md')],
   ['实验台', path.join(R.knowledge, '进游戏验证', '003-实验台-当前世界-坑-怎么验证.md')],
