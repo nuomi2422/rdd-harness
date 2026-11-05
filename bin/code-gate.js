@@ -22,12 +22,14 @@ const R = REG.roots;
 const STD = path.join(R.harness, 'standards.md');
 const BUG = path.join(R.knowledge, 'Bug修复', 'README.md');
 const MUT = path.join(R.scripts, 'run-mutation.ps1');
+const CORRECTION = path.join(R.knowledge, '施工文档', '042-整夜审计问题修正与实机收口施工单.md');
 
 const STAGE_DOCS = [
   ['编码规范', STD],
+  ['当前审计修正施工入口（R0-R7）', CORRECTION],
   // 2026-11-04 用户要求：环境/任务判定增量共源；曾有env攻略冒事实、展示与准入时效分叉。
   // 仅导航+现有WARN存在检查，不宣称接口已实现，也不新增业务BLOCK。
-  ['环境读取/任务判定：统一请求迁移设计（先查provider；未支持登记旁路；接口尚待实现）', path.join(R.knowledge, '施工文档', '039-统一世界观测请求接口与增量迁移设计.md')],
+  ['环境读取/任务判定：统一请求迁移设计（先查provider；未支持登记旁路；逐主题核对已实现范围）', path.join(R.knowledge, '施工文档', '039-统一世界观测请求接口与增量迁移设计.md')],
   ['进游戏', path.join(R.knowledge, '进游戏验证', '001-进游戏核心工具.md')],
   ['验证规范', path.join(R.knowledge, '进游戏验证', '002-游戏验证规范及盲点.md')],
   ['实验台', path.join(R.knowledge, '进游戏验证', '003-实验台-当前世界-坑-怎么验证.md')],
@@ -50,6 +52,17 @@ let block = 0;
 let warn = 0;
 console.log('=== 写代码前 · 薄门禁（code-gate）===');
 console.log('规范真源：' + STD);
+// 2026-11-05 用户要求挂起开工提醒；案例：旁路事件被写成判定迁移完成、过期值继续被消费。
+// 只挂本轮行动提示，不伪装自动语义审查；撤下条件：042对应批次证据收口并复审。
+warn++;
+console.log('');
+console.log('!!! ACTION_REQUIRED：先读042审计修正单，再继续当前批次 !!!');
+console.log('入口：' + CORRECTION);
+console.log('开工先写：领取R几 / 最新HEAD与在飞改动 / 真实反例 / 实机正反例与恢复判据。');
+console.log('R0未闭合不继续自动发布；先修接缝，不继续扩大未验接口的消费者。');
+console.log('只测纯函数、只发旁路事件、只有DEPLOY_OK，都不能写整批完成；UNKNOWN不得改PASS。');
+console.log('先现场核实，最小改动，同场景复验；失败先定位，不靠继续加补丁掩盖。');
+console.log('此提示不是已审查代码，也不是游戏放行许可；已修项目先核证据，不重复施工。');
 console.log('');
 console.log('规则（按顺序过一遍，别跳）：');
 for (const [n, t, d] of RULES) console.log('  ' + n + '. ' + t + ' —— ' + d);
@@ -88,6 +101,18 @@ if (!gs) {
   console.log('  ' + (dirty ? 'WARN' : 'PASS') + '  工作树 ' + (dirty ? dirty + ' 处脏（逐行认领再提交，别 -A）' : '干净'));
   if (dirty) warn++;
 }
+
+// 记录/批次卡缺失提醒（WARN，不拦）
+try {
+  const today = new Date().toDateString();
+  const cardDir = path.join(R.knowledge, '批次卡');
+  const cards = fs.readdirSync(cardDir).filter((n) => n.endsWith('.md'));
+  const fresh = cards.some((n) => new Date(fs.statSync(path.join(cardDir, n)).mtime).toDateString() === today);
+  if (!fresh) { warn++; console.log('  WARN  今天没有批次卡（批次卡目录无今天更新）'); }
+  const recDir = path.join(R.knowledge, '记录');
+  const recs = fs.readdirSync(recDir).filter((n) => n.endsWith('.md') && n !== 'README.md' && n !== '000-总汇报.md');
+  if (!recs.some((n) => /主干活|编码|驾驶员/.test(n))) { warn++; console.log('  WARN  记录/ 里没有主干活 AI 的记录文档'); }
+} catch (e) { }
 
 console.log('');
 console.log('改完第一件事：check-runtime-deployment.js（源码有没有领先 jar）');

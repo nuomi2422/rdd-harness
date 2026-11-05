@@ -268,6 +268,18 @@ function preflight(ctx) {
     record('P21', '提示词治理 lint', BLOCK, 'artifact', r.status === 0 ? PASS : BLOCK, output || `exit=${r.status}`);
   }
 
+  // P0：上次 postflight BLOCK 未清 → 本次 preflight 直接 BLOCK（2026-11-05 物理联动）
+  {
+    let lastPost = null;
+    try {
+      const ledger = fs.readFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', 'utf8').trim().split(/\r?\n/);
+      for (const ln of ledger) { try { const j = JSON.parse(ln); if (j.gate === 'postflight') lastPost = j; } catch (e) { } }
+    } catch (e) { }
+    if (lastPost && lastPost.result === 'BLOCK') {
+      record('P0', '上次退游戏 postflight BLOCK 未清', BLOCK, 'artifact', BLOCK, 'last=' + lastPost.at + '；先修 postflight 再进游戏');
+    }
+  }
+
   const LIVE_MODS = P(REG.roots.live) + path.sep + 'mods';
 
   // P1 编译通道合规 —— phase-build.json 是 run-mutation 的产物，手写 gradle 不会产生它
