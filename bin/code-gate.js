@@ -26,7 +26,9 @@ const CORRECTION = path.join(R.knowledge, '施工文档', '042-整夜审计问�
 
 const STAGE_DOCS = [
   ['编码规范', STD],
-  ['当前审计修正施工入口（R0-R7）', CORRECTION],
+  ['主干活：长程通关与按需接线', path.join(R.knowledge, '角色', '002-主干活AI.md')],
+  ['外部学习：持续复盘与采用验证', path.join(R.knowledge, '角色', '004-外部学习AI.md')],
+  ['审计修正参考（按当前阻塞取用）', CORRECTION],
   // 2026-11-04 用户要求：环境/任务判定增量共源；曾有env攻略冒事实、展示与准入时效分叉。
   // 仅导航+现有WARN存在检查，不宣称接口已实现，也不新增业务BLOCK。
   ['环境读取/任务判定：统一请求迁移设计（先查provider；未支持登记旁路；逐主题核对已实现范围）', path.join(R.knowledge, '施工文档', '039-统一世界观测请求接口与增量迁移设计.md')],
@@ -50,19 +52,21 @@ const RULES = [
 
 let block = 0;
 let warn = 0;
+try { require('child_process').execFileSync(process.execPath, [path.join(__dirname, 'stage-card.js'), 'write'], { stdio: 'inherit' }); } catch (e) { }
+
 console.log('=== 写代码前 · 薄门禁（code-gate）===');
 console.log('规范真源：' + STD);
-// 2026-11-05 用户要求挂起开工提醒；案例：旁路事件被写成判定迁移完成、过期值继续被消费。
-// 只挂本轮行动提示，不伪装自动语义审查；撤下条件：042对应批次证据收口并复审。
+// 2026-11-05 用户确认：长程通关+外部学习；原因是基础能力已有积累但缺现场。
+// 案例：工具可见不等于采用，旧链完成后不应继续只清基础设施清单；目标变化时复审。
 warn++;
 console.log('');
-console.log('!!! ACTION_REQUIRED：先读042审计修正单，再继续当前批次 !!!');
-console.log('入口：' + CORRECTION);
-console.log('开工先写：领取R几 / 最新HEAD与在飞改动 / 真实反例 / 实机正反例与恢复判据。');
-console.log('R0未闭合不继续自动发布；先修接缝，不继续扩大未验接口的消费者。');
-console.log('只测纯函数、只发旁路事件、只有DEPLOY_OK，都不能写整批完成；UNKNOWN不得改PASS。');
-console.log('先现场核实，最小改动，同场景复验；失败先定位，不靠继续加补丁掩盖。');
-console.log('此提示不是已审查代码，也不是游戏放行许可；已修项目先核证据，不重复施工。');
+console.log('!!! 当前主线：持续推进通关 + 外部学习复盘，不等基础设施全清零 !!!');
+console.log('先读两份角色文档；说明当前阶段、运行制品、真实阻塞和本轮要验证的行为。');
+console.log('能跑先观察；现场缺口才最小接线，同场景复验后回原目标，不重复造轮子。');
+console.log('允许作弊加速到待测阶段，必须标介入和跳过能力；不能伪造自然通关或任务完成。');
+console.log('存档/发布安全与真实判据仍优先：不热替jar，未知不当通过，单实例唯一驾驶员。');
+console.log('042是按需修正参考，不是全部清零前置：' + CORRECTION);
+console.log('此提示不是运行许可或补丁全部已验；先核最新证据，不照旧报告重复施工。');
 console.log('');
 console.log('规则（按顺序过一遍，别跳）：');
 for (const [n, t, d] of RULES) console.log('  ' + n + '. ' + t + ' —— ' + d);
