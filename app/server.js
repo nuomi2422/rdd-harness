@@ -85,7 +85,7 @@ const WS = R.workspace || path.resolve(HARNESS, '..', '..', 'workspace');
 const DOCS = [
   { id: 'standards', name: '编程规范（真源）', file: 'standards.md', from: 'harness', editable: true, why: '8 域 40 条带 id 的唯一真源，改它等于改纪律' },
   { id: 'registry', name: '工具注册表（真源 JSON）', file: 'registry.json', from: 'harness', editable: true, why: '机器真源；改完必须过 selftest' },
-  { id: 'stage', name: 'stage 流细则', file: 'stage.md', from: 'harness', editable: false, why: '四阶段 / 必读 / 机器门' },
+  { id: 'stage', name: '⛔ 已废弃：原 stage 流细则（历史档案）', file: 'stage.md', from: 'harness', editable: false, why: '2026-11-06 四阶段流水线废弃；保留供 check-align 校验，不再作流程入口' },
   { id: 'capability', name: '进游戏前必读 · 游戏内能力清单', file: '进游戏前必读-游戏内能力清单.md', from: 'harness', editable: false, why: 'preflight P13 就是它' },
   { id: 'toolIndex', name: '工具分类索引', file: '工具分类索引-20261005.md', from: 'harness', editable: true, why: '回答「我该用哪条」；改 registry 要同步改它' },
   { id: 'decidePolicy', name: '决策策略（什么才配问你）', file: 'stager/core/decide-policy.json', from: 'workspace', editable: true, why: '改它就改了「什么能问用户」' },
@@ -110,7 +110,7 @@ function docPath(d) {
 const PORTS = [
   { port: 8776, name: '监测台', url: 'http://127.0.0.1:8776/', why: '游戏里发生了什么的只读观测' },
   { port: 8765, name: 'Numen MCP', url: '', why: '游戏内 AI 的工具通道（test=8766 已停用）' },
-  { port: 8899, name: 'stage 看板 / 决策收件箱', url: 'http://127.0.0.1:8899/', why: '桌宠网页版' },
+  { port: 8899, name: '原 stage 看板（历史/可不开）', url: 'http://127.0.0.1:8899/', why: '四阶段流水线已废弃；现行拍板走本面板「等你拍板」页' },
   { port: 8080, name: 'OpenClaw 键鼠', url: '', why: '必须先于游戏起' },
   { port: 8891, name: '★ Harness 面板（就是本进程）', url: 'http://127.0.0.1:8891/', why: '你现在看的这个' },
 ];
@@ -869,7 +869,7 @@ function rootRows() {
   const names = {
     harness: 'harness（本面板的家）', workspace: '工作区根（外层仓库）', numen: 'Numen 源码真源',
     scripts: '自编译脚本真源', docs: '设计+规范+叙事真源', docsUnified: '自编译统一版（编号文档）',
-    docsOut: '★ 用户唯一收件箱', live: 'live 游戏实例', stageDocs: 'stage 过程文档',
+    docsOut: '★ 用户唯一收件箱', live: 'live 游戏实例', stageDocs: '⛔ 已废弃：原 stage 过程文档（历史任务）',
   };
   return Object.keys(R).map((k) => ({ key: k, label: names[k] || k, path: R[k], exists: exists(R[k]) }));
 }

@@ -16,7 +16,7 @@ REM  It runs as an INDEPENDENT process on purpose: a timer living
 REM  inside the execution loop dies together with the loop, so a
 REM  deadlocked main loop could never self-report.
 REM
-REM  ASCII-only on purpose (see stager.bat for why).
+REM  ASCII-only on purpose: cmd.exe desyncs its byte pointer on CJK in .bat.
 REM ============================================================
 
 REM RDD root = <root>\harness\rdd-harness -> two levels up. No hardcoded D:\ path.

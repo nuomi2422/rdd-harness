@@ -226,9 +226,8 @@ async function saveDoc(id, content){
 const NAV = [
   ['老板台','boss'], ['等你拍板','decide'], ['总览','ov'],
   ['工具','tools'], ['摄影师','photo'], ['纪律','rules'], ['文件','files'], ['额度','budget'], ['诊断','diag'],
-  // ★ 2026-10-21：stage 已降级为可选，导航里隐藏（URL 直达 #stage 仍可用）。
-  //   用户原话「原本的 stage 就可以差不多废弃和隐藏了」。
-  //   为什么还留着：万一要开 stage，历史任务还能翻；只是默认不摆在台面上。
+  // ★ 2026-11-06：stage 四阶段流水线正式废弃，stage 页从导航移除。
+  //   历史任务目录仍在（面板文件页可翻），但不再作为流程入口。
 ];
 
 function paintNav(){
@@ -283,9 +282,9 @@ function paintOverview(){
        '<button class="b" onclick="runGate(\'postflight\')">postflight</button></div>';
   s += '</div>';
 
-  // 当前 stage
+  // 当前任务（stage 四阶段流水线已废弃，这里只显示历史任务数据）
   s += '<div class="card cut"><h2>AI 现在做到哪儿 <span class="r">'+(A?'<button class="b" onclick="go(\'stage\')">详情</button>':'')+'</span></h2>';
-  if(!A){ s += '<div class="empty">没有进行中的 stage 任务。AI 没在跑流程 —— 要开一条：<code>stager start "&lt;需求&gt;"</code></div>'; }
+  if(!A){ s += '<div class="empty">没有进行中的任务。★ 2026-11-06 起 stage 四阶段流水线已废弃，默认不开流程；改码/进游戏/退游戏按 AGENTS.md 三阶段与门禁执行。</div>'; }
   else {
     const st=A.stage, sd=A.stageDef||{};
     s += '<div class="kv">';
@@ -294,7 +293,7 @@ function paintOverview(){
     s += '<b>任务</b><span>'+esc(st.title||st.id)+'</span>';
     s += '<b>轮次</b><span>第 '+st.round+'/'+st.maxRounds+' 轮　·　轮回 '+(st.wrap||0)+' 次　·　人次 '+esc(st.actor)+'</span>';
     s += '<b>门禁</b><span>'+(A.need.length? '<span class="tag bad">还差 '+esc(A.need.join(' '))+'</span>'
-                                          : '<span class="tag ok">[+] 达标，可以 stager next</span>')+'</span>';
+                                          : '<span class="tag ok">[+] 达标</span>')+'</span>';
     s += '</div>';
     s += '<div class="bar2" style="margin-top:11px"><i style="width:'+Math.round((((sd._i||0)+1)/(A.stageCount||1))*100)+'%"></i></div>';
     s += '<div class="steps">'+(A.stageList||[]).map((x,i)=>{
@@ -624,9 +623,9 @@ function paintDiag(){
        '<button class="b" onclick="runRepo()">6 个套娃仓库状态</button></div>'+
        '<div class="pre" id="dout">点上面任意一个。· 门禁自己的缺陷长得像「门禁在正确地报债」，所以每次都要逐项核对是不是真债。</div></div>';
   s += '<div class="card cut"><h2>这台机器上的相关服务</h2>'+
-       '<div class="note">常驻端口：监测台 8776　·　Numen MCP 8765　·　stage 看板 8899　·　OpenClaw 8080　·　本面板 8891<br>'+
+       '<div class="note">常驻端口：监测台 8776　·　Numen MCP 8765　·　原 stage 看板 8899（已废弃）　·　OpenClaw 8080　·　本面板 8891<br>'+
        '一次性开关：<code>D:\\rdd\\harness\\rdd-harness\\ALL-ON-OFF.bat on</code> / <code>off</code>（纯 ASCII，别往里加中文）<br>'+
-       '· 改路径要改真源：node 侧 <code>stager/core/stages.json</code>，PowerShell 侧 <code>rdd-selfcompile/scripts/config.ps1</code>，'+
+       '· 改路径要改真源：node 侧 <code>harness/registry.json</code>（原 stager/core/stages.json 随 stage 废弃），PowerShell 侧 <code>rdd-selfcompile/scripts/config.ps1</code>，'+
        '**改完必须全仓 grep**（历史上散落 13 处硬编码，搬一次家全失配）。</div>'+
        '<div class="note warn">· PS 5.1 读无 BOM 的 UTF-8 会乱码：.ps1 必须写 UTF-8 BOM；<code>node -e</code> 内联会被 PS 拆坏，一律写 .js 文件。</div>'+
        '</div>';
@@ -989,7 +988,7 @@ window.treeOpen = async function(rel){
   }
 };
 
-const PAINT = {boss:paintBoss, decide:paintDecide, ov:paintOverview, dec:paintStageDecide, stage:paintStage, tools:paintTools,
+const PAINT = {boss:paintBoss, decide:paintDecide, ov:paintOverview, dec:paintStageDecide, tools:paintTools,
                photo:paintPhoto, rules:paintRules, files:paintFiles, budget:paintBudget, diag:paintDiag};
 let curTab = null;
 function paint(){

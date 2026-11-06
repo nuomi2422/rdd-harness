@@ -42,12 +42,11 @@ echo        done
 echo [2/6] desktop pet ON
 call "%D%stager-pet.bat" >nul 2>&1
 echo        done
-echo [3/6] stage heartbeat watchdog ON
+echo [3/6] heartbeat watchdog ON (legacy stage name)
 call "%D%stager-heartbeat.bat" >nul 2>&1
 echo        done
-echo [4/7] web dashboard ON (8899)
-call "%D%stager-dashboard.bat" >nul 2>&1
-echo        done
+echo [4/7] legacy 8899 dashboard (stage flow deprecated 2026-11-06; no launcher)
+echo        skipped
 echo [5/7] harness panel ON (8891)
 call "%D%app\PANEL.bat" >nul 2>&1
 echo        done
@@ -57,7 +56,7 @@ echo        done
 echo [7/7] all ON
 echo.
 echo        monitoring : http://127.0.0.1:8776/
-echo        dashboard  : http://127.0.0.1:8899/
+echo        legacy-8899 : http://127.0.0.1:8899/ (deprecated)
 echo        h-panel    : http://127.0.0.1:8891/
 ping -n 3 127.0.0.1 >nul
 exit /b 0
@@ -74,7 +73,7 @@ echo [3/7] stop desktop pet
 call "%D%stop-stager-pet.bat" >nul 2>&1
 %KILL% -Match "start-pet" -Quiet >nul 2>&1
 echo        done
-echo [4/7] stop stage heartbeat watchdog
+echo [4/7] stop heartbeat watchdog (legacy stage name)
 call "%D%stager-heartbeat.bat" stop >nul 2>&1
 %KILL% -Match "stage-heartbeat" -Quiet >nul 2>&1
 echo        done

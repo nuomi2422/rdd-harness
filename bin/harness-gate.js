@@ -37,6 +37,13 @@ function loadRegistry() {
   REG = registryLib.load();
 }
 let REG = null;
+// ★ 2026-11-06：stage 四阶段流水线废弃。过程文档判据改查知识库现行落点；
+// stageDocs 仅留作面板翻历史任务，不再作为门禁判据来源。
+const DOC_EVIDENCE_ROOTS = () => [
+  path.join(REG.roots.knowledge || path.join(REG.roots.docs, '知识库'), '实验数据记录'),
+  path.join(REG.roots.knowledge || path.join(REG.roots.docs, '知识库'), '记录'),
+  REG.roots.docsUnified,
+];
 
 function exists(p) { try { fs.accessSync(p); return true; } catch { return false; } }
 function isFile(p) { try { return fs.statSync(p).isFile(); } catch { return false; } }
@@ -410,13 +417,13 @@ function preflight(ctx) {
     const probe = [
       P(REG.roots.harness) + path.sep + 'standards.md',
       P(REG.roots.docsUnified),
-      path.join(REG.roots.stageDocs),
+      ...DOC_EVIDENCE_ROOTS(),
     ];
     // 记忆图谱写入留痕：memory MCP 不落盘，只能靠文档里写了实体名
-    const stageTxt = walk(REG.roots.stageDocs, 4, (n) => /\.md$/.test(n))
+    const procTxt = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n)))
       .filter((f) => freshEnough(f, since))
       .map((f) => readText(f)).join('\n');
-    const mem = /memory_create_entities|memory_add_observations|memory_search_nodes/.test(stageTxt);
+    const mem = /memory_create_entities|memory_add_observations|memory_search_nodes/.test(procTxt);
     for (const p of probe) if (isDir(p) || isFile(p)) { if (freshEnough(p, since)) touched.push(path.basename(p)); }
     const ok = touched.length > 0 || mem;
     record('P7', '规范/索引已补', BLOCK, 'trace', ok ? PASS : BLOCK,
@@ -743,39 +750,33 @@ function postflight(ctx) {
   const { since, keyword, head } = ctx;
   const LIVE = P(REG.roots.live);
 
-  // Q1 有标记
+  // Q1 有标记 —— ★ 2026-11-06：stage 四阶段流水线废弃，改查知识库本轮留痕
   {
-    const active = path.join(R('stager/.stager/active.json'));
-    const hasActive = isFile(active);
-    let markerNote = '';
-    if (hasActive) {
-      const a = readText(active);
-      const stage = (a.match(/"stage"\s*:\s*"([^"]+)"/) || [, '?'])[1];
-      const round = (a.match(/"round"\s*:\s*(\d+)/) || [, '?'])[1];
-      markerNote = `active: stage=${stage} round=${round}`;
-    }
-    record('Q1', '有标记', BLOCK, 'trace', hasActive ? PASS : WARN,
-      hasActive ? markerNote + '（★ 还要确认 stager implement --note 已打）' : '没有 .stager/active.json —— 本轮没开 stage');
+    const fresh = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n)))
+      .filter((f) => freshEnough(f, since));
+    record('Q1', '有标记', BLOCK, 'trace', fresh.length ? PASS : WARN,
+      fresh.length ? `本轮在知识库留痕 ${fresh.length} 份：${fresh.slice(0,3).map(f=>path.basename(f)).join(', ')}`
+                   : '本轮知识库下没有新鲜文档 —— 出游戏要在验证卡/实验数据记录/记录里留带日期的痕迹');
   }
 
-  // Q2 evidence 已落 + Q3 总结已写 + Q5 记忆图谱已灌 —— 都在 stageDocs 下
-  const stageFiles = walk(REG.roots.stageDocs, 4, (n) => /\.md$/.test(n)).filter((f) => freshEnough(f, since));
-  const stageTxt = stageFiles.map((f) => readText(f)).join('\n');
+  // Q2 evidence 已落 + Q3 总结已写 + Q5 记忆图谱已灌 —— ★ 2026-11-06 改查知识库现行落点
+  const procFiles = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n))).filter((f) => freshEnough(f, since));
+  const procTxt = procFiles.map((f) => readText(f)).join('\n');
   {
-    const ev = stageFiles.filter((f) => /evidence|证据/i.test(f));
+    const ev = procFiles.filter((f) => /evidence|证据/i.test(f));
     const ok = ev.some((f) => hasSignature(readText(f), keyword, head) || ev.length > 0);
     record('Q2', 'evidence 已落盘', BLOCK, 'trace', ev.length ? (ok ? PASS : WARN) : SKIP,
       ev.length ? ev.map((f) => path.basename(f)).join(', ')
-                : `本轮 stageDocs 下没有 evidence 文档（新鲜文档共 ${stageFiles.length} 份）`);
+                 : `本轮知识库下没有 evidence 文档（新鲜文档共 ${procFiles.length} 份）`);
   }
   {
-    const sum = stageFiles.filter((f) => /experience|经验|code|说明|review|summary|总结/i.test(f));
+    const sum = procFiles.filter((f) => /experience|经验|code|说明|review|summary|总结/i.test(f));
     record('Q3', '总结已写', BLOCK, 'trace', sum.length ? PASS : WARN,
       sum.length ? sum.map((f) => path.basename(f)).join(', ')
                  : '没找到 experience/code 文档（工程规范第 8 条四件：改了哪/为什么/怎么调的/入口出口）');
   }
   {
-    const mem = /memory_create_entities|memory_add_observations/.test(stageTxt);
+    const mem = /memory_create_entities|memory_add_observations/.test(procTxt);
     record('Q5', '记忆图谱已灌', BLOCK, 'trace', mem ? PASS : WARN,
       mem ? '文档里有记忆写入调用留痕' : '★ 别只写文档不进图谱 —— 空库→查了没用→更不查。至少写明灌了哪几条实体');
   }
@@ -788,17 +789,17 @@ function postflight(ctx) {
       .filter((f) => !/(README|standards)\.md$/i.test(path.basename(f)))
       .filter((f) => /(总结|复盘|报告|经验|evidence|summary|retro)/i.test(path.basename(f)));
     record('Q4', '★ 总结写到了正确位置', BLOCK, 'artifact', bad.length ? BLOCK : PASS,
-      bad.length ? `harness 下出现了总结类文件：${bad.map((f) => path.relative(h, f)).join(', ')} —— 总结该进 docsUnified 或 stageDocs`
+      bad.length ? `harness 下出现了总结类文件：${bad.map((f) => path.relative(h, f)).join(', ')} —— 总结该进 docsUnified 或知识库对应文件夹`
                  : 'harness 下没有总结类文件（本 harness 只放注册表/门禁/规范/skill）');
   }
 
-  // Q6 三个机器门的结果被记录（不自己跑 —— 跑是别处的职责，这里查「有没有记录」）
+  // Q6 机器门结果被记录（stage 废弃后只认 loop-gate / flow-gate 两个）
   {
-    const has = /loop-gate|flow-gate|stager\s+check|VERDICT=/.test(stageTxt);
-    const notDoneButExplained = /NOT_DONE[\s\S]{0,200}(预期内|没走 ?stage|未开 ?stage)/.test(stageTxt);
-    record('Q6', '三个机器门都过', BLOCK, 'trace', has ? (notDoneButExplained || /VERDICT=LOOP_COMPLETE/.test(stageTxt) ? PASS : WARN) : WARN,
+    const has = /loop-gate|flow-gate|VERDICT=/.test(procTxt);
+    const notDoneButExplained = /NOT_DONE[\s\S]{0,200}(预期内|没走 ?stage|未开 ?stage)/.test(procTxt);
+    record('Q6', '三个机器门都过', BLOCK, 'trace', has ? (notDoneButExplained || /VERDICT=LOOP_COMPLETE/.test(procTxt) ? PASS : WARN) : WARN,
       has ? '本轮文档里记录了机器门结果'
-           : '★ 没记录 loop-gate / flow-gate / stager check 的结果。没走 stage 时 NOT_DONE 是预期内的，但要显式写明，不能拿它判定没做完');
+           : '★ 没记录 loop-gate / flow-gate 的结果。stage 四阶段流水线已废弃，不再跑 stager check；NOT_DONE 若出现要显式写明，不能拿它判定没做完');
   }
 
   // Q7 ★ 产物真的落地
@@ -983,14 +984,14 @@ function postflight(ctx) {
   }
 
   {
-    // ★ Q16（2026-10-21 用户定）：退游戏后的「文档书写清单」。
-    //   从 stage 的 close 阶段搬过来的 —— 用户原话：
+    // ★ Q16（2026-10-21 用户定，2026-11-06 起独立挂门）：退游戏后的「文档书写清单」。
+    //   原从 stage 的 close 阶段搬过来 —— 用户原话：
     //   「原本的 stage 就可以差不多废弃和隐藏了，只是说要把我们想要挂在的东西给拉过来，
     //    就比如说那个文档书写，就是退游戏的时候可能要挂在，然后 AI 看到了它就会自己写」。
     //   为什么必须挂在这里：stage 的 tasks 目录是空的（没人走 stage），
-    //   挂在 stage 的必读清单等于**从没被执行过**。
+    //   挂在 stage 的必读清单等于**从没被执行过**；2026-11-06 主人正式裁定 stage 废弃，清单以本门禁为准。
     //   级别 ASK：机器判不了「文档写得好不好」，但必须把清单摆在面前。
-    record('Q16', '退游戏后的文档书写清单（从 stage 搬来）', 'human', 'ask', ASK,
+    record('Q16', '退游戏后的文档书写清单', 'human', 'ask', ASK,
       `★ 关游戏不是结束。先读唯一入口：知识库\\退游戏\\001-退游戏检查单.md\n` +
       `       按顺序做完这四件，再开下一轮：\n` +
       `       ① 验证卡/实验数据（判据/数据/结果/**原因**/复现）→ 知识库\\实验数据记录\\（V-YYYYMMDD-NN + 状态 ✅/❌/🟡）\n` +
@@ -1442,7 +1443,7 @@ function runSelftest() {
     ['roots.workspace', REG.roots.workspace], ['roots.docs', REG.roots.docs],
     ['roots.docsUnified', REG.roots.docsUnified], ['roots.numen', REG.roots.numen],
     ['roots.scripts', REG.roots.scripts], ['roots.live', REG.roots.live],
-    ['roots.stageDocs', REG.roots.stageDocs], ['roots.harness', REG.roots.harness],
+    ['roots.harness', REG.roots.harness],
   ];
   for (const [k, v] of paths) chk(`registry ${k}`, typeof v === 'string' && v.length > 0, v);
   {
@@ -1872,8 +1873,8 @@ function main() {
     stageTxt: '',
   };
 
-  // stageDocs 正文（postflight 的签名/记忆判据要用）
-  ctx.stageTxt = walk(REG.roots.stageDocs, 4, (n) => /\.md$/.test(n))
+  // ★ 2026-11-06：知识库现行落点正文（postflight 的签名/记忆判据要用）
+  ctx.stageTxt = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n)))
     .filter((f) => freshEnough(f, since)).map((f) => readText(f)).join('\n');
 
   printHeader(mode);

@@ -1,3 +1,12 @@
+# ⛔ 已废弃（2026-11-06 主人裁定）· stage 四阶段流水线
+
+> **本文件不再作为流程入口。** 原「四阶段 / 阶段必读 / 机器门 / 完成动作」流水线已废弃，默认不开 stage、不读本文件、不走 stager。
+> 现行做法：改码/进游戏/退游戏按 `D:\rdd\workspace\AGENTS.md` 三阶段（code-gate → preflight → postflight）与知识库唯一入口执行；门禁判据改查知识库落点，不再读 `.stager/active.json`。
+> **为什么文件还在**：`stager/bin/check-align.js` 与 `check-global.js`（preflight P11 依赖）仍按历史契约校验本文件全文存在，物理删除会让门禁 P11 判红。故保留为**历史档案**，内容不再生效。
+> 活依赖仍在的：`stager/core/decide-policy.json`（面板决策策略）、`stager/bin/repo-status.js`（跨仓对账）、`stage-heartbeat.js` 文件名沿用但只是定时任务。它们与四阶段流水线无关。
+
+---
+
 # ★ stage 流（**只在开 stage 时才读本文**）
 
 > **什么时候读这个文件？** 用户明确说了「开 stage / 走 stage 流程 / 走流水线」才读。

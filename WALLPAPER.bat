@@ -13,7 +13,7 @@ REM      WALLPAPER.bat -Image "D:\pic.jpg" -Mode Fit
 REM      WALLPAPER.bat -Restore
 REM      WALLPAPER.bat -Preview -Image "D:\pic.jpg"
 REM
-REM  ASCII-only on purpose, same reason as stager.bat: cmd.exe
+REM  ASCII-only on purpose: cmd.exe
 REM  walks this file with a byte pointer computed BEFORE the
 REM  `chcp 65001`, so any multibyte char desyncs it and cmd then
 REM  eats the first character of every following line.  All
