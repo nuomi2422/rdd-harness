@@ -71,13 +71,16 @@ function findReport (outDir, now) {
   const todays = files.filter((f) => f.includes(ymd) || f.includes(dash))
   if (todays.length) return { files: todays, dir: outDir, crossNight: false }
 
-  // ★ 跨夜：0 点后今天还没有日报，但人可能还在干前一天晚上的活 —— 回退到最近一份带日期的。
+  // 2026-11-06 Q17：跨夜只认前一本地日历日，不能拿多日前或未来报告冒充本轮。
+  // 案例：11-06 postflight 曾回退到 11-03；用日历减日兼容月/年界和夏令时。
+  const previous = new Date(d.getFullYear(), d.getMonth(), d.getDate() - 1)
+  const previousYmd = previous.getFullYear() + pad2(previous.getMonth() + 1) + pad2(previous.getDate())
   const dated = files
     .map((f) => ({ f, m: f.match(/(20\d{2}-?\d{2}-?\d{2})/) }))
     .filter((x) => x.m)
     .map((x) => ({ f: x.f, d: x.m[1].replace(/-/g, '') }))
-    .sort((a, b) => b.d.localeCompare(a.d))
-  if (!dated.length) return { err: '今天（' + dash + '）没有日报，也没有任何带日期的日报' }
+    .filter((x) => x.d === previousYmd)
+  if (!dated.length) return { err: '今天（' + dash + '）及前一本地日历日没有日报；不回退到更早或未来报告' }
   return { files: [dated[0].f], dir: outDir, crossNight: true, picked: dated[0] }
 }
 
@@ -559,6 +562,40 @@ function selftest () {
     const bad = r.items.find((x) => x.kind === 'card' && !x.ok)
     ck('卡文件不存在 → 红（不许静默放行）', !r.ok && !!bad, bad ? bad.why.slice(0, 40) : '没抓到')
     f.round()
+  }
+
+  // ⑨ Q17 日期边界：定位失败必须是 noReport，不是拿历史报告冒充放行。
+  for (const c of [
+    { name: '今天优先（两种日期格式）', now: [2026, 10, 6], names: ['日报20261106.md', '报告2026-11-06.md', '日报20261105.md', '日报20261107.md'], count: 2, cross: false },
+    { name: '昨天跨夜可选，忽略未来与旧报告', now: [2026, 10, 6], names: ['日报2026-11-05.md', '日报20261103.md', '日报20261107.md'], count: 1, cross: true },
+    { name: '三日前报告不可用', now: [2026, 10, 6], names: ['日报20261103.md'], count: 0 },
+    { name: '前两日报告不可用', now: [2026, 10, 6], names: ['日报20261104.md'], count: 0 },
+    { name: '未来报告不可用', now: [2026, 10, 6], names: ['日报20261107.md'], count: 0 },
+    { name: '无报告不可用', now: [2026, 10, 6], names: [], count: 0 },
+    { name: '跨月昨天可选', now: [2026, 10, 1], names: ['日报20261031.md'], count: 1, cross: true },
+    { name: '跨年昨天可选', now: [2027, 0, 1], names: ['日报2026-12-31.md'], count: 1, cross: true },
+    { name: '闰年跨月昨天可选', now: [2028, 2, 1], names: ['日报20280229.md'], count: 1, cross: true },
+  ]) {
+    const f = fixture({ decisions: [] })
+    try {
+      for (const name of c.names) f.write(name, `# 报告
+卡还没亮`)
+      const now = new Date(...c.now, 1)
+      const found = findReport(f.dir, now)
+      const result = checkReportRelease({ outDir: f.dir, cardPath: f.cardPath, now })
+      ck(c.name, c.count ? !found.err && found.files.length === c.count && found.crossNight === c.cross && result.ok
+        : !!found.err && !result.ok && result.noReport === true)
+    } finally { f.round() }
+  }
+  // 有效的跨夜报告仍须核对待拍板项与卡，不能因日期合格就 PASS。
+  for (const missing of ['decision', 'card']) {
+    const f = fixture({ decisions: missing === 'decision' ? [RAISED] : [] })
+    try {
+      f.write('日报20261105.md', missing === 'card' ? '# 报告' : `# 报告
+卡还没亮`)
+      const r = checkReportRelease({ outDir: f.dir, cardPath: f.cardPath, now: new Date(2026, 10, 6, 1) })
+      ck('跨夜仍检查 ' + missing, !r.ok && !r.noReport && r.items.some((x) => x.kind === missing && !x.ok))
+    } finally { f.round() }
   }
 
   const bad = checks.filter((c) => !c.ok)
