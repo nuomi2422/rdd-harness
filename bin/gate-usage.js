@@ -4,7 +4,7 @@
  * gate-usage.js —— 三道门禁的使用痕迹（薄）
  *
  * 用法：
- *   node bin/gate-usage.js record --gate code|preflight|postflight --result PASS|WARN|BLOCK|FAIL [--note "..."]
+ *   node bin/gate-usage.js record --gate code|preflight|postflight|selftest --result PASS|WARN|BLOCK|FAIL [--note "..."]
  *   node bin/gate-usage.js status [--json]
  *
  * 痕迹文件：D:\rdd\.harness\audit\gate-usage.jsonl（append-only）
@@ -46,6 +46,8 @@ function readLedger() {
   try {
     for (const line of fs.readFileSync(LEDGER, 'utf8').split(/\r?\n/)) {
       if (!line.trim()) continue;
+      // ★ 2026-11-06：旧版本 __GATE_MODE 未设时写入的 unknown，按 items 里的 P/Q 推断回真实模式；
+      //   只改读时归一化，不回写账本（历史留证）。2026-11-06 起门禁写账一律带 mode，不再产生新的 unknown。
       try { const r = JSON.parse(line); if (r.gate === 'unknown') { const ids = Array.isArray(r.items) ? r.items : []; const hasP = ids.some((i) => String(i)[0] === 'P'); const hasQ = ids.some((i) => String(i)[0] === 'Q'); r.gate = hasP && hasQ ? 'selftest' : (hasQ ? 'postflight' : 'preflight'); } out.push(r); } catch (e) { }
     }
   } catch (e) { }
@@ -98,6 +100,7 @@ const out = {
     gateStatus('code', '写代码前薄门禁（8 条规则 + 实物）', codeItems(), ledger),
     gateStatus('preflight', '进游戏前 preflight', checkItems('preflight'), ledger),
     gateStatus('postflight', '退游戏后 postflight', checkItems('postflight'), ledger),
+    gateStatus('selftest', '门禁自身健康自检（2026-11-06 起记账）', [['check','SELFTEST',null]], ledger),
   ],
 };
 if (process.argv.includes('--json')) {

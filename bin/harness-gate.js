@@ -25,6 +25,7 @@ const registryLib = require('./lib/registry.js');
 
 const HARNESS = path.resolve(__dirname, '..');
 const REGISTRY = path.join(HARNESS, 'registry.json');
+const SWITCHES = path.join(HARNESS, 'gate-switches.json');
 
 // ── 小工具 ───────────────────────────────────────────────────────────────
 const J = (p) => path.join(...p.split('/').map((s) => s.replace(/\\/g, path.sep)));
@@ -1665,12 +1666,43 @@ function runSelftest() {
   return bad === 0 ? 0 : 3;
 }
 
+
+/**
+ * ★ 2026-11-06 主人要求：门禁可开关、先给简单总开关（轻量/重量分类以后再细化）。
+ * 配置真源 gate-switches.json；环境变量 RDD_GATE_MODE=full|light|off 可临时覆盖。
+ * 只改『要不要跑这一项』，不改 43 条判据本身、不改 groups 归组、不改 selftest。
+ */
+function loadGateMode() {
+  let sw = { gateMode: 'full', lightSkip: { preflight: [], postflight: [] } };
+  try { sw = JSON.parse(fs.readFileSync(SWITCHES, 'utf8')); } catch (e) {
+    console.error('⚠ gate-switches.json 读不出来，按 full 全跑：' + (e && e.message ? e.message : e));
+  }
+  const env = (process.env.RDD_GATE_MODE || '').trim().toLowerCase();
+  const mode = ['full', 'light', 'off'].includes(env) ? env : (sw.gateMode || 'full');
+  return { mode, sw };
+}
+
+function applyGateMode(mode, sw, phase) {
+  if (mode === 'full') return { mode, skipped: 0 };
+  const skip = new Set(mode === 'off'
+    ? results.map((r) => r.id)
+    : ((sw.lightSkip && sw.lightSkip[phase]) || []));
+  let n = 0;
+  for (const r of results) {
+    if (!skip.has(r.id)) continue;
+    r.state = SKIP;
+    r.detail = (r.detail ? r.detail + ' | ' : '') + `[${mode} 模式跳过；改 gate-switches.json 或 RDD_GATE_MODE 恢复]`;
+    n++;
+  }
+  return { mode, skipped: n };
+}
 function printHeader(phase) {
   const g = phase === 'preflight' ? REG.gates.preflight : REG.gates.postflight;
   console.log('════════════════════════════════════════════════════════════');
   console.log(` RDD harness 门禁 · ${phase.toUpperCase()}   （${g.when}）`);
   console.log('════════════════════════════════════════════════════════════');
   console.log(` 注册表 ${REG.version} · 工具 ${REG.tools.length} · 规范源 ${path.basename(REG.standards.source)} · 时间锁 ${REG.timeLocks.locks.length}`);
+  console.log(` 门禁模式 ${globalThis.__GATE_MODE_LABEL || 'full'}（gate-switches.json / RDD_GATE_MODE；分类细化以后再做）`);
   console.log('');
 }
 
@@ -1780,6 +1812,21 @@ function printGroups() {
   console.log(` ▸ GK-0  ${gateBlock === 0 ? '三门通过（提醒桶不影响总判）' : gateBlock + ' 门有 BLOCK —— 本轮不可交付'}`);
 }
 
+/**
+ * ★ 2026-11-06：门禁记账统一入口。原来 verdict() 里 appendFileSync 被 try/catch 静默吞掉，
+ *   账本写失败（权限/路径/磁盘）时没人知道 —— 与「声明 ≠ 接线」同一族：看起来在守，其实没守。
+ *   现在写失败显式打 stderr 警告；门禁结论本身不受影响（记账不是业务判据）。
+ */
+function appendGateUsage(entry) {
+  try {
+    const fs2 = require('fs');
+    fs2.mkdirSync('D:\\rdd\\.harness\\audit', { recursive: true });
+    fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), ...entry }) + '\n', 'utf8');
+  } catch (e) {
+    console.error('⚠ gate-usage 记账失败（门禁结论不受影响，但这条没进账本）：' + (e && e.message ? e.message : String(e)));
+  }
+}
+
 function verdict() {
   printGroups();
   const nb = results.filter((r) => r.state === BLOCK).length;
@@ -1790,7 +1837,12 @@ function verdict() {
   console.log('────────────────────────────────────────────────────────────');
   console.log(` PASS=${np}  WARN=${nw}  BLOCK=${nb}  SKIP=${ns}  ASK=${na}`);
   console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
-  try { const fs2 = require('fs'); const m = globalThis.__GATE_MODE || 'unknown'; fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), gate: m, result: nb === 0 ? 'PASS' : 'BLOCK', note: `PASS=${np} WARN=${nw} BLOCK=${nb}`, items: results.map((r) => r.id) }) + '\n'); } catch (e) { }
+  appendGateUsage({
+    gate: globalThis.__GATE_MODE || 'unknown',
+    result: nb === 0 ? 'PASS' : 'BLOCK',
+    note: `PASS=${np} WARN=${nw} BLOCK=${nb} SKIP=${ns} ASK=${na}`,
+    items: results.map((r) => r.id),
+  });
   if (nb) {
     console.log('');
     console.log(' ✘ BLOCK 项必须处理完才能进/出游戏：');
@@ -1856,7 +1908,11 @@ function main() {
     console.error('未知模式：' + mode + '（用 preflight / postflight / selftest / registry）');
     return 3;
   }
-  if (mode === 'selftest') return runSelftest();
+  if (mode === 'selftest') {
+    const rc = runSelftest();
+    appendGateUsage({ gate: 'selftest', result: rc === 0 ? 'PASS' : 'FAIL', note: '门禁自身健康自检', items: ['SELFTEST'] });
+    return rc;
+  }
   const since = today();
   if (!since) {
     // 参数错就停在这里：往下走只会让 since 变成 Invalid Date，在门禁中段炸成栈。
@@ -1877,12 +1933,19 @@ function main() {
   ctx.stageTxt = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n)))
     .filter((f) => freshEnough(f, since)).map((f) => readText(f)).join('\n');
 
+  const gm = loadGateMode();
+  globalThis.__GATE_MODE_LABEL = gm.mode;
   printHeader(mode);
   printBenchReminder();
   printPlannerBanner(ctx);
   if (mode === 'preflight') preflight(ctx); else postflight(ctx);
+  const applied = applyGateMode(gm.mode, gm.sw, mode);
+  if (applied.skipped) console.log(` ℹ ${applied.mode} 模式跳过 ${applied.skipped} 项（判据没改，只是本次不跑）`);
+  if (gm.mode === 'off') console.log(' ⚠ OFF 模式：全部判据本次 SKIP，仍会记账标 OFF —— 这不是 PASS');
   printResults();
-  return verdict();
+  const rc = verdict();
+  if (gm.mode !== 'full') appendGateUsage({ gate: 'mode', result: gm.mode.toUpperCase(), note: 'gateMode=' + gm.mode + ' skipped=' + applied.skipped, items: [] });
+  return rc;
 }
 
 try { process.exit(main()); }

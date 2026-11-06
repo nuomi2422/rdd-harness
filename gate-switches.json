@@ -1,0 +1,46 @@
+{
+  "$comment": "★ 门禁与配套服务的开关（2026-11-06 主人要求：可开关、先给简单总开关，轻量/重量分类以后再细化）。改这份即改行为，不用动代码。环境变量 RDD_GATE_MODE / RDD_AUTO_MONITOR 可临时覆盖。",
+  "version": 1,
+  "updated": "2026-11-06",
+  "gateMode": "full",
+  "gateModeOptions": {
+    "full": "全部 43 项照常跑（默认，行为与 2026-11-06 之前完全一致）",
+    "light": "轻量模式：跳过需外部脚本/游戏/网络的重项，只跑机器秒查的实物项；BLOCK 硬挡仍保留",
+    "off": "只打印模式横幅并 SKIP 全部判据（用于明确知道自己在绕开门禁的场合，会记账标 OFF）"
+  },
+  "lightSkip": {
+    "$comment": "light 模式跳过的门禁 id（按「要跑外部脚本/连游戏/查远端」挑，不动判据本身）。分类细化后改这里即可。",
+    "preflight": [
+      "P2",
+      "P3",
+      "P4",
+      "P5",
+      "P6",
+      "P9",
+      "P14",
+      "P14b",
+      "P18",
+      "P21"
+    ],
+    "postflight": [
+      "Q6",
+      "Q7",
+      "Q13",
+      "Q14",
+      "Q15",
+      "Q17",
+      "Q18",
+      "Q19",
+      "Q20"
+    ]
+  },
+  "autoMonitor": true,
+  "autoMonitorNote": "开游戏（mc-start.js）成功后自动拉起监测台 8776；端口已在听就跳过。false = 完全不拉。环境变量 RDD_AUTO_MONITOR=0 可临时关。",
+  "monitor": {
+    "port": 8776,
+    "server": "D:/rdd/workspace/rdd-monitor-publish-20260913/monitoring-station/server.mjs",
+    "workingDir": "D:/rdd/workspace/rdd-monitor-publish-20260913/monitoring-station",
+    "monitorDirEnv": "D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor",
+    "url": "http://127.0.0.1:8776/"
+  }
+}
