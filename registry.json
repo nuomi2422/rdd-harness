@@ -1402,8 +1402,10 @@
         "impact": "气泡工具行、brain 提示、快捷对话等全部显示 numen.xxx 原始键；用户要的「汉字」全程不出现，且无任何报错。",
         "guard": "check-jar-lang.js（verify-tools）直接扫 jar 字节流里有没有 assets/numen_api/lang/{en_us,zh_cn}.json，exit 1 = 缺；生成目录在盘上持久存在时后续构建自带 lang；CI publish.yml 本来就跑 datagenAll。",
         "verifiedBy": "node rdd-selfcompile\\scripts\\verify-tools\\check-jar-lang.js → exit 0（live jar 含 en_us 16182B + zh_cn 16265B，309 键）",
-        "reviewBy": "2026-11-06",
-        "status": "open"
+        "reviewBy": "2026-11-13",
+        "status": "open",
+        "renewedAt": "2026-11-06",
+        "renewedReason": "2026-11-06 监督复核：guard 现在是红的——check-jar-lang.js 对部署的 numen_api jar 报缺 assets/numen_api/lang/{en_us,zh_cn}.json（exit 1），且 api/neoforge/src/generated/resources 下没有 lang 产物。未修，按锁规则显式续期一周到 2026-11-13；修法：跑 :api:neoforge:runData 后重建并部署 api jar，再复跑 check-jar-lang.js 应为 exit 0。"
       },
       {
         "id": "TL-2026-10-07-01",
