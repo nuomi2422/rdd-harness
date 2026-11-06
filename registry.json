@@ -1,8 +1,8 @@
 {
   "$schema": "rdd-harness/registry@1",
-  "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。 ★ 2026-11-06：stage 四阶段流水线废弃登记（工具 3 条 / routing 2 条 / 门禁文案 6 处）。",
+  "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。 ★ 2026-11-06：stage 四阶段流水线废弃登记（工具 3 条 / routing 2 条 / 门禁文案 6 处）。 ★ 2026-11-07 主人裁定：opencode 相关配置/路径/插件名均为【历史名】，外部写代码的 AI 现全部走 DSH（架构导航已接 mcp__rdd_architecture__*）；registry 里保留 c.codex / router.model / goal.drive / opencode-plugin 等条目是因它们仍是 DSH 内的活工具，不改 id、不删工具，bugs 里的 opencode 事故记录留证不改写。",
   "version": 2,
-  "updated": "2026-11-06",
+  "updated": "2026-11-07",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -47,6 +47,15 @@
     }
   },
   "tools": [
+    {
+      "id": "architecture.mcp",
+      "name": "架构思维导航：目标、原因、关联与证据化现状",
+      "path": "workspace/rdd-selfcompile/scripts/architecture-mcp/server.mjs",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node workspace/rdd-selfcompile/scripts/architecture-mcp/server.mjs（stdio MCP）；无客户端用同目录cli.mjs arch_overview / arch_focus taskchain",
+      "note": "2026-11-06：知识库034说明/035导航图谱；文档改变即待复核。只读，不等于游戏现状探测，不自动替每个AI接入；原经验库不变。"
+    },
     {
       "id": "gate.code",
       "name": "写代码前的薄门禁（8 条硬规则 + 规范/台账实物检查）",
