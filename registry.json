@@ -1878,7 +1878,7 @@
         "title": "学习者去重门 no_near_dup 漏判：同一件事生成 7 稿 DRAFT 却判「没有近重复」",
         "detected": "2026-11-08",
         "detail": "2026-11-07 23:32 那轮游戏侧 auto_learn 产出的 7 条 DRAFT 都是「同一 subtask 重启/replan 重试预算」这一件事（sk-2f52e3bd6c43 / sk-3a34618ae3d9 / sk-0936b836a8cd / sk-cfcfb663f3f1 / sk-5304390b1bcd / sk-c3c7191c2eb1 / sk-30e682eb837e，另有已 REVOKED 的同族 sk-ab99648c6d9a），dedupe 却判 NEW_ON_MISMATCH_TRUSTED:no_near_dup。skills.jsonl 里另有 4 条「mine 不负责开路」同文。后果：同一事实写多遍 → 检索候选位被同义稿挤占、晋级门对同一件事重复评审。",
-        "fix": "未修，但根因已实测（2026-11-08，8 稿原文回归）：①第一道 triggerConditions 分词交集门 28 对里 26 对放行（SkillRegistry.java:249-254）；②第二道 trigram Jaccard 阈值 0.25（LearnerReviewTool.java:406），实测 28 对只有 0.066–0.224、最高 0.224，全部低于阈值 —— 正文 178–439 字时 0.25 基本不可达，等于第二道门形同不存在；③nearDuplicates 本身只是提示不拦截（SkillRegistry.java:244 注释『提示不拦截』），返回空即写 no_near_dup（LearnerReviewTool.java:985）。修法方向：阈值按正文长度归一化，或近重复改为拦截并要求复用人写理由。",
+        "fix": "未修，但根因已实测（2026-11-08，8 稿原文回归）：①第一道 triggerConditions 分词交集门 28 对里 26 对放行（SkillRegistry.java:249-254）；②第二道 trigram Jaccard 阈值 0.25（LearnerReviewTool.java:406），实测 28 对只有 0.066–0.224、最高 0.224，全部低于阈值 —— 正文 178–439 字时 0.25 基本不可达，等于第二道门形同不存在；③nearDuplicates 本身只是提示不拦截（SkillRegistry.java:244 注释『提示不拦截』），返回空即写 no_near_dup（LearnerReviewTool.java:985）。修法方向（2026-11-08 学习者回归实测后收紧）：**光调阈值修不好** —— sk-3a34618ae3d9 与保留条三种口径只有 0.069–0.078，降到 0.2 也够不着，反而会把反例（sk-3585e116da71 / sk-45dbf7326351 / sk-9f1f9c34960b，实测 0.006–0.037）吸进来。正确修法是两道：①结构化族键（reason=same subtask restarted / attempts / threshold / fromNegotiation）判同族；②文本分只作辅助。断言见 知识库记录 011 §A.3b 的 T1–T5。",
         "lesson": "判据说「没有近重复」≠ 真没有；同一轮批量产出（同模板多稿）最容易漏。写前查重必须包含「本轮自己刚产出的那几条」。",
         "guard": "暂无自动防线。候选：①学习者每轮盘点报「同族 DRAFT 计数」，>2 即告警；②把这 7 稿原文做成 near_dup 回归用例，判定必须为 DUP。",
         "status": "open"
