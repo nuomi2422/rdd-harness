@@ -114,3 +114,4 @@
 {"at":"2026-11-04T07:43:38.717Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench live show snapshot","run":null,"card":null,"status":"ok"}
 {"at":"2026-11-04T09:16:44.724Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
 {"at":"2026-11-04T09:16:52.318Z","session":"session-786d5db6-eb58-434c-96ea-b4b44ebb697e","source":"dsh","cmd":"bench layers","run":null,"card":null,"status":"ok"}
+{"at":"2026-11-05T14:31:53.324Z","session":"session-c4e161e2-f416-40ce-a74b-21928263dfe3","source":"dsh","cmd":"bench brief","run":null,"card":null,"status":"ok"}
