@@ -2148,7 +2148,8 @@ function learnGates() {
   record('L3', '看过检索待复核', BLOCK, 'trace', l3state,
     gameOff ? '游戏没开（java 进程 0），检索队列不会产生新条目 —— 跳过不是通过'
       : (!q.known ? q.reason
-      : '待复核队列 ' + q.pendingLines + ' 条；最近动静 ' + (qAge ? minutes(qAge) + ' 分钟前' : '未知')));
+      : '游戏侧待复核深度 ' + (lg.queueDepth(numenDir).known ? lg.queueDepth(numenDir).depth + ' 条' : '未知')
+        + '；learner-enqueued.jsonl 历史入队 ' + q.pendingLines + ' 行（行数不是积压量，别拿它当队列' + (qAge ? '；最近动静 ' + minutes(qAge) + ' 分钟前' : '') + '）'));
 }
 
 /**

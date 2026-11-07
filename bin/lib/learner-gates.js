@@ -72,4 +72,24 @@ function pendingQueue(numenDir) {
   return { known: true, pendingLines: lines, mtimeMs: s ? s.mtimeMs : 0 };
 }
 
-module.exports = { WINDOW_MIN, ALARM_MAX_SECONDS, alarmState, reviewState, pendingQueue, stat };
+/**
+ * 游戏侧真实待复核深度（2026-11-08 学习者纠正）：learner-enqueued.jsonl 的行数是「历史入队行数」，
+ * 不是当前积压。真实深度在 learner.jsonl 的 reviewed 事件里：data.queue_depth。
+ * 拿 401 行当积压量会连续误报两个月 —— 别再把文件行数当队列深度。
+ */
+function queueDepth(numenDir) {
+  const file = path.join(numenDir, 'monitor', 'learner.jsonl');
+  let lines;
+  try { lines = fs.readFileSync(file, 'utf8').trim().split(/\r?\n/); } catch { return { known: false, reason: '读不到 learner.jsonl' }; }
+  for (let i = lines.length - 1; i >= 0; i--) {
+    if (!/queue_depth/.test(lines[i])) continue;
+    try {
+      const row = JSON.parse(lines[i]);
+      const depth = row?.data?.queue_depth;
+      if (typeof depth === 'number') return { known: true, depth, at: row.timestamp };
+    } catch { /* 坏行跳过 */ }
+  }
+  return { known: false, reason: 'learner.jsonl 里没有 queue_depth 字段' };
+}
+
+module.exports = { WINDOW_MIN, ALARM_MAX_SECONDS, queueDepth, alarmState, reviewState, pendingQueue, stat };

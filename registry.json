@@ -1376,7 +1376,7 @@
           "appliesTo": ["learner"],
           "rule": "统一检索发出的待复核学习必须有人看，否则学了一堆没人认领。",
           "verify": "<numen>/learner-enqueued.jsonl 或 learner-review-state.json 在 30 分钟内被动过",
-          "note": "只证明队列被动过，不证明看全了。"
+          "note": "只证明队列被动过，不证明看全了。★2026-11-08 学习者纠正：积压量要报游戏侧的 queue_depth（learner.jsonl 的 reviewed 事件），不能拿 learner-enqueued.jsonl 的行数当队列 —— 那 401 行是历史入队总数，真实深度曾同期只有 61。"
         }
       ]
     },
