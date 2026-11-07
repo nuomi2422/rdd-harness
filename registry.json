@@ -1871,6 +1871,17 @@
         "fix": "2026-10-04 两份文件都改成实话：「⚠️ 以前这里写的是 self-check —— 那个命令根本不存在（真命令是 self-test，验的是状态机不是路径）。用 rg --files 一下 read[] 里的每个路径即可，别照抄不存在的命令。」",
         "lesson": "文档里出现「跑 X 验 Y」时，要确认 X 真的存在。一次纪律被执行 0 次而不自知，比没有这条纪律更糟 —— 它让人以为「验过了」。",
         "guard": "check-align.js 的「细则两份文件真实存在」只查那两份，不查 AGENTS.md 正文里的命令行。真要防这类，得对文档里的 `stager <cmd>` 逐个核对命令表 —— 尚未实现，记为待办。"
+      },
+      {
+        "id": "bug-11",
+        "class": "隐蔽",
+        "title": "学习者去重门 no_near_dup 漏判：同一件事生成 7 稿 DRAFT 却判「没有近重复」",
+        "detected": "2026-11-08",
+        "detail": "2026-11-07 23:32 那轮游戏侧 auto_learn 产出的 7 条 DRAFT 都是「同一 subtask 重启/replan 重试预算」这一件事（sk-2f52e3bd6c43 / sk-3a34618ae3d9 / sk-0936b836a8cd / sk-cfcfb663f3f1 / sk-5304390b1bcd / sk-c3c7191c2eb1 / sk-30e682eb837e，另有已 REVOKED 的同族 sk-ab99648c6d9a），dedupe 却判 NEW_ON_MISMATCH_TRUSTED:no_near_dup。skills.jsonl 里另有 4 条「mine 不负责开路」同文。后果：同一事实写多遍 → 检索候选位被同义稿挤占、晋级门对同一件事重复评审。",
+        "fix": "未修。先拿这 7 稿原文算相似度，确认是阈值太松，还是 near_dup 只看了标题/关键词、没看正文。",
+        "lesson": "判据说「没有近重复」≠ 真没有；同一轮批量产出（同模板多稿）最容易漏。写前查重必须包含「本轮自己刚产出的那几条」。",
+        "guard": "暂无自动防线。候选：①学习者每轮盘点报「同族 DRAFT 计数」，>2 即告警；②把这 7 稿原文做成 near_dup 回归用例，判定必须为 DUP。",
+        "status": "open"
       }
     ]
   },
