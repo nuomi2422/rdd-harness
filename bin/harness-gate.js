@@ -1989,7 +1989,12 @@ function roundGates() {
   record('C1', '2 轮内读过架构导航', BLOCK, 'trace', c1.ok ? PASS : BLOCK, c1.detail);
   record('C2', '3 轮内整理过知识库文档', BLOCK, 'artifact', c2.ok ? PASS : BLOCK, c2.detail);
   record('C3', '4 轮内读过施工文档+角色卡', BLOCK, 'trace', c3.ok ? PASS : BLOCK, c3.detail);
-  const g = cg.workerGoalState(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), arg('--worker', ''));
+  // 施工 AI 的会话从 commander-config.json 读（换人只改一行），--worker 可临时覆盖。
+  const workerCfg = (() => {
+    try { return JSON.parse(fs.readFileSync(path.join(REG.roots.harness, 'commander-config.json'), 'utf8')); } catch { return {}; }
+  })();
+  const workerSession = arg('--worker', '') || workerCfg.workerSession || '';
+  const g = cg.workerGoalState(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), workerSession);
   let c4state = WARN;
   let c4detail = g.reason || '未知';
   if (g.known) {
@@ -2000,13 +2005,29 @@ function roundGates() {
   }
   record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
 
-  // C5（2026-11-07 主人追加）：每 3 轮过一遍架构现状 —— 该更新就更新 034/035，不然就留下「确认过」的痕迹。
+  // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
+  //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
   const archDir = path.join(knowledge, '架构意图');
-  const touchedAt = cg.lastArchTouch(archDir);
-  const checkedAt = cg.lastArchStatus(roundsFile);
-  const c5 = cg.verdict(age(Math.max(touchedAt, checkedAt)), 3,
-    touchedAt >= checkedAt ? '架构正文/图谱已更新' : '架构现状已确认（无需更新）');
-  record('C5', '3 轮内过一遍架构现状', BLOCK, 'trace', c5.ok ? PASS : BLOCK, c5.detail);
+  const scan = cg.lastArchScan(path.join(archDir, '036-架构巡检记录.jsonl'));
+  let c5state = WARN;
+  let c5detail = scan.reason || '取不到巡检记录';
+  if (scan.known) {
+    const ageMs = now - scan.at;
+    const row = scan.row || {};
+    const hasDedupe = typeof row.dedupe === 'string' && row.dedupe.trim().length >= 4;
+    const changed = Array.isArray(row.changed) ? row.changed : [];
+    const graphFresh = cg.lastArchTouch(archDir) >= scan.at - 60_000;
+    const okChange = changed.length === 0
+      ? (typeof row.note === 'string' && row.note.trim().length >= 4)
+      : (Boolean(row.decisionId) && graphFresh);
+    const ok = ageMs >= 0 && ageMs <= 20 * 60_000 && hasDedupe && okChange;
+    c5state = ok ? PASS : BLOCK;
+    c5detail = '最近巡检 ' + Math.round(ageMs / 60_000) + ' 分钟前；查重=' + (hasDedupe ? '有' : '缺')
+      + '；' + (changed.length
+        ? '改动 ' + changed.join('/') + (row.decisionId ? '（' + row.decisionId + '）' : '（缺 decisionId）')
+        : '无改动' + (okChange ? '（已说明原因）' : '（缺 note，说不出为什么没改）'));
+  }
+  record('C5', '激活即巡检架构（每次被激活都要）', BLOCK, 'trace', c5state, c5detail);
 }
 
 /**

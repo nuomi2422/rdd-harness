@@ -138,4 +138,18 @@ function lastArchStatus(roundsFile) {
   return Number.isFinite(at) ? at : 0;
 }
 
-module.exports = { ROUND_MIN, WINDOW, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
+/**
+ * C5（2026-11-07 深夜改版）：每次被激活都要做一次架构巡检，并把「查重结论 + 改没改」记进
+ * 架构意图/036-架构巡检记录.jsonl。这里只读最新一条并做结构校验。
+ * 为什么改成账本：主人要「每次激活都更新一小下」且「保留他怎么改过来的一路记录」——
+ * 光看文件 mtime 只能证明动过，证明不了「先查重再修」。
+ */
+function lastArchScan(scanFile) {
+  const rows = readJsonl(scanFile);
+  if (!rows.length) return { known: false, reason: '没有任何巡检记录（' + scanFile + '）' };
+  const row = rows[rows.length - 1];
+  const at = Date.parse(row.at);
+  return { known: true, at: Number.isFinite(at) ? at : 0, row };
+}
+
+module.exports = { ROUND_MIN, WINDOW, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
