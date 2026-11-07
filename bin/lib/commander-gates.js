@@ -172,4 +172,31 @@ function supervisionAlarm(scheduleFile, maxSeconds = 1200) {
   return { known: true, ok: false, reason: '没有任何 ≤' + (maxSeconds / 60) + ' 分钟的重复闹钟（现有 ' + rows.length + ' 个任务）' };
 }
 
-module.exports = { ROUND_MIN, WINDOW, supervisionAlarm, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
+/**
+ * C7（2026-11-08 主人第三次投诉「干一半就收工」）：任务开着就必须有产出。
+ * 判据不看你说了什么，只看盘上最近 20 分钟有没有新东西——日志/账本不算产出，代码、文档、记录才算。
+ * 为什么这样判：主人说「电脑开着就是干活的」，而"我还在想"和"我已经收工"在盘上没有区别；
+ * 用产出当证据是最不容易骗的近似（也会误伤纯思考轮，所以窗口给 20 分钟、只判 BLOCK 不判人）。
+ */
+function recentOutput(dirs, now, windowMs) {
+  const skip = /(\.log$|\.jsonl$|node_modules|[\\/]runs[\\/]|[\\/]\.tmp[\\/]|[\\/]\.git[\\/]|__pycache__|\.zstd$|\.bak)/;
+  const hits = [];
+  const walk = (dir, depth) => {
+    if (depth > 3) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const e of entries) {
+      const full = path.join(dir, e.name);
+      if (e.isDirectory()) { walk(full, depth + 1); continue; }
+      if (skip.test(full)) continue;
+      let st;
+      try { st = fs.statSync(full); } catch { continue; }
+      if (now - st.mtimeMs <= windowMs) hits.push({ file: full, at: st.mtimeMs });
+    }
+  };
+  for (const d of dirs) walk(d, 0);
+  hits.sort((a, b) => b.at - a.at);
+  return { count: hits.length, newest: hits[0] || null };
+}
+
+module.exports = { ROUND_MIN, WINDOW, supervisionAlarm, recentOutput, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };

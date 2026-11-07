@@ -2040,6 +2040,29 @@ function roundGates() {
     record('C6', '任务开着就不许撤 20 分钟闹钟', BLOCK, 'trace', c6state, c6detail);
   }
 
+  // C7（2026-11-08 主人第三次投诉「干一半就收工」）：任务开着就必须有产出，日志不算。
+  {
+    const dirs = [
+      knowledge,
+      path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts'),
+      path.join(REG.roots.harness, 'bin'),
+    ];
+    const out = cg.recentOutput(dirs, now, 20 * 60_000);
+    let c7state;
+    let c7detail;
+    if (!goalActive) {
+      c7state = SKIP;
+      c7detail = '没开局 —— 这一项不判，跳过不是通过';
+    } else if (out.count > 0) {
+      c7state = PASS;
+      c7detail = '最近 20 分钟有 ' + out.count + ' 个产出（最新：' + path.basename(out.newest.file) + '）';
+    } else {
+      c7state = BLOCK;
+      c7detail = '任务开着但最近 20 分钟盘上零产出 —— 像收工了。电脑开着就是干活的：没活干按三级推进（文档任务 → MC 锚点/AC/基建）';
+    }
+    record('C7', '任务开着就不许零产出（防收工）', BLOCK, 'artifact', c7state, c7detail);
+  }
+
   // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
   //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
   const archDir = path.join(knowledge, '架构意图');
