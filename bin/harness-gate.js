@@ -2136,20 +2136,26 @@ function learnGates() {
   const revOk = revAge > 0 && revAge <= limit;
   const l2state = gameOff ? SKIP : (!rev.known ? WARN : (revOk ? PASS : BLOCK));
   record('L2', '查过游戏内学习单位', BLOCK, 'artifact', l2state,
-    gameOff ? '游戏没开（java 进程 0），学习单位不会产生新数据 —— 跳过不是通过' : (rev.known ? (revOk ? PASS : BLOCK) : WARN),
-    gameOff ? '游戏没开（java 进程 0），学习单位不会产生新数据 —— 跳过不是通过'
+    gameOff ? '游戏没开（java/javaw 进程 0），学习单位不会产生新数据 —— 跳过不是通过'
       : (!rev.known ? rev.reason
       : rev.reason + (revOk ? '（' + minutes(revAge) + ' 分钟前）' : '（超过 ' + lg.WINDOW_MIN + ' 分钟没碰）')));
 
   const q = lg.pendingQueue(numenDir);
   const qAge = q.known && q.mtimeMs ? now - q.mtimeMs : 0;
   const qOk = q.known && ((qAge > 0 && qAge <= limit) || revOk);
-  const l3state = gameOff ? SKIP : (q.known ? (qOk ? PASS : BLOCK) : WARN);
+  // ★ 2026-11-08 学习者纠错：我之前只把 queue_depth 写进文案、判定仍看 mtime —— 那是半句真话。
+  //   判定改按真实积压深度：≤200 视为有人在消化；>200 = 堆着没人管。
+  //   阈值 200 的理由：健康期实测 61（2026-11-08 07:32 那轮），留 3 倍余量；超过它肯定不是正常波动。
+  const L3_MAX_DEPTH = 200;
+  const qd = lg.queueDepth(numenDir);
+  const l3state = gameOff ? SKIP
+    : ((!q.known || !qd.known) ? WARN : (qd.depth <= L3_MAX_DEPTH ? PASS : BLOCK));
   record('L3', '看过检索待复核', BLOCK, 'trace', l3state,
-    gameOff ? '游戏没开（java 进程 0），检索队列不会产生新条目 —— 跳过不是通过'
-      : (!q.known ? q.reason
-      : '游戏侧待复核深度 ' + (lg.queueDepth(numenDir).known ? lg.queueDepth(numenDir).depth + ' 条' : '未知')
-        + '；learner-enqueued.jsonl 历史入队 ' + q.pendingLines + ' 行（行数不是积压量，别拿它当队列' + (qAge ? '；最近动静 ' + minutes(qAge) + ' 分钟前' : '') + '）'));
+    gameOff ? '游戏没开（java/javaw 进程 0），检索队列不会产生新条目 —— 跳过不是通过'
+      : ((!q.known || !qd.known) ? ('读不到真实积压深度：' + (q.reason || qd.reason || ''))
+        : ('游戏侧待复核深度 ' + qd.depth + ' 条（阈值 ' + L3_MAX_DEPTH + '，健康期实测 61）'
+          + '；learner-enqueued.jsonl 历史入队 ' + q.pendingLines + ' 行（行数不是积压量）'
+          + (qAge ? '；队列文件最近动静 ' + minutes(qAge) + ' 分钟前' : ''))));
 }
 
 /**
