@@ -57,6 +57,15 @@
       "note": "2026-11-06：知识库034说明/035导航图谱；文档改变即待复核。只读，不等于游戏现状探测，不自动替每个AI接入；原经验库不变。"
     },
     {
+      "id": "ctx.usage",
+      "name": "换窗插件使用诊断：查换窗/写笔记/回查旧窗口到底调了多少次",
+      "path": "bin/ctx-usage.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node bin/ctx-usage.js [--session <id前缀>] [--json]",
+      "note": "2026-11-07 建。为什么：PTC 模式下所有工具调用被 run_code 包住，会话日志只显示 run_code，真实工具名藏在 tool/ptc-dispatch 事件里——肉眼看不出 ctx_notes / ctx_history 到底调没调，主人问「跑一晚上是不是没调用」时没有任何工具能回答。做法：扫 ~/.dsh/sessions/**/session.v4.jsonl.zstd（多帧逐帧解），统计 compaction/start（换窗）与 4 个 ctx 工具调用数。实测 416 个会话：换窗 1007 次 · ctx_notes 5027 · ctx_history 122 · new_context 2 · 查预算 53，据此判定插件一直在跑。注意：它是诊断工具，不改 DSH 状态。"
+    },
+    {
       "id": "gate.code",
       "name": "写代码前的薄门禁（8 条硬规则 + 规范/台账实物检查）",
       "path": "harness/rdd-harness/bin/code-gate.js",
