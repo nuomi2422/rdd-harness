@@ -1229,7 +1229,8 @@ function builtinChecks(ctx, phase) {
 
   // 时间锁
   const TL = REG.timeLocks || { locks: [] };
-  const due = TL.locks.filter((l) => l.status === 'open' && l.reviewBy && new Date(l.reviewBy) < now);
+  const due = TL.locks.filter((l) => l.status === 'open' && l.reviewBy && new Date(l.reviewBy) < now
+  && !excludedForRuntime(l, process.env.RDD_RUNTIME));
   if (phase === 'preflight') {
     record('P9', '时间锁未到期', BLOCK, 'artifact', due.length ? BLOCK : PASS,
       due.length

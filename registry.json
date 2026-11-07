@@ -1418,6 +1418,7 @@
       },
       {
         "id": "TL-2026-10-07-01",
+        "appliesTo": ["opencode"],
         "title": "goal-drive 插件「已写已注册」但 opencode 没重启 → 目标锁一个钩子都没挂上，全程零行为",
         "class": "假成功",
         "detected": "2026-10-07",
