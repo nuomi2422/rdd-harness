@@ -840,7 +840,7 @@ function postflight(ctx) {
   // Q10 游戏已关
   {
     const n = spawnSync('powershell.exe',
-      ['-NoProfile', '-Command', "@(Get-Process java -ErrorAction SilentlyContinue).Count"],
+      ['-NoProfile', '-Command', "@((Get-Process java -ErrorAction SilentlyContinue).Count + (Get-Process javaw -ErrorAction SilentlyContinue).Count)"],
       { encoding: 'utf8' }).stdout.trim();
     record('Q10', '游戏已关', WARN, 'artifact', n === '0' ? PASS : WARN,
       n === '0' ? 'java 进程 0' : `★ java 进程还有 ${n} 个，别占内存（用 mc.stop 关，别用 mc-start.js --stop，它是哑弹）`);
@@ -2128,7 +2128,7 @@ function learnGates() {
   // ★ 2026-11-08：游戏没开的时候学习单位与检索队列根本不会产生新数据，L2/L3 必然永久红 ——
   //   那正是「一条永远无法满足的项会把门禁钉死」的老坑（同 P10/P10c 教训）。所以关服时记 SKIP，不判。
   const javaCount = Number((spawnSync('powershell.exe',
-    ['-NoProfile', '-Command', '@(Get-Process java -ErrorAction SilentlyContinue).Count'],
+    ['-NoProfile', '-Command', '@((Get-Process java -ErrorAction SilentlyContinue).Count + (Get-Process javaw -ErrorAction SilentlyContinue).Count)'],
     { encoding: 'utf8' }).stdout || '0').trim() || 0);
   const gameOff = javaCount === 0;
   const rev = lg.reviewState(numenDir);

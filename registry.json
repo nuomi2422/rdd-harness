@@ -1893,6 +1893,17 @@
         "lesson": "catch 里写「不影响」的代码，最容易把失败变成静默；日志里看不出来，账本上看不出来，只有重启后数据不见了才发现。",
         "guard": "暂无。候选：复核结束后回读 skills.jsonl 的文件行数，与 stored 数对账，不等即告警。",
         "status": "open"
+      },
+      {
+        "id": "bug-13",
+        "class": "隐蔽",
+        "title": "门禁只数 java 进程不数 javaw：游戏开着被判定成「已关」（Q10 假 PASS、学习者 L2/L3 假 SKIP）",
+        "detected": "2026-11-08",
+        "detail": "2026-11-08 07:51 实测：同一时刻 `Get-Process java` = 0 而 `Get-Process javaw` = 1（游戏由 javaw 启动，PID 16652 起于 07:47:16）；几分钟后反过来 java=2 / javaw=0。Q10「游戏已关」与学习者 L2/L3 的「关服跳过」都只数 java，于是游戏真开着时 Q10 直接 PASS（假绿）、学习者的 L2/L3 记 SKIP（假装没事）。",
+        "fix": "2026-11-08 改成两者相加：@((Get-Process java -EA SilentlyContinue).Count + (Get-Process javaw -EA SilentlyContinue).Count)，Q10 与 learn 模式两处都已改；改后 Q10 正确报 WARN「java 进程还有 2 个」，学习者 L1/L2/L3 三条转真 PASS。",
+        "lesson": "判「进程在不在」这类事实，名字口径必须写死并实测两种启动方式；否则门禁越绿越危险 —— 它绿的时候正好是它没看的时候。",
+        "guard": "selftest 暂无对进程口径的断言（依赖真机进程，不适合单测）；改为每次 Q10/learn 输出都打印实际计到的数字，人一眼能看出 0 还是 N。",
+        "status": "fixed"
       }
     ]
   },
