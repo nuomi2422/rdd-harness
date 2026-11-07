@@ -29,6 +29,7 @@ const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const registryLib = require('./lib/registry.js');
 const cg = require('./lib/commander-gates.js');   // 指挥官监督轮判据（2026-11-07）
+const lg = require('./lib/learner-gates.js');     // 学习者复盘轮判据（2026-11-07）
 const { excludedForRuntime } = require('./lib/timelock-scope.js');
 
 const HARNESS = path.resolve(__dirname, '..');
@@ -1749,7 +1750,7 @@ function loadRole() {
 function applyRole(role, phase) {
   if (!role) return { role: null, skipped: 0 };
   const gates = phase === 'preflight' ? REG.gates.preflight
-    : phase === 'round' ? (REG.gates.round || {}) : REG.gates.postflight;
+    : (phase === 'round' || phase === 'learn') ? (REG.gates[phase] || {}) : REG.gates.postflight;
   const checks = gates.checks || [];
   const byId = new Map(checks.map((c) => [c.id, c]));
   let n = 0;
@@ -1767,7 +1768,7 @@ function applyRole(role, phase) {
 
 function printHeader(phase) {
   const g = phase === 'preflight' ? REG.gates.preflight
-    : phase === 'round' ? (REG.gates.round || REG.gates.postflight)
+    : (phase === 'round' || phase === 'learn') ? (REG.gates[phase] || REG.gates.postflight)
       : REG.gates.postflight;
   console.log('════════════════════════════════════════════════════════════');
   console.log(` RDD harness 门禁 · ${phase.toUpperCase()}   （${g.when}）`);
@@ -1838,8 +1839,8 @@ function printPlannerBanner(ctx) {
 
 /** 全部已声明的门禁判据（进游戏两段 + 指挥官监督轮）。 */
 function allGateChecks() {
-  const round = (REG.gates && REG.gates.round && REG.gates.round.checks) || [];
-  return [...REG.gates.preflight.checks, ...REG.gates.postflight.checks, ...round];
+  const extra = ['round', 'learn'].flatMap((k) => ((REG.gates && REG.gates[k] && REG.gates[k].checks) || []));
+  return [...REG.gates.preflight.checks, ...REG.gates.postflight.checks, ...extra];
 }
 
 function printResults() {
@@ -2000,6 +2001,43 @@ function roundGates() {
   record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
 }
 
+/**
+ * ★ 2026-11-07 主人定：学习者门禁 —— 必须定 30 分钟闹钟、必须查游戏内学习单位、必须看待复核。
+ * 数据真源现场核实过：schedule.json / <live>/config/numen/learner-review-state.json / learner-enqueued.jsonl。
+ */
+function learnGates() {
+  const numenDir = path.join(REG.roots.live, 'config', 'numen');
+  const scheduleFile = path.join(require('os').homedir(), '.dsh', 'storages', 'schedule.json');
+  const now = Date.now();
+  const limit = lg.WINDOW_MIN * 60_000;
+  const minutes = (ms) => Math.round(ms / 60_000);
+
+  const sessionArg = arg('--session', '');
+  const alarm = lg.alarmState(scheduleFile, sessionArg);
+  // ★ 没给 --session 就不能证明「这是学习者的闹钟」——别人的闹钟不算你的。宁可 WARN 也不假绿。
+  const l1state = !alarm.known ? WARN : !sessionArg ? BLOCK : (alarm.ok ? PASS : BLOCK);
+  const l1detail = !alarm.known ? alarm.reason
+    : !sessionArg ? '没给 --session，不能确认是你的闹钟（现有：' + alarm.reason + '）'
+      : alarm.reason;
+  record('L1', '30 分钟闹钟已设', BLOCK, 'trace', l1state, l1detail);
+
+  const rev = lg.reviewState(numenDir);
+  const revAge = rev.known && rev.at ? now - rev.at : 0;
+  const revOk = revAge > 0 && revAge <= limit;
+  record('L2', '查过游戏内学习单位', BLOCK, 'artifact',
+    rev.known ? (revOk ? PASS : BLOCK) : WARN,
+    !rev.known ? rev.reason
+      : rev.reason + (revOk ? '（' + minutes(revAge) + ' 分钟前）' : '（超过 ' + lg.WINDOW_MIN + ' 分钟没碰）'));
+
+  const q = lg.pendingQueue(numenDir);
+  const qAge = q.known && q.mtimeMs ? now - q.mtimeMs : 0;
+  const qOk = q.known && ((qAge > 0 && qAge <= limit) || revOk);
+  record('L3', '看过检索待复核', BLOCK, 'trace',
+    q.known ? (qOk ? PASS : BLOCK) : WARN,
+    !q.known ? q.reason
+      : '待复核队列 ' + q.pendingLines + ' 条；最近动静 ' + (qAge ? minutes(qAge) + ' 分钟前' : '未知'));
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
 function main() {
   loadRegistry();
@@ -2010,14 +2048,33 @@ function main() {
     console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^#![^\n]*\n/, '').replace(/^ \* ?/gm, ''));
     return 0;
   }
-  if (mode !== 'preflight' && mode !== 'postflight' && mode !== 'selftest' && mode !== 'round') {
-    console.error('未知模式：' + mode + '（用 preflight / postflight / selftest / round / registry）');
+  if (mode !== 'preflight' && mode !== 'postflight' && mode !== 'selftest' && mode !== 'round' && mode !== 'learn') {
+    console.error('未知模式：' + mode + '（用 preflight / postflight / selftest / round / learn / registry）');
     return 3;
   }
   if (mode === 'selftest') {
     const rc = runSelftest();
     appendGateUsage({ gate: 'selftest', result: rc === 0 ? 'PASS' : 'FAIL', note: '门禁自身健康自检', items: ['SELFTEST'] });
     return rc;
+  }
+  if (mode === 'learn') {
+    // 学习者复盘轮：默认角色 learner。
+    const roleInfo = loadRole();
+    const role = roleInfo.role || 'learner';
+    globalThis.__GATE_ROLE_LABEL = role;
+    globalThis.__GATE_MODE_LABEL = 'learn';
+    printHeader('learn');
+    learnGates();
+    const appliedRole = applyRole(role, 'learn');
+    if (appliedRole.skipped) console.log(` ℹ 角色 ${role} 跳过 ${appliedRole.skipped} 项（本角色不适用，不是通过）`);
+    printResults();
+    const nb = results.filter((r) => r.state === BLOCK).length;
+    const np = results.filter((r) => r.state === PASS).length;
+    console.log('────────────────────────────────────────────────────────────');
+    console.log(` PASS=${np}  BLOCK=${nb}`);
+    console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
+    appendGateUsage({ gate: 'learn', result: nb === 0 ? 'PASS' : 'BLOCK', note: `role=${role} PASS=${np} BLOCK=${nb}`, items: results.map((r) => r.id) });
+    return nb === 0 ? 0 : 1;
   }
   if (mode === 'round') {
     // 指挥官监督轮：默认就是指挥官在跑，不需要显式 --role。

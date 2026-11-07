@@ -1305,6 +1305,41 @@
         }
       ]
     },
+    "learn": {
+      "$comment": "★ 2026-11-07 主人定：学习者（外部学习 AI）专属门禁 —— 必须定 30 分钟闹钟、必须检查游戏内产的学习单位看要不要改、必须看检索发出的待复核。用 node bin/harness-gate.js learn 跑。L2 是游戏侧真写的复核时刻（硬），L1/L3 的限度见各自 note，别当强判据。",
+      "when": "学习者每 30 分钟一轮的复盘轮",
+      "checks": [
+        {
+          "id": "L1",
+          "name": "30 分钟闹钟已设",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["learner"],
+          "rule": "学习者必须挂一个 ≤30 分钟的重复闹钟，不然没人叫它，它就会停在这儿等推。",
+          "verify": "~/.dsh/storages/schedule.json 的 tables.tasks.* 里有 kind=every 且 everySeconds<=1800"
+        },
+        {
+          "id": "L2",
+          "name": "查过游戏内学习单位",
+          "kind": "artifact",
+          "level": "block",
+          "appliesTo": ["learner"],
+          "rule": "每轮必须看一眼游戏里产出的学习单位（skills.jsonl），判断新的要不要改、旧的要不要并。",
+          "verify": "<numen>/learner-review-state.json 的 last_review_at 在 30 分钟内",
+          "note": "只证明游戏侧做过一次复核，不证明结论对；结论质量看知识库记录。"
+        },
+        {
+          "id": "L3",
+          "name": "看过检索待复核",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["learner"],
+          "rule": "统一检索发出的待复核学习必须有人看，否则学了一堆没人认领。",
+          "verify": "<numen>/learner-enqueued.jsonl 或 learner-review-state.json 在 30 分钟内被动过",
+          "note": "只证明队列被动过，不证明看全了。"
+        }
+      ]
+    },
     "groups": {
       "$comment": "★ 2026-10-30 分组：42 项判据按「写代码 / 验证 / 记录」三门 + 提醒桶归组，输出时先给三门总判，再逐项列明细。分组只影响「怎么读」和「总判怎么算」，**不改任何单项判据的强度**。不变式（selftest 强制）：每条声明判据必须恰好属于一个组，漏归/重复归 = FAIL —— 这也是「不许只加不归」的上限开关。",
       "GK-1": {
@@ -1359,6 +1394,10 @@
       "GK-R": {
         "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
         "checks": ["C1", "C2", "C3", "C4"]
+      },
+      "GK-L": {
+        "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",
+        "checks": ["L1", "L2", "L3"]
       },
       "REMIND": {
         "name": "提醒（机器判不了，不算门；只鼓励看一眼，不影响总判）",
