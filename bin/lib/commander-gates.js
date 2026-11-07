@@ -107,4 +107,35 @@ function verdict(ageMs, windowRounds, label) {
   };
 }
 
-module.exports = { ROUND_MIN, WINDOW, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
+
+/**
+ * C5 用的硬证据：架构正文/图谱最近被改过的时刻。
+ * 「写架构 MCP」在盘上的真实形态 = 034/035 或 架构意图 下的正文被更新（MCP 只读，不会替你写）。
+ */
+function lastArchTouch(archDir) {
+  let newest = 0;
+  const walk = (dir, depth) => {
+    if (depth > 2) return;
+    let entries;
+    try { entries = fs.readdirSync(dir, { withFileTypes: true }); } catch { return; }
+    for (const entry of entries) {
+      const full = path.join(dir, entry.name);
+      if (entry.isDirectory()) { walk(full, depth + 1); continue; }
+      if (!/\.(md|json)$/i.test(entry.name)) continue;
+      const t = mtimeOf(full);
+      if (t > newest) newest = t;
+    }
+  };
+  walk(archDir, 0);
+  return newest;
+}
+
+/** C5 的自报那半：rounds 文件里最近一次「过了架构现状」的时刻（archStatus）。 */
+function lastArchStatus(roundsFile) {
+  const rows = readJsonl(roundsFile).filter((r) => r && r.archStatus);
+  if (!rows.length) return 0;
+  const at = Date.parse(rows[rows.length - 1].at);
+  return Number.isFinite(at) ? at : 0;
+}
+
+module.exports = { ROUND_MIN, WINDOW, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };

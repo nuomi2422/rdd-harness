@@ -1302,6 +1302,16 @@
           "appliesTo": ["commander"],
           "rule": "施工 AI 必须在 goal 上自转；没 goal 就会停下来等人推，指挥官要保证他们不断掉。",
           "verify": "~/.dsh/goal-keeper.log 里该会话最后一条事件不是 complete / clear / no-goal（可用 --worker 指定会话）"
+        }        ,
+        {
+          "id": "C5",
+          "name": "3 轮内过一遍架构现状",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "每 3 轮（60 分钟）必须过一遍架构现状：该更新就更新 034/035，不需要更新也要留下『确认过』的痕迹。防止方向漂了还照着旧图指挥。",
+          "verify": "知识库/架构意图/**、034/035 的 mtime 在 60 分钟内（真更新），或 rounds 文件里 archStatus 记录在 60 分钟内（确认无需更新）",
+          "note": "更新那半是硬证据（文件 mtime）；『确认无需更新』那半只能自报，同 C1/C3，见 knownGaps C1C3-selfreport。"
         }
       ]
     },
@@ -1393,7 +1403,7 @@
       },
       "GK-R": {
         "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
-        "checks": ["C1", "C2", "C3", "C4"]
+        "checks": ["C1", "C2", "C3", "C4", "C5"]
       },
       "GK-L": {
         "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",

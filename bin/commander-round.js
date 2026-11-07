@@ -29,16 +29,18 @@ if (process.argv.includes('--show')) {
 }
 
 const archMcp = arg('--arch', '');
+const archStatus = process.argv.includes('--arch-status');   // C5：过了一遍架构现状（确认无需更新）
 const docsRaw = arg('--docs', '');
 const readDocs = docsRaw ? docsRaw.split(',').map((s) => s.trim()).filter(Boolean) : [];
 
-if (!archMcp && !readDocs.length) {
-  console.error('至少给一个：--arch <工具名> 或 --docs "施工文档/xxx,角色/xxx"');
+if (!archMcp && !readDocs.length && !archStatus) {
+  console.error('至少给一个：--arch <工具名> / --docs "施工文档/xxx,角色/xxx" / --arch-status');
   process.exit(2);
 }
 
 const row = { at: new Date().toISOString() };
 if (archMcp) row.archMcp = archMcp;
+if (archStatus) row.archStatus = true;
 if (readDocs.length) row.readDocs = readDocs;
 
 fs.mkdirSync(path.dirname(FILE), { recursive: true });

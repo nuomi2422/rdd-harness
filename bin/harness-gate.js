@@ -1999,6 +1999,14 @@ function roundGates() {
       : '没有 goal：' + (g.line || '');
   }
   record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
+
+  // C5（2026-11-07 主人追加）：每 3 轮过一遍架构现状 —— 该更新就更新 034/035，不然就留下「确认过」的痕迹。
+  const archDir = path.join(knowledge, '架构意图');
+  const touchedAt = cg.lastArchTouch(archDir);
+  const checkedAt = cg.lastArchStatus(roundsFile);
+  const c5 = cg.verdict(age(Math.max(touchedAt, checkedAt)), 3,
+    touchedAt >= checkedAt ? '架构正文/图谱已更新' : '架构现状已确认（无需更新）');
+  record('C5', '3 轮内过一遍架构现状', BLOCK, 'trace', c5.ok ? PASS : BLOCK, c5.detail);
 }
 
 /**
