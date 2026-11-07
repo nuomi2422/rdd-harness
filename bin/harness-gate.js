@@ -22,6 +22,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const registryLib = require('./lib/registry.js');
+const { excludedForRuntime } = require('./lib/timelock-scope.js');
 
 const HARNESS = path.resolve(__dirname, '..');
 const REGISTRY = path.join(HARNESS, 'registry.json');
@@ -1229,13 +1230,23 @@ function builtinChecks(ctx, phase) {
 
   // 时间锁
   const TL = REG.timeLocks || { locks: [] };
-  const due = TL.locks.filter((l) => l.status === 'open' && l.reviewBy && new Date(l.reviewBy) < now
-  && !excludedForRuntime(l, process.env.RDD_RUNTIME));
+  const openDue = TL.locks.filter((l) => l.status === 'open' && l.reviewBy && new Date(l.reviewBy) < now);
+  const rtRaw = process.env.RDD_RUNTIME;
+  const skipped = openDue.filter((l) => excludedForRuntime(l, rtRaw));
+  const due = openDue.filter((l) => !excludedForRuntime(l, rtRaw));
   if (phase === 'preflight') {
-    record('P9', '时间锁未到期', BLOCK, 'artifact', due.length ? BLOCK : PASS,
-      due.length
-        ? due.map((l) => `${l.id} 「${l.title}」复核日 ${l.reviewBy} 已过`).join(' ; ') + ' —— 要么复核，要么显式续期并写理由'
-        : `${TL.locks.length} 条锁，${TL.locks.filter((l) => l.status === 'open').length} 条 open，均未到期`);
+    const skipMsg = skipped.length
+      ? `因运行时不适用 SKIP：${skipped.map((l) => l.id).join(', ')}（runtime=${rtRaw}，来源=操作者手动环境变量；guard 未验证，仅本次不判到期）`
+      : '';
+    if (due.length) {
+      record('P9', '时间锁未到期', BLOCK, 'artifact', BLOCK,
+        due.map((l) => `${l.id} 「${l.title}」复核日 ${l.reviewBy} 已过`).join(' ; ') + ' —— 要么复核，要么显式续期并写理由');
+    } else if (skipped.length) {
+      record('P9', '时间锁未到期', BLOCK, 'artifact', 'SKIP', skipMsg);
+    } else {
+      record('P9', '时间锁未到期', BLOCK, 'artifact', PASS,
+        `${TL.locks.length} 条锁，${TL.locks.filter((l) => l.status === 'open').length} 条 open，均未到期`);
+    }
   } else {
     const ymd = new Date().toISOString().slice(0, 10);
     const hit = TL.locks.filter((l) => (l.detected === ymd || (l.reviewBy && l.reviewBy >= ymd)));
