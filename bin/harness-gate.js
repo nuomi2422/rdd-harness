@@ -6,6 +6,12 @@
  *   node harness-gate.js selftest                       只跑内置检查（不碰外部工具）
  *   node harness-gate.js registry                       打印注册表摘要
  *
+ * 多角色（★ 2026-11-07 主人定：只做三个核心角色，汇报/辅助暂不单列）：
+ *   node harness-gate.js preflight --role commander|worker|learner
+ *   也可用环境变量 RDD_GATE_ROLE；【不带 = 全量跑，与旧行为逐字节一致】。
+ *   角色只决定「这一项要不要跑」，不改任何单项判据的强度；
+ *   不属于本角色的项一律记 SKIP 并写明原因 —— 跳过不是通过。
+ *
  * 设计原则（照抄 loop-gate.js 的那条）：
  *   每项判据只认盘上的实物或可追溯的痕迹，不认「AI 说它做了」。
  *
@@ -22,6 +28,7 @@ const fs = require('fs');
 const path = require('path');
 const { execFileSync, spawnSync } = require('child_process');
 const registryLib = require('./lib/registry.js');
+const cg = require('./lib/commander-gates.js');   // 指挥官监督轮判据（2026-11-07）
 const { excludedForRuntime } = require('./lib/timelock-scope.js');
 
 const HARNESS = path.resolve(__dirname, '..');
@@ -1419,7 +1426,7 @@ function runSelftest() {
   {
     // ⚠ gates.preflight 是 `{ $comment, when, checks: [...] }`，不是数组本身。
     //   （与 REG.timeLocks / REG.routing / REG.bugs 同一个坑，我在这上面栽过两次。）
-    const declared = [...REG.gates.preflight.checks, ...REG.gates.postflight.checks].map((c) => c.id);
+    const declared = allGateChecks().map((c) => c.id);
     const src = readText(__filename);
     const wired = declared.filter((id) => src.includes("record('" + id + "'"));
     const unwired = declared.filter((id) => !wired.includes(id));
@@ -1432,7 +1439,7 @@ function runSelftest() {
   // 以后谁想加一条门禁，必须同时决定它属于哪一门 —— **不许只加不归**。
   // 漏归 / 重复归 / 归到不存在的 id 都算 FAIL，这样"门禁只增不减"就多了一道刹车。
   {
-    const declared = [...REG.gates.preflight.checks, ...REG.gates.postflight.checks].map((c) => c.id);
+    const declared = allGateChecks().map((c) => c.id);
     const groups = (REG.gates && REG.gates.groups) || {};
     const covered = [];
     for (const k of Object.keys(groups)) {
@@ -1451,6 +1458,20 @@ function runSelftest() {
         missing.length ? '漏归组（找不到属于哪一门）：' + missing.join(', ') : '',
         extra.length ? '归了不存在的判据：' + extra.join(', ') : '',
       ].filter(Boolean).join(' | ') || '每条判据恰好属于一个组');
+  }
+  // ── 多角色（★ 2026-11-07 主人定：只做 commander / worker / learner 三个核心）──
+  {
+    const roleIds = (((REG.roles || {}).list) || []).map((r) => r.id);
+    chk(`角色清单已声明（${roleIds.join('/') || '空'}）`, roleIds.length >= 1);
+    chk('角色 id 无重复', new Set(roleIds).size === roleIds.length, roleIds.join(',') || 'OK');
+    const allChecks = allGateChecks();
+    const badRef = allChecks.filter((c) => Array.isArray(c.appliesTo) && c.appliesTo.some((x) => !roleIds.includes(x)));
+    chk('判据 appliesTo 只引用已声明角色', badRef.length === 0,
+      badRef.map((c) => c.id + '→' + c.appliesTo.join(',')).join(' ') || 'OK');
+    // 防空壳门禁：某角色一条 BLOCK 都轮不到 = 它的门禁永远绿，比没有更坏。
+    const noGate = roleIds.filter((rid) => !allChecks.some((c) => c.level === 'block'
+      && (!Array.isArray(c.appliesTo) || !c.appliesTo.length || c.appliesTo.includes(rid))));
+    chk('每个角色至少 1 条 BLOCK（防空壳门禁）', noGate.length === 0, noGate.join(',') || 'OK');
   }
   const paths = [
     ['roots.workspace', REG.roots.workspace], ['roots.docs', REG.roots.docs],
@@ -1708,13 +1729,52 @@ function applyGateMode(mode, sw, phase) {
   }
   return { mode, skipped: n };
 }
+/**
+ * ★ 2026-11-07 主人要求：「指挥官和干活的 AI、甚至学习的 AI，他们的门禁不一样，要分角色」。
+ * 与 gateMode 同一条原则：**只改『要不要跑这一项』，不改判据本身、不改 groups、不改强度。**
+ * 归属写在 registry.json 每条判据的可选字段 appliesTo（如 ["worker"]）；**不写 = 全角色都跑**，
+ * 所以不动判据就等于零行为变化，老调用方一行不用改。
+ * 角色清单真源：registry.json → roles.list（2026-11-07 只声明 commander/worker/learner 三个）。
+ */
+function loadRole() {
+  const declared = (((REG.roles || {}).list) || []).map((r) => r.id).filter(Boolean);
+  const want = ((arg('--role', '') || process.env.RDD_GATE_ROLE || '') + '').trim().toLowerCase();
+  if (!want) return { role: null, declared };
+  if (declared.includes(want)) return { role: want, declared };
+  // 写错角色名不许静默降级成「全量跑」——那会让人以为分角色生效了，其实没有。
+  console.error(` ⚠ 未知角色 "${want}"：已声明 ${declared.join(' / ') || '(空)'}；本次按【全量】跑，不算本角色。`);
+  return { role: null, declared, unknown: want };
+}
+
+function applyRole(role, phase) {
+  if (!role) return { role: null, skipped: 0 };
+  const gates = phase === 'preflight' ? REG.gates.preflight
+    : phase === 'round' ? (REG.gates.round || {}) : REG.gates.postflight;
+  const checks = gates.checks || [];
+  const byId = new Map(checks.map((c) => [c.id, c]));
+  let n = 0;
+  for (const r of results) {
+    const c = byId.get(r.id);
+    const applies = c && Array.isArray(c.appliesTo) && c.appliesTo.length ? c.appliesTo : null;
+    if (!applies || applies.includes(role)) continue;   // 没声明 = 全角色都跑（向后兼容）
+    r.state = SKIP;
+    r.detail = (r.detail ? r.detail + ' | ' : '')
+      + `[本角色不适用：该项归 ${applies.join('/')}；改 registry.json 的 appliesTo 恢复。这是跳过，不是通过]`;
+    n++;
+  }
+  return { role, skipped: n };
+}
+
 function printHeader(phase) {
-  const g = phase === 'preflight' ? REG.gates.preflight : REG.gates.postflight;
+  const g = phase === 'preflight' ? REG.gates.preflight
+    : phase === 'round' ? (REG.gates.round || REG.gates.postflight)
+      : REG.gates.postflight;
   console.log('════════════════════════════════════════════════════════════');
   console.log(` RDD harness 门禁 · ${phase.toUpperCase()}   （${g.when}）`);
   console.log('════════════════════════════════════════════════════════════');
   console.log(` 注册表 ${REG.version} · 工具 ${REG.tools.length} · 规范源 ${path.basename(REG.standards.source)} · 时间锁 ${REG.timeLocks.locks.length}`);
   console.log(` 门禁模式 ${globalThis.__GATE_MODE_LABEL || 'full'}（gate-switches.json / RDD_GATE_MODE；分类细化以后再做）`);
+  console.log(` 门禁角色 ${globalThis.__GATE_ROLE_LABEL || '全量（未指定 --role）'}（registry roles.list；只跑本角色判据，其余记 SKIP，跳过不是通过）`);
   console.log('');
 }
 
@@ -1774,6 +1834,12 @@ function printPlannerBanner(ctx) {
   }
   console.log('└' + W);
   console.log('');
+}
+
+/** 全部已声明的门禁判据（进游戏两段 + 指挥官监督轮）。 */
+function allGateChecks() {
+  const round = (REG.gates && REG.gates.round && REG.gates.round.checks) || [];
+  return [...REG.gates.preflight.checks, ...REG.gates.postflight.checks, ...round];
 }
 
 function printResults() {
@@ -1906,6 +1972,34 @@ function registrySummary() {
   console.log('');
 }
 
+/**
+ * ★ 2026-11-07 主人定：指挥官监督轮门禁（一轮 = 20 分钟，不是进游戏门禁）。
+ *   C1 每 2 轮读架构 MCP / C2 每 3 轮整理文档 / C3 每 4 轮读施工单+角色卡 / C4 施工 AI 绑 goal。
+ * 证据分档见 bin/lib/commander-gates.js 头注释：C2/C4 是盘上实物，C1/C3 目前只能自报（已登记 knownGaps）。
+ */
+function roundGates() {
+  const roundsFile = path.join(REG.roots.harness, 'runs', 'commander-rounds.jsonl');
+  const knowledge = REG.roots.knowledge || path.join(REG.roots.docs, '知识库');
+  const now = Date.now();
+  const age = (t) => (t ? now - t : 0);
+  const c1 = cg.verdict(age(cg.lastArch(roundsFile)), cg.WINDOW.arch, '架构 MCP');
+  const c2 = cg.verdict(age(cg.lastDocTidy(knowledge)), cg.WINDOW.docs, '知识库文档整理');
+  const c3 = cg.verdict(age(cg.lastReadDocs(roundsFile)), cg.WINDOW.read, '读施工单+角色卡');
+  record('C1', '2 轮内读过架构导航', BLOCK, 'trace', c1.ok ? PASS : BLOCK, c1.detail);
+  record('C2', '3 轮内整理过知识库文档', BLOCK, 'artifact', c2.ok ? PASS : BLOCK, c2.detail);
+  record('C3', '4 轮内读过施工文档+角色卡', BLOCK, 'trace', c3.ok ? PASS : BLOCK, c3.detail);
+  const g = cg.workerGoalState(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), arg('--worker', ''));
+  let c4state = WARN;
+  let c4detail = g.reason || '未知';
+  if (g.known) {
+    c4state = g.armed ? PASS : BLOCK;
+    c4detail = g.armed
+      ? '绑着' + (g.at ? '（' + Math.round((now - g.at) / 60000) + ' 分钟前有 goal 事件）' : '')
+      : '没有 goal：' + (g.line || '');
+  }
+  record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
 function main() {
   loadRegistry();
@@ -1916,14 +2010,33 @@ function main() {
     console.log(fs.readFileSync(__filename, 'utf8').split('*/')[0].replace(/^#![^\n]*\n/, '').replace(/^ \* ?/gm, ''));
     return 0;
   }
-  if (mode !== 'preflight' && mode !== 'postflight' && mode !== 'selftest') {
-    console.error('未知模式：' + mode + '（用 preflight / postflight / selftest / registry）');
+  if (mode !== 'preflight' && mode !== 'postflight' && mode !== 'selftest' && mode !== 'round') {
+    console.error('未知模式：' + mode + '（用 preflight / postflight / selftest / round / registry）');
     return 3;
   }
   if (mode === 'selftest') {
     const rc = runSelftest();
     appendGateUsage({ gate: 'selftest', result: rc === 0 ? 'PASS' : 'FAIL', note: '门禁自身健康自检', items: ['SELFTEST'] });
     return rc;
+  }
+  if (mode === 'round') {
+    // 指挥官监督轮：默认就是指挥官在跑，不需要显式 --role。
+    const roleInfo = loadRole();
+    const role = roleInfo.role || 'commander';
+    globalThis.__GATE_ROLE_LABEL = role;
+    globalThis.__GATE_MODE_LABEL = 'round';
+    printHeader('round');
+    roundGates();
+    const appliedRole = applyRole(role, 'round');
+    if (appliedRole.skipped) console.log(` ℹ 角色 ${role} 跳过 ${appliedRole.skipped} 项（本角色不适用，不是通过）`);
+    printResults();
+    const nb = results.filter((r) => r.state === BLOCK).length;
+    const np = results.filter((r) => r.state === PASS).length;
+    console.log('────────────────────────────────────────────────────────────');
+    console.log(` PASS=${np}  BLOCK=${nb}`);
+    console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
+    appendGateUsage({ gate: 'round', result: nb === 0 ? 'PASS' : 'BLOCK', note: `role=${role} PASS=${np} BLOCK=${nb}`, items: results.map((r) => r.id) });
+    return nb === 0 ? 0 : 1;
   }
   const since = today();
   if (!since) {
@@ -1946,13 +2059,17 @@ function main() {
     .filter((f) => freshEnough(f, since)).map((f) => readText(f)).join('\n');
 
   const gm = loadGateMode();
+  const roleInfo = loadRole();
   globalThis.__GATE_MODE_LABEL = gm.mode;
+  globalThis.__GATE_ROLE_LABEL = roleInfo.role;
   printHeader(mode);
   printBenchReminder();
   printPlannerBanner(ctx);
   if (mode === 'preflight') preflight(ctx); else postflight(ctx);
   const applied = applyGateMode(gm.mode, gm.sw, mode);
   if (applied.skipped) console.log(` ℹ ${applied.mode} 模式跳过 ${applied.skipped} 项（判据没改，只是本次不跑）`);
+  const appliedRole = applyRole(roleInfo.role, mode);
+  if (appliedRole.skipped) console.log(` ℹ 角色 ${appliedRole.role} 跳过 ${appliedRole.skipped} 项（本角色不适用，不是通过）`);
   if (gm.mode === 'off') console.log(' ⚠ OFF 模式：全部判据本次 SKIP，仍会记账标 OFF —— 这不是 PASS');
   printResults();
   const rc = verdict();

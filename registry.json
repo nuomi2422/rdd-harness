@@ -872,6 +872,7 @@
       "checks": [
         {
           "id": "P1",
+          "appliesTo": ["worker", "learner"],
           "name": "编译通道合规",
           "kind": "artifact",
           "level": "block",
@@ -880,6 +881,7 @@
         },
         {
           "id": "P2",
+          "appliesTo": ["worker", "learner"],
           "name": "jar 不落后于源码",
           "kind": "artifact",
           "level": "block",
@@ -889,6 +891,7 @@
         },
         {
           "id": "P3",
+          "appliesTo": ["worker", "learner"],
           "name": "jar 内容自检",
           "kind": "artifact",
           "level": "block",
@@ -897,6 +900,7 @@
         },
         {
           "id": "P4",
+          "appliesTo": ["worker", "learner"],
           "name": "无重复 mixin 注入",
           "kind": "artifact",
           "level": "block",
@@ -906,6 +910,7 @@
         },
         {
           "id": "P5",
+          "appliesTo": ["worker", "learner"],
           "name": "本轮有按模块 commit",
           "kind": "artifact",
           "level": "block",
@@ -914,6 +919,7 @@
         },
         {
           "id": "P6",
+          "appliesTo": ["worker", "learner"],
           "name": "测试有结果且 0 失败",
           "kind": "artifact",
           "level": "block",
@@ -922,6 +928,7 @@
         },
         {
           "id": "P7",
+          "appliesTo": ["worker", "learner"],
           "name": "规范/索引已补",
           "kind": "trace",
           "level": "block",
@@ -931,6 +938,7 @@
         },
         {
           "id": "P8",
+          "appliesTo": ["worker", "learner"],
           "name": "不回退清单对照过",
           "kind": "trace",
           "level": "block",
@@ -939,6 +947,7 @@
         },
         {
           "id": "P9",
+          "appliesTo": ["worker", "learner"],
           "name": "时间锁未到期",
           "kind": "artifact",
           "level": "block",
@@ -1003,6 +1012,7 @@
         },
         {
           "id": "P14",
+          "appliesTo": ["worker", "learner"],
           "name": "工作区干净（含 untracked）",
           "kind": "artifact",
           "level": "block",
@@ -1011,6 +1021,7 @@
         },
         {
           "id": "P14b",
+          "appliesTo": ["worker", "learner"],
           "name": "资产普查（被 .gitignore 吃掉的治理资产）",
           "kind": "artifact",
           "level": "block",
@@ -1045,6 +1056,7 @@
         },
         {
           "id": "P21",
+          "appliesTo": ["worker", "learner"],
           "name": "★ 提示词治理 lint",
           "kind": "artifact",
           "level": "block",
@@ -1053,6 +1065,7 @@
         },
         {
           "id": "P18",
+          "appliesTo": ["worker", "learner"],
           "name": "★ 建链经过规划者（rdd_supervisor_submit，不是 rdd_submit）",
           "kind": "artifact",
           "level": "block",
@@ -1108,6 +1121,7 @@
         },
         {
           "id": "Q6",
+          "appliesTo": ["worker", "learner"],
           "name": "三个机器门都过",
           "kind": "artifact",
           "level": "block",
@@ -1117,6 +1131,7 @@
         },
         {
           "id": "Q7",
+          "appliesTo": ["worker", "learner"],
           "name": "产物真的落地",
           "kind": "artifact",
           "level": "block",
@@ -1125,6 +1140,7 @@
         },
         {
           "id": "Q8",
+          "appliesTo": ["worker", "learner"],
           "name": "★ 时间锁已更新",
           "kind": "trace",
           "level": "block",
@@ -1142,6 +1158,7 @@
         },
         {
           "id": "Q10",
+          "appliesTo": ["worker", "learner"],
           "name": "游戏已关",
           "kind": "artifact",
           "level": "warn",
@@ -1165,6 +1182,7 @@
         },
         {
           "id": "Q13",
+          "appliesTo": ["worker", "learner"],
           "name": "实机验证卡已写",
           "kind": "trace",
           "level": "warn",
@@ -1173,6 +1191,7 @@
         },
         {
           "id": "Q14",
+          "appliesTo": ["worker", "learner"],
           "name": "证据坐标指得到东西",
           "kind": "trace",
           "level": "warn",
@@ -1220,6 +1239,7 @@
         },
         {
           "id": "Q19",
+          "appliesTo": ["worker", "learner"],
           "name": "★ 任务链走的是规划者，不是 rdd_submit",
           "kind": "trace",
           "level": "warn",
@@ -1229,6 +1249,7 @@
         },
         {
           "id": "Q20",
+          "appliesTo": ["worker", "learner"],
           "name": "★ 进过游戏就必须有回填补齐的验证卡",
           "kind": "artifact",
           "level": "block",
@@ -1240,6 +1261,50 @@
       ]
     },
     "$askNote": "level=ask 的项含义：机器判不了，必须由人/AI 亲自过一遍并点头。\n它在代码里对应 state=ASK ——【永远打印在独立段落里】，但【不进 BLOCK 计数】。\n不进 BLOCK 是因为一条永远无法自动满足的项会把门禁永久钉死（同 P10/P10c 的教训）；\n永远打印是因为「声明在 registry 里却从没被 record() 接线」这件事本身没人会发现\n（2026-10-04 首跑：P11/P12/P13/Q12 只写进 registry，代码里一次 record() 都没有，\n 用户明确要的「进游戏前提醒读能力清单」根本没出现）。\n★ 自检项「声明的门禁项都已接线」就是防这一类的 —— 它数 registry 的 id 在代码里\n 有没有对应的 record 调用。",
+    "round": {
+      "$comment": "★ 2026-11-07 主人定：指挥官专属的『监督轮』门禁。一轮 = 固定 20 分钟；每 2 轮必读架构 MCP、3 轮内整理文档、4 轮内读施工文档+角色卡；并且必须保证施工 AI 绑着 goal。用 node bin/harness-gate.js round --role commander 跑。C1/C3 目前是自报证据（rounds 文件），已在 knownGaps 登记，别当硬判据吹。",
+      "when": "指挥官每 20 分钟的监督轮（不是进游戏门禁）",
+      "checks": [
+        {
+          "id": "C1",
+          "name": "2 轮内读过架构导航",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "每 2 轮（40 分钟）必须调一次架构 MCP（arch_overview / arch_focus），防止只盯局部修复、方向跑偏。",
+          "verify": "harness/runs/commander-rounds.jsonl 最近一条带 archMcp 的时间戳在 40 分钟内",
+          "note": "自报型：架构 MCP 只读不记日志，只能靠指挥官每轮写一行；能造假，属已知缺口。"
+        },
+        {
+          "id": "C2",
+          "name": "3 轮内整理过知识库文档",
+          "kind": "artifact",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "每 3 轮（60 分钟）必须把文档整理一遍（补指针、修矛盾、归档废稿），不能只干活不落盘。",
+          "verify": "知识库里任一 .md 的 mtime 在 60 分钟内（文件系统实物，不是自述）"
+        },
+        {
+          "id": "C3",
+          "name": "4 轮内读过施工文档+角色卡",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "每 4 轮（80 分钟）必须把当前施工单和角色卡各读一遍，防止拿旧结论指挥。",
+          "verify": "rounds 文件里最近一条同时含『施工文档』与『角色』路径的时间戳在 80 分钟内",
+          "note": "自报型：DSH 的 read 调用不落盘（会话目录只有会话头），只能靠自报；属已知缺口。"
+        },
+        {
+          "id": "C4",
+          "name": "施工 AI 绑着 goal",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "施工 AI 必须在 goal 上自转；没 goal 就会停下来等人推，指挥官要保证他们不断掉。",
+          "verify": "~/.dsh/goal-keeper.log 里该会话最后一条事件不是 complete / clear / no-goal（可用 --worker 指定会话）"
+        }
+      ]
+    },
     "groups": {
       "$comment": "★ 2026-10-30 分组：42 项判据按「写代码 / 验证 / 记录」三门 + 提醒桶归组，输出时先给三门总判，再逐项列明细。分组只影响「怎么读」和「总判怎么算」，**不改任何单项判据的强度**。不变式（selftest 强制）：每条声明判据必须恰好属于一个组，漏归/重复归 = FAIL —— 这也是「不许只加不归」的上限开关。",
       "GK-1": {
@@ -1291,6 +1356,10 @@
           "Q16"
         ]
       },
+      "GK-R": {
+        "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
+        "checks": ["C1", "C2", "C3", "C4"]
+      },
       "REMIND": {
         "name": "提醒（机器判不了，不算门；只鼓励看一眼，不影响总判）",
         "checks": [
@@ -1306,6 +1375,15 @@
         ]
       }
     }
+  },
+  "roles": {
+    "$comment": "★ 2026-11-07 主人亲自定：只做三个核心角色（指挥官 / 主干活 / 学习），汇报 AI 与辅助 AI 暂不单列，继续按 worker 全量跑。判据归属写在每条判据的可选字段 appliesTo；不写 = 全角色都跑（等于旧行为，零改动）。角色只决定『这一项要不要跑』，不改判据强度、不改 groups（同 gate-switches 的 gateMode 原则）。执行器：node bin/harness-gate.js preflight --role commander|worker|learner。",
+    "list": [
+      { "id": "commander", "name": "指挥官", "note": "掌握宏观意图、派工、验收、纠偏、记决定；不施工、不开游戏身体。门禁重心在记录与签发（P7/P8/P10 系列 + Q17 报告放行）。" },
+      { "id": "worker", "name": "主干活", "note": "读文档→写代码→编译→部署→进游戏验→退游戏记录。唯一写码与开游戏的角色，43 项全跑（默认）。" },
+      { "id": "learner", "name": "外部学习", "note": "跨样本复盘、学习链路诊断、往知识库写 skills/蓝图/经验。不碰游戏身体与部署，门禁重心在记录与证据落点。" }
+    ],
+    "defaultRole": "worker"
   },
   "timeLocks": {
     "$comment": "★ 防复发。用户 2026-10-04 定的机制：每条锁有一个复核日期；到期不复核 → preflight P9 直接 BLOCK。目的不是罚，是逼着定期确认「这条防线还在不在」。",
@@ -1727,6 +1805,15 @@
         "effect": "`replaceCurrentSubtasks` 仍可能在 `goto`/`mine` 跑到一半时换掉整条链；S99b 的三条对账（释放预留 / ORPHANED_CALL / 三数相符）没有实现",
         "plan": "按 `rdd架构/实机验证/G3e-2-批次卡.md` 施工（白班 7 小时整轮；开工前跑 `check-idle-predicate.js`）",
         "reviewBy": "2026-10-28"
+      }
+    ,
+      {
+        "id": "C1C3-selfreport",
+        "what": "指挥官监督轮的两条判据 **C1（2 轮内读架构 MCP）/ C3（4 轮内读施工单+角色卡）是自报型**：证据来自 `runs/commander-rounds.jsonl`，由指挥官自己每轮 append",
+        "why": "架构 MCP 是只读服务、不记调用日志；DSH 的 read 工具调用不落盘（2026-11-07 22:50 实测：会话目录只有 239 字节的会话头，没有事件流）。除了自报没有别的盘上痕迹",
+        "effect": "指挥官可以写了没做而门禁照样绿 —— 这正是主人点名最多的「看起来做了 / 假成功」盲点，只是被搬进了门禁自己",
+        "plan": "要变硬，得在 DSH 侧加一个工具调用记录插件（把每次 tool 调用 append 到 ~/.dsh/tool-ledger.jsonl），再把 C1/C3 改成读账本；插件做出来之前，C2（知识库 mtime）与 C4（goal-keeper.log）仍是硬证据",
+        "reviewBy": "2026-11-21"
       }
     ]
   }
