@@ -1,5 +1,10 @@
 {
   "$comment": "★ 指挥官门禁的运行配置（2026-11-07）。workerSession = 当前「主干活」会话，C4 判据用它确认施工 AI 绑着 goal；换人时改这一行。",
   "workerSession": "session-5b7a415e-8551-427e-abcb-f5640b1d5e11",
-  "updatedAt": "2026-11-07T17:35:00Z"
+  "updatedAt": "2026-11-07T22:50:36.093Z",
+  "workerGoal": {
+    "id": "goal-05ca76f0-aec3-49fe-a03e-4efea4240cc8",
+    "at": "2026-11-07T22:50:36.093Z",
+    "objective": "按 044 总施工单推进当前批次；没活干按 文档任务→MC锚点/AC/基建 三级推进，不许空转"
+  }
 }

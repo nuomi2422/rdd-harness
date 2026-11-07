@@ -1304,6 +1304,16 @@
           "verify": "~/.dsh/goal-keeper.log 里该会话最后一条事件不是 complete / clear / no-goal（可用 --worker 指定会话）"
         }        ,
         {
+          "id": "C6",
+          "name": "任务开着就不许撤 20 分钟闹钟",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "一旦开了任务（施工 AI 的 goal 处于 armed），20 分钟监督闹钟就必须一直挂着，必须一直干下去；只有主人【主动】叫停才允许撤。自己嫌吵撤掉 = 任务停在半路没人推。没活干也不许停：先走已布置的文档任务，全做完再推进 MC（找锚点、修 AC、修基建）。",
+          "verify": "施工 goal armed 时，~/.dsh/storages/schedule.json 必须存在 kind=every 且 everySeconds<=1200 的任务；唯一例外是 commander-config.json 里的 alarmPauseApproved（必须带主人原话）",
+          "note": "没开局（goal 不是 armed）时这一项记 SKIP —— 跳过不是通过。"
+        }        ,
+        {
           "id": "C5",
           "name": "激活即巡检架构（每次被激活都要）",
           "kind": "trace",
@@ -1403,7 +1413,7 @@
       },
       "GK-R": {
         "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
-        "checks": ["C1", "C2", "C3", "C4", "C5"]
+        "checks": ["C1", "C2", "C3", "C4", "C5", "C6"]
       },
       "GK-L": {
         "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",

@@ -152,4 +152,24 @@ function lastArchScan(scanFile) {
   return { known: true, at: Number.isFinite(at) ? at : 0, row };
 }
 
-module.exports = { ROUND_MIN, WINDOW, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
+/**
+ * C6（2026-11-08 主人定）：一旦开了任务，20 分钟闹钟不许自己撤，除非主人明确叫停。
+ * 只看「有没有一个 ≤20 分钟的重复闹钟」，不绑会话 —— 闹钟在哪台窗口上不重要，别让它空转才重要。
+ */
+function supervisionAlarm(scheduleFile, maxSeconds = 1200) {
+  let j = null;
+  try { j = JSON.parse(require('fs').readFileSync(scheduleFile, 'utf8')); } catch { return { known: false, reason: '读不到 schedule.json' }; }
+  const tasks = (j.tables && j.tables.tasks) || {};
+  const rows = Object.values(tasks).map((r) => r || {});
+  const hit = rows.filter((r) => {
+    const rec = r.record || {};
+    return rec.kind === 'every' && Number(rec.everySeconds) > 0 && Number(rec.everySeconds) <= maxSeconds;
+  });
+  if (hit.length) {
+    const rec = hit[hit.length - 1].record;
+    return { known: true, ok: true, reason: '有 ' + (Number(rec.everySeconds) / 60) + ' 分钟闹钟：' + (rec.title || rec.id) };
+  }
+  return { known: true, ok: false, reason: '没有任何 ≤' + (maxSeconds / 60) + ' 分钟的重复闹钟（现有 ' + rows.length + ' 个任务）' };
+}
+
+module.exports = { ROUND_MIN, WINDOW, supervisionAlarm, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };

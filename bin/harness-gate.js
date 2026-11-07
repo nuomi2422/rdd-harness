@@ -1997,13 +1997,48 @@ function roundGates() {
   const g = cg.workerGoalState(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), workerSession);
   let c4state = WARN;
   let c4detail = g.reason || '未知';
-  if (g.known) {
-    c4state = g.armed ? PASS : BLOCK;
-    c4detail = g.armed
-      ? '绑着' + (g.at ? '（' + Math.round((now - g.at) / 60000) + ' 分钟前有 goal 事件）' : '')
-      : '没有 goal：' + (g.line || '');
+  // ★ 2026-11-08：goal-keeper.log 只在它自己那类事件里写（新建 goal 不写），所以单看日志会误判。
+  //   补一条交叉口径：commander-config.json 里登记的 workerGoal，只要日志里【之后】没有 clear/complete 就算绑着。
+  const declared = workerCfg.workerGoal && workerCfg.workerGoal.id ? workerCfg.workerGoal : null;
+  const declaredAlive = declared ? !(g.known && g.at && Date.parse(declared.at) < g.at && /goal complete|goal clear|no-goal/.test(g.line || '')) : false;
+  if (g.known && g.armed) {
+    c4state = PASS;
+    c4detail = '绑着' + (g.at ? '（' + Math.round((now - g.at) / 60000) + ' 分钟前有 goal 事件）' : '');
+  } else if (declaredAlive) {
+    c4state = PASS;
+    c4detail = '按 commander-config 登记的 ' + declared.id + ' 绑着（日志尚未出现新事件，属交叉验证缺口）';
+  } else if (g.known) {
+    c4state = BLOCK;
+    c4detail = '没有 goal：' + (g.line || '');
   }
   record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
+  // 任务是否「开着」：日志说 armed，或配置登记的 goal 还活着（C6 用）。
+  const goalActive = (g.known && g.armed) || declaredAlive;
+
+  // C6（2026-11-08 主人定）：任务开着就不许撤 20 分钟闹钟 —— 必须一直干下去。
+  //   唯一例外：主人主动叫停（commander-config.json 的 alarmPauseApproved 必须带原话）。
+  {
+    const pause = workerCfg.alarmPauseApproved;
+    const alarm = cg.supervisionAlarm(path.join(require('os').homedir(), '.dsh', 'storages', 'schedule.json'), 1200);
+    let c6state;
+    let c6detail;
+    if (!goalActive) {
+      c6state = SKIP;
+      c6detail = '没开局（施工 goal 不是 armed）—— 这一项不判，跳过不是通过';
+    } else if (pause && pause.at && typeof pause.reason === 'string' && pause.reason.trim().length > 0) {
+      c6state = WARN;
+      c6detail = '闹钟已按主人叫停暂停（' + pause.at + '；原话：' + String(pause.quote || pause.reason).slice(0, 60) + '）';
+    } else if (!alarm.known) {
+      c6state = WARN;
+      c6detail = alarm.reason;
+    } else {
+      c6state = alarm.ok ? PASS : BLOCK;
+      c6detail = alarm.ok
+        ? alarm.reason + ' —— 任务开着就得一直干，别自己撤'
+        : '任务开着但闹钟被撤了：' + alarm.reason + '。只有主人主动叫停才能停（在 commander-config.json 写 alarmPauseApproved 并附原话）';
+    }
+    record('C6', '任务开着就不许撤 20 分钟闹钟', BLOCK, 'trace', c6state, c6detail);
+  }
 
   // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
   //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
@@ -2067,6 +2102,20 @@ function learnGates() {
       : '待复核队列 ' + q.pendingLines + ' 条；最近动静 ' + (qAge ? minutes(qAge) + ' 分钟前' : '未知'));
 }
 
+/**
+ * ★ 2026-11-08 主人定：开任务之后不许空转。找不到事情时按三级推进，别停着等指令。
+ *   ① 已布置的文档任务（多数情况走这条）→ ② 推进 MC 找锚点、修 AC、修基建。
+ */
+function printRoundBanner() {
+  console.log('┌─ 开任务后不许空转（2026-11-08 主人定）────────────────────');
+  console.log('│ 有活干：按 044／施工单顺序推进（多数情况就走文档那条路）');
+  console.log('│ 暂时没活：先翻已布置任务与知识库缺口，没完就继续，不等人推');
+  console.log('│ 全做完了：推进 MC —— 找锚点、修 AC、修基建');
+  console.log('│ 20 分钟闹钟不许自己撤，只有主人主动叫停才停（C6）');
+  console.log('└──────────────────────────────────────────────────────────');
+  console.log('');
+}
+
 // ── main ─────────────────────────────────────────────────────────────────
 function main() {
   loadRegistry();
@@ -2112,6 +2161,7 @@ function main() {
     globalThis.__GATE_ROLE_LABEL = role;
     globalThis.__GATE_MODE_LABEL = 'round';
     printHeader('round');
+    printRoundBanner();
     roundGates();
     const appliedRole = applyRole(role, 'round');
     if (appliedRole.skipped) console.log(` ℹ 角色 ${role} 跳过 ${appliedRole.skipped} 项（本角色不适用，不是通过）`);
