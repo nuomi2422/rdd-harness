@@ -199,4 +199,16 @@ function recentOutput(dirs, now, windowMs) {
   return { count: hits.length, newest: hits[0] || null };
 }
 
-module.exports = { ROUND_MIN, WINDOW, supervisionAlarm, recentOutput, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };
+/**
+ * 工具痕迹账本（2026-11-08 加）：架构 MCP 每次调用都写一行 .harness/audit/mcp-calls.jsonl。
+ * 有了它，「我查过架构」「我读过角色卡」不再靠自报 —— 直接看账本。
+ */
+function lastMcpCall(ledgerFile, match) {
+  const rows = readJsonl(ledgerFile).filter((r) => r && typeof r.tool === 'string' && match.test(r.tool));
+  if (!rows.length) return { known: false, at: 0, tool: null };
+  const last = rows[rows.length - 1];
+  const at = Date.parse(last.at);
+  return { known: true, at: Number.isFinite(at) ? at : 0, tool: last.tool, count: rows.length };
+}
+
+module.exports = { ROUND_MIN, WINDOW, lastMcpCall, supervisionAlarm, recentOutput, lastArchScan, lastArchTouch, lastArchStatus, lastArch, lastReadDocs, lastDocTidy, workerGoalState, verdict };

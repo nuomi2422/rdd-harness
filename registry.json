@@ -1272,8 +1272,8 @@
           "level": "block",
           "appliesTo": ["commander"],
           "rule": "每 2 轮（40 分钟）必须调一次架构 MCP（arch_overview / arch_focus），防止只盯局部修复、方向跑偏。",
-          "verify": "harness/runs/commander-rounds.jsonl 最近一条带 archMcp 的时间戳在 40 分钟内",
-          "note": "自报型：架构 MCP 只读不记日志，只能靠指挥官每轮写一行；能造假，属已知缺口。"
+          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次 arch_* 工具调用在 40 分钟内（工具痕迹，不是自报）",
+          "note": "2026-11-08 起改为工具痕迹：架构 MCP 每次调用都写 mcp-calls.jsonl，没有调用记录＝没查。"
         },
         {
           "id": "C2",
@@ -1291,8 +1291,8 @@
           "level": "block",
           "appliesTo": ["commander"],
           "rule": "每 4 轮（80 分钟）必须把当前施工单和角色卡各读一遍，防止拿旧结论指挥。",
-          "verify": "rounds 文件里最近一条同时含『施工文档』与『角色』路径的时间戳在 80 分钟内",
-          "note": "自报型：DSH 的 read 调用不落盘（会话目录只有会话头），只能靠自报；属已知缺口。"
+          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次 role_card 或 my_tasks 调用在 80 分钟内",
+          "note": "2026-11-08 起改为工具痕迹：role_card / my_tasks 是带记账的 MCP 工具，必须调用才算读过。"
         },
         {
           "id": "C4",
@@ -1332,6 +1332,16 @@
           "rule": "主人已经说过好几次：电脑开着就是干活的，不许干一半收工。任务开着的时候，每 20 分钟必须在盘上留下真产出（代码/文档/记录）；只有日志和账本不算产出。",
           "verify": "goal active 时，知识库、workspace 脚本、harness bin 下最近 20 分钟有非日志类文件被写过（recentOutput）",
           "note": "纯思考轮会误伤；但『我还在想』和『我已经收工』在盘上没区别，宁可误伤也要留着这条。"
+        },
+        {
+          "id": "C8",
+          "name": "本轮必须调过工具（防发呆）",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "不管干什么，每轮必须真的调用过工具（任何工具）。只发一段文本说『我查过了』不算干活；架构 MCP 与角色卡都必须走工具、留痕迹。",
+          "verify": ".harness/audit/mcp-calls.jsonl 或 gate-usage.jsonl 里 20 分钟内有任意一次工具调用",
+          "note": "痕迹由架构 MCP 与门禁自身写入；没有痕迹就是没干。"
         }
       ]
     },
@@ -1423,7 +1433,7 @@
       },
       "GK-R": {
         "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
-        "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7"]
+        "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"]
       },
       "GK-L": {
         "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",

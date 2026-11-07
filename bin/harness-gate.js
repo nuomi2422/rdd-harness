@@ -1983,9 +1983,15 @@ function roundGates() {
   const knowledge = REG.roots.knowledge || path.join(REG.roots.docs, '知识库');
   const now = Date.now();
   const age = (t) => (t ? now - t : 0);
-  const c1 = cg.verdict(age(cg.lastArch(roundsFile)), cg.WINDOW.arch, '架构 MCP');
+  // ★ 2026-11-08：C1/C3 从「自报」升级成「工具痕迹」——架构 MCP 每次调用都写 .harness/audit/mcp-calls.jsonl，
+  //   没有调用记录就是没查，发一段文字说查过不算。
+  const rddRoot = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
+  const mcpLedger = path.join(rddRoot, '.harness', 'audit', 'mcp-calls.jsonl');
+  const archCall = cg.lastMcpCall(mcpLedger, /^arch_/);
+  const cardCall = cg.lastMcpCall(mcpLedger, /^(role_card|my_tasks)$/);
+  const c1 = cg.verdict(age(archCall.at), cg.WINDOW.arch, '架构 MCP 调用痕迹（' + (archCall.tool || '无') + '）');
   const c2 = cg.verdict(age(cg.lastDocTidy(knowledge)), cg.WINDOW.docs, '知识库文档整理');
-  const c3 = cg.verdict(age(cg.lastReadDocs(roundsFile)), cg.WINDOW.read, '读施工单+角色卡');
+  const c3 = cg.verdict(age(cardCall.at), cg.WINDOW.read, '读角色卡+找任务（' + (cardCall.tool || '无') + '）');
   record('C1', '2 轮内读过架构导航', BLOCK, 'trace', c1.ok ? PASS : BLOCK, c1.detail);
   record('C2', '3 轮内整理过知识库文档', BLOCK, 'artifact', c2.ok ? PASS : BLOCK, c2.detail);
   record('C3', '4 轮内读过施工文档+角色卡', BLOCK, 'trace', c3.ok ? PASS : BLOCK, c3.detail);
@@ -2063,6 +2069,17 @@ function roundGates() {
     record('C7', '任务开着就不许零产出（防收工）', BLOCK, 'artifact', c7state, c7detail);
   }
 
+  // C8（2026-11-08 主人定）：不管干什么，每轮必须真的调过工具——不许干坐着发文本。
+  {
+    const gateLedger = path.join(rddRoot, '.harness', 'audit', 'gate-usage.jsonl');
+    const gateCall = cg.lastMcpCall(gateLedger, /.*/);
+    const newestAt = Math.max(archCall.at || 0, cardCall.at || 0, gateCall.at || 0);
+    const c8ok = newestAt > 0 && now - newestAt <= 20 * 60_000;
+    record('C8', '本轮必须调过工具（防发呆）', BLOCK, 'trace', c8ok ? PASS : BLOCK,
+      newestAt ? '最近一次工具调用在 ' + Math.round((now - newestAt) / 60_000) + ' 分钟前'
+        : '20 分钟内没有任何工具调用痕迹 —— 光发文本不算干活');
+  }
+
   // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
   //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
   const archDir = path.join(knowledge, '架构意图');
@@ -2108,21 +2125,30 @@ function learnGates() {
       : alarm.reason;
   record('L1', '30 分钟闹钟已设', BLOCK, 'trace', l1state, l1detail);
 
+  // ★ 2026-11-08：游戏没开的时候学习单位与检索队列根本不会产生新数据，L2/L3 必然永久红 ——
+  //   那正是「一条永远无法满足的项会把门禁钉死」的老坑（同 P10/P10c 教训）。所以关服时记 SKIP，不判。
+  const javaCount = Number((spawnSync('powershell.exe',
+    ['-NoProfile', '-Command', '@(Get-Process java -ErrorAction SilentlyContinue).Count'],
+    { encoding: 'utf8' }).stdout || '0').trim() || 0);
+  const gameOff = javaCount === 0;
   const rev = lg.reviewState(numenDir);
   const revAge = rev.known && rev.at ? now - rev.at : 0;
   const revOk = revAge > 0 && revAge <= limit;
-  record('L2', '查过游戏内学习单位', BLOCK, 'artifact',
-    rev.known ? (revOk ? PASS : BLOCK) : WARN,
-    !rev.known ? rev.reason
-      : rev.reason + (revOk ? '（' + minutes(revAge) + ' 分钟前）' : '（超过 ' + lg.WINDOW_MIN + ' 分钟没碰）'));
+  const l2state = gameOff ? SKIP : (!rev.known ? WARN : (revOk ? PASS : BLOCK));
+  record('L2', '查过游戏内学习单位', BLOCK, 'artifact', l2state,
+    gameOff ? '游戏没开（java 进程 0），学习单位不会产生新数据 —— 跳过不是通过' : (rev.known ? (revOk ? PASS : BLOCK) : WARN),
+    gameOff ? '游戏没开（java 进程 0），学习单位不会产生新数据 —— 跳过不是通过'
+      : (!rev.known ? rev.reason
+      : rev.reason + (revOk ? '（' + minutes(revAge) + ' 分钟前）' : '（超过 ' + lg.WINDOW_MIN + ' 分钟没碰）')));
 
   const q = lg.pendingQueue(numenDir);
   const qAge = q.known && q.mtimeMs ? now - q.mtimeMs : 0;
   const qOk = q.known && ((qAge > 0 && qAge <= limit) || revOk);
-  record('L3', '看过检索待复核', BLOCK, 'trace',
-    q.known ? (qOk ? PASS : BLOCK) : WARN,
-    !q.known ? q.reason
-      : '待复核队列 ' + q.pendingLines + ' 条；最近动静 ' + (qAge ? minutes(qAge) + ' 分钟前' : '未知'));
+  const l3state = gameOff ? SKIP : (q.known ? (qOk ? PASS : BLOCK) : WARN);
+  record('L3', '看过检索待复核', BLOCK, 'trace', l3state,
+    gameOff ? '游戏没开（java 进程 0），检索队列不会产生新条目 —— 跳过不是通过'
+      : (!q.known ? q.reason
+      : '待复核队列 ' + q.pendingLines + ' 条；最近动静 ' + (qAge ? minutes(qAge) + ' 分钟前' : '未知')));
 }
 
 /**
