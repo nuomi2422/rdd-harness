@@ -34,7 +34,12 @@ const A0 = require('./lib/a0-evidence');
 const AL = require('./lib/action-ledger');
 
 // PRESENT 表示证据可解释，不表示业务成功；旧账本缺覆盖字段时保守 UNKNOWN。
-function actionEvidence(lg, toolsText, gaps) {
+function actionEvidence(lg, toolsText, gaps, proof) {
+  // 2026-11-09（经指挥官指出）：**"没检测到缺口"不等于"完整"**。读取器有已知盲区
+  // （同 inode 原地覆写、先增长后整体覆盖），所以没报 gap 只代表"没发现异常"。
+  // 要让 PRESENT 成立，调用方必须给出**可验证的覆盖证据** proof（窗口起点 + 锚字节数）；
+  // 缺 proof 一律 UNKNOWN，理由 coverage-unproven。
+  const proofOk = !!(proof && typeof proof === 'object' && proof.windowStart && Number(proof.anchorBytes) > 0);
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
@@ -55,6 +60,7 @@ function actionEvidence(lg, toolsText, gaps) {
   const dup = s.duplicates || {};
   if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || coverage.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
   if (gapList.length) reasons.push('log-gap');
+  if (!proofOk) reasons.push('coverage-unproven');
   return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
@@ -828,7 +834,8 @@ async function cmdRun(opts) {
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
   // 2026-11-09：pull 抽到 lib/monitor-reader.js（可独立单测），行为不变。
   // 缺口语义见该模块头部注释；任一缺口都会让消费者判 UNKNOWN。
-  const { pull, gaps } = require('./lib/monitor-reader').createPull({ dir: MONITOR, evidenceDir: path.join(runDir, 'evidence'), offsets, nowIso });
+  const reader = require('./lib/monitor-reader').createPull({ dir: MONITOR, evidenceDir: path.join(runDir, 'evidence'), offsets, nowIso });
+  const { pull, gaps } = reader;
   for (;;) {
     const elapsed = Date.now() - t0;
     if (triggerDeathAt && Date.now() >= triggerDeathAt) {
@@ -1100,7 +1107,12 @@ async function cmdRun(opts) {
   // 并把「累计失败」和「连续失败」分开记。只读日志，不改变任何任务控制语义。
   try {
     const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
-    env.actions = actionEvidence(lg, raw.tools, gaps);
+    // 覆盖证据：窗口起点 + 是否存在起点锚。锚缺失或没读过 tools 流 ⇒ 不给 proof ⇒ UNKNOWN。
+  const proof = {
+    windowStart: env.timings && env.timings.stimulusSentAt || null,
+    anchorBytes: reader.anchors && reader.anchors['tools.jsonl'] ? reader.anchors['tools.jsonl'].length : 0,
+  };
+  env.actions = actionEvidence(lg, raw.tools, gaps, proof);
     const actionStates = lg.summary.states || {};
     log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)
       + ' failed=' + (actionStates.failed || 0)

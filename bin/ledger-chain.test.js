@@ -29,7 +29,7 @@ function chain(t, text, window, resolver) {
   const r = L.readTail(f, 0, window || 1024 * 1024, {});
   const tools = (r.lines || []).join('\n');
   const lg = AL.build(tools, '', { minStreak: 3, resolveIdentity: resolver || resolverOK });
-  return { r, lg, ev: actionEvidence(lg, tools) };
+  return { r, lg, ev: actionEvidence(lg, tools, null, { windowStart: 'test-window', anchorBytes: 64 }) };
 }
 
 test('SUPPORTED 正例：完整流 + 独立核验 → PRESENT', (t) => {

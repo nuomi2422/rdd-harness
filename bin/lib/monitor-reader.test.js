@@ -79,26 +79,29 @@ test('读失败：目标是目录 → 记 read-failed，不抛', (t) => {
   assert.equal(r.gaps['tools.jsonl'].reason, 'not-a-file');
 });
 
-test('盲区（已知不支持）①同 inode 原地覆写：不产生 gap', (t) => {
+test('同 inode 原地覆写开头：靠锚检出 anchor-changed（部分盲区已被缓解）', (t) => {
   const { r, file } = setup(t);
   fs.writeFileSync(file, 'aaa\n');
   r.pull('tools.jsonl');
-  // 同长度原地覆写：inode 不变、大小不变 → 本模块**识别不了**
+  // 同长度原地覆写，且**改到了开头 64 字节内** → 锚比对能抓到
   const fd = fs.openSync(file, 'r+');
   fs.writeSync(fd, Buffer.from('bbb\n'), 0, 4, 0);
   fs.closeSync(fd);
-  assert.equal(r.pull('tools.jsonl'), '');
-  assert.equal(r.gaps['tools.jsonl'], undefined, '这是已知盲区：不得声称已覆盖');
+  r.pull('tools.jsonl');
+  assert.equal(r.gaps['tools.jsonl'].reason, 'anchor-changed');
 });
 
-test('盲区（已知不支持）②先增长后被更大内容整体覆盖：不产生 gap', (t) => {
+test('盲区（仍不支持）②覆写只发生在锚之后：识别不了', (t) => {
   const { r, file } = setup(t);
-  fs.writeFileSync(file, 'a\n');
-  r.pull('tools.jsonl');
+  const head = 'H'.repeat(64) + '\n';   // 前 64 字节固定
+  fs.writeFileSync(file, head + 'tail-aaaa\n');
+  r.pull('tools.jsonl');                  // 锚 = 前 64 字节
+  const body = fs.readFileSync(file);
   const fd = fs.openSync(file, 'r+');
-  fs.writeSync(fd, Buffer.from('cccc\ndddd\n'), 0, 10, 0); // 变大且内容全换
+  // 只改锚之后的内容，长度不变、inode 不变 → 本模块无从判断
+  fs.writeSync(fd, Buffer.from('tail-bbbb\n'), 0, 10, head.length);
   fs.closeSync(fd);
-  const got = r.pull('tools.jsonl');
-  assert.equal(r.gaps['tools.jsonl'], undefined, '已知盲区：大小变大时无法识别');
-  assert.ok(got.length >= 0);
+  r.pull('tools.jsonl');
+  assert.equal(r.gaps['tools.jsonl'], undefined, '已知盲区：锚之后的原地覆写仍识别不了');
+  assert.equal(body.length, fs.statSync(file).size, '大小未变');
 });

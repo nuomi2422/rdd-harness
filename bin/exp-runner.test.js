@@ -8,13 +8,14 @@ const row = (type, data) => JSON.stringify({type, session:'run-1', data:{compani
 const call = row('tool_call', {});
 const result = row('tool_result', {result:{success:true}});
 const resolveIdentity = (ev, category) => ({worldId:'w',serverSession:'s',companion:'c',evidence:'offline-fixture',callId:ev.data.tool_call_id,taskId:ev.data.id});
-const check = (text, events='') => actionEvidence(AL.build(text, events, {resolveIdentity}), text);
+const PROOF = { windowStart: 'test-window', anchorBytes: 64 };
+const check = (text, events='') => actionEvidence(AL.build(text, events, {resolveIdentity}), text, null, PROOF);
 assert.equal(check(call+'\n'+result).status, 'PRESENT');
 assert.equal(check('').status, 'UNKNOWN');
 assert.equal(check(call).status, 'UNKNOWN');
 assert.equal(check(call+'\n'+result+'\nbad').status, 'UNKNOWN');
 const noIdentity = JSON.stringify({type:'tool_call',data:{tool:'x',tool_call_id:'1'}});
-assert(actionEvidence(AL.build(noIdentity, ''), noIdentity).reasons.includes('identity-coverage-unknown-or-incomplete'));
+assert(actionEvidence(AL.build(noIdentity, ''), noIdentity, null, PROOF).reasons.includes('identity-coverage-unknown-or-incomplete'));
 const asyncResult = row('tool_result', {result:{success:true,data:{async:true,task_id:'t'}}});
 assert(check(call+'\n'+asyncResult).reasons.includes('accepted-without-terminal'));
 assert.equal(actionEvidence({summary:{calls:1,states:{completed:1}},blockers:[]},call).status,'UNKNOWN');
@@ -37,7 +38,7 @@ assert.equal(check(call + '\n' + result).status, 'PRESENT');
   const two = envRow('tool_call', { tool_call_id: '1' }) + '\n' + envRow('tool_result', { tool_call_id: '1', result: { success: true } })
     + '\n' + envRow('tool_call', { tool_call_id: '2' });
   const lg = AL.build(two, '', { resolveIdentity: (ev) => (ev.data.tool_call_id === '2' ? null : resolveIdentity(ev, 'tools')) });
-  const ev = actionEvidence(lg, two);
+  const ev = actionEvidence(lg, two, null, PROOF);
   assert.equal(ev.status, 'UNKNOWN');
   assert.ok(ev.reasons.includes('identity-coverage-unknown-or-incomplete'), '理由应指向身份覆盖不足');
 }
@@ -48,7 +49,7 @@ assert.equal(check(call + '\n' + result).status, 'PRESENT');
     + envRow('tool_result', { result: { success: true } }, { world_id: 'world-A', server_session: 'sess-A' });
   const resolverB = (ev) => ({ worldId: 'world-B', serverSession: 'sess-B', companion: 'c', evidence: 'offline-fixture-B', callId: ev.data.tool_call_id });
   const lg = AL.build(conflicted, '', { resolveIdentity: resolverB });
-  const ev = actionEvidence(lg, conflicted);
+  const ev = actionEvidence(lg, conflicted, null, PROOF);
   assert.equal(ev.status, 'UNKNOWN');
   assert.ok(ev.reasons.includes('identity-coverage-unknown-or-incomplete'));
   assert.ok(!ev.states || !Object.keys(ev.states).some((k) => k === 'completed'), '冲突不得产出一个"已完成"结论');

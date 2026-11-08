@@ -29,6 +29,23 @@ function createPull(opts) {
   const gaps = {};
   const fileId = {};
   const pending = {};
+  // 2026-11-09：窗口起点锚。窗口开始后**文件开头 64 字节必须保持不变**，
+  // 一旦被改写（原地覆写的常见形态）就说明"这段内容已经不是你当初读的那段"，
+  // 记 anchor-changed 缺口。这是对"同 inode 原地覆写"部分盲区的**有界**缓解，不是全覆盖。
+  const anchors = {};
+  const ANCHOR_BYTES = 64;
+  // 只读前 len 字节做比较：窗口起点时文件可能还不到 64 字节，若每次都读满 64 再比，
+  // 文件正常增长就会被误判成"锚变了"。所以比较长度固定为**起点时的长度**。
+  const readAnchor = (p, len) => {
+    try {
+      const fd = fs.openSync(p, 'r');
+      try {
+        const b = Buffer.alloc(len || ANCHOR_BYTES);
+        const n = fs.readSync(fd, b, 0, b.length, 0);
+        return b.subarray(0, n);
+      } finally { fs.closeSync(fd); }
+    } catch { return null; }
+  };
 
   const noteGap = (f, reason, extra) => {
     if (!gaps[f]) gaps[f] = { at: nowIso(), reason, ...(extra || {}) };
@@ -61,6 +78,12 @@ function createPull(opts) {
       offsets[f] = 0;
     }
     fileId[f] = ino;
+    // 锚校验：窗口起点内容变了就是缺口（只覆盖"开头被改写"，不改后半段仍可能漏）
+    if (!anchors[f]) { const a = readAnchor(p, ANCHOR_BYTES); if (a && a.length) anchors[f] = a; }
+    else {
+      const now = readAnchor(p, anchors[f].length);
+      if (now && now.length === anchors[f].length && !now.equals(anchors[f])) noteGap(f, 'anchor-changed', { bytes: anchors[f].length });
+    }
     if (size <= (offsets[f] || 0)) return '';
 
     let fd;
@@ -90,7 +113,7 @@ function createPull(opts) {
     } finally { fs.closeSync(fd); }
   }
 
-  return { pull, gaps, offsets, fileId, pending };
+  return { pull, gaps, offsets, fileId, pending, anchors };
 }
 
 module.exports = { createPull };
