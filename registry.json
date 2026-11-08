@@ -1904,6 +1904,17 @@
         "lesson": "判「进程在不在」这类事实，名字口径必须写死并实测两种启动方式；否则门禁越绿越危险 —— 它绿的时候正好是它没看的时候。",
         "guard": "selftest 暂无对进程口径的断言（依赖真机进程，不适合单测）；改为每次 Q10/learn 输出都打印实际计到的数字，人一眼能看出 0 还是 N。",
         "status": "fixed"
+      },
+      {
+        "id": "bug-14",
+        "class": "隐蔽",
+        "title": "Q7 在 mp4 存在但 ffmpeg.log 读不到 frame= 时静默 PASS：合成没证据也放行",
+        "detected": "2026-11-08",
+        "detail": "Q7 原判定 bad = !mp4.length || (frames!==null && frames!==pngs.length)：frames 为 null 时不参与比较，于是「mp4 在、ffmpeg.log 里没有 frame=」直接 PASS。2026-11-08 角色回归时实测到 numencam_20261108-002252 就是这种状态（541 png、mp4 495778B、无 frame= 行）却记为 PASS。",
+        "fix": "改为三态：bad→BLOCK；mp4 在但 frames===null→WARN（逼人看一眼 ffmpeg.log 是否被轮转）；两者都正常才 PASS。改后实测该目录记 WARN。",
+        "lesson": "判据里出现「null 就跳过这个比较」时，等于给了一个不出声的放行口；把 null 当三态之一显式处理（WARN），比默认 PASS 诚实。",
+        "guard": "Q7 的 detail 永远打印 frames 的实际值或『读不到 frame=』，人一眼能看出来是缺证据还是真通过。",
+        "status": "fixed"
       }
     ]
   },

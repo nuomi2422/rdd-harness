@@ -831,7 +831,10 @@ function postflight(ctx) {
       const allFrames = [...flog.matchAll(/frame=\s*(\d+)/g)].map((m) => +m[1]);
       const frames = allFrames.length ? Math.max(...allFrames) : null;
       const bad = !mp4.length || (frames !== null && frames !== pngs.length);
-      record('Q7', '产物真的落地', BLOCK, 'artifact', bad ? BLOCK : PASS,
+      // ★ 2026-11-08：mp4 在但 ffmpeg.log 读不到 frame= 时，以前直接 PASS —— 等于合成没证据也放行。
+      //   改成 WARN：不算过，也不算挂，逼人看一眼 ffmpeg.log 是不是被轮转掉了。
+      const state = bad ? BLOCK : (frames === null ? WARN : PASS);
+      record('Q7', '产物真的落地', BLOCK, 'artifact', state,
         `${path.basename(d)}: ${pngs.length} 张 png, mp4=${mp4.length ? (fs.statSync(path.join(d, mp4[0])).size + ' B') : '无'}` +
         (frames === null ? ' | ⚠ ffmpeg.log 里没读到 frame=' : ` | ffmpeg frame=${frames} ${frames === pngs.length ? '✔' : '✘ 与 png 张数不等'}`));
     }
