@@ -2111,11 +2111,11 @@
         "title": "learner_review 启动了但没有 reviewed 事件：窗口关闭丢尾，状态文件不更新",
         "detected": "2026-11-08",
         "detail": "2026-11-08 01:02:52.324Z learner.jsonl 有 review_started（review_id=rev-1794099772320-181，reviewing=3），01:02:56.415Z 有 llm_request，但到 01:03:50 仍无 reviewed；learner-review-state.json 停在 00:42:36.411Z / verdict=3，随后游戏关闭（01:36 实测 java/javaw=0）。结论：复核是**启动后未跑完**，不是没启动。**2026-11-08 09:49 指挥官实读补充（关键）**：01:02:50–01:06:00 全事件序列为 → review_started(01:02:52) → **llm_request(01:02:56, requestId=abf434ef-c5f1-4dac-9bea-1964a6d723c8)** → 此后与该 review 相关的事件**一条都没有**（无 llm 响应、无 error、无 reviewed），只有无关的 intake 心跳。即：**LLM 请求发出后无下文，且没有超时兜底**。全量统计（00:30 UTC 之后）：review_started **12 次 / reviewed 5 次**，**7 次未收口**；最近两次（00:49:09 与 01:02:52）suffix 都是 `-181`，是同一目标的重复尝试。",
-        "fix": "未修。待查：①关闭时 review 有无收尾钩子（写 reviewed 或写 partial）；②没有收尾时下一窗是否自动 resume 该 review_id；③state 是否需区分「reviewing 中 / 上次完成」。 ★2026-11-08 12:21：正常路径已验；**中断路径（关窗时 ServerStopping 主动收口 + 恢复队列）仍未被真实复现**——需要一次「复核跑到一半就关窗」的窗口。注意这次 232s 距 240s 上限只剩 8 秒，说明根因（寿命>窗口）没变，只是兜底还没被考到。",
+        "fix": "未修。待查：①关闭时 review 有无收尾钩子（写 reviewed 或写 partial）；②没有收尾时下一窗是否自动 resume 该 review_id；③state 是否需区分「reviewing 中 / 上次完成」。 ★2026-11-08 12:21：正常路径已验；**中断路径（关窗时 ServerStopping 主动收口 + 恢复队列）仍未被真实复现**——需要一次「复核跑到一半就关窗」的窗口。注意这次 232s 距 240s 上限只剩 8 秒，说明根因（寿命>窗口）没变，只是兜底还没被考到。 ★剩余：需一次**受控中断**——记 drain 条数 → 跑复核中途关窗 → 重启后核对条数相等，才能把「不丢不重」从代码承诺变成可证。",
         "lesson": "「启动了」和「跑完了」是两件事：只看 started 会以为在干活，只看 state 会以为没启动。判据要成对：started→reviewed 必须配对，缺尾就是缺陷。",
         "guard": "暂无。候选：每轮核对 started/reviewed 配对；started 后 5 分钟无 reviewed 即告警。",
         "status": "open（正常路径已验，中断路径未验）",
-        "verified": "2026-11-08 12:21 部分验证：rev-1794110823511-181 于 04:07:03 review_started → 04:10:55 reviewed（同一 review_id，耗时 3m52s=232s < 240s 超时），state 更新、skills 168→170。**正常路径成立**：窗口够长就能收口。"
+        "verified": "2026-11-08 12:21 部分验证：rev-1794110823511-181 于 04:07:03 review_started → 04:10:55 reviewed（同一 review_id，耗时 3m52s=232s < 240s 超时），state 更新、skills 168→170。**正常路径成立**：窗口够长就能收口。 ★2026-11-08 12:25 学习者翻出既有证据：02:58:13 / 03:03:22 两条 review_interrupted（reason=\"server stopping\"、restore=\"OK\"），都晚于 10:27 构建 → **①主动收口已证**；②memo 不重可证（当前各队 0 重复 id），**不丢 UNKNOWN**（restore 只写 OK 无条数）；③下次启动不重复补发「部分」（未见重复处理，缺 id 级对照）。另 02:36:48 那条是启动回填（reason=\"world/process restarted while review was in flight\"、restored=\"UNKNOWN\"），旧批次回没回队仍 UNKNOWN。"
       }
     ]
   },
