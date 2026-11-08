@@ -826,68 +826,9 @@ async function cmdRun(opts) {
   const raw = { tools: '', events: '' };
   const blockersSeen = new Set();
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
-  // 2026-11-09（经指挥官指派的读端改造）：缺口必须显式化，且不能被"看起来正常"掩盖。
-  // 覆盖五种会让读取"悄悄丢内容"的情形：①文件消失 ②变小（截断/轮转）③同大小被替换
-  // ④末行只写了一半 ⑤读失败。任一发生都记 gap，消费者据此判 UNKNOWN，绝不静默 PRESENT。
-  const gaps = {};
-  const fileId = {};
-  // 半行 pending：若某文件连续两次轮询"大小没变且仍有未消费的半行"，说明写入方停在那里，
-  // 这段内容可能永远补不齐 —— 判为缺口，而不是当作"本来就这么长"。
-  const pending = {};
-  const noteGap = (f, reason, extra) => {
-    if (!gaps[f]) gaps[f] = { at: nowIso(), reason, ...(extra || {}) };
-  };
-  const pull = (f) => {
-    const p = path.join(MONITOR, f);
-    if (!fs.existsSync(p)) {
-      if ((offsets[f] || 0) > 0) noteGap(f, 'missing-file', { from: offsets[f] });
-      return '';
-    }
-    let st;
-    try { st = fs.statSync(p, { bigint: true }); }
-    catch (e) { noteGap(f, 'stat-failed', { error: String(e && e.message || e).slice(0, 120) }); return ''; }
-    const size = Number(st.size);
-    const ino = String(st.ino);
-    // ② 变小：截断或轮转
-    if (size < (offsets[f] || 0)) {
-      noteGap(f, 'truncated-or-rotated', { from: offsets[f], to: size });
-      offsets[f] = 0; delete fileId[f];
-    }
-    // ③ 同大小但换了文件（轮转后同名新文件）：同大小看不出，靠 inode 识别
-    if (fileId[f] && fileId[f] !== ino) {
-      noteGap(f, 'replaced-same-size', { from: offsets[f], to: size });
-      offsets[f] = 0;
-    }
-    fileId[f] = ino;
-    if (size <= (offsets[f] || 0)) return '';
-    const fd = fs.openSync(p, 'r');
-    try {
-      const len = size - offsets[f];
-      const buf = Buffer.alloc(len);
-      const n = fs.readSync(fd, buf, 0, len, offsets[f]);
-      if (n !== len) noteGap(f, 'short-read', { want: len, got: n });
-      let chunk = buf.subarray(0, n);
-      // ④ 末行不完整：扣住不消费，等下一次补齐（否则下游会把半行当坏行或错行）
-      const text = chunk.toString('utf8');
-      const cut = text.lastIndexOf('\n');
-      if (cut < 0) {                        // 整个块都还没写完
-        if (pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
-        pending[f] = { size };
-        return '';
-      }
-      const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
-      if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
-      pending[f] = complete.length < n ? { size } : null;
-      offsets[f] = (offsets[f] || 0) + complete.length;
-      fs.appendFileSync(path.join(runDir, 'evidence', f), complete);
-      return complete.toString('utf8');
-    } catch (e) {
-      // ⑤ 读失败
-      noteGap(f, 'read-failed', { error: String(e && e.message || e).slice(0, 120) });
-      return '';
-    } finally { fs.closeSync(fd); }
-  };
-
+  // 2026-11-09：pull 抽到 lib/monitor-reader.js（可独立单测），行为不变。
+  // 缺口语义见该模块头部注释；任一缺口都会让消费者判 UNKNOWN。
+  const { pull, gaps } = require('./lib/monitor-reader').createPull({ dir: MONITOR, evidenceDir: path.join(runDir, 'evidence'), offsets, nowIso });
   for (;;) {
     const elapsed = Date.now() - t0;
     if (triggerDeathAt && Date.now() >= triggerDeathAt) {

@@ -35,6 +35,7 @@ const STEPS = [
   ['take 动态有效性', path.join(ROOT, 'verify-take.test.js'), [], 'node-test', 'wallclock'],
   // 2026-11-09：真实链路 reader→ledger→consumer 的身份断言（含 2 项 EXPECTED-FAIL 未支持项）。
   ['身份链路 reader→消费者', path.join(ROOT, 'ledger-chain.test.js'), [], 'node-test'],
+  ['监控读取器缺口语义', path.join(ROOT, 'lib', 'monitor-reader.test.js'), [], 'node-test'],
   // 2026-11-09：regress 退出码 → acceptance 判定的端到端口径（FLAKY 不得被当成 PASS）。
   ['回归退出码口径', path.join(ROOT, 'regress-gating.test.js'), [], 'node-test'],
 ];
