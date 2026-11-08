@@ -625,7 +625,7 @@ const RENDERERS = { snapshot: renderSnapshot, chain: renderChain, chat: renderCh
 function render(view, state, meta) {
   const fn = RENDERERS[view];
   if (!fn) throw new Error('unknown view: ' + view);
-  const warnings = Object.entries(state.files).filter(([, f]) => f.gaps || f.malformed).map(([name, f]) => name + ': gaps=' + (f.gaps || 0) + ' skipped_bytes=' + (f.skippedBytes || 0) + ' malformed=' + (f.malformed || 0) + ' last=' + (f.gapReason || '-'));
+  const warnings = Object.entries(state.files).filter(([, f]) => f.gaps || f.malformed || f.late).map(([name, f]) => name + ': gaps=' + (f.gaps || 0) + ' skipped_bytes=' + (f.skippedBytes || 0) + ' malformed=' + (f.malformed || 0) + ' late=' + (f.late || 0) + ' last=' + (f.gapReason || '-'));
   return fn(state, meta || {}) + '\n> 采集连续性 UNKNOWN（无法证明完整）；' + (warnings.length ? warnings.join('；') : '未检测到缺口') + '\n';
 }
 

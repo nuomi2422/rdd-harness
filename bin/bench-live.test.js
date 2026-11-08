@@ -146,3 +146,24 @@ for (const failure of ['render', 'write']) {
   });
 }
 
+
+test('late-arriving rows are counted as a gap, and rotation resets the baseline', t => {
+  const f = fixture(t), dir = path.dirname(f), out = path.join(dir, 'out');
+  const rec = (type, ts, extra) => JSON.stringify({ type, timestamp: ts, data: extra || {} }) + '\n';
+  // 先写较新的一条，再写一条业务时间更早的 —— 这条就是"事后才补写进来"的晚到行
+  fs.writeFileSync(f, rec('assistant', '2026-11-08T10:00:10.000Z', { text: 'newer' })
+    + rec('assistant', '2026-11-08T10:00:00.000Z', { text: 'late-arrived' }));
+  let r = spawnSync(process.execPath, [path.join(__dirname, 'bench-watch.js'), '--once', '--monitor', dir, '--out', out], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  let st = JSON.parse(fs.readFileSync(path.join(out, 'status.json'), 'utf8'));
+  assert.equal(st.files['ai.jsonl'].late, 1, '晚到行要计 1');
+  assert.equal(st.files['ai.jsonl'].lastLateBizAt, '2026-11-08T10:00:00.000Z');
+  assert.match(fs.readFileSync(path.join(out, 'chat.md'), 'utf8'), /late=1/);
+  // 轮转后不应把整个新文件误判成晚到
+  fs.writeFileSync(f + '.new', rec('assistant', '2026-11-08T09:00:00.000Z', { text: 'after-rotate' }));
+  fs.renameSync(f + '.new', f);
+  r = spawnSync(process.execPath, [path.join(__dirname, 'bench-watch.js'), '--once', '--monitor', dir, '--out', out], { encoding: 'utf8' });
+  assert.equal(r.status, 0, r.stderr);
+  st = JSON.parse(fs.readFileSync(path.join(out, 'status.json'), 'utf8'));
+  assert.equal(st.files['ai.jsonl'].late, 0, '轮转后基线必须重置');
+});

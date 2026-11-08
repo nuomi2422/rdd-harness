@@ -68,12 +68,24 @@ function collectOnce(state, opt) {
     if (r.reset) st.resets = (st.resets || 0) + 1;
     st.continuity = 'UNKNOWN';
     if (r.reset || r.skipped) { st.gaps = (st.gaps || 0) + 1; st.gapReason = r.reason || 'window'; st.skippedBytes = (st.skippedBytes || 0) + r.skipped; }
+    // 2026-11-08（044 §0.6）：晚到检测。业务时间戳比本文件已见最大值早 1s 以上，
+    // 说明这条记录是"事后才写进来的"。它不改变已发生的判断，只作为缺口线索暴露，
+    // 绝不据此回填或改写先前的结论。轮转时清空基线，否则新文件会被整篇误判为晚到。
+    if (r.reset) st.maxTs = 0;
     const items = [];
     for (const line of r.lines) {
       if (!line.trim()) continue;
       try {
         const ev = JSON.parse(line);
         if (!ev || typeof ev !== 'object' || Array.isArray(ev) || typeof ev.type !== 'string' || !ev.type) throw new Error('invalid event structure');
+        const bt = Date.parse(ev.timestamp);
+        if (Number.isFinite(bt)) {
+          if (st.maxTs && bt < st.maxTs - 1000) {
+            st.late = (st.late || 0) + 1;
+            st.lastLateBizAt = new Date(bt).toISOString();
+          }
+          if (!st.maxTs || bt > st.maxTs) st.maxTs = bt;
+        }
         const n = L.normalize(f, ev);
         if (n) { n.rec.id = ev.event_id || null; items.push(n); }
       } catch (e) {
@@ -104,7 +116,7 @@ function collectOnce(state, opt) {
 function statusOf(state, extra) {
   const files = {};
   for (const [k, v] of Object.entries(state.files)) {
-    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0 };
+    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0, late: v.late || 0, lastLateBizAt: v.lastLateBizAt || null };
   }
   return Object.assign({
     schema: 1,
