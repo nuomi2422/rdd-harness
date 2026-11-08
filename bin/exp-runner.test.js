@@ -8,7 +8,7 @@ const row = (type, data) => JSON.stringify({type, session:'run-1', data:{compani
 const call = row('tool_call', {});
 const result = row('tool_result', {result:{success:true}});
 const resolveIdentity = (ev, category) => ({worldId:'w',serverSession:'s',companion:'c',evidence:'offline-fixture',callId:ev.data.tool_call_id,taskId:ev.data.id});
-const PROOF = { windowStart: 'test-window', anchorBytes: 64 };
+const PROOF = { level: 'verified', windowStart: 'test-window', anchorBytes: 64 };
 const check = (text, events='') => actionEvidence(AL.build(text, events, {resolveIdentity}), text, null, PROOF);
 assert.equal(check(call+'\n'+result).status, 'PRESENT');
 assert.equal(check('').status, 'UNKNOWN');
@@ -62,3 +62,17 @@ assert.equal(check(call + '\n' + result).status, 'PRESENT');
   assert.equal(lg.summary.calls, 2, '跨世界的同一个 call_id 必须是两条');
 }
 console.log('身份注入消费端断言 PASS（正例 1 / 反例 3）');
+
+// 2026-11-09（经指挥官要求）：**"有限监测 + 全知身份 + 无 gap"不得产出 PRESENT**。
+// 这是"锚后原地覆写"这种我们识别不了的情形：能骗过读取器，但骗不过覆盖分级。
+{
+  const LIMITED = { level: 'limited', windowStart: 'w', anchorBytes: 64 };
+  const text = row('tool_call', {}) + '\n' + row('tool_result', { result: { success: true } });
+  const lg = AL.build(text, '', { resolveIdentity });
+  const limitedEv = actionEvidence(lg, text, null, LIMITED);
+  assert.equal(limitedEv.status, 'UNKNOWN', '有限监测不得给 PRESENT');
+  assert(limitedEv.reasons.includes('coverage-limited'), '必须给出 coverage-limited 理由');
+  const verifiedEv = actionEvidence(lg, text, null, { level: 'verified', windowStart: 'w', anchorBytes: 64 });
+  assert.equal(verifiedEv.status, 'PRESENT', '只有 verified 才允许 PRESENT');
+  console.log('覆盖分级断言 PASS（limited→UNKNOWN / verified→PRESENT）');
+}

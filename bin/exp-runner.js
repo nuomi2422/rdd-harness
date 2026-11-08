@@ -34,22 +34,26 @@ const A0 = require('./lib/a0-evidence');
 const AL = require('./lib/action-ledger');
 
 // PRESENT 表示证据可解释，不表示业务成功；旧账本缺覆盖字段时保守 UNKNOWN。
-function actionEvidence(lg, toolsText, gaps, proof) {
-  // 2026-11-09（经指挥官指出）：**"没检测到缺口"不等于"完整"**。读取器有已知盲区
-  // （同 inode 原地覆写、先增长后整体覆盖），所以没报 gap 只代表"没发现异常"。
-  // 要让 PRESENT 成立，调用方必须给出**可验证的覆盖证据** proof（窗口起点 + 锚字节数）；
-  // 缺 proof 一律 UNKNOWN，理由 coverage-unproven。
-  const proofOk = !!(proof && typeof proof === 'object' && proof.windowStart && Number(proof.anchorBytes) > 0);
+function actionEvidence(lg, toolsText, gaps, coverage) {
+  // 2026-11-09（经指挥官两轮指出，最终口径）：
+  // **头 64 字节锚 + 窗口起点，不是"完整性证明"，只是"有限监测"。**
+  // 它只能发现"开头被改"，锚之后的原地覆写、先增后覆都看不见；而"没报缺口"也不等于完整。
+  // 所以这里不叫 proof，叫 coverage，并分级：
+  //   coverage.level === 'verified'  → 才允许 PRESENT（需要可验证的不可变片段/连续字节链 + 重启策略，目前没有）
+  //   其它（'limited' / 缺失 / 其它值）→ 一律 UNKNOWN，理由 coverage-limited
+  // 目前生产只做到 'limited'，因此**生产账本应当是 UNKNOWN**，这是预期而非常态缺失。
+  const level = coverage && typeof coverage === 'object' ? String(coverage.level || '') : '';
+  const coverageVerified = level === 'verified';
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
   const gapList = gaps && typeof gaps === 'object' ? Object.entries(gaps).filter(([, v]) => v) : [];
   const s = lg && lg.summary || {};
   const states = s.states && typeof s.states === 'object' ? s.states : {};
-  const coverage = s.coverage && typeof s.coverage === 'object' ? s.coverage : {};
+  const cov = s.coverage && typeof s.coverage === 'object' ? s.coverage : {};
   const reasons = [];
   if (!String(toolsText || '').trim() || !Number.isFinite(s.calls) || s.calls === 0) reasons.push('no-action-evidence');
-  const identity = typeof coverage.identityKnown === 'string' && /^(\d+)\/(\d+)$/.exec(coverage.identityKnown);
+  const identity = typeof cov.identityKnown === 'string' && /^(\d+)\/(\d+)$/.exec(cov.identityKnown);
   if (!identity || Number(identity[2]) !== s.calls || Number(identity[1]) !== s.calls) reasons.push('identity-coverage-unknown-or-incomplete');
   const knownStates = new Set(['completed', 'failed', 'cancelled', 'timeout']);
   if (!s.states || Object.entries(states).some(([state, n]) => !Number.isFinite(n) || n < 0 || (n > 0 && !knownStates.has(state))) || Object.values(states).reduce((a, n) => a + (Number.isFinite(n) ? n : 0), 0) !== s.calls) reasons.push('nonterminal-or-unknown-state');
@@ -58,9 +62,9 @@ function actionEvidence(lg, toolsText, gaps, proof) {
   if (!bad || !Number.isFinite(bad.tools) || !Number.isFinite(bad.events)) reasons.push('parse-coverage-unknown');
   else if (bad.tools > 0 || bad.events > 0) reasons.push('malformed-lines');
   const dup = s.duplicates || {};
-  if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || coverage.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
+  if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || cov.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
   if (gapList.length) reasons.push('log-gap');
-  if (!proofOk) reasons.push('coverage-unproven');
+  if (!coverageVerified) reasons.push('coverage-limited');
   return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
@@ -1107,12 +1111,14 @@ async function cmdRun(opts) {
   // 并把「累计失败」和「连续失败」分开记。只读日志，不改变任何任务控制语义。
   try {
     const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
-    // 覆盖证据：窗口起点 + 是否存在起点锚。锚缺失或没读过 tools 流 ⇒ 不给 proof ⇒ UNKNOWN。
-  const proof = {
+    // 覆盖等级：现在只有"有限监测"（窗口起点 + 头段锚），拿不出连续性证明 ⇒ limited。
+  // 只要还是 limited，结论只能是 UNKNOWN；等有可验证不可变片段/连续字节链再谈 verified。
+  const coverage = {
+    level: 'limited',
     windowStart: env.timings && env.timings.stimulusSentAt || null,
     anchorBytes: reader.anchors && reader.anchors['tools.jsonl'] ? reader.anchors['tools.jsonl'].length : 0,
   };
-  env.actions = actionEvidence(lg, raw.tools, gaps, proof);
+  env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
     const actionStates = lg.summary.states || {};
     log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)
       + ' failed=' + (actionStates.failed || 0)
