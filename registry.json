@@ -2129,6 +2129,19 @@
         "status": "open",
         "verified": "2026-11-08 12:52：失败路径 restored=58 且 queue_depth=58，**第一次给出「不丢」的数字证据**（单点，不能推及中断路径）。",
         "reviewBy": "2026-11-22"
+      },
+      {
+        "id": "bug-19",
+        "class": "隐蔽",
+        "title": "自动复核把自己算成「AI 已响应」：失败后下一次 nudge 静默不拉起",
+        "detected": "2026-11-08",
+        "detail": "实测序列：04:27:27.694 review_nudge_sent → .695 auto_review_started(nudge_unanswered) → .702 review_started(rev-1794112047697-91) → 04:29:05 review_failed(UNPARSEABLE)。30 分钟退避到期后 04:57:54 再发 nudge，但**没有 auto_review_started、也没有 auto_review_skipped**（静默）。原因：autoReviewDue 判 `lastReviewStartedAt > prevNudge` 就认为「上次提醒有人响应了」，而这次 started(.702) 比同一条 nudge(.694) 晚 8 毫秒 —— **自己拉起的那次被当成 AI 响应**，于是下一轮自动复核被跳过。",
+        "fix": "未修。两条：①判定「是否响应」时排除自动发起的复核（记 trigger 来源，或比较时用 nudge 之前的时间戳）；②跳过时必须写 auto_review_skipped + reason（现在 false 路径无事件，外表看就是「没动静」）。",
+        "lesson": "判「有没有人响应」要把自己发起的动作排除，否则系统会自己满足自己的条件；另外，**静默跳过**和「它没动」在日志里长得一样，必须显式记事件。",
+        "guard": "暂无。候选：autoReviewDue 的每个 false 分支都返回 reason 并写事件。",
+        "status": "open",
+        "verified": "2026-11-08 13:22 已用 8 毫秒差(timestamps)证明不是「永久压制」，而是退避到期的一次静默跳过。",
+        "reviewBy": "2026-11-22"
       }
     ]
   },
