@@ -2142,6 +2142,19 @@
         "status": "open",
         "verified": "2026-11-08 13:22 已用 8 毫秒差(timestamps)证明不是「永久压制」，而是退避到期的一次静默跳过。",
         "reviewBy": "2026-11-22"
+      },
+      {
+        "id": "bug-20",
+        "class": "隐蔽",
+        "title": "nudge 的冷却/退避/不可投递分支全都不写事件：外部只看到「突然不催了」",
+        "detected": "2026-11-08",
+        "detail": "2026-11-08 08:09:47 之后 37 分钟无新 review_nudge_sent（learner.jsonl 08:00 后只有 1 条 nudge）。代码里至少有两条静默分支：①`NUDGE_UNDELIVERABLE_UNTIL.put(...)`（LearnerAutoIntake.java:602，30 分钟）没有 publish；②`nudgeBlocked(...)`（:585）与 `claimNudge` 的失败退避（:738，30/60 分钟）同样不写事件。结果是：外部只能看到「没动静」，分不清是排队、冷却、投递失败还是判据不满足。",
+        "fix": "未修。每个 false/skip 分支都必须 publish 一条带 reason 的事件（如 review_nudge_skipped{reason,cooldown_until}），并在 learner_status 里暴露当前冷却剩余时间。",
+        "lesson": "「不说话」和「没说话」在日志里长得一样；凡是让流程停下来的分支，都必须留下一条带原因的痕迹，否则故障永远只能靠人猜。",
+        "guard": "暂无。候选：单测覆盖每条 skip 分支必须 publish。",
+        "status": "open",
+        "verified": "2026-11-08 16:51 已确认真实静默窗口与两条静默分支的代码位置；**触发原因仍 UNKNOWN**，不许写成「已发生投递失败」。",
+        "reviewBy": "2026-11-22"
       }
     ]
   },
