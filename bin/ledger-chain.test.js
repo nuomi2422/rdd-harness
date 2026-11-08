@@ -29,12 +29,13 @@ function chain(t, text, window, resolver) {
   const r = L.readTail(f, 0, window || 1024 * 1024, {});
   const tools = (r.lines || []).join('\n');
   const lg = AL.build(tools, '', { minStreak: 3, resolveIdentity: resolver || resolverOK });
-  return { r, lg, ev: actionEvidence(lg, tools, null, { level: 'verified', windowStart: 'test-window', anchorBytes: 64 }) };
+  return { r, lg, ev: actionEvidence(lg, tools, null, { level: 'limited', windowStart: 'w', anchorBytes: 64 }) };
 }
 
-test('SUPPORTED 正例：完整流 + 独立核验 → PRESENT', (t) => {
+test('SUPPORTED 正例：完整流 + 独立核验 → 除覆盖等级外无其它问题', (t) => {
   const { ev } = chain(t, line('tool_call', {}) + '\n' + line('tool_result', { result: { success: true } }));
-  assert.equal(ev.status, 'PRESENT');
+  // PRESENT 目前不可达（verified 无合法签发路径），正例表达为"没有别的问题"。
+  assert.deepEqual(ev.reasons, ['coverage-limited']);
 });
 
 test('SUPPORTED 迟到：入档顺序晚于消息时间，仍按追加顺序还原（顺序无关）', (t) => {
@@ -42,7 +43,7 @@ test('SUPPORTED 迟到：入档顺序晚于消息时间，仍按追加顺序还�
   const early = line('tool_call', {}, { timestamp: '2026-11-09T05:00:00Z' });
   const late = line('tool_result', { result: { success: true } }, { timestamp: '2026-11-09T04:59:00Z' });
   const { ev } = chain(t, early + '\n' + late);
-  assert.equal(ev.status, 'PRESENT', '迟到不改变还原结果，但"何时可得"仍是 UNKNOWN');
+  assert.deepEqual(ev.reasons, ['coverage-limited'], '迟到不改变还原结果；PRESENT 仍因覆盖等级不可达');
 });
 
 test('SUPPORTED 日志缺口：读取器的跳过量能传到消费者并判 UNKNOWN', (t) => {

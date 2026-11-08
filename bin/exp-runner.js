@@ -42,8 +42,9 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   //   coverage.level === 'verified'  → 才允许 PRESENT（需要可验证的不可变片段/连续字节链 + 重启策略，目前没有）
   //   其它（'limited' / 缺失 / 其它值）→ 一律 UNKNOWN，理由 coverage-limited
   // 目前生产只做到 'limited'，因此**生产账本应当是 UNKNOWN**，这是预期而非常态缺失。
-  const level = coverage && typeof coverage === 'object' ? String(coverage.level || '') : '';
-  const coverageVerified = level === 'verified';
+  // 覆盖等级**不接受调用方传字符串**：只有 lib/coverage.js 用私有 Symbol 签发的对象才算 verified，
+  // 否则任何人写 {level:'verified'} 就能把结论刷成 PRESENT（可伪造放行）。
+  const coverageVerified = require('./lib/coverage').isVerifiedCoverage(coverage);
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
