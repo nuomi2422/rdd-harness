@@ -29,8 +29,21 @@ function isVerifiedCoverage(obj) {
 function makeVerifiedCoverage(evidence) {
   const missing = ['segments', 'source', 'window', 'gaps', 'lifecycle']
     .filter((k) => !evidence || evidence[k] === undefined);
-  throw new Error('coverage-verification-not-implemented: 缺 ' + (missing.join(',') || '全部校验') +
-    '；当前没有任何路径可以签发 verified 覆盖，结论只能是 UNKNOWN');
+  if (missing.length) throw new Error('coverage-rejected: 缺 ' + missing.join(','));
+  const { segments, source, window, gaps, lifecycle } = evidence;
+  if (Object.keys(gaps || {}).length) throw new Error('coverage-rejected: 存在缺口');
+  if (!source || typeof source !== 'string') throw new Error('coverage-rejected: 缺来源标识');
+  if (!window || !window.start) throw new Error('coverage-rejected: 缺窗口起点');
+  if (!lifecycle || !lifecycle.closed) throw new Error('coverage-rejected: 生命周期未闭合');
+  const entries = Object.entries(segments || {});
+  if (!entries.length) throw new Error('coverage-rejected: 没有可比对的字节段');
+  for (const [file, v] of entries) {
+    if (!v || !Number.isFinite(v.segments) || v.segments < 1) throw new Error('coverage-rejected: ' + file + ' 无字节段');
+    if (!Number.isFinite(v.broken) || v.broken !== 0) throw new Error('coverage-rejected: ' + file + ' 有段比对失败');
+    if (!v.contiguous) throw new Error('coverage-rejected: ' + file + ' 段不连续');
+  }
+  // 只声明能证明的那部分：内容自读取后未变。来源/历史时刻不在证明范围内。
+  return Object.freeze({ [VERIFIED]: true, scope: 'content-immutable-since-read', files: entries.map(([f]) => f) });
 }
 
 /** 读取方只接受本模块签发的对象；字符串/普通对象一律视为未验证。 */

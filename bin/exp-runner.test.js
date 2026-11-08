@@ -71,7 +71,7 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
   const forged = actionEvidence(lg, text, null, { level: 'verified', windowStart: 'w', anchorBytes: 64 });
   assert.equal(forged.status, 'UNKNOWN', '伪造 verified 必须被拒');
   assert.ok(forged.reasons.includes('coverage-limited'));
-  assert.throws(() => C.makeVerifiedCoverage({}), /coverage-verification-not-implemented/);
+  assert.throws(() => C.makeVerifiedCoverage({}), /coverage-rejected/);
   assert.equal(C.isVerifiedCoverage({ level: 'verified' }), false);
   console.log('覆盖分级断言 PASS（limited→UNKNOWN / 伪造verified被拒 / 无合法签发路径）');
 }

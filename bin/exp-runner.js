@@ -1114,11 +1114,24 @@ async function cmdRun(opts) {
     const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
     // 覆盖等级：现在只有"有限监测"（窗口起点 + 头段锚），拿不出连续性证明 ⇒ limited。
   // 只要还是 limited，结论只能是 UNKNOWN；等有可验证不可变片段/连续字节链再谈 verified。
-  const coverage = {
-    level: 'limited',
-    windowStart: env.timings && env.timings.stimulusSentAt || null,
-    anchorBytes: reader.anchors && reader.anchors['tools.jsonl'] ? reader.anchors['tools.jsonl'].length : 0,
-  };
+  // 有限监测（默认）+ 尝试事后复核：把已消费字节从磁盘重读比对摘要。
+  // 复核通过只能证明"读到的内容自读取后没变"，不能证明来源与历史时刻；
+  // 因此 verified 的作用域写死为 content-immutable-since-read，不含来源背书。
+  let coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null };
+  try {
+    const verify = reader.verifySegments();
+    if (verify.ok && !Object.keys(gaps).length) {
+      coverage = require('./lib/coverage').makeVerifiedCoverage({
+        segments: verify.files,
+        source: 'monitor-reader/bounded-window',
+        window: { start: env.timings && env.timings.stimulusSentAt || null },
+        gaps,
+        lifecycle: { closed: true },
+      });
+    }
+  } catch (e) {
+    coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null, reject: String(e.message).slice(0, 120) };
+  }
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
     const actionStates = lg.summary.states || {};
     log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)

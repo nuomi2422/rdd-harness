@@ -105,3 +105,19 @@ test('盲区（仍不支持）②覆写只发生在锚之后：识别不了', (t
   assert.equal(r.gaps['tools.jsonl'], undefined, '已知盲区：锚之后的原地覆写仍识别不了');
   assert.equal(body.length, fs.statSync(file).size, '大小未变');
 });
+test('事后复核：读完后内容未变 → verifySegments ok；改动已消费区域 → broken', (t) => {
+  const { r, file } = setup(t);
+  fs.writeFileSync(file, 'aaa\nbbb\n');
+  r.pull('tools.jsonl');
+  let v = r.verifySegments();
+  assert.equal(v.ok, true, '未变时应复核通过');
+  assert.equal(v.files['tools.jsonl'].broken, 0);
+  assert.equal(v.files['tools.jsonl'].segments, 1);
+  // 改掉已消费区域（内容被替换）
+  const fd = fs.openSync(file, 'r+');
+  fs.writeSync(fd, Buffer.from('zzz'), 0, 3, 0);
+  fs.closeSync(fd);
+  v = r.verifySegments();
+  assert.equal(v.ok, false, '内容被改后必须复核失败');
+  assert.ok(v.files['tools.jsonl'].broken >= 1);
+});

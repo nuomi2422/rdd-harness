@@ -20,6 +20,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 function createPull(opts) {
   const dir = opts.dir;
@@ -33,6 +34,8 @@ function createPull(opts) {
   // 一旦被改写（原地覆写的常见形态）就说明"这段内容已经不是你当初读的那段"，
   // 记 anchor-changed 缺口。这是对"同 inode 原地覆写"部分盲区的**有界**缓解，不是全覆盖。
   const anchors = {};
+  // 已消费的字节段：用于事后复核（我读到的内容现在是否还在磁盘上）
+  const segments = {};
   const ANCHOR_BYTES = 64;
   // 只读前 len 字节做比较：窗口起点时文件可能还不到 64 字节，若每次都读满 64 再比，
   // 文件正常增长就会被误判成"锚变了"。所以比较长度固定为**起点时的长度**。
@@ -104,6 +107,11 @@ function createPull(opts) {
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
       if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
       pending[f] = complete.length < n ? { size } : null;
+      const from = offsets[f] || 0;
+      (segments[f] || (segments[f] = [])).push({
+        from, to: from + complete.length,
+        sha256: crypto.createHash('sha256').update(complete).digest('hex'),
+      });
       offsets[f] = (offsets[f] || 0) + complete.length;
       if (evidenceDir) fs.appendFileSync(path.join(evidenceDir, f), complete);
       return complete.toString('utf8');
@@ -113,7 +121,38 @@ function createPull(opts) {
     } finally { fs.closeSync(fd); }
   }
 
-  return { pull, gaps, offsets, fileId, pending, anchors };
+  return { pull, gaps, offsets, fileId, pending, anchors, segments, verifySegments };
+
+  /**
+   * 事后复核：把每段已消费字节从磁盘重读并比对摘要。
+   * 能证明的只有：我读到的那些字节，现在磁盘上还是同样的字节。
+   * 不能证明：来源、历史时刻、读之前是否已被替换。
+   */
+  function verifySegments() {
+    const files = {};
+    let ok = true;
+    for (const [f, list] of Object.entries(segments)) {
+      const p = path.join(dir, f);
+      let verified = 0, broken = 0, contiguous = true, expect = null;
+      for (const seg of list) {
+        if (expect !== null && seg.from !== expect) contiguous = false;
+        expect = seg.to;
+        try {
+          const fd = fs.openSync(p, 'r');
+          try {
+            const b = Buffer.alloc(seg.to - seg.from);
+            const n = fs.readSync(fd, b, 0, b.length, seg.from);
+            const h = crypto.createHash('sha256').update(b.subarray(0, n)).digest('hex');
+            if (n === b.length && h === seg.sha256) verified++; else broken++;
+          } finally { fs.closeSync(fd); }
+        } catch { broken++; }
+      }
+      if (broken || !contiguous || !list.length) ok = false;
+      files[f] = { segments: list.length, verified, broken, contiguous, from: list.length ? list[0].from : null, to: expect };
+    }
+    if (!Object.keys(files).length) ok = false;
+    return { ok, files };
+  }
 }
 
 module.exports = { createPull };
