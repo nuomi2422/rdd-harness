@@ -6,6 +6,7 @@
  * **不自动起游戏**：实机 smoke 仍由人触发（99 号 §2）。
  */
 const { spawnSync } = require('child_process');
+const fs = require('fs');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname);
@@ -32,6 +33,8 @@ const STEPS = [
   ['Q9 登记读取', path.join(ROOT, 'q9-isolated.test.js'), [], 'node-test'],
   ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
   ['take 动态有效性', path.join(ROOT, 'verify-take.test.js'), [], 'node-test', 'wallclock'],
+  // 2026-11-09：regress 退出码 → acceptance 判定的端到端口径（FLAKY 不得被当成 PASS）。
+  ['回归退出码口径', path.join(ROOT, 'regress-gating.test.js'), [], 'node-test'],
 ];
 
 /**
@@ -47,6 +50,15 @@ const STEPS = [
  *   所以必须保留首轮证据供复查，不能把 FLAKY 当"已排除风险"。
  */
 const STRICT = process.argv.includes('--strict');
+const ALLOW_FLAKY = process.argv.includes('--allow-flaky');
+// 全量日志落盘（不只是一行尾行）：人工复查/复现时要用完整输出。
+const LOG_DIR = path.join(ROOT, '..', 'experiments', 'regress-logs', new Date().toISOString().replace(/[:.]/g, '-'));
+function saveLog(name, phase, text) {
+  try {
+    fs.mkdirSync(LOG_DIR, { recursive: true });
+    fs.writeFileSync(path.join(LOG_DIR, name.replace(/[\\/:*?"<>|\s]+/g, '_') + '.' + phase + '.log'), text, 'utf8');
+  } catch { /* 写不了日志不影响判据 */ }
+}
 const results = [];
 for (const [name, file, args, kind, retryKind] of STEPS) {
   const argv = kind === 'node-test' ? ['--test', file, ...args] : [file, ...args];
@@ -55,15 +67,18 @@ for (const [name, file, args, kind, retryKind] of STEPS) {
     const r = spawnSync(node, argv, { encoding: 'utf8', timeout: 180000 });
     return { r, ms: Date.now() - t0 };
   };
-  const tailOf = (r) => ((r.stdout || '') + (r.stderr || '')).trim().split('\n').filter(Boolean).slice(-2).join(' | ');
+  const fullOf = (r) => (r.stdout || '') + (r.stderr || '');
+  const tailOf = (r) => fullOf(r).trim().split('\n').filter(Boolean).slice(-2).join(' | ');
 
   const first = runOnce();
+  saveLog(name, 'run1', fullOf(first.r));   // 首轮完整日志先落盘，重试失败也不丢
   let final = first, state, firstEvidence = null;
   if (first.r.status === 0) {
     state = 'PASS';
   } else if (retryKind === 'wallclock') {
     firstEvidence = { exit: first.r.status, ms: first.ms, tail: tailOf(first.r).slice(0, 300) };
     const second = runOnce();
+    saveLog(name, 'run2', fullOf(second.r));
     final = second;
     state = second.r.status === 0 ? 'FLAKY' : 'FAIL';
   } else {
@@ -77,8 +92,10 @@ for (const [name, file, args, kind, retryKind] of STEPS) {
   if (firstEvidence) {
     console.log('      首轮失败证据（保留供复查，不代表已排除风险）：exit=' + firstEvidence.exit
       + ' ' + firstEvidence.ms + 'ms  尾行=' + firstEvidence.tail);
+    console.log('      完整日志：' + path.join(LOG_DIR, name.replace(/[\\/:*?"<>|\s]+/g, '_') + '.run1.log'));
   }
 }
+console.log('完整日志目录：' + LOG_DIR);
 
 const failed = results.filter((r) => r.state === 'FAIL' || (STRICT && r.state === 'FLAKY'));
 const flaky = results.filter((r) => r.state === 'FLAKY');
@@ -87,4 +104,12 @@ console.log('\n' + (failed.length
   : 'REGRESS PASS: ' + results.length + ' 组'
     + (flaky.length ? '（**FLAKY ' + flaky.length + ' 组，不算干净通过**：' + flaky.map((r) => r.name).join('、')
         + '；这些是墙钟用例，间歇失败的原因未定，资源压力只是候选，需另行复查是否真实竞态）' : '')));
-process.exit(failed.length ? 1 : 0);
+// 退出码（2026-11-09，fail-closed）：
+//   0 = 全部干净通过
+//   1 = 有 FAIL
+//   2 = 无 FAIL 但有 FLAKY（"首轮失败、重试通过"）→ **默认也算不通过**，
+//       原因是 acceptance.json 的 cmd 判据只看 "exit 0 即 PASS"，若这里返 0，
+//       FLAKY 会被验收表当成成功，等于把间歇失败刷绿。要放行须显式 --allow-flaky。
+if (failed.length) process.exit(1);
+if (flaky.length && !ALLOW_FLAKY) process.exit(2);
+process.exit(0);
