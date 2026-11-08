@@ -52,28 +52,51 @@ function collectOnce(state, opt) {
   for (const f of FILES) {
     const st = state.files[f] || (state.files[f] = { offset: 0 });
     const file = path.join(opt.monitor, f);
-    const r = L.readTail(file, st.offset, WINDOW);
+    let r;
+    try { r = L.readTail(file, st.offset, WINDOW, st.cursor || (st.cursor = {})); }
+    catch (e) { r = { missing: true, error: String(e.message || e) }; }
+    if (r.missing) {
+      if (!st.missing) { st.gaps = (st.gaps || 0) + 1; st.gapReason = 'unavailable'; }
+      st.missing = true; st.continuity = 'UNKNOWN';
+      st.readError = r.error || 'open failed';
+      continue;
+    }
+    if (st.missing) st.recoveries = (st.recoveries || 0) + 1;
+    st.missing = false; st.readError = null;
     st.size = r.size;
     st.offset = r.offset;
-    if (r.missing) { st.missing = true; continue; }
-    st.missing = false;
     if (r.reset) st.resets = (st.resets || 0) + 1;
+    st.continuity = 'UNKNOWN';
+    if (r.reset || r.skipped) { st.gaps = (st.gaps || 0) + 1; st.gapReason = r.reason || 'window'; st.skippedBytes = (st.skippedBytes || 0) + r.skipped; }
     const items = [];
     for (const line of r.lines) {
       if (!line.trim()) continue;
-      const ev = (() => { try { return JSON.parse(line); } catch { return null; } })();
-      const n = L.normalize(f, ev);
-      if (n) { n.rec.id = (ev && ev.event_id) || null; items.push(n); }   // event_id 供 strand 去重
+      try {
+        const ev = JSON.parse(line);
+        if (!ev || typeof ev !== 'object' || Array.isArray(ev) || typeof ev.type !== 'string' || !ev.type) throw new Error('invalid event structure');
+        const n = L.normalize(f, ev);
+        if (n) { n.rec.id = ev.event_id || null; items.push(n); }
+      } catch (e) {
+        st.malformed = (st.malformed || 0) + 1;
+        st.lastMalformedError = String(e.message || e).slice(0, 200);
+      }
     }
     L.apply(state, f, items, now);
     collected += items.length;
   }
   state.ticks = (state.ticks || 0) + 1;
-  const rendered = L.renderAll(state, { now, interval_s: opt.interval_s, views }, views);
   const writes = [];
   for (const v of views) {
-    L.writeAtomic(path.join(opt.out, v + '.md'), rendered[v]);
-    writes.push(v + '.md');
+    try {
+      const text = L.render(v, state, { now, interval_s: opt.interval_s, views });
+      L.writeAtomic(path.join(opt.out, v + '.md'), text);
+      writes.push(v + '.md');
+    } catch (e) {
+      const message = 'view ' + v + ': ' + String(e.message || e).slice(0, 200);
+      state.errors.push(message);
+      // 替换旧视图，避免把上一拍内容当作本拍成功。
+      try { L.writeAtomic(path.join(opt.out, v + '.md'), '# ' + v + '\n\nUNKNOWN：本拍视图生成失败；内容不可用。\n'); } catch (writeError) { state.errors.push('view ' + v + ' fallback: ' + String(writeError.message || writeError).slice(0, 200)); }
+    }
   }
   return { writes, collected, paused: false };
 }
@@ -81,7 +104,7 @@ function collectOnce(state, opt) {
 function statusOf(state, extra) {
   const files = {};
   for (const [k, v] of Object.entries(state.files)) {
-    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0 };
+    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0 };
   }
   return Object.assign({
     schema: 1,
@@ -213,6 +236,18 @@ function selfTest() {
   fs.writeFileSync(path.join(mon, 'ai.jsonl'), JSON.stringify({ timestamp: T('00:14'), type: 'assistant', data: { text: '轮转后' } }) + '\n');
   const r3 = collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15, now: Date.parse(T('00:15')) });
   cases.push(['轮转后不崩且读到新行', r3.collected >= 1 && /轮转后/.test(read('chat')), '']);
+  // 独立坏行不能让同批后续正常事件丢失。
+  const bad = path.join(mon, 'context.jsonl');
+  fs.appendFileSync(bad, JSON.stringify({type:'llm_response',data:{actor:'supervisor',response:{tool_calls:{}}}}) + '\n' + JSON.stringify({type:'llm_response',data:{actor:'supervisor',response:{content:'坏行后正常'}}}) + '\n');
+  const r4 = collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15 });
+  cases.push(['结构坏行隔离且后续仍入视图', r4.collected === 1 && state.files['context.jsonl'].malformed === 1 && /坏行后正常/.test(read('chat')), '']);
+  fs.unlinkSync(bad);
+  collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15 });
+  const missingGap = state.files['context.jsonl'].gaps;
+  collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15 });
+  fs.writeFileSync(bad, JSON.stringify({type:'user_prompt',data:{text:'恢复后'}}) + '\n');
+  collectOnce(state, { monitor: mon, out, views: L.VIEWS, interval_s: 15 });
+  cases.push(['缺失及恢复保留缺口', missingGap > 0 && state.files['context.jsonl'].gaps >= missingGap && state.files['context.jsonl'].recoveries === 1 && /恢复后/.test(read('chat')) && /UNKNOWN/.test(read('chat')), '']);
   // ④ 开关：关掉 → 不写；只留 chat → 只写 chat.md
   L.saveControl(out, { enabled: false }, 'selftest');
   const ctl = L.loadControl(out);

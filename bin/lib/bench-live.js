@@ -68,33 +68,48 @@ function writeAtomic(file, text) {
 }
 
 // ── 增量读尾 ──────────────────────────────────────────────────────────────
-/**
- * 从 offset 读到文件尾；若文件变小（轮转）则从头一个窗口重读。
- * @returns {{lines:string[], offset:number, size:number, reset:boolean}}
- */
-function readTail(file, offset, windowBytes) {
+/** 偏移只推进到换行；调用方可传内存状态检测可观测的替换。不持久化。 */
+function readTail(file, offset, windowBytes, cursor) {
+  const limit = windowBytes || 1024 * 1024;
   let fd;
-  try { fd = fs.openSync(file, 'r'); } catch { return { lines: [], offset: offset || 0, size: 0, reset: false, missing: true }; }
+  try { fd = fs.openSync(file, 'r'); } catch (e) { return { lines: [], offset: offset || 0, size: 0, reset: false, missing: true, error: String(e.code || e.message || e), continuity: 'UNKNOWN' }; }
   try {
-    const st = fs.fstatSync(fd);
-    const size = st.size;
-    let start = offset || 0;
-    let reset = false;
-    if (size < start) { start = Math.max(0, size - (windowBytes || 1024 * 1024)); reset = true; }
-    if (size - start > (windowBytes || 1024 * 1024)) start = size - (windowBytes || 1024 * 1024);
-    const len = size - start;
-    if (len <= 0) return { lines: [], offset: size, size, reset };
-    const buf = Buffer.alloc(len);
-    fs.readSync(fd, buf, 0, len, start);
-    const text = buf.toString('utf8');
-    const parts = text.split('\n');
-    // 最后一段可能是写了一半的行走，留到下一拍（用 size 减去它的字节数太麻烦，直接丢）
-    parts.pop();
-    return { lines: parts, offset: size, size, reset };
-  } finally {
-    try { fs.closeSync(fd); } catch { /* ignore */ }
-  }
+    const st = fs.fstatSync(fd), size = st.size;
+    const identity = st.ino ? String(st.dev) + ':' + String(st.ino) : null;
+    let start = offset || 0, reset = false, reason = null;
+    const read = (pos, len) => { const b = Buffer.alloc(len); const n = fs.readSync(fd, b, 0, len, pos); return b.subarray(0, n); };
+    if (cursor && cursor.seen) {
+      if (size < cursor.size || size < start) reason = 'truncated';
+      else if (identity && cursor.identity && identity !== cursor.identity) reason = 'replaced';
+      else if (cursor.anchor && !read(cursor.anchorStart, cursor.anchor.length).equals(cursor.anchor)) reason = 'changed';
+      if (reason) { reset = true; start = 0; }
+    } else if (size < start) { reset = true; reason = 'truncated'; start = 0; }
+    let skipped = 0, discard = !!(cursor && cursor.dropping && !reset);
+    if (size - start > limit) {
+      const next = size - limit;
+      skipped = next - start;
+      start = next;
+      discard = discard || (start > 0 && read(start - 1, 1)[0] !== 10);
+    }
+    const buf = read(start, Math.max(0, size - start));
+    let begin = 0;
+    if (discard) {
+      const end = buf.indexOf(10);
+      if (end < 0) begin = buf.length;
+      else begin = end + 1;
+    }
+    const last = buf.lastIndexOf(10);
+    const lines = last >= begin ? buf.subarray(begin, last + 1).toString('utf8').split('\n').slice(0, -1) : [];
+    // 窗口内没有完整行时，丢弃残段，下一拍仍须找首个换行。
+    const nextOffset = discard && last < begin ? start + begin : (last >= begin ? start + last + 1 : start);
+    const dropping = discard && last < 0;
+    const actualSize = start + buf.length;
+    const anchorStart = Math.max(0, actualSize - 256);
+    if (cursor) Object.assign(cursor, { seen: true, size: actualSize, identity, anchorStart, anchor: read(anchorStart, actualSize - anchorStart), dropping });
+    return { lines, offset: nextOffset, size: actualSize, reset, reason, skipped, continuity: 'UNKNOWN', dropping };
+  } finally { fs.closeSync(fd); }
 }
+
 
 // ── 状态 ──────────────────────────────────────────────────────────────────
 function newState(meta) {
@@ -146,6 +161,9 @@ function normalize(file, ev) {
   if (file === 'rdd.jsonl') {
     if (type === 'taskchain_snapshot') {
       const chain = asChain(d.taskChain);
+      if (d.taskChain != null && (!chain || Array.isArray(chain) || typeof chain !== 'object')) throw new Error('invalid taskChain');
+      if (chain && chain.primaries != null && (!Array.isArray(chain.primaries) || chain.primaries.some(p => !p || typeof p !== 'object' || Array.isArray(p)))) throw new Error('invalid taskChain primaries');
+      if (chain && chain.satisfiedStages != null && !Array.isArray(chain.satisfiedStages)) throw new Error('invalid taskChain satisfiedStages');
       return { kind: 'chain', rec: { t, type, chain, reason: d.reason, companion: d.companionId } };
     }
     if (type === 'numen_context') return { kind: 'ctx', rec: { t, type, who: 'numen', text: d.context || d.text || '', companion: d.companionId } };
@@ -153,7 +171,10 @@ function normalize(file, ev) {
     if (type === 'supervisor_input' || type === 'supervisor_context') return { kind: 'ctx', rec: { t, type, who: 'supervisor', text: d.text || d.context || '', companion: d.companionId } };
     if (type === 'planning_input_verbatim') return { kind: 'ctx', rec: { t, type, who: 'planner', text: d.text || d.prompt || '', companion: d.companionId } };
     if (type === 'runtime_state') return { kind: 'ctx', rec: { t, type, who: 'runtime', text: d.context || d.text || '', companion: d.companionId } };
-    if (type === 'requirement_manifest') return { kind: 'chain', rec: { t, type, manifest: d, companion: d.companionId } };
+    if (type === 'requirement_manifest') {
+      if (d.rows != null && (!Array.isArray(d.rows) || d.rows.some(r => !r || typeof r !== 'object' || Array.isArray(r)))) throw new Error('invalid requirement_manifest rows');
+      return { kind: 'chain', rec: { t, type, manifest: d, companion: d.companionId } };
+    }
     if (type === 'requirement_gaps_changed') return { kind: 'chain', rec: { t, type, gaps: d.gaps, companion: d.companionId } };
     // ★ 方块面：journal 里真正落盘的「方块级」事实是 asset_snapshot 的 facilities（如 minecraft:chest@117,62,703）。
     //   逐格网格（blockUpdate → grid）服务端日志里没有，别在这里假装有；真网格走 world_probe/scan_blocks。
@@ -242,7 +263,10 @@ function normalize(file, ev) {
   }
 
   if (file === 'observer.jsonl') {
-    if (type === 'observer_tick') return { kind: 'event', rec: { t, type, tick: d } };
+    if (type === 'observer_tick') {
+      if (!d || typeof d !== 'object' || Array.isArray(d) || (d.nearby != null && !Array.isArray(d.nearby))) throw new Error('invalid observer_tick nearby');
+      return { kind: 'event', rec: { t, type, tick: d } };
+    }
     if (type === 'observer_loop_start') return { kind: 'event', rec: { t, type, text: 'observer 开跑 pid=' + (d.pid || '?') } };
     if (type === 'observer_loop_stop') return { kind: 'event', rec: { t, type, text: 'observer 停 ' + (d.reason || '') } };
     return null;
@@ -601,7 +625,8 @@ const RENDERERS = { snapshot: renderSnapshot, chain: renderChain, chat: renderCh
 function render(view, state, meta) {
   const fn = RENDERERS[view];
   if (!fn) throw new Error('unknown view: ' + view);
-  return fn(state, meta || {});
+  const warnings = Object.entries(state.files).filter(([, f]) => f.gaps || f.malformed).map(([name, f]) => name + ': gaps=' + (f.gaps || 0) + ' skipped_bytes=' + (f.skippedBytes || 0) + ' malformed=' + (f.malformed || 0) + ' last=' + (f.gapReason || '-'));
+  return fn(state, meta || {}) + '\n> 采集连续性 UNKNOWN（无法证明完整）；' + (warnings.length ? warnings.join('；') : '未检测到缺口') + '\n';
 }
 
 /** 一次渲染所有选中视图，返回 {view: text}。 */
