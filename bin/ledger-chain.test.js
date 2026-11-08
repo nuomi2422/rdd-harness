@@ -13,7 +13,7 @@ const AL = require('./lib/action-ledger');
 const { actionEvidence } = require('./exp-runner');
 
 const line = (type, data, env) => JSON.stringify({
-  type, ...(env || {}), data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', ...data },
+  type, session: 'run-1', ...(env || {}), data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', ...data },
 });
 const resolverOK = (ev) => ({
   worldId: ev.world_id || 'w', serverSession: ev.server_session || 's',

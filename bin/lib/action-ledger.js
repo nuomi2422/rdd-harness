@@ -128,10 +128,17 @@ function build(toolsText, eventsText, opts) {
     if (!id) callsWithoutId++;
     const complete = !!(id && scope.worldId && scope.companion && scope.session);
     const run = runOf(ev);
-    const k = complete ? key(scope, id, run) : 'unknown:' + unknownIndex++;
+    // 2026-11-09（经指挥官指出）：run 缺失时**不能**退化成空串后按同一键合并 ——
+    // 那会把"两次运行里的同一个 callId"并成一条并可能产生假完成。
+    // 处理：run 缺失的行各自独立成桶（隔离），并把身份标成 UNKNOWN（fail-closed）。
+    const runUnknown = !run;
+    const k = complete
+      ? (runUnknown ? 'run-unknown:' + unknownIndex++ : key(scope, id, run))
+      : 'unknown:' + unknownIndex++;
     if (!calls.has(k)) calls.set(k, {
       callId: id || null, tool: '', worldId: scope.worldId || '', companion: scope.companion || '', session: scope.session || '', run, identityEvidence: scope.evidence || null,
-      identityStatus: complete ? 'KNOWN' : 'UNKNOWN', requestedAt: null,
+      identityStatus: (complete && !runUnknown) ? 'KNOWN' : 'UNKNOWN', requestedAt: null,
+      runUnknown,
       state: 'requested', success: null, async: false, taskId: '', resultCount: 0,
       duplicates: 0, terminal: null, terminalAt: null, terminalMessage: '', payload: null,
       _hasCall: false, _results: [],

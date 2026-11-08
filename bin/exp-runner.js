@@ -826,27 +826,57 @@ async function cmdRun(opts) {
   const raw = { tools: '', events: '' };
   const blockersSeen = new Set();
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
+  // 2026-11-09（经指挥官指派的读端改造）：缺口必须显式化，且不能被"看起来正常"掩盖。
+  // 覆盖五种会让读取"悄悄丢内容"的情形：①文件消失 ②变小（截断/轮转）③同大小被替换
+  // ④末行只写了一半 ⑤读失败。任一发生都记 gap，消费者据此判 UNKNOWN，绝不静默 PRESENT。
   const gaps = {};
+  const fileId = {};
+  const noteGap = (f, reason, extra) => {
+    if (!gaps[f]) gaps[f] = { at: nowIso(), reason, ...(extra || {}) };
+  };
   const pull = (f) => {
     const p = path.join(MONITOR, f);
-    if (!fs.existsSync(p)) return '';
-    const size = fs.statSync(p).size;
-    // 2026-11-09：文件变小 = 被截断或轮转（新同名文件）。以前这里直接 return ''：
-    // 之后要么永远读空（size 一直小于旧 offset），要么等文件长大后再从旧 offset 读中段 → 半行/错行。
-    // 两种都会让"缺了一段"看起来像"本来就没有"。现在显式记录缺口并从头重读。
-    if (size < offsets[f]) {
-      gaps[f] = { at: nowIso(), reason: 'truncated-or-rotated', from: offsets[f], to: size };
+    if (!fs.existsSync(p)) {
+      if ((offsets[f] || 0) > 0) noteGap(f, 'missing-file', { from: offsets[f] });
+      return '';
+    }
+    let st;
+    try { st = fs.statSync(p, { bigint: true }); }
+    catch (e) { noteGap(f, 'stat-failed', { error: String(e && e.message || e).slice(0, 120) }); return ''; }
+    const size = Number(st.size);
+    const ino = String(st.ino);
+    // ② 变小：截断或轮转
+    if (size < (offsets[f] || 0)) {
+      noteGap(f, 'truncated-or-rotated', { from: offsets[f], to: size });
+      offsets[f] = 0; delete fileId[f];
+    }
+    // ③ 同大小但换了文件（轮转后同名新文件）：同大小看不出，靠 inode 识别
+    if (fileId[f] && fileId[f] !== ino) {
+      noteGap(f, 'replaced-same-size', { from: offsets[f], to: size });
       offsets[f] = 0;
     }
-    if (size <= offsets[f]) return '';
+    fileId[f] = ino;
+    if (size <= (offsets[f] || 0)) return '';
     const fd = fs.openSync(p, 'r');
-    const len = size - offsets[f];
-    const buf = Buffer.alloc(len);
-    fs.readSync(fd, buf, 0, len, offsets[f]);
-    fs.closeSync(fd);
-    offsets[f] = size;
-    fs.appendFileSync(path.join(runDir, 'evidence', f), buf);
-    return buf.toString('utf8');
+    try {
+      const len = size - offsets[f];
+      const buf = Buffer.alloc(len);
+      const n = fs.readSync(fd, buf, 0, len, offsets[f]);
+      if (n !== len) noteGap(f, 'short-read', { want: len, got: n });
+      let chunk = buf.subarray(0, n);
+      // ④ 末行不完整：扣住不消费，等下一次补齐（否则下游会把半行当坏行或错行）
+      const text = chunk.toString('utf8');
+      const cut = text.lastIndexOf('\n');
+      if (cut < 0) { return ''; }            // 整个块都还没写完
+      const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
+      offsets[f] = (offsets[f] || 0) + complete.length;
+      fs.appendFileSync(path.join(runDir, 'evidence', f), complete);
+      return complete.toString('utf8');
+    } catch (e) {
+      // ⑤ 读失败
+      noteGap(f, 'read-failed', { error: String(e && e.message || e).slice(0, 120) });
+      return '';
+    } finally { fs.closeSync(fd); }
   };
 
   for (;;) {

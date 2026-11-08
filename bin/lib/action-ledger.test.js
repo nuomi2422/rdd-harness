@@ -9,7 +9,7 @@ const resolveIdentity = (ev, category) => {
     evidence: 'fixture-proof', [category === 'tools' ? 'callId' : 'taskId']: category === 'tools' ? d.tool_call_id : d.id };
 };
 const build = (a, b) => rawBuild(a, b, { resolveIdentity });
-const line = (type, id, companion, session, extra = {}) => JSON.stringify({ type, data: { ...(type === 'task_finished' ? { id } : { tool_call_id: id, tool: 'goto' }), ...(companion ? { companion_id: companion } : {}), ...(session ? { session_id: session } : {}), ...extra } });
+const line = (type, id, companion, session, extra = {}) => JSON.stringify({ type, session: (extra && extra.__run) || 'run-1', data: { ...(type === 'task_finished' ? { id } : { tool_call_id: id, tool: 'goto' }), ...(companion ? { companion_id: companion } : {}), ...(session ? { session_id: session } : {}), ...extra } });
 const call = (id, c='a', s='s') => line('tool_call', id, c, s);
 const result = (id, c='a', s='s', p={success:true}) => line('tool_result', id, c, s, {result:p});
 const done = (id, c='a', s='s', status='completed') => line('task_finished', id, c, s, {status});
@@ -99,7 +99,7 @@ test('async terminal requires its own independently verified full scope', () => 
 // 账本口径：**信封里的身份是约束、不是证明** —— 与独立核验冲突时必须落到 UNKNOWN，
 // 这正是"A 发起、B 才 publish"被错标时该走的 fail-closed 路径。
 const envLine = (type, id, c, s, env, extra = {}) => JSON.stringify({
-  type, ...(env || {}), data: { ...(type === 'task_finished' ? { id } : { tool_call_id: id, tool: 'goto' }),
+  type, session: 'run-1', ...(env || {}), data: { ...(type === 'task_finished' ? { id } : { tool_call_id: id, tool: 'goto' }),
     ...(c ? { companion_id: c } : {}), ...(s ? { session_id: s } : {}), ...extra },
 });
 

@@ -4,7 +4,7 @@
 const assert = require('assert');
 const AL = require('./lib/action-ledger');
 const { actionEvidence, blockerScopeKey } = require('./exp-runner');
-const row = (type, data) => JSON.stringify({type, data:{companion_id:'c',session_id:'s',tool:'x',tool_call_id:'1',...data}});
+const row = (type, data) => JSON.stringify({type, session:'run-1', data:{companion_id:'c',session_id:'s',tool:'x',tool_call_id:'1',...data}});
 const call = row('tool_call', {});
 const result = row('tool_result', {result:{success:true}});
 const resolveIdentity = (ev, category) => ({worldId:'w',serverSession:'s',companion:'c',evidence:'offline-fixture',callId:ev.data.tool_call_id,taskId:ev.data.id});
@@ -27,7 +27,7 @@ console.log('exp-runner offline consumer tests PASS');
 // 2026-11-09：身份注入后，用**既有真实消费者** actionEvidence 做端到端断言。
 // 消费者契约（exp-runner.js:43-44）：coverage.identityKnown 必须是 "N/N"（全知）才可能 PRESENT，
 // 只要有一条 UNKNOWN 就整体 UNKNOWN —— 这比"抽几条看"严得多，测试就锚在这个契约上。
-const envRow = (type, data, env) => JSON.stringify({ type, ...(env || {}), data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', ...data } });
+const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...(env || {}), data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', ...data } });
 
 // 正例：全部可核验 → PRESENT
 assert.equal(check(call + '\n' + result).status, 'PRESENT');
