@@ -1915,6 +1915,17 @@
         "lesson": "判据里出现「null 就跳过这个比较」时，等于给了一个不出声的放行口；把 null 当三态之一显式处理（WARN），比默认 PASS 诚实。",
         "guard": "Q7 的 detail 永远打印 frames 的实际值或『读不到 frame=』，人一眼能看出来是缺证据还是真通过。",
         "status": "fixed"
+      },
+      {
+        "id": "bug-15",
+        "class": "隐蔽",
+        "title": "两个库两条路：skills.jsonl 没有任何检索读它，真实检索只读 experience-*.jsonl",
+        "detected": "2026-11-08",
+        "detail": "context.jsonl 全部 14 条 retrieval_snapshot（00:05:57→00:27:27）provider 一律 experience、role 一律 executor、ref 前缀一律 exp:、含 sk- 的 ref 0 条。同期 skills.jsonl mtime 00:18:43（bug-11 归并写在这里）、experience-a43d753e 仍是 23:32:28（归并没碰）。结论：bug-11 把 23 条合并成 3 条全做在一个**从来没有被检索读过**的库里，对交付零影响。",
+        "fix": "未修。两条路择一：①把归并与晋级搬到 experience 库（真源）②改读取源让 skills 进检索。选之前先答：skills 库的定位是什么（活库/死库/待接线）。",
+        "lesson": "改数据之前先证明这份数据有人读。这次花了半天把一个没人读的库整理得很干净 —— 账面干净、能力为零，正是「看起来做了」的教科书案例。",
+        "guard": "暂无。候选：任何「整理某库」的任务，第一步先跑一次真实检索，确认该库出现在 ref 里；不出现就先停下问定位。",
+        "status": "open"
       }
     ]
   },
