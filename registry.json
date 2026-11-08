@@ -1937,6 +1937,7 @@
         "fix": "**真因已定（2026-11-08 08:55 学习者查证 + 指挥官抽验）**：appendEnqueuedJournal 有**两个**调用点 —— 正常入队那一处受 ENQUEUED.add 保护，另一处（放回被抑制 memo 的 admitDeferred 路径）先入队再直接写 journal、不查 ENQUEUED，同一条每放回一次就多一行。数据实证：58 个重复 id 100% 命中 learner.jsonl 的 suppressed_admitted 事件。trim 假设已否掉（集合约 340，远未到 4096 上限）。修法：放回路径写 journal 前先查 ENQUEUED，或改成幂等 upsert。注：行号以实际文件为准（不同读法有偏移）。",
         "lesson": "阴性观察只能说明『那一次没发生』，不能说明机制不存在；一次转阳就要推翻原来的假设并重新登记，而不是继续拿旧结论解释新数据。",
         "guard": "暂无。候选：开窗前后各记一次 journal 行数与唯一 id 数，并在窗内每隔 5 分钟采一次，定位重复发生在哪个时间点。",
+        "fixedLanded": "2026-11-08 08:58 修复已落 fe984f43d：放回分支改为 if (ENQUEUED.add(id)) 才写 journal；learner 全量 804/0/0 绿。★效果未验：真实「抑制→冷却→放回」循环未跑，journal 是否只 +1 仍 NOT_COVERED，所以本条保持 open。",
         "status": "open"
       }
     ]
