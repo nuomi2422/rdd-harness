@@ -204,7 +204,8 @@ function recentOutput(dirs, now, windowMs) {
  * 有了它，「我查过架构」「我读过角色卡」不再靠自报 —— 直接看账本。
  */
 function lastMcpCall(ledgerFile, match) {
-  const rows = readJsonl(ledgerFile).filter((r) => r && typeof r.tool === 'string' && match.test(r.tool));
+  // ★ 2026-11-08：只认成功调用（ok !== false）——调用失败也留痕，但失败不算「查过」。
+  const rows = readJsonl(ledgerFile).filter((r) => r && typeof r.tool === 'string' && match.test(r.tool) && r.ok !== false);
   if (!rows.length) return { known: false, at: 0, tool: null };
   const last = rows[rows.length - 1];
   const at = Date.parse(last.at);

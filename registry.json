@@ -1272,7 +1272,7 @@
           "level": "block",
           "appliesTo": ["commander"],
           "rule": "每 2 轮（40 分钟）必须调一次架构 MCP（arch_overview / arch_focus），防止只盯局部修复、方向跑偏。",
-          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次 arch_* 工具调用在 40 分钟内（工具痕迹，不是自报）",
+          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次【成功】的 arch_* 调用（ok≠false）在 40 分钟内；调用失败也留痕但不算查过",
           "note": "2026-11-08 起改为工具痕迹：架构 MCP 每次调用都写 mcp-calls.jsonl，没有调用记录＝没查。"
         },
         {
@@ -1291,7 +1291,7 @@
           "level": "block",
           "appliesTo": ["commander"],
           "rule": "每 4 轮（80 分钟）必须把当前施工单和角色卡各读一遍，防止拿旧结论指挥。",
-          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次 role_card 或 my_tasks 调用在 80 分钟内",
+          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次【成功】的 role_card 或 my_tasks 调用（ok≠false）在 80 分钟内",
           "note": "2026-11-08 起改为工具痕迹：role_card / my_tasks 是带记账的 MCP 工具，必须调用才算读过。"
         },
         {
