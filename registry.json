@@ -1743,7 +1743,9 @@
         "appliesTo": ["worker"],
         "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 的上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。所以退游戏后必须跑一次 `node bin/bench-digest.js` 把「说/做/果 + 异常摘要」过一遍，留痕才算做过 —— 只读文件不算。",
         "verify": "latest.log 里 60 分钟内有 All dimensions are saved，且 .harness/audit/bench-digest.jsonl 的最后一条时间 ≥ 该关窗时刻；没有关窗记录时只 WARN",
-        "note": "主人 2026-11-08 同意做 B 方案（命令 + 门禁强制）。A 方案（关窗自动投递到上下文）待做，届时 Q21 可退化为兜底。"
+        "note": "主人 2026-11-08 同意做 B 方案（命令 + 门禁强制）。A 方案（关窗自动投递到上下文）待做，届时 Q21 可退化为兜底。",
+        "guard": "digest 每次运行都写 .harness/audit/bench-digest.jsonl（时间/条数/是否截断），判据只认这条痕迹，不认自述；没有关窗记录时只 WARN，避免关服期间死红。",
+        "reviewBy": "2026-11-22"
       }
     ]
   },
