@@ -94,3 +94,44 @@ test('async terminal requires its own independently verified full scope', () => 
  assert.equal(build(failed,'').blockers.length,1);
  assert.equal(build(failed+'\ninvalid','').blockers.length,0);
  });
+
+// 2026-11-09：身份注入后，信封顶层可能带 world_id/server_session（由 WorldContextStamp 写）。
+// 账本口径：**信封里的身份是约束、不是证明** —— 与独立核验冲突时必须落到 UNKNOWN，
+// 这正是"A 发起、B 才 publish"被错标时该走的 fail-closed 路径。
+const envLine = (type, id, c, s, env, extra = {}) => JSON.stringify({
+  type, ...(env || {}), data: { ...(type === 'task_finished' ? { id } : { tool_call_id: id, tool: 'goto' }),
+    ...(c ? { companion_id: c } : {}), ...(s ? { session_id: s } : {}), ...extra },
+});
+
+test('信封身份与独立核验一致时才算 KNOWN', () => {
+  const rows = join(
+    envLine('tool_call', '1', 'a', 's', { world_id: 'w', server_session: 's' }),
+    envLine('tool_result', '1', 'a', 's', { world_id: 'w', server_session: 's' }, { result: { success: true } }));
+  const r = build(rows, '');
+  assert.equal(r.calls.length, 1);
+  assert.equal(r.calls[0].identityStatus, 'KNOWN');
+  assert.equal(r.calls[0].state, 'completed');
+});
+
+test('信封身份与核验冲突（旧世界事件被打上新身份）→ UNKNOWN，不得按新身份归并', () => {
+  // 事件在 A 世界产生（信封带 A），但独立核验拿到的是 B 身份 —— 典型的 A 发起 / B 才 publish。
+  const rows = join(
+    envLine('tool_call', '1', 'a', 's', { world_id: 'world-A', server_session: 'sess-A' }, { world_id: 'world-A', session_id: 'sess-A' }),
+    envLine('tool_result', '1', 'a', 's', { world_id: 'world-A', server_session: 'sess-A' }, { result: { success: true } }));
+  const resolverB = (ev, category) => {
+    const d = ev.data || {};
+    return { worldId: 'world-B', serverSession: 'sess-B', companion: d.companion_id,
+      evidence: 'fixture-proof-B', [category === 'tools' ? 'callId' : 'taskId']: d.tool_call_id };
+  };
+  const r = rawBuild(rows, '', { resolveIdentity: resolverB });
+  assert.ok(r.calls.every((c) => c.state === 'identity-unknown'), '冲突时必须 UNKNOWN');
+  assert.ok(r.calls.every((c) => c.worldId !== 'world-B'), '不得被标成新世界 B');
+});
+
+test('信封带身份但核验拒绝时仍为 UNKNOWN（信封不能单独当证明）', () => {
+  const rows = join(
+    envLine('tool_call', '1', 'a', 's', { world_id: 'w', server_session: 's' }),
+    envLine('tool_result', '1', 'a', 's', { world_id: 'w', server_session: 's' }, { result: { success: true } }));
+  const r = rawBuild(rows, '', { resolveIdentity: () => null });
+  assert.ok(r.calls.every((c) => c.state === 'identity-unknown'));
+});
