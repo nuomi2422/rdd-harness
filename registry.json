@@ -1948,6 +1948,14 @@
         "effect": "指挥官可以写了没做而门禁照样绿 —— 这正是主人点名最多的「看起来做了 / 假成功」盲点，只是被搬进了门禁自己",
         "plan": "要变硬，得在 DSH 侧加一个工具调用记录插件（把每次 tool 调用 append 到 ~/.dsh/tool-ledger.jsonl），再把 C1/C3 改成读账本；插件做出来之前，C2（知识库 mtime）与 C4（goal-keeper.log）仍是硬证据",
         "reviewBy": "2026-11-21"
+      },
+      {
+        "id": "C16-delivery-budget",
+        "what": "检索交付瓶颈不在状态过滤，在排序与预算：2026-11-08 00:49:10 的真实快照 entries=5 / refs=110 / chars=3254，其中 76 条 reason=ok 却 rendered=false —— 过滤全过，就是没被选中交付",
+        "why": "reason=ok 说明已通过 draft/retracted/audience/maturity 全部过滤；rendered=false 落在渲染选择阶段，被预算或排序挤出",
+        "effect": "bug-11 的『去重能提高命中』只对一半：重复确实占候选位（本族 8→4 已生效），但 110 个候选只交付 5 条，保留条能不能进场取决于排序，不取决于是否重复",
+        "plan": "**已查清（2026-11-08 08:53 指挥官自查）**：rendered=true 来自 `ExperienceStoreRetrievalBridge.renderText(snapshot, pinned)` 产出的 body.entries()；预算由 `RetrievalBudget(maxItems(默认 8，0 则取 8) - pinned.size(), 0,0,0, maxChars(默认 2400), 0, \"none\")`（ExperienceStoreRetrievalBridge.java:388-389）控制；链路是 buildContext→raw(全部候选) → RoleViewSelector.select→snapshot(过滤) → renderText→body(交付)。所以瓶颈是**条数与字数双预算**，不是过滤。下一步：查 buildContext 的打分排序，确认同族重复是否互相挤占渲染名额；若挤占，去重才有直接收益，否则收益只在候选层。查清前 bug-11 不许记完成",
+        "reviewBy": "2026-11-21"
       }
     ]
   }
