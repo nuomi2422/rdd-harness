@@ -285,7 +285,8 @@ function selftest() {
   const fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); };
 
-  const L = (o) => JSON.stringify({ ...o, data: { companion_id: 'selftest-companion', session_id: 'selftest-session', ...o.data } });
+  // 2026-11-09：自检夹具也必须有**进程运行号**（信封顶层 session），否则按 fail-closed 会一律 UNKNOWN。
+  const L = (o) => JSON.stringify({ session: 'selftest-run', ...o, data: { companion_id: 'selftest-companion', session_id: 'selftest-session', ...o.data } });
   // Synthetic fixtures only: production callers must supply independently verified evidence.
   const fixtureOptions = { resolveIdentity: (ev, category) => ({ worldId: 'selftest-world', serverSession: 'selftest-session', companion: 'selftest-companion', evidence: 'synthetic-fixture', [category === 'tools' ? 'callId' : 'taskId']: category === 'tools' ? ev.data.tool_call_id : ev.data.id }) };
   const fixtureBuild = (a, b) => build(a, b, fixtureOptions);
