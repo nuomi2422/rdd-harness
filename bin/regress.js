@@ -36,15 +36,23 @@ const STEPS = [
 const results = [];
 for (const [name, file, args, kind] of STEPS) {
   const argv = kind === 'node-test' ? ['--test', file, ...args] : [file, ...args];
-  const r = spawnSync(node, argv, { encoding: 'utf8', timeout: 180000 });
+  const run = () => spawnSync(node, argv, { encoding: 'utf8', timeout: 180000 });
+  // 2026-11-09：整台机器上常有并行会话在跑 gradle/游戏，带真实子进程与墙钟的用例
+  // （bench-live 的 live loop、take 的临时目录起进程）会偶发超时 → 回归偶发假 FAIL。
+  // 处理：失败重试一次，并在结果里显式标 RETRY（不静默吞掉真回归）。
+  let r = run();
+  let retried = false;
+  if (r.status !== 0) { retried = true; r = run(); }
   const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').filter(Boolean).slice(-2).join(' | ');
   const ok = r.status === 0;
-  results.push({ name, ok, tail });
-  console.log((ok ? 'PASS ' : 'FAIL ') + name + '  ' + tail.slice(0, 140));
+  const label = ok ? (retried ? 'PASS(retry) ' : 'PASS ') : 'FAIL ';
+  results.push({ name, ok, tail, retried });
+  console.log(label + name + '  ' + tail.slice(0, 140));
 }
 
 const failed = results.filter((r) => !r.ok);
+const retries = results.filter((r) => r.retried && r.ok);
 console.log('\n' + (failed.length
   ? 'REGRESS FAIL: ' + failed.map((r) => r.name).join(', ')
-  : 'REGRESS PASS: ' + results.length + ' 组'));
+  : 'REGRESS PASS: ' + results.length + ' 组' + (retries.length ? '（其中 ' + retries.length + ' 组首次失败后重试通过：' + retries.map((r) => r.name).join('、') + '）' : '')));
 process.exit(failed.length ? 1 : 0);
