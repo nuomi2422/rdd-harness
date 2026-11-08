@@ -113,7 +113,12 @@ function build(toolsText, eventsText, opts) {
     }
     return { worldId, companion, session, evidence };
   };
-  const key = (scope, id) => JSON.stringify([scope.worldId, scope.session, scope.companion, id]);
+  // 2026-11-09：作用域加上**进程运行号**（信封顶层 session = MonitoringJournal 的进程 UUID）。
+  // 为什么：世界/服务器会话相同时（重开同名存档、或重启用同一存档），仅靠 world+session+companion+callId
+  // 无法把"两次运行里出现的同一个 callId"分开，会并成一条并造成假完成。进程 UUID 每次启动都不同，
+  // 用它做运行维度即可分开；老数据（没有该字段）退化为空串，行为与以前一致。
+  const runOf = (ev) => (typeof ev.session === 'string' && ev.session.trim() === ev.session ? ev.session : '');
+  const key = (scope, id, run) => JSON.stringify([scope.worldId, scope.session, scope.companion, run || '', id]);
   let unknownIndex = 0;
   for (const ev of tp.events) {
     if (ev.type !== 'tool_call' && ev.type !== 'tool_result') continue;
@@ -122,9 +127,10 @@ function build(toolsText, eventsText, opts) {
     const scope = identity(ev, 'tools', id);
     if (!id) callsWithoutId++;
     const complete = !!(id && scope.worldId && scope.companion && scope.session);
-    const k = complete ? key(scope, id) : 'unknown:' + unknownIndex++;
+    const run = runOf(ev);
+    const k = complete ? key(scope, id, run) : 'unknown:' + unknownIndex++;
     if (!calls.has(k)) calls.set(k, {
-      callId: id || null, tool: '', worldId: scope.worldId || '', companion: scope.companion || '', session: scope.session || '', identityEvidence: scope.evidence || null,
+      callId: id || null, tool: '', worldId: scope.worldId || '', companion: scope.companion || '', session: scope.session || '', run, identityEvidence: scope.evidence || null,
       identityStatus: complete ? 'KNOWN' : 'UNKNOWN', requestedAt: null,
       state: 'requested', success: null, async: false, taskId: '', resultCount: 0,
       duplicates: 0, terminal: null, terminalAt: null, terminalMessage: '', payload: null,
@@ -164,7 +170,7 @@ function build(toolsText, eventsText, opts) {
   const byTask = new Map();
   for (const c of calls.values()) {
     if (c.identityStatus !== 'KNOWN' || c.state !== 'accepted-no-terminal' || !c.taskId) continue;
-    const k = key(c, c.taskId);
+    const k = key(c, c.taskId, c.run);
     if (!byTask.has(k)) byTask.set(k, []);
     byTask.get(k).push(c);
   }
@@ -175,7 +181,7 @@ function build(toolsText, eventsText, opts) {
     const d = ev.data && typeof ev.data === 'object' ? ev.data : {};
     const id = value(d.id);
     const scope = identity(ev, 'events', id);
-    const candidates = id && scope.worldId && scope.companion && scope.session ? byTask.get(key(scope, id)) : null;
+    const candidates = id && scope.worldId && scope.companion && scope.session ? byTask.get(key(scope, id, runOf(ev))) : null;
     if (!candidates || candidates.length !== 1) { terminalsWithoutCall++; continue; }
     const c = candidates[0];
     if (!terminals.has(c)) terminals.set(c, []);

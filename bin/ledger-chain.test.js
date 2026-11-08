@@ -45,15 +45,16 @@ test('SUPPORTED 迟到：入档顺序晚于消息时间，仍按追加顺序还�
   assert.equal(ev.status, 'PRESENT', '迟到不改变还原结果，但"何时可得"仍是 UNKNOWN');
 });
 
-test('EXPECTED-FAIL 日志缺口：读取器能报 skipped，但消费者拿不到这个信号', (t) => {
+test('SUPPORTED 日志缺口：读取器的跳过量能传到消费者并判 UNKNOWN', (t) => {
   const big = line('tool_call', { tool_call_id: 'A' }) + '\n' + line('tool_result', { tool_call_id: 'A', result: { success: true } }) + '\n'
     + line('tool_call', { tool_call_id: 'B' }) + '\n' + line('tool_result', { tool_call_id: 'B', result: { success: true } }) + '\n';
-  const { r, ev } = chain(t, big, 200); // 窗口比文件小 → 前段被跳过
+  const { r, lg, ev } = chain(t, big, 200); // 窗口比文件小 → 前段被跳过
   assert.ok(r.skipped > 0, '读取器必须报出跳过的字节数');
-  // 当前：截断后只剩后半段，结论只是"碰巧 UNKNOWN"，并不是因为有缺口标记。
-  assert.ok(['UNKNOWN', 'PRESENT'].includes(ev.status));
-  // 未支持点：缺口标记没有进 ledger/consumer，所以 PRESENT 时也无法区分"完整"与"有缺口"。
-  assert.equal(ev.reasons.includes('log-gap'), false, '当前没有任何 gap 理由——这就是未支持的部分');
+  // 2026-11-09 起：缺口作为第三个参数传进消费者，必须显式表现为 log-gap 理由（UNKNOWN）。
+  const withGap = actionEvidence(lg, (r.lines || []).join('\n'), { 'tools.jsonl': { reason: 'window-skip', skipped: r.skipped } });
+  assert.equal(withGap.status, 'UNKNOWN');
+  assert.ok(withGap.reasons.includes('log-gap'), '必须给出 log-gap 理由，而不是"碰巧 UNKNOWN"');
+  assert.ok(!ev.reasons.includes('log-gap'), '不传缺口时不许多出理由（保持向后兼容）');
 });
 
 test('SUPPORTED 伪造信封：只有信封身份、没有独立来源 → UNKNOWN', (t) => {
@@ -64,10 +65,13 @@ test('SUPPORTED 伪造信封：只有信封身份、没有独立来源 → UNKNO
   assert.ok(ev.reasons.includes('identity-coverage-unknown-or-incomplete'));
 });
 
-test('EXPECTED-FAIL 重启复用同一 session+call 号：当前会被并成一条', (t) => {
-  const seg = line('tool_call', {}) + '\n' + line('tool_result', { result: { success: true } }) + '\n';
-  const { lg } = chain(t, seg + seg); // 两段"重启"拼接，身份四元组完全相同
-  assert.equal(lg.summary.calls, 1, '当前行为：合并为 1 条（未支持区分重启用例）');
-  // 期望：应当有 run/epoch 维度才能分成 2 条；现在没有，所以这类样本必须整体 UNKNOWN。
+test('SUPPORTED 重启复用同一 session+call 号：靠进程运行号分成两条', (t) => {
+  // 两段"重启"：world/session/companion/callId 全同，只有信封 session（进程 UUID）不同。
+  const seg = (run) => line('tool_call', {}, { session: run }) + '\n' + line('tool_result', { result: { success: true } }, { session: run }) + '\n';
+  const { lg } = chain(t, seg('run-1') + seg('run-2'));
+  assert.equal(lg.summary.calls, 2, '不同进程运行号必须分成 2 条，不能并成 1 条假完成');
+  // 同一运行号重复写入仍应合并（防重复投递）。
+  const same = chain(t, seg('run-1') + seg('run-1'));
+  assert.equal(same.lg.summary.calls, 1);
 });
 console.log('reader→ledger→consumer 身份链路断言完成（3 SUPPORTED / 2 EXPECTED-FAIL）');

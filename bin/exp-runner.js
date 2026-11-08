@@ -34,7 +34,11 @@ const A0 = require('./lib/a0-evidence');
 const AL = require('./lib/action-ledger');
 
 // PRESENT 表示证据可解释，不表示业务成功；旧账本缺覆盖字段时保守 UNKNOWN。
-function actionEvidence(lg, toolsText) {
+function actionEvidence(lg, toolsText, gaps) {
+  // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
+  // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
+  // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
+  const gapList = gaps && typeof gaps === 'object' ? Object.entries(gaps).filter(([, v]) => v) : [];
   const s = lg && lg.summary || {};
   const states = s.states && typeof s.states === 'object' ? s.states : {};
   const coverage = s.coverage && typeof s.coverage === 'object' ? s.coverage : {};
@@ -50,6 +54,7 @@ function actionEvidence(lg, toolsText) {
   else if (bad.tools > 0 || bad.events > 0) reasons.push('malformed-lines');
   const dup = s.duplicates || {};
   if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || coverage.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
+  if (gapList.length) reasons.push('log-gap');
   return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
@@ -821,10 +826,18 @@ async function cmdRun(opts) {
   const raw = { tools: '', events: '' };
   const blockersSeen = new Set();
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
+  const gaps = {};
   const pull = (f) => {
     const p = path.join(MONITOR, f);
     if (!fs.existsSync(p)) return '';
     const size = fs.statSync(p).size;
+    // 2026-11-09：文件变小 = 被截断或轮转（新同名文件）。以前这里直接 return ''：
+    // 之后要么永远读空（size 一直小于旧 offset），要么等文件长大后再从旧 offset 读中段 → 半行/错行。
+    // 两种都会让"缺了一段"看起来像"本来就没有"。现在显式记录缺口并从头重读。
+    if (size < offsets[f]) {
+      gaps[f] = { at: nowIso(), reason: 'truncated-or-rotated', from: offsets[f], to: size };
+      offsets[f] = 0;
+    }
     if (size <= offsets[f]) return '';
     const fd = fs.openSync(p, 'r');
     const len = size - offsets[f];
@@ -1107,7 +1120,7 @@ async function cmdRun(opts) {
   // 并把「累计失败」和「连续失败」分开记。只读日志，不改变任何任务控制语义。
   try {
     const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
-    env.actions = actionEvidence(lg, raw.tools);
+    env.actions = actionEvidence(lg, raw.tools, gaps);
     const actionStates = lg.summary.states || {};
     log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)
       + ' failed=' + (actionStates.failed || 0)
