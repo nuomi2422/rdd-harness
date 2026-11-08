@@ -1342,6 +1342,36 @@
           "rule": "不管干什么，每轮必须真的调用过工具（任何工具）。只发一段文本说『我查过了』不算干活；架构 MCP 与角色卡都必须走工具、留痕迹。",
           "verify": ".harness/audit/mcp-calls.jsonl 或 gate-usage.jsonl 里 20 分钟内有任意一次工具调用",
           "note": "痕迹由架构 MCP 与门禁自身写入；没有痕迹就是没干。"
+        },
+        {
+          "id": "C9",
+          "name": "实验台 live 在跑",
+          "kind": "artifact",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "实验台靠常驻进程 bench live 续命，进程一死就静默 —— 2026-11-05 12:22 停到 2026-11-08 09:31（两天半）没人发现（主人 11-08 追问才查出）。世界观测是游戏侧自动落盘，所以会出现「世界有数据、实验台没有」的错觉。",
+          "verify": "experiments/live/status.json 的 last_tick_at 在 15 分钟内",
+          "note": "停摆判 BLOCK：实验台是主动观测能力，不是可选项。世界观测（worldstate.jsonl）单列 C9b，只 WARN，因为游戏关着时它本来就会停。"
+        },
+        {
+          "id": "C9b",
+          "name": "世界观测有活气",
+          "kind": "artifact",
+          "level": "warn",
+          "appliesTo": ["commander"],
+          "rule": "世界观测（monitor/worldstate.jsonl）持续写入说明环境线在跑；但它由游戏侧自动写，游戏关着不写属正常。",
+          "verify": "monitor/worldstate.jsonl mtime 在 30 分钟内；超过只 WARN",
+          "note": "与 C9 分开判：一个要人养（live 进程），一个自动产（游戏日志），不能用同一条判据。"
+        },
+        {
+          "id": "C10",
+          "name": "目标暂停/阻塞必须有人指导",
+          "kind": "trace",
+          "level": "block",
+          "appliesTo": ["commander"],
+          "rule": "施工 AI 的目标一旦阻塞或暂停，指挥官必须去指导（说清卡在哪层 + 唯一的下一个动作），或者重设目标；放着不管超过 20 分钟就算 BLOCK。主人 2026-11-08 点名要求。",
+          "verify": "~/.dsh/goal-keeper.log 中该会话最后一条事件若含 block/pause/blocked，距现在 ≤20 分钟记 WARN（本轮必须给指导），>20 分钟记 BLOCK",
+          "note": "只认 goal-keeper 的真状态事件，不认 AI 自述。「刚停」留 20 分钟窗口，是给人一个反应时间，不是给它自己好起来的时间。"
         }
       ]
     },
@@ -1433,7 +1463,7 @@
       },
       "GK-R": {
         "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
-        "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8"]
+        "checks": ["C1", "C2", "C3", "C4", "C5", "C6", "C7", "C8", "C9", "C9b", "C10"]
       },
       "GK-L": {
         "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",

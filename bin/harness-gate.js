@@ -2083,6 +2083,49 @@ function roundGates() {
         : '20 分钟内没有任何工具调用痕迹 —— 光发文本不算干活');
   }
 
+  // C9（2026-11-08 主人追问「为什么不看实验台」）：实验台与世界观测都要有活气。
+  //   两次停摆的方式不一样：实验台靠常驻进程（bench live）续命，进程一死就静默；世界观测是游戏侧自动落盘。
+  //   所以分开判：实验台停摆判 BLOCK（它是主动观测能力），世界观测停摆只 WARN（游戏没开也会停）。
+  {
+    const liveStatus = path.join(REG.roots.harness, 'experiments', 'live', 'status.json');
+    let liveState = WARN, liveDetail = '没有 live/status.json —— 实验台从没起来过';
+    try {
+      const raw = JSON.parse(fs.readFileSync(liveStatus, 'utf8'));
+      const lastTick = Date.parse(raw.last_tick_at || '');
+      const idleMin = Number.isFinite(lastTick) ? Math.round((now - lastTick) / 60000) : -1;
+      if (lastTick && idleMin <= 15) { liveState = PASS; liveDetail = 'live 在跑（pid=' + raw.pid + '，' + idleMin + ' 分钟前出拍，累计 ' + raw.ticks + ' 拍）'; }
+      else { liveState = BLOCK; liveDetail = '实验台停摆 ' + idleMin + ' 分钟（pid=' + raw.pid + '，最后出拍 ' + raw.last_tick_at + '）→ node bin/bench.js live start'; }
+    } catch { /* 保持 WARN */ }
+    record('C9', '实验台 live 在跑（世界观测不能只靠自动落盘）', BLOCK, 'artifact', liveState, liveDetail);
+
+    const wsFile = path.join(REG.roots.live, 'config', 'numen', 'monitor', 'worldstate.jsonl');
+    let wsState = WARN, wsDetail = '没有 worldstate.jsonl';
+    try {
+      const wsAge = Math.round((now - fs.statSync(wsFile).mtimeMs) / 60000);
+      wsState = wsAge <= 30 ? PASS : WARN;
+      wsDetail = '世界观测最后写入 ' + wsAge + ' 分钟前' + (wsAge > 30 ? '（游戏没开也会停，所以只提醒）' : '');
+    } catch { /* 保持 WARN */ }
+    record('C9b', '世界观测有活气', WARN, 'artifact', wsState, wsDetail);
+  }
+
+  // C10（2026-11-08 主人定）：目标被暂停/阻塞时，指挥官必须去指导，不许放着不管。
+  //   判据只认 goal-keeper.log 的最后一条事件 —— 它写的是真状态（block/pause/complete/clear）。
+  {
+    let c10state = WARN, c10detail = '读不到 goal 状态';
+    try {
+      const logTxt = fs.readFileSync(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), 'utf8');
+      const mine = logTxt.split(/\r?\n/).filter((l) => l.includes(workerSession));
+      const last = mine.length ? mine[mine.length - 1] : '';
+      const stuck = /goal block|phase-blocked|goal pause|blocked/.test(last);
+      const at = (last.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/) || [])[1];
+      const stuckMin = stuck && at ? Math.round((now - Date.parse(at)) / 60000) : 0;
+      if (!stuck) { c10state = PASS; c10detail = '目标在跑，没有阻塞/暂停'; }
+      else if (stuckMin <= 20) { c10state = WARN; c10detail = '目标刚停 ' + stuckMin + ' 分钟：本轮必须给指导（peer_send 说清卡在哪 + 下一步），别放着'; }
+      else { c10state = BLOCK; c10detail = '目标已暂停/阻塞 ' + stuckMin + ' 分钟没人管 → 去指导或重设目标：' + String(last).slice(0, 120); }
+    } catch { /* 保持 WARN */ }
+    record('C10', '目标暂停/阻塞必须有人指导', BLOCK, 'trace', c10state, c10detail);
+  }
+
   // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
   //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
   const archDir = path.join(knowledge, '架构意图');
