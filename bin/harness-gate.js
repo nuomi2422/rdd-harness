@@ -1375,16 +1375,23 @@ function builtinChecks(ctx, phase) {
         // 修法：路径取第一个空格/§/（ 之前的部分，补注仍然保留在 raw 里只用于报错文案。
         file: p.split(/[ §（(]/)[0].trim(),
       }));
-      const bodies = targets.map((t) => (isFile(t.file) ? readText(t.file) : ''));
-      const unreadable = targets.filter((t) => !isFile(t.file)).map((t) => t.file);
-      if (unreadable.length) missing.push(`★ 注册表里的登记目标读不到：${unreadable.join(' ; ')}（registry.docNumbers.registerIn 路径写错了，不是「没登记」）`);
+      const unreadable = [];
+      const bodies = targets.map((t) => {
+        try {
+          if (!fs.statSync(t.file).isFile()) throw new Error('不是普通文件');
+          return fs.readFileSync(t.file, 'utf8');
+        } catch (e) {
+          unreadable.push(`${t.file}（${e.code || e.message}）`);
+          return null;
+        }
+      });
+      const missing = [];
       const freshNames = [...byNo.entries()]
         .filter(([no]) => String(no) === String(REG.docNumbers.nextDocNo) || +no >= maxNo - 2)
         .flatMap(([, arr]) => arr);
-      const missing = [];
       for (const nm of freshNames) {
         targets.forEach((t, i) => {
-          if (!bodies[i].includes(nm)) missing.push(`${path.basename(t.file)} 缺 ${nm}`);
+          if (bodies[i] !== null && !bodies[i].includes(nm)) missing.push(`${path.basename(t.file)} 缺 ${nm}`);
         });
       }
       // ★ 只对【本轮动过】的文档 BLOCK。没动过的历史债不拦 —— 否则一次旧债就把门禁
@@ -1393,31 +1400,31 @@ function builtinChecks(ctx, phase) {
       // 若一律 BLOCK 则本轮（跟编号无关）永远过不了。
       const mine = freshNames.filter((nm) => freshEnough(path.join(REG.roots.docsUnified, nm), since));
       const blocking = mine.filter((nm) => missing.some((s) => s.endsWith(nm)));
-      const inherited = missing.length - blocking.length;
+      const inherited = missing.filter((s) => !mine.some((nm) => s.endsWith(nm))).length;
       const detail = missing.length ? missing.join(' ; ') : `最近几份（${freshNames.join(', ') || '无'}）在三处索引里都能找到`;
+      const readError = unreadable.length ? `★ 登记目标无法读取，无法核验（不是历史债）：${unreadable.join(' ; ')}` : '';
       record('Q9', '编号登记三处', BLOCK, 'artifact',
-        blocking.length ? BLOCK : (missing.length ? WARN : PASS),
-        blocking.length
+        unreadable.length || blocking.length ? BLOCK : (missing.length ? WARN : PASS),
+        [readError, blocking.length
           ? `★ 本轮新建的 ${blocking.join(', ')} 没登记三处 → 必须补（长期资产进 docsUnified 要同时登记 README §二目录表 / 09-更新日志 / 50-按主题导航）` +
             (inherited > 0 ? `｜另有 ${inherited} 条是历史债，本轮没动这些文档，不拦` : '')
-          : (missing.length ? `${detail}｜★ 全部是历史债（本轮没动这些文档），不拦；顺手补了更好` : detail));
+          : (missing.length ? `${detail}｜★ 以上缺项是历史债（本轮没动这些文档），不拦；顺手补了更好` : (readError ? '' : detail))].filter(Boolean).join('｜'));
     }
   }
 
   // P22（2026-11-08 主人更正）：**进游戏前**要过一遍实验台，不是退游戏后。
   //   主人的原话意思：进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。
-  //   判据：bench-digest 的留痕在 30 分钟内 —— preflight 本来就是「进游戏前」那一关。
-  {
+  //   判据：bench-digest 的留痕在 30 分钟内 —— 只在进游戏前执行。
+  if (phase === 'preflight') {
     const root22 = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
     let p22state = BLOCK, p22detail = '没跑过 bench-digest（.harness/audit/bench-digest.jsonl 不存在）→ node bin/bench-digest.js --since 6h';
     try {
       const ledger = path.join(root22, '.harness', 'audit', 'bench-digest.jsonl');
-      const rows = fs.readFileSync(ledger, 'utf8').trim().split(/\r?\n/).filter(Boolean);
-      let ranAt = 0;
-      for (const row of rows) { try { const j = JSON.parse(row); const v = Date.parse(j.at); if (v > ranAt) ranAt = v; } catch { /* 坏行跳过 */ } }
-      const min = ranAt ? Math.round((now - ranAt) / 60000) : -1;
-      if (ranAt && min <= 30) { p22state = PASS; p22detail = '进游戏前已过一遍实验台（' + min + ' 分钟前跑的 digest）'; }
-      else { p22state = BLOCK; p22detail = '进游戏前没看过实验台：上次 digest ' + (ranAt ? min + ' 分钟前' : '从没跑过') + ' → node bin/bench-digest.js --since 6h'; }
+      const { evaluateDigestLedger } = require('./lib/p22-digest.js');
+      const result = evaluateDigestLedger(fs.readFileSync(ledger, 'utf8'), now.getTime());
+      const age = result.ageMs === null ? '没有可用的非未来记录' : result.ageMs + ' 毫秒前';
+      if (result.pass) { p22state = PASS; p22detail = '进游戏前已过一遍实验台（' + age + '跑的 digest）'; }
+      else { p22state = BLOCK; p22detail = '进游戏前没看过实验台：上次 digest ' + age + ' → node bin/bench-digest.js --since 6h'; }
     } catch { /* 保持 BLOCK */ }
     record('P22', '★ 进游戏前过一遍实验台（digest 留痕）', BLOCK, 'artifact', p22state, p22detail);
   }

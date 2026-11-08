@@ -33,6 +33,31 @@ const { readLevelInfo, patchLevel } = require('./lib/nbt');
 const A0 = require('./lib/a0-evidence');
 const AL = require('./lib/action-ledger');
 
+// PRESENT 表示证据可解释，不表示业务成功；旧账本缺覆盖字段时保守 UNKNOWN。
+function actionEvidence(lg, toolsText) {
+  const s = lg && lg.summary || {};
+  const states = s.states && typeof s.states === 'object' ? s.states : {};
+  const coverage = s.coverage && typeof s.coverage === 'object' ? s.coverage : {};
+  const reasons = [];
+  if (!String(toolsText || '').trim() || !Number.isFinite(s.calls) || s.calls === 0) reasons.push('no-action-evidence');
+  const identity = typeof coverage.identityKnown === 'string' && /^(\d+)\/(\d+)$/.exec(coverage.identityKnown);
+  if (!identity || Number(identity[2]) !== s.calls || Number(identity[1]) !== s.calls) reasons.push('identity-coverage-unknown-or-incomplete');
+  const knownStates = new Set(['completed', 'failed', 'cancelled', 'timeout']);
+  if (!s.states || Object.entries(states).some(([state, n]) => !Number.isFinite(n) || n < 0 || (n > 0 && !knownStates.has(state))) || Object.values(states).reduce((a, n) => a + (Number.isFinite(n) ? n : 0), 0) !== s.calls) reasons.push('nonterminal-or-unknown-state');
+  if (s.acceptedOnly > 0) reasons.push('accepted-without-terminal');
+  const bad = s.badLines || lg && lg.parse;
+  if (!bad || !Number.isFinite(bad.tools) || !Number.isFinite(bad.events)) reasons.push('parse-coverage-unknown');
+  else if (bad.tools > 0 || bad.events > 0) reasons.push('malformed-lines');
+  const dup = s.duplicates || {};
+  if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || coverage.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
+  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
+}
+
+function blockerScopeKey(b) {
+  // 世界身份只能由已核验的账本记录提供，不能用当前运行世界猜测归属。
+  return JSON.stringify([b.worldId || null, b.session || null, b.companion || null, b.tool || null]);
+}
+
 const RDD = 'D:/rdd';
 const RDD_ROOT = () => RDD;
 const GAME = path.join(RDD, 'mc', 'The Best of Twilight Forest');
@@ -845,9 +870,13 @@ async function cmdRun(opts) {
     if (raw.tools) {
       const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
       for (const b of lg.blockers) {
-        if (blockersSeen.has(b.tool)) continue;
-        blockersSeen.add(b.tool);
+        const key = blockerScopeKey(b);
+        if (blockersSeen.has(key)) continue;
+        blockersSeen.add(key);
         rec('blocker', {
+          world: b.worldId || null,
+          session: b.session || null,
+          companion: b.companion || null,
           tool: b.tool,
           consecutive_failures: b.consecutive_failures,
           note: '同一工具连续失败 ' + b.consecutive_failures + ' 次（按 callId 去重后的真实连续；累计失败另计）',
@@ -1078,15 +1107,17 @@ async function cmdRun(opts) {
   // 并把「累计失败」和「连续失败」分开记。只读日志，不改变任何任务控制语义。
   try {
     const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
-    env.actions = Object.assign({ status: 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl' }, lg.summary, { blockers: lg.blockers });
-    log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (lg.summary.states.completed || 0)
-      + ' failed=' + (lg.summary.states.failed || 0)
-      + ' cancelled=' + (lg.summary.states.cancelled || 0)
-      + ' timeout=' + (lg.summary.states.timeout || 0)
+    env.actions = actionEvidence(lg, raw.tools);
+    const actionStates = lg.summary.states || {};
+    log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)
+      + ' failed=' + (actionStates.failed || 0)
+      + ' cancelled=' + (actionStates.cancelled || 0)
+      + ' timeout=' + (actionStates.timeout || 0)
       + ' acceptedOnly=' + lg.summary.acceptedOnly
-      + ' noResult=' + (lg.summary.states['no-result'] || 0)
-      + ' 终态覆盖=' + lg.summary.coverage.terminal
-      + ' 重复投递=' + lg.summary.duplicates.results);
+      + ' noResult=' + (actionStates['no-result'] || 0)
+      + ' 终态覆盖=' + ((lg.summary.coverage || {}).terminal || 'UNKNOWN')
+      + ' 重复投递=' + ((lg.summary.duplicates || {}).results ?? 'UNKNOWN')
+      + ' 证据状态=' + env.actions.status + ' 原因=' + env.actions.reasons.join(','));
   } catch (e) {
     env.actions = { status: 'UNKNOWN', reason: String(e.message).slice(0, 200) };
     log(runDir, 'actions', '动作账本构建失败（照实记 UNKNOWN）: ' + e.message);
@@ -1245,7 +1276,8 @@ for (let i = 1; i < argv.length; i++) {
 
 /** 151 §3：run 的用途必须显式声明，否则诊断短局会被当成通关效率曲线上的点。 */
 const RUN_MODES = ['campaign', 'diagnostic', 'regression'];
-(async () => {
+module.exports = { actionEvidence, blockerScopeKey };
+if (require.main === module) (async () => {
   if (cmd === 'plan') return cmdPlan(opts);
   if (cmd === 'run') return cmdRun(opts);
   if (cmd === 'cleanup') return cmdCleanup(argv[1]);

@@ -34,102 +34,104 @@ const has = (n) => process.argv.includes('--' + n);
 function parseSince(s) {
   const m = String(s || '120m').match(/^(\d+)\s*(m|h)?$/i);
   if (!m) return 120;
-  return Number(m[1]) * (String(m[2] || 'm').toLowerCase() === 'h' ? 60 : 1);
+  const minutes = Number(m[1]) * (String(m[2] || 'm').toLowerCase() === 'h' ? 60 : 1);
+  return Number.isSafeInteger(minutes) && minutes <= 52560000 ? minutes : 120;
 }
 
+// 读尾部时任何缺失、坏行或截断都必须留在覆盖说明中。
 function readJsonl(file, maxBytes = 8 * 1024 * 1024) {
+  const issues = [], events = [];
+  let fd;
   try {
-    const st = fs.statSync(file);
-    const fd = fs.openSync(file, 'r');
-    const start = Math.max(0, st.size - maxBytes);
-    const buf = Buffer.alloc(st.size - start);
-    fs.readSync(fd, buf, 0, buf.length, start);
-    fs.closeSync(fd);
-    const txt = buf.toString('utf8');
-    const lines = txt.split(/\r?\n/);
-    if (start > 0) lines.shift();
-    const out = [];
-    for (const l of lines) {
-      if (!l.trim()) continue;
-      try { out.push(JSON.parse(l)); } catch { /* 坏行跳过 */ }
+    fd = fs.openSync(file, 'r');
+    const size = fs.fstatSync(fd).size, start = Math.max(0, size - maxBytes);
+    const buf = Buffer.alloc(size - start);
+    let read = 0;
+    while (read < buf.length) {
+      const n = fs.readSync(fd, buf, read, buf.length - read, start + read);
+      if (!n) break;
+      read += n;
     }
-    return out;
-  } catch { return []; }
+    if (read !== buf.length) issues.push('读取不完整');
+    const text = buf.subarray(0, read).toString('utf8');
+    const lines = text.split(/\r?\n/);
+    if (start) { issues.push('超过读取上限，前部截断'); lines.shift(); }
+    if (text && !text.endsWith('\n')) issues.push('末行未结束，可能截断');
+    let bad = 0;
+    for (const line of lines) {
+      if (!line.trim()) continue;
+      try {
+        const e = JSON.parse(line);
+        if (!e || typeof e !== 'object' || Array.isArray(e) || typeof e.timestamp !== 'string' || !Number.isFinite(Date.parse(e.timestamp))) { bad++; continue; }
+        events.push(e);
+      } catch { bad++; }
+    }
+    if (bad) issues.push('坏行或无效时间 ' + bad + ' 条');
+  } catch (e) { issues.push('读取失败: ' + (e.code || e.message)); }
+  finally { if (fd !== undefined) fs.closeSync(fd); }
+  return { events, issues };
 }
 
 const CLOCK = ['get_self_status', 'task_status', 'rdd_status', 'look_around', 'inspect_block', 'scan_blocks', 'scan_nearby_entities', 'rdd_nearby_entities', 'world_fact_probe', 'report_task_concern', 'ask_companion', 'world_state'];
 
+function receipt(e) {
+  const d = e.data || {};
+  let r = d.result;
+  if (typeof r === 'string') { try { r = JSON.parse(r); } catch { r = null; } }
+  if (!r || typeof r !== 'object' || Array.isArray(r)) r = {};
+  const status = String(d.async_status || r.status || r.data?.status || '').toLowerCase();
+  const async = r.async === true || r.data?.async === true || /accepted|pending|running|queued/.test(status) || /受理|后台执行|执行中/.test(String(r.message || ''));
+  const ok = typeof r.success === 'boolean' ? r.success : typeof d.success === 'boolean' ? d.success : null;
+  return { at: e.timestamp, name: String(d.tool || d.name || 'UNKNOWN'), id: String(d.tool_call_id || 'UNKNOWN'),
+    state: ok === false ? '回执失败' : async && !/^(done|completed|failed|timeout)$/.test(status) ? '受理/执行中，终态 UNKNOWN' : ok === true ? '回执成功（不证明世界结果）' : 'UNKNOWN',
+    err: String(r.error || r.message || d.message || '').slice(0, 80) };
+}
+
 function buildDigest(opts) {
-  const sinceMin = opts.sinceMin;
-  const cutoff = Date.now() - sinceMin * 60000;
-  const cutIso = new Date(cutoff).toISOString();
-
-  const ai = readJsonl(path.join(MON, 'ai.jsonl')).filter((e) => e.timestamp >= cutIso);
-  const tools = readJsonl(path.join(MON, 'tools.jsonl')).filter((e) => e.timestamp >= cutIso);
-  const rdd = readJsonl(path.join(MON, 'rdd.jsonl')).filter((e) => e.timestamp >= cutIso);
-
-  const says = ai.filter((e) => e.type === 'assistant').map((e) => ({ at: e.timestamp, text: String(e.data?.text || e.data?.content || '').replace(/\s+/g, ' ').slice(0, 120) }));
-  // 注意：tools.jsonl 的 tool_call 只有 tool 与 args_chars，**参数不在这个文件**（在 context.jsonl）。
-  const calls = tools.filter((e) => e.type === 'tool_call').map((e) => ({ at: e.timestamp, name: String(e.data?.tool || e.data?.name || '?'), argsChars: Number(e.data?.args_chars || 0) }));
-  const results = tools.filter((e) => e.type === 'tool_result').map((e) => {
-    let ok = null, err = '';
-    const r = e.data?.result;
-    if (typeof r === 'string') {
-      try { const j = JSON.parse(r); ok = j.success === true; err = String(j.error || j.message || ''); }
-      catch { ok = !/fail|error|blocked/i.test(r); err = r.slice(0, 80); }
-    } else if (r && typeof r === 'object') { ok = r.success === true; err = String(r.error || r.message || ''); }
-    return { at: e.timestamp, ok, err };
+  const sinceMin = opts.sinceMin, now = Date.now(), cutoff = now - sinceMin * 60000;
+  const sources = ['ai', 'tools', 'rdd'].map((name) => ({ name, ...readJsonl(path.join(MON, name + '.jsonl')) }));
+  for (const source of sources) source.events = source.events.filter((e) => {
+    const t = Date.parse(e.timestamp);
+    return t >= cutoff && t <= now;
   });
-
-  // 异常一：重复失败（同 tool + 相似错误 ≥3）
+  const [ai, tools, rdd] = sources.map((s) => s.events);
+  const says = ai.filter((e) => e.type === 'assistant').map((e) => ({ at: e.timestamp, text: String(e.data?.text || e.data?.content || '').replace(/\s+/g, ' ').slice(0, 120) }));
+  const calls = tools.filter((e) => e.type === 'tool_call').map((e) => ({ at: e.timestamp, name: String(e.data?.tool || e.data?.name || 'UNKNOWN'), id: String(e.data?.tool_call_id || 'UNKNOWN') }));
+  const results = tools.filter((e) => e.type === 'tool_result').map(receipt);
+  // 仅使用回执自身的工具名；不以相同下标、时间或缺失世界身份猜配。
   const failCount = new Map();
-  for (let i = 0; i < results.length; i++) {
-    const r = results[i];
-    if (r.ok === true) continue;
-    const name = calls[i]?.name || '?';
-    const key = name + '|' + String(r.err || '').replace(/\d+/g, 'N').slice(0, 60);
+  for (const r of results) if (r.state === '回执失败' && r.name !== 'UNKNOWN') {
+    const key = r.name + '|' + r.err.replace(/\d+/g, 'N').slice(0, 60);
     failCount.set(key, (failCount.get(key) || 0) + 1);
   }
-  const repeatFails = [...failCount.entries()].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 5);
-
-  // 异常二：连续只读（≥5 次只读调用，中间没有世界变更类动作）
+  const repeatFails = [...failCount].filter(([, n]) => n >= 3).sort((a, b) => b[1] - a[1]).slice(0, 5);
   let runRead = 0, maxRead = 0;
-  for (const c of calls) {
-    if (CLOCK.includes(c.name)) { runRead++; maxRead = Math.max(maxRead, runRead); }
-    else runRead = 0;
-  }
-
-  // 异常三：高频同工具（参数在 context.jsonl，这里只能按工具名数；同工具 ≥10 次就算打转嫌疑）
+  for (const c of calls) { if (CLOCK.includes(c.name)) { runRead++; maxRead = Math.max(maxRead, runRead); } else runRead = 0; }
   const toolCount = new Map();
   for (const c of calls) toolCount.set(c.name, (toolCount.get(c.name) || 0) + 1);
-  const toolHot = [...toolCount.entries()].filter(([, n]) => n >= 10).sort((a, b) => b[1] - a[1]).slice(0, 4);
-
-  // 死亡与停滞
-  const deaths = rdd.filter((e) => /death/.test(String(e.type) + String(e.data?.kind || '')));
+  const toolHot = [...toolCount].filter(([name, n]) => name !== 'UNKNOWN' && n >= 10).sort((a, b) => b[1] - a[1]).slice(0, 4);
+  const deaths = rdd.filter((e) => /death/i.test(String(e.type) + String(e.data?.kind || '')));
   const stalled = rdd.filter((e) => /stall/i.test(String(e.data?.kind || e.type)));
-
-  const lines = [];
-  lines.push('# 实验台摘要 · 最近 ' + sinceMin + ' 分钟（' + new Date().toISOString().slice(11, 19) + ' 生成）');
-  lines.push('');
-  lines.push('统计：说 ' + says.length + ' 条 / 做 ' + calls.length + ' 次 / 果 ' + results.length + ' 条 / 事件 ' + rdd.length + ' 条');
-  lines.push('');
-  lines.push('## 异常（先看这里，找盲点）');
-  if (repeatFails.length) lines.push('- 重复失败：' + repeatFails.map(([k, n]) => k.replace('|', ' ×') + '「' + n + ' 次」').join('；'));
-  if (maxRead >= 5) lines.push('- 连续只读 ' + maxRead + ' 次（没改世界，纯消耗）');
-  if (toolHot.length) lines.push('- 高频同工具（打转嫌疑）：' + toolHot.map(([k, n]) => k + ' ×' + n).join('；') + '（参数在 context.jsonl，需另查）');
-  if (deaths.length) lines.push('- 死亡 ' + deaths.length + ' 次：' + deaths.slice(-3).map((d) => String(d.data?.cause || d.data?.deathCause || '?')).join('、'));
-  if (stalled.length) lines.push('- 停滞事件 ' + stalled.length + ' 次');
-  if (!repeatFails.length && maxRead < 5 && !toolHot.length && !deaths.length) lines.push('- 本轮没有明显异常');
-  lines.push('');
-  lines.push('## 最近的说法（她自称在干什么）');
-  says.slice(-5).forEach((s) => lines.push('- [' + String(s.at).slice(11, 19) + '] ' + s.text));
-  lines.push('');
-  lines.push('## 最近的动作与结果');
-  const tail = Math.min(calls.length, results.length);
-  for (let i = Math.max(0, tail - 8); i < tail; i++) {
-    const c = calls[i], r = results[i] || {};
-    lines.push('- [' + String(c.at).slice(11, 19) + '] ' + c.name + (r.ok === true ? ' ✔' : r.ok === false ? ' ✘ ' + String(r.err || '').slice(0, 50) : ' ?'));
-  }
+  const lines = [
+    '# 实验台摘要 · 最近 ' + sinceMin + ' 分钟',
+    '时间范围：' + new Date(cutoff).toISOString() + ' 至 ' + new Date(now).toISOString() + '（含边界）',
+    '世界身份：UNKNOWN；未按世界分组或配对，混合世界可能影响统计。',
+    '覆盖：' + sources.map((s) => s.name + '=' + (s.issues.length ? 'UNKNOWN（' + s.issues.join('；') + '）' : '读取完成（不保证日志完整）')).join(' / '),
+    '统计：说 ' + says.length + ' 条 / 做 ' + calls.length + ' 次 / 果 ' + results.length + ' 条 / 事件 ' + rdd.length + ' 条', '',
+    '## 异常（仅为线索，非完整性证明）'
+  ];
+  if (repeatFails.length) lines.push('- 重复失败回执（可能重复记账，未去重）：' + repeatFails.map(([k,n]) => k.replace('|', '：') + ' ×' + n).join('；'));
+  if (maxRead >= 5) lines.push('- 未分组日志中有 ' + maxRead + ' 条相邻只读调用记录；世界/身份及缺行未知，不能证明同一主体连续只读');
+  if (toolHot.length) lines.push('- 高频同工具：' + toolHot.map(([k,n]) => k + ' ×' + n).join('；') + '（参数需另查）');
+  if (deaths.length) lines.push('- 死亡事件 ' + deaths.length + ' 条');
+  if (stalled.length) lines.push('- 停滞事件 ' + stalled.length + ' 条');
+  if (!repeatFails.length && maxRead < 5 && !toolHot.length && !deaths.length && !stalled.length) lines.push('- 未检出上述线索；覆盖及世界身份 UNKNOWN，不能断言无异常');
+  lines.push('', '## 最近的说法');
+  says.slice(-5).forEach((s) => lines.push('- [' + s.at + '] ' + s.text));
+  lines.push('', '## 最近的调用（不与回执猜配）');
+  calls.slice(-8).forEach((c) => lines.push('- [' + c.at + '] ' + c.name + ' id=' + c.id));
+  lines.push('', '## 最近的回执（不代表世界事实）');
+  results.slice(-8).forEach((r) => lines.push('- [' + r.at + '] ' + r.name + ' id=' + r.id + '：' + r.state + (r.err ? ' ' + r.err : '')));
   return lines.join('\n');
 }
 
