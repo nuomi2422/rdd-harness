@@ -101,11 +101,31 @@ function main() {
   let verdict;
   if (!uniq.size || rows.length < 2) verdict = 'UNKNOWN（数据不足）';
   else if (et.breaks > 0) verdict = 'UNKNOWN（采集时刻倒序，不能定因果）';
-  else if (camMovedNoPixel > 0) verdict = '疑似渲染/采集停滞：相机在动而画面不变（' + camMovedNoPixel + ' 帧）';
+  // 2026-11-09 口径修正（经另一位指挥官指出）：低方差只是"告警候选"。
+  // 固定旧帧、水下、夜晚、看天空都会低方差；低信息也可能是正在记录的关键行为（如水下/夜间）。
+  // 因此这里**只给告警，不据此判 take 无效、不建议自动拒拍**，素材一律保留。
+  else if (camMovedNoPixel > 0) verdict = '相机在动而画面不变（' + camMovedNoPixel + ' 帧）→ 需按像素信息量与场景常识分别核，不能据此判采集故障';
   else if (worldStopped > 0) verdict = '世界确实停过（' + worldStopped + ' 帧），画面不变属真实';
   else if (camStill > 0) verdict = '相机基本静止（' + camStill + ' 帧），画面重复不构成故障';
   else verdict = '未发现异常重复';
   out.push('结论：' + verdict);
+  // 可选：若同目录有 frame-stats.csv（由 bin/frame-stats.py 生成），只作**告警**输出
+  try {
+    const statPath = path.join(dir, 'frame-stats.csv');
+    if (fs.existsSync(statPath)) {
+      const sl = fs.readFileSync(statPath, 'utf8').trim().split(/\r?\n/).slice(1).filter(Boolean);
+      const lowTh = 6, edgeTh = 2;
+      let low = 0;
+      for (const l of sl) {
+        const c = l.split(',');
+        const std = Number(c[1]), edge = Number(c[2]);
+        if (Number.isFinite(std) && Number.isFinite(edge) && std < lowTh && edge < edgeTh) low++;
+      }
+      out.push('画面信息量（告警，不判无效）：低信息帧 ' + low + '/' + sl.length
+        + '（阈值 std<' + lowTh + ' 且 edge<' + edgeTh + '，需用真实样本校准）');
+      out.push('提醒：水下/夜晚/看天空本来就低信息，可能是正在记录的关键行为；严禁因低信息自动删素材。');
+    }
+  } catch { /* 没有统计文件就跳过，不影响主结论 */ }
   out.push('口径：本工具只看对照关系，不判断画面好不好；已确认的"有效画面数"要同时报唯一画面数与写入帧数。');
   console.log(out.join('\n'));
   process.exit(verdict.startsWith('UNKNOWN') ? 2 : 0);
