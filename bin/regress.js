@@ -22,11 +22,20 @@ const STEPS = [
   ['H1 虚空守卫', path.join(ROOT, 'lib', 'guard.js'), ['selftest']],
   ['bench 自检', path.join(ROOT, 'bench.js'), ['selftest']],
   ['harness-gate 自检', path.join(ROOT, 'harness-gate.js'), ['selftest']],
+  // 2026-11-08：A1 证据底座的隔离测试此前只靠手工跑，不进回归就等于会腐烂。
+  // 用 node --test 跑 node:test 文件；最后一项 kind='script' 表示直接执行该脚本。
+  ['A1 动作账本身份', path.join(ROOT, 'lib', 'action-ledger.test.js'), [], 'node-test'],
+  ['A1 尾读缺口', path.join(ROOT, 'bench-live.test.js'), [], 'node-test'],
+  ['A1 摘要读取', path.join(ROOT, 'bench-digest.test.js'), [], 'node-test'],
+  ['P22 时间边界', path.join(ROOT, 'lib', 'p22-digest.test.js'), [], 'node-test'],
+  ['Q9 登记读取', path.join(ROOT, 'q9-isolated.test.js'), [], 'node-test'],
+  ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
 ];
 
 const results = [];
-for (const [name, file, args] of STEPS) {
-  const r = spawnSync(node, [file, ...args], { encoding: 'utf8', timeout: 180000 });
+for (const [name, file, args, kind] of STEPS) {
+  const argv = kind === 'node-test' ? ['--test', file, ...args] : [file, ...args];
+  const r = spawnSync(node, argv, { encoding: 'utf8', timeout: 180000 });
   const tail = ((r.stdout || '') + (r.stderr || '')).trim().split('\n').filter(Boolean).slice(-2).join(' | ');
   const ok = r.status === 0;
   results.push({ name, ok, tail });
