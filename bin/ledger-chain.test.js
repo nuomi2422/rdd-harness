@@ -29,7 +29,7 @@ function chain(t, text, window, resolver) {
   const r = L.readTail(f, 0, window || 1024 * 1024, {});
   const tools = (r.lines || []).join('\n');
   const lg = AL.build(tools, '', { minStreak: 3, resolveIdentity: resolver || resolverOK });
-  return { r, lg, ev: actionEvidence(lg, tools, null, { windowStart: 'test-window', anchorBytes: 64 }) };
+  return { r, lg, ev: actionEvidence(lg, tools, null, { level: 'verified', windowStart: 'test-window', anchorBytes: 64 }) };
 }
 
 test('SUPPORTED 正例：完整流 + 独立核验 → PRESENT', (t) => {
@@ -75,3 +75,11 @@ test('SUPPORTED 重启复用同一 session+call 号：靠进程运行号分成�
   assert.equal(same.lg.summary.calls, 1);
 });
 console.log('reader→ledger→consumer 身份链路断言完成（3 SUPPORTED / 2 EXPECTED-FAIL）');
+
+test('有限监测（limited）即使身份全知、无缺口也不得 PRESENT', (t) => {
+  const { lg } = chain(t, line('tool_call', {}) + '\n' + line('tool_result', { result: { success: true } }));
+  const text = line('tool_call', {}) + '\n' + line('tool_result', { result: { success: true } });
+  const ev = actionEvidence(lg, text, null, { level: 'limited', windowStart: 'w', anchorBytes: 64 });
+  assert.equal(ev.status, 'UNKNOWN');
+  assert.ok(ev.reasons.includes('coverage-limited'));
+});
