@@ -1934,7 +1934,7 @@
         "title": "learner-enqueued.jsonl 同一窗口内重复追加：409→424 行，唯一 id 只 +2",
         "detected": "2026-11-08",
         "detail": "2026-11-08 08:47 那窗实测：journal 409→424 行（+15），唯一 id 338→340（+2），即**本窗内**新增 13 行重复追加。此前 08:00 那轮观察是『新增全是新 id』，据此提出的『重启重建 ENQUEUED 导致重复』假设被这轮推翻——重复不是重启才发生。入队侧去重已确认存在（LearnerAutoIntake.java:364 dupSkipped、MemoQueue seen），所以重复行要么来自另一条写入路径，要么来自 ENQUEUED 在窗内被裁剪/清空。",
-        "fix": "未修。待查：①journal 的 append 点是否只有 LearnerAutoIntake.java:192 一处；②MAX_ENQUEUED_KEYS=4096 的 trim 是否在 401 条时就触发（若按内存计数误判则会提前裁剪，导致同一 id 重新可入队，这条最可疑）。",
+        "fix": "**真因已定（2026-11-08 08:55 学习者查证 + 指挥官抽验）**：appendEnqueuedJournal 有**两个**调用点 —— 正常入队那一处受 ENQUEUED.add 保护，另一处（放回被抑制 memo 的 admitDeferred 路径）先入队再直接写 journal、不查 ENQUEUED，同一条每放回一次就多一行。数据实证：58 个重复 id 100% 命中 learner.jsonl 的 suppressed_admitted 事件。trim 假设已否掉（集合约 340，远未到 4096 上限）。修法：放回路径写 journal 前先查 ENQUEUED，或改成幂等 upsert。注：行号以实际文件为准（不同读法有偏移）。",
         "lesson": "阴性观察只能说明『那一次没发生』，不能说明机制不存在；一次转阳就要推翻原来的假设并重新登记，而不是继续拿旧结论解释新数据。",
         "guard": "暂无。候选：开窗前后各记一次 journal 行数与唯一 id 数，并在窗内每隔 5 分钟采一次，定位重复发生在哪个时间点。",
         "status": "open"
