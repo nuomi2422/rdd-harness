@@ -1734,6 +1734,16 @@
         "verifiedBy": "2026-10-30 14:00–14:15：r1/r2 llm=0 → 补写 binding 无效（构造期缓存）→ r3 预置 binding 后 llm=50 → api 包重建 298B2E83 改为每轮重读。",
         "reviewBy": "2026-11-13",
         "status": "open"
+      },
+      {
+        "id": "Q21",
+        "name": "退游戏后过一遍实验台（digest 留痕）",
+        "kind": "artifact",
+        "level": "block",
+        "appliesTo": ["worker"],
+        "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 的上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。所以退游戏后必须跑一次 `node bin/bench-digest.js` 把「说/做/果 + 异常摘要」过一遍，留痕才算做过 —— 只读文件不算。",
+        "verify": "latest.log 里 60 分钟内有 All dimensions are saved，且 .harness/audit/bench-digest.jsonl 的最后一条时间 ≥ 该关窗时刻；没有关窗记录时只 WARN",
+        "note": "主人 2026-11-08 同意做 B 方案（命令 + 门禁强制）。A 方案（关窗自动投递到上下文）待做，届时 Q21 可退化为兜底。"
       }
     ]
   },

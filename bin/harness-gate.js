@@ -1084,6 +1084,34 @@ function postflight(ctx) {
         `          只写在聊天里等于没写（下一轮的人还得考古）。\n` +
         `       ★ 现场看结果别翻 13MB 的 /api/snapshot：experiments\\live\\{snapshot,chain,chat,context}.md\n` +
         `         是常驻视图（node bin\\bench.js live status / show chain）。`;
+      // Q21（2026-11-08 主人同意）：退游戏后必须把实验台观测过一遍 —— 跑 bench-digest 留痕。
+      //   为什么：实验台数据齐全但没有通道送到编码 AI；digest 是唯一的一键出口。
+      //   只认痕迹（.harness/audit/bench-digest.jsonl），不认自述。
+      {
+        let q21state = WARN, q21detail = '没找到本轮关窗记录（latest.log 里 60 分钟内没有 All dimensions are saved）';
+        try {
+          const logTxt = fs.readFileSync(path.join(REG.roots.live, 'logs', 'latest.log'), 'utf8');
+          const saves = [...logTxt.matchAll(/\[(\d{2}月\d{4} \d{2}:\d{2}:\d{2})\.\d+\] \[Server thread\/INFO\].*All dimensions are saved/g)];
+          if (saves.length) {
+            const lastSave = saves[saves.length - 1][1];
+            const m = lastSave.match(/(\d{2})月(\d{4}) (\d{2}:\d{2}:\d{2})/);
+            const saveAt = m ? new Date(`${m[2].slice(0, 4)}-${m[2].slice(4, 6)}-${m[1]}T${m[3]}`).valueOf() : 0;
+            const age = now - saveAt;
+            if (age >= 0 && age <= 60 * 60_000) {
+              const ledger = path.join(rddRoot, '.harness', 'audit', 'bench-digest.jsonl');
+              let ranAt = 0;
+              try {
+                const rows = fs.readFileSync(ledger, 'utf8').trim().split(/\r?\n/).filter(Boolean);
+                for (const row of rows) { try { const j = JSON.parse(row); const v = Date.parse(j.at); if (v > ranAt) ranAt = v; } catch { /* 坏行跳过 */ } }
+              } catch { /* 没有账本 = 从没跑过 */ }
+              if (ranAt >= saveAt) { q21state = PASS; q21detail = '退游戏后已过一遍实验台（digest ' + new Date(ranAt).toISOString().slice(11, 19) + '）'; }
+              else { q21state = BLOCK; q21detail = '关窗于 ' + lastSave + '，但之后没跑 bench-digest → 跑一次 node bin/bench-digest.js --since 6h，先看异常段'; }
+            }
+          }
+        } catch { /* 保持 WARN */ }
+        record('Q21', '退游戏后过一遍实验台（digest 留痕）', BLOCK, 'artifact', q21state, q21detail);
+      }
+
       if (!r) {
         record('Q18', '实验台：新工具 + 数据反思 + 账本', 'ask', 'human', ASK,
           head + `\n       （检查器缺失或输出不可解析：${path.basename(checker)}）`);
