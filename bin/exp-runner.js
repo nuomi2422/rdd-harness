@@ -831,6 +831,9 @@ async function cmdRun(opts) {
   // ④末行只写了一半 ⑤读失败。任一发生都记 gap，消费者据此判 UNKNOWN，绝不静默 PRESENT。
   const gaps = {};
   const fileId = {};
+  // 半行 pending：若某文件连续两次轮询"大小没变且仍有未消费的半行"，说明写入方停在那里，
+  // 这段内容可能永远补不齐 —— 判为缺口，而不是当作"本来就这么长"。
+  const pending = {};
   const noteGap = (f, reason, extra) => {
     if (!gaps[f]) gaps[f] = { at: nowIso(), reason, ...(extra || {}) };
   };
@@ -867,8 +870,14 @@ async function cmdRun(opts) {
       // ④ 末行不完整：扣住不消费，等下一次补齐（否则下游会把半行当坏行或错行）
       const text = chunk.toString('utf8');
       const cut = text.lastIndexOf('\n');
-      if (cut < 0) { return ''; }            // 整个块都还没写完
+      if (cut < 0) {                        // 整个块都还没写完
+        if (pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
+        pending[f] = { size };
+        return '';
+      }
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
+      if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
+      pending[f] = complete.length < n ? { size } : null;
       offsets[f] = (offsets[f] || 0) + complete.length;
       fs.appendFileSync(path.join(runDir, 'evidence', f), complete);
       return complete.toString('utf8');
