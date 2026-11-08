@@ -2138,7 +2138,19 @@ function roundGates() {
       const stuck = /goal block|phase-blocked|goal pause|blocked/.test(last);
       const at = (last.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/) || [])[1];
       const stuckMin = stuck && at ? Math.round((now - Date.parse(at)) / 60000) : 0;
+      // ★ 2026-11-08：指导要能「解堵」——否则 C10 永久红，等于逼人当没看见。
+      //   指导记录写 .harness/audit/commander-guidance.jsonl（指挥官每次回话就追加一条）。
+      let guidedAt = 0;
+      try {
+        const rootC10 = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
+        const gl = path.join(rootC10, '.harness', 'audit', 'commander-guidance.jsonl');
+        for (const row of fs.readFileSync(gl, 'utf8').trim().split(/\r?\n/).filter(Boolean)) {
+          try { const o = JSON.parse(row); const v = Date.parse(o.at); if (v > guidedAt) guidedAt = v; } catch { /* 坏行跳过 */ }
+        }
+      } catch { /* 没有 ledger = 没指导过 */ }
+      const guidedAfter = guidedAt && at && guidedAt >= Date.parse(at);
       if (!stuck) { c10state = PASS; c10detail = '目标在跑，没有阻塞/暂停'; }
+      else if (guidedAfter) { c10state = PASS; c10detail = '目标阻塞后已给过指导（' + new Date(guidedAt).toISOString().slice(11, 19) + '）'; }
       else if (stuckMin <= 20) { c10state = WARN; c10detail = '目标刚停 ' + stuckMin + ' 分钟：本轮必须给指导（peer_send 说清卡在哪 + 下一步），别放着'; }
       else { c10state = BLOCK; c10detail = '目标已暂停/阻塞 ' + stuckMin + ' 分钟没人管 → 去指导或重设目标：' + String(last).slice(0, 120); }
     } catch { /* 保持 WARN */ }
