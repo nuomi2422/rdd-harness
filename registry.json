@@ -1970,6 +1970,17 @@
         "fixedLanded": "2026-11-08 08:58 修复已落 fe984f43d：放回分支改为 if (ENQUEUED.add(id)) 才写 journal；learner 全量 804/0/0 绿。★效果未验：真实「抑制→冷却→放回」循环未跑，journal 是否只 +1 仍 NOT_COVERED，所以本条保持 open。",
         "status": "fixed（代码级）",
         "verifiedNote": "2026-11-08 09:12 代码级验证：LearnerAutoIntakeTest.java:401 `suppressedReadmitAppendsJournalOnlyOnce`，反射驱动 admitDeferred、同 id 放回两次、断言 journal 只 +1；learner 805/0/0 绿（d53b5e7ba）。★这不是实机证据：当前 suppressed 文件全 0 行，真实『抑制→冷却→放回』循环仍未跑，实机口径保持 NOT_COVERED。"
+      },
+      {
+        "id": "bug-17",
+        "class": "隐蔽",
+        "title": "learner_review 启动了但没有 reviewed 事件：窗口关闭丢尾，状态文件不更新",
+        "detected": "2026-11-08",
+        "detail": "2026-11-08 01:02:52.324Z learner.jsonl 有 review_started（review_id=rev-1794099772320-181，reviewing=3），01:02:56.415Z 有 llm_request，但到 01:03:50 仍无 reviewed；learner-review-state.json 停在 00:42:36.411Z / verdict=3，随后游戏关闭（01:36 实测 java/javaw=0）。结论：复核是**启动后未跑完**，不是没启动。",
+        "fix": "未修。待查：①关闭时 review 有无收尾钩子（写 reviewed 或写 partial）；②没有收尾时下一窗是否自动 resume 该 review_id；③state 是否需区分「reviewing 中 / 上次完成」。" ,
+        "lesson": "「启动了」和「跑完了」是两件事：只看 started 会以为在干活，只看 state 会以为没启动。判据要成对：started→reviewed 必须配对，缺尾就是缺陷。",
+        "guard": "暂无。候选：每轮核对 started/reviewed 配对；started 后 5 分钟无 reviewed 即告警。",
+        "status": "open"
       }
     ]
   },
