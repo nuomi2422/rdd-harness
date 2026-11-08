@@ -30,6 +30,7 @@ const STEPS = [
   ['P22 时间边界', path.join(ROOT, 'lib', 'p22-digest.test.js'), [], 'node-test'],
   ['Q9 登记读取', path.join(ROOT, 'q9-isolated.test.js'), [], 'node-test'],
   ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
+  ['take 动态有效性', path.join(ROOT, 'verify-take.test.js'), [], 'node-test'],
 ];
 
 const results = [];
