@@ -121,3 +121,33 @@ test('事后复核：读完后内容未变 → verifySegments ok；改动已消�
   assert.equal(v.ok, false, '内容被改后必须复核失败');
   assert.ok(v.files['tools.jsonl'].broken >= 1);
 });
+test('窗口从非零 offset 起读：段从中间开始（窗口完整性不可证）', (t) => {
+  const { dir, file } = setup(t);
+  fs.writeFileSync(file, 'old1\nold2\nnew1\n');
+  const start = fs.statSync(file).size;          // 模拟"窗口从此刻开始"，跳过历史
+  const r2 = createPull({ dir, offsets: { 'tools.jsonl': start } });
+  fs.appendFileSync(file, 'new2\n');
+  const got = r2.pull('tools.jsonl');
+  assert.equal(got, 'new2\n');
+  const v = r2.verifySegments();
+  assert.equal(v.ok, true, '已消费段本身一致');
+  assert.ok(v.files['tools.jsonl'].from > 0, '段起点>0，说明窗口之前的内容没被覆盖');
+});
+
+test('空文件：没有可比对段，复核不算通过', (t) => {
+  const { r, file } = setup(t);
+  fs.writeFileSync(file, '');
+  assert.equal(r.pull('tools.jsonl'), '');
+  const v = r.verifySegments();
+  assert.equal(v.ok, false, '没有段就不能声称复核通过');
+});
+
+test('多个流缺一：只复核到有段的文件，另一流无段即视为不完整', (t) => {
+  const { r, dir, file } = setup(t);
+  fs.writeFileSync(file, 'a\n');
+  fs.writeFileSync(path.join(dir, 'events.jsonl'), '');
+  r.pull('tools.jsonl');
+  const v = r.verifySegments();
+  assert.equal(Object.keys(v.files).length, 1, '只有 tools 有段');
+  assert.equal(v.files['events.jsonl'], undefined);
+});

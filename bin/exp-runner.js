@@ -44,7 +44,13 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   // 目前生产只做到 'limited'，因此**生产账本应当是 UNKNOWN**，这是预期而非常态缺失。
   // 覆盖等级**不接受调用方传字符串**：只有 lib/coverage.js 用私有 Symbol 签发的对象才算 verified，
   // 否则任何人写 {level:'verified'} 就能把结论刷成 PRESENT（可伪造放行）。
-  const coverageVerified = require('./lib/coverage').isVerifiedCoverage(coverage);
+  // 拆两维：内容完整性 + 窗口完整性。**只有两者都 verified 才允许 PRESENT**。
+  // 目前窗口完整性永远 unproven（从非零 offset 起读、读前是否已被替换都证不了），
+  // 所以即便内容复读一致，结论仍是 UNKNOWN，理由 window-completeness-unproven。
+  const covMod = require('./lib/coverage');
+  const contentVerified = covMod.isVerifiedCoverage(coverage) && coverage.contentIntegrity === 'verified';
+  const windowVerified = covMod.isVerifiedCoverage(coverage) && coverage.windowCompleteness === 'verified';
+  const coverageVerified = contentVerified && windowVerified;
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
@@ -65,7 +71,8 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   const dup = s.duplicates || {};
   if (dup.resultWithoutCall > 0 || dup.terminalWithoutCall > 0 || cov.unmatchedTerminals > 0) reasons.push('unmatched-receipts');
   if (gapList.length) reasons.push('log-gap');
-  if (!coverageVerified) reasons.push('coverage-limited');
+  if (!contentVerified) reasons.push('coverage-limited');
+  else if (!windowVerified) reasons.push('window-completeness-unproven');
   return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 

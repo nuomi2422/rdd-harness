@@ -42,13 +42,22 @@ function makeVerifiedCoverage(evidence) {
     if (!Number.isFinite(v.broken) || v.broken !== 0) throw new Error('coverage-rejected: ' + file + ' 有段比对失败');
     if (!v.contiguous) throw new Error('coverage-rejected: ' + file + ' 段不连续');
   }
-  // 只声明能证明的那部分：内容自读取后未变。来源/历史时刻不在证明范围内。
-  return Object.freeze({ [VERIFIED]: true, scope: 'content-immutable-since-read', files: entries.map(([f]) => f) });
+  // 拆成两个维度，绝不把“内容不变”当成“覆盖完整”：
+  //   contentIntegrity   = 已消费字节事后复读一致（本函数能证）
+  //   windowCompleteness = 从窗口起点到结束无遗漏（**本函数证不了**，永远 unproven）
+  return Object.freeze({
+    [VERIFIED]: true,
+    contentIntegrity: 'verified',
+    windowCompleteness: 'unproven',
+    scope: 'content-immutable-since-read',
+    files: entries.map(([f]) => f),
+  });
 }
 
 /** 读取方只接受本模块签发的对象；字符串/普通对象一律视为未验证。 */
 function coverageLevel(obj) {
-  return isVerifiedCoverage(obj) ? 'verified' : 'limited';
+  if (!isVerifiedCoverage(obj)) return 'limited';
+  return obj.windowCompleteness === 'verified' ? 'verified' : 'content-only';
 }
 
 module.exports = { makeVerifiedCoverage, isVerifiedCoverage, coverageLevel };

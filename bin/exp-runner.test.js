@@ -73,5 +73,13 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
   assert.ok(forged.reasons.includes('coverage-limited'));
   assert.throws(() => C.makeVerifiedCoverage({}), /coverage-rejected/);
   assert.equal(C.isVerifiedCoverage({ level: 'verified' }), false);
-  console.log('覆盖分级断言 PASS（limited→UNKNOWN / 伪造verified被拒 / 无合法签发路径）');
+  // 内容完整性可以签发（verified），但窗口完整性永远 unproven → 结论仍 UNKNOWN
+  const issued = C.makeVerifiedCoverage({ segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } }, source: 's', window: { start: 'w' }, gaps: {}, lifecycle: { closed: true } });
+  assert.equal(issued.contentIntegrity, 'verified');
+  assert.equal(issued.windowCompleteness, 'unproven');
+  const issuedEv = actionEvidence(lg, text, null, issued);
+  assert.equal(issuedEv.status, 'UNKNOWN', '内容一致也不等于覆盖完整');
+  assert.ok(issuedEv.reasons.includes('window-completeness-unproven'));
+  assert.ok(!issuedEv.reasons.includes('coverage-limited'), '内容维度已通过，不应再报 coverage-limited');
+  console.log('覆盖分级断言 PASS（limited→UNKNOWN / 伪造verified被拒 / 内容verified但窗口unproven→UNKNOWN）');
 }
