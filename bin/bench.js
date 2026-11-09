@@ -1239,7 +1239,7 @@ function main() {
     if (argv.includes('--json')) console.log(JSON.stringify(res4, null, 2));
     else {
       console.log('[预算] ' + res4.status + (res4.reasons.length ? '（' + res4.reasons.join(',') + '）' : ''));
-      console.log('  budget_gate=' + res4.gateEvents + ' 其中 trimmed>0=' + res4.trimmedEvents + ' 合计裁剪=' + res4.trimmedTotal + (res4.trimmedIsEstimate ? '（**估算值/校准用，不代表已实际裁剪**）' : ''));
+      console.log('  budget_gate=' + res4.gateEvents + ' 其中 trimmed>0=' + res4.trimmedEvents + ' 原始估算合计=' + res4.trimmedTotal + '（**char/token 命名易误读，见 007 语义说明**）');
       console.log('  budget_settle=' + res4.settleEvents + ' llm_usage=' + res4.usageEvents + ' totalTokens=' + res4.tokensTotal);
       console.log('  llm_request=' + res4.requestEvents + ' promptTokens=' + res4.promptTokensTotal + ' 坏值=' + res4.invalid);
     }

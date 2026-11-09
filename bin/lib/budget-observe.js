@@ -31,7 +31,7 @@ function build(linesByFile) {
             out.byProvider[prov] = (out.byProvider[prov] || 0) + 1;
             const ratio = num(d.ratio);
             if (ratio !== null) out.ratios.push(ratio);
-            // 一致性护栏：trimmed 大于本次 gateInput 时记一次（可能是单位/字段语义问题，不擅自解释）
+            // 记录 trimmed>gateInput 的次数：按源码这是常态（本地估算偏高），保留计数便于发现口径变化
             const gi = num(d.gateInput);
             if (gi !== null && tr > gi) out.trimmedGreaterThanInput = (out.trimmedGreaterThanInput || 0) + 1;
             const lim = num(d.limitTokens);
@@ -60,7 +60,11 @@ function build(linesByFile) {
   // 汇总：裁剪比例与上限的分布（只做描述，不推因果）
   const stat = (arr) => (arr.length ? { n: arr.length, min: Math.min(...arr), max: Math.max(...arr), avg: Number((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(3)) } : null);
   out.ratioStat = stat(out.ratios);
-  // mode=shadow 时 trimmed 是**估算值**（BudgetGateCalibration.trimmedEstimate），不代表已经实际裁剪。
+  // 语义（2026-11-09 读 EntityAgentLoop 源码确认）：
+  //   trimmed = 本轮**原始本地估算 token**（estimateRequestTokens）
+  //   gateInput = 用上一次校准比例换算后的入闸 token（calibration.gate）
+  //   ratio = lastMeasured / lastTrimmed（校准比例，实测/估算）
+  // ⇒ trimmed > gateInput 属**设计使然**（本地估算系统性偏高），不是异常；也不是"已裁剪量"。
   out.limitStat = stat(out.limitTokens);
   const modes = Object.keys(out.byMode);
   out.shadowOnly = modes.length > 0 && modes.every((m) => m === 'shadow');
