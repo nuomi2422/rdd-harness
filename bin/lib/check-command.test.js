@@ -17,6 +17,7 @@ test('check：输出验收表与证据卡两段', () => {
   const r = spawnSync(process.execPath, [BENCH, 'check', '--dir', d], { encoding: 'utf8' });
   assert.match(r.stdout, /== 验收表 ==/);
   assert.match(r.stdout, /== 证据卡 ==/);
+  assert.match(r.stdout, /== 数据面 ==/);
   assert.equal(r.status, 0, '无 MISMATCH 时应 0');
   fs.rmSync(d, { recursive: true, force: true });
 });

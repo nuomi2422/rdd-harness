@@ -1342,8 +1342,13 @@ function main() {
       const face = ['ai.jsonl', 'tools.jsonl', 'events.jsonl', 'rdd.jsonl', 'context.jsonl'].map((n) => {
         try { const st = fs.statSync(path.join(dir3, n)); return n.replace('.jsonl', '') + ':' + Math.round(st.size / 1024) + 'KB'; } catch { return n.replace('.jsonl', '') + ':缺'; }
       }).join(' ');
+      let newest = 0;
+      for (const n of ['ai.jsonl', 'tools.jsonl', 'events.jsonl', 'rdd.jsonl', 'context.jsonl']) {
+        try { const st = fs.statSync(path.join(dir3, n)); if (st.mtimeMs > newest) newest = st.mtimeMs; } catch { /* 缺流已在上行标出 */ }
+      }
+      const ageMin = newest ? Math.round((Date.now() - newest) / 60000) : null;
       console.log('== 数据面 ==');
-      console.log('  ' + face);
+      console.log('  ' + face + (ageMin === null ? '（无数据）' : '  最新写入=' + ageMin + '分钟前'));
       console.log('== 待判 ==');
       console.log('  ' + (open.length ? open.join(' / ') + '（均未判，不能当通过）' : '无'));
     } catch { console.log('== 待判 =='); console.log('  UNKNOWN（生成失败）'); }
