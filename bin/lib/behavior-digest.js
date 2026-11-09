@@ -38,8 +38,11 @@ function within(rows, sinceMs, untilMs) {
 }
 
 function buildDigest(input) {
-  const sinceMs = Number(input && input.sinceMs) || (Date.now() - 30 * 60_000);
-  const untilMs = Number(input && input.untilMs) || Date.now();
+  // sinceMs=0 是合法边界（从头），不能用 || 取默认值，否则会被当成缺省。
+  const sinceRaw = Number(input && input.sinceMs);
+  const untilRaw = Number(input && input.untilMs);
+  const sinceMs = Number.isFinite(sinceRaw) ? sinceRaw : Date.now() - 30 * 60_000;
+  const untilMs = Number.isFinite(untilRaw) ? untilRaw : Date.now();
   const ai = within(parseLines(input && input.ai, 'ai.jsonl'), sinceMs, untilMs);
   const tools = within(parseLines(input && input.tools, 'tools.jsonl'), sinceMs, untilMs);
   const events = within(parseLines(input && input.events, 'events.jsonl'), sinceMs, untilMs);
@@ -80,13 +83,20 @@ function buildDigest(input) {
     if (sameChain.length >= 2) { anomalies.push('原地打转 phase=' + b.phase + '（' + rdd[i].file + ':' + rdd[i].line + '）'); break; }
   }
 
+  // 2026-11-09：**脱敏**——只输出"类型/工具名/长度/成败"等元信息 + 文件:行号，
+  // 绝不输出正文、参数、命令、结果内容（那些可能含任务正文或凭据）。
   const fmt = (r, text) => '  - ' + text + '（' + r.file + ':' + r.line + '）';
+  const len = (v) => (typeof v === 'string' ? v.length : 0);
   const parts = [];
   parts.push('[行为摘要 ' + new Date(sinceMs).toISOString().slice(11, 16) + '~' + new Date(untilMs).toISOString().slice(11, 16) + ']');
   parts.push('说 ' + said.length + ' 条 / 做 ' + did.length + ' 条 / 果 ' + done.length + ' 条 / 事件 ' + events.length + ' 条');
-  if (said.length) parts.push('说：\n' + said.map((r) => fmt(r, String((r.o.data || {}).text || '').slice(0, 60))).join('\n'));
+  if (said.length) parts.push('说：\n' + said.map((r) => fmt(r, 'assistant 文本 ' + len((r.o.data || {}).text) + ' 字（内容不外带）')).join('\n'));
   if (did.length) parts.push('做：\n' + did.map((r) => fmt(r, String((r.o.data || {}).tool || '?'))).join('\n'));
-  if (done.length) parts.push('果：\n' + done.map((r) => fmt(r, JSON.stringify((r.o.data || {}).result || {}).slice(0, 60))).join('\n'));
+  if (done.length) parts.push('果：\n' + done.map((r) => {
+    const d = r.o.data || {};
+    const ok = d.success ?? (d.result && d.result.success);
+    return fmt(r, '结果 ' + (ok === undefined ? 'UNKNOWN' : ok ? 'ok' : 'fail') + (Number.isFinite(d.duration_ms) ? ' ' + d.duration_ms + 'ms' : ''));
+  }).join('\n'));
   parts.push(anomalies.length ? '异常：\n' + anomalies.map((a) => '  - ' + a).join('\n') : '异常：UNKNOWN（窗口内没检出已知模式，不代表没有问题）');
 
   let text = parts.join('\n');
