@@ -43,3 +43,23 @@ test('接到账本：未通过检查的 claim 不得让身份变已知', () => {
   const lg = AL.build(text, '', { resolveIdentity: gated });
   assert.equal(lg.summary.coverage.identityKnown, '0/2');
 });
+test('端到端（模拟可信来源，仅测试）：接线齐全时身份可变 KNOWN 且消费者带 caveat', () => {
+  const { actionEvidence } = require('../exp-runner');
+  // 测试内自建的"独立来源"：显式 eventKey + provenance，仅用于证明接线可行，不代表生产存在。
+  const SOURCE = { 'ev-1': { eventKey: 'ev-1', provenance: 'test-source/index', worldId: 'w', serverSession: 's', companion: 'c' } };
+  const resolvePtr = (p) => SOURCE[p] || null;
+  const line = (type, data) => JSON.stringify({ type, session: 'run-1', world_id: 'w', server_session: 's', data });
+  const text = line('tool_call', { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1' }) + '\n'
+    + line('tool_result', { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', result: { success: true } });
+  const resolver = (e) => {
+    const claim = { worldId: 'w', serverSession: 's', companion: 'c', evidence: 'ev-1', callId: e.data.tool_call_id };
+    return G.verifyIndependent(claim, resolvePtr, { eventKey: 'ev-1', trustedSources: ['test-source/index'] }).independent ? claim : null;
+  };
+  const lg = AL.build(text, '', { resolveIdentity: resolver });
+  // 身份可判后，call 与 result 会被正确合并成 1 条（对比无身份时的 2 条拆分）
+  assert.equal(lg.summary.coverage.identityKnown, '1/1', '接线齐全时身份应可判且能合并');
+  assert.equal(lg.summary.calls, 1);
+  const ev = actionEvidence(lg, text, null, { level: 'limited' });
+  assert.equal(ev.status, 'UNKNOWN', '即使身份可判，覆盖等级 limited 仍应 UNKNOWN');
+  assert.ok(ev.reasons.includes('coverage-limited'));
+});
