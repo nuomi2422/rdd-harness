@@ -43,6 +43,7 @@ const STEPS = [
   ['身份真实入口负例', path.join(ROOT, 'lib', 'identity-real-entry.test.js'), [], 'node-test'],
   ['读取器真实文件', path.join(ROOT, 'lib', 'reader-real-entry.test.js'), [], 'node-test'],
   ['预算可观测性', path.join(ROOT, 'lib', 'budget-observe.test.js'), [], 'node-test'],
+  ['跨流关联可判性', path.join(ROOT, 'lib', 'cross-stream.test.js'), [], 'node-test'],
   ['部署后黄金样本', path.join(ROOT, 'lib', 'golden-sample.test.js'), [], 'node-test'],
   ['部署后验收表', path.join(ROOT, 'lib', 'acceptance-table.test.js'), [], 'node-test'],
   ['行为轨迹摘要', path.join(ROOT, 'lib', 'behavior-digest.test.js'), [], 'node-test'],
