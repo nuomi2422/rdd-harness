@@ -1348,7 +1348,7 @@ function main() {
       }
       const ageMin = newest ? Math.round((Date.now() - newest) / 60000) : null;
       console.log('== 数据面 ==');
-      console.log('  ' + face + (ageMin === null ? '（无数据）' : '  最新写入=' + ageMin + '分钟前'));
+      console.log('  ' + face + (ageMin === null ? '（无数据）' : '  最新写入=' + ageMin + '分钟前' + (ageMin > 60 ? '（⚠ 已过期，勿当现状）' : '')));
       console.log('== 待判 ==');
       console.log('  ' + (open.length ? open.join(' / ') + '（均未判，不能当通过）' : '无'));
     } catch { console.log('== 待判 =='); console.log('  UNKNOWN（生成失败）'); }
