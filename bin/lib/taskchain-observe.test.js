@@ -65,3 +65,13 @@ test('多会话/多链要如实计数（跨世界身份不硬拼）', () => {
   assert.equal(r.chains, 2);
   assert.equal(r.sessions, 2);
 });
+test('版本跳跃分 fast/slow：同瞬间的不算可疑', () => {
+  const mk = (ts, ver) => JSON.stringify({ type: 'taskchain_snapshot', timestamp: ts, data: { taskChain: { chainInstanceId: 'c', stateVersion: ver } } });
+  const fast = [mk('2026-11-09T05:00:00.000Z', 1), mk('2026-11-09T05:00:00.050Z', 3)].join('\n');
+  const rf = T.build({ 'rdd.jsonl': fast });
+  assert.equal(rf.fastGaps, 1);
+  assert.equal(rf.slowGaps, 0);
+  const slow = [mk('2026-11-09T05:00:00.000Z', 1), mk('2026-11-09T05:01:00.000Z', 4)].join('\n');
+  const rs = T.build({ 'rdd.jsonl': slow });
+  assert.equal(rs.slowGaps, 1);
+});

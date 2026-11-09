@@ -39,6 +39,15 @@ function build(linesByFile) {
     if (vers[i] < vers[i - 1]) verRegressions += 1;
     else if (vers[i] > vers[i - 1] + 1) verGaps += (vers[i] - vers[i - 1] - 1);
   }
+  // 版本跳跃分两类：同一瞬间多次状态变更（快照节流，不算丢失） vs 间隔很久（可疑）。
+  let fastGaps = 0, slowGaps = 0;
+  for (let i = 1; i < rows.length; i += 1) {
+    const a = rows[i - 1], b = rows[i];
+    if (a.ver === null || b.ver === null) continue;
+    if (b.ver <= a.ver + 1) continue;
+    const dt = (a.ts !== null && b.ts !== null) ? (b.ts - a.ts) : null;
+    if (dt !== null && dt <= 1000) fastGaps += 1; else slowGaps += 1;
+  }
   let tsRegressions = 0;
   const ts = rows.map((r) => r.ts).filter((t) => t !== null);
   for (let i = 1; i < ts.length; i += 1) if (ts[i] < ts[i - 1]) tsRegressions += 1;
@@ -51,8 +60,9 @@ function build(linesByFile) {
     scope: 'only-observed-samples',
     snapshots: rows.length, chains: chains.length, goals: goals.length, sessions: sessions.length,
     verMin: vers.length ? Math.min(...vers) : null, verMax: vers.length ? Math.max(...vers) : null,
-    verRegressions, verGaps, tsRegressions, staleResultsIgnored: staleTotal,
+    verRegressions, verGaps, fastGaps, slowGaps, tsRegressions, staleResultsIgnored: staleTotal,
     staleZeroNote: staleTotal === 0 ? "本样本计数为 0；计数器生命周期/重置/范围未核，不能推断机制未触发" : null,
+    verGapsNote: verGaps ? "版本跳跃 fast=" + fastGaps + " slow=" + slowGaps + "；fast 多为一次落盘前的多次状态变更（不等于丢失），slow 才可疑" : null,
     epochs, settledCount: last.settled, currentPrimary: last.prim, currentSubtask: last.sub,
     missingFields: missing, window, rows,
   };
