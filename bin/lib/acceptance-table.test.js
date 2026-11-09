@@ -136,3 +136,14 @@ test('R5 真实尾部：跑一次并打印数字（无真实文件则 skip）', 
   // 真实数据当前不应是 MATCH（已知一条都没投递），但这条断言留给部署后自然会变
   assert.notEqual(r5.data.actualEntries < 0, true);
 });
+test('验收表支持时间窗：窗口外事件不计入 R1', (t2) => {
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const { buildCard } = require('../evidence-card');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'at-win-'));
+  t2.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const row = (ts2, why) => JSON.stringify({ type: 'final_request', timestamp: ts2, data: { companion_id: 'c', requestKind: 'execute', turn: 1,
+    rationalePresent: why, whyPresent: why, whyStatus: why ? 'PRESENT' : 'ABSENT', risksPresent: why, sourcePresent: why, conditionsPresent: false } });
+  fs.writeFileSync(path.join(d, 'context.jsonl'), row('2026-11-09T05:30:00Z', true) + '\n' + row('2026-11-09T08:30:00Z', false) + '\n');
+  const card = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
+  assert.equal(card.finalRequest.total, 1, '窗口内只有 1 条');
+});

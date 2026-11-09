@@ -79,3 +79,8 @@ test('可回查：每条 sources 指针都能在对应文件行号上找到该�
     assert.equal(String(row.type), s.type, '指针 ' + s.file + ':' + s.line + ' 必须指到同类型事件');
   }
 });
+test('读取缺口：摘要头必须显式写出，不得静默', () => {
+  const res = BD.buildDigest({ ai: '', tools: '', events: '', rdd: '', sinceMs: 0, untilMs: Date.now(),
+    gaps: { 'tools.jsonl': { reason: 'truncated' }, 'ai.jsonl': { reason: 'not-a-file' } } });
+  assert.match(res.text, /\[读取缺口\] tools\.jsonl:truncated ai\.jsonl:not-a-file/);
+});
