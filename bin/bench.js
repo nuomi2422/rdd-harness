@@ -1279,6 +1279,21 @@ function main() {
       const out = { table, verdict, hasMismatch: table.overall === 'MISMATCH' };
       try { out.budget = require('./lib/budget-observe.js').build({ 'context.jsonl': read3('context.jsonl') }); } catch { out.budget = null; }
       try { out.chain = require('./lib/taskchain-observe.js').build({ 'rdd.jsonl': read3('rdd.jsonl') }); if (out.chain) delete out.chain.rows; } catch { out.chain = null; }
+      // 2026-11-10：JSON 也要带"待判"，自动化不能只看 status 就当真。
+      out.open = [];
+      const vv = verdict && verdict.reasons ? verdict.reasons : [];
+      if (vv.includes('identity-not-attributable')) out.open.push('身份');
+      for (const row of table.rows) {
+        if (row.verdict !== 'UNKNOWN') continue;
+        if (row.id === 'R1') out.open.push('why');
+        if (row.id === 'R2') out.open.push('结算');
+        if (row.id === 'R4') out.open.push('侧身份');
+      }
+      if (out.budget && out.budget.trimmedIsEstimate) out.open.push('预算(仅估算)');
+      if (out.chain) {
+        if (out.chain.staleResultsIgnored === 0) out.open.push('旧回执');
+        if (out.chain.verGaps) out.open.push('快照缺口');
+      }
       console.log(JSON.stringify(out, null, 2));
       process.exitCode = out.hasMismatch ? 1 : 0;
       return;
