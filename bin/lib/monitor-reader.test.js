@@ -180,3 +180,14 @@ test('窗口完整性是有界的：从中间起读仍然"窗口内成立"（起
   assert.equal(w.ok, true);
   assert.ok(w.files['tools.jsonl'].from > 0, '窗口起点>0，声明只覆盖观测段');
 });
+test('多流缺一：requiredFiles 缺 events 时窗口不完整', (t) => {
+  const { r, dir, file } = setup(t);
+  fs.writeFileSync(file, 'a\n');
+  fs.writeFileSync(path.join(dir, 'events.jsonl'), '');
+  r.pull('tools.jsonl');
+  const w = r.verifyWindow(['tools.jsonl', 'events.jsonl']);
+  assert.equal(w.ok, false, '缺一条流不能算窗口完整');
+  assert.equal(w.files['events.jsonl'].missing, true);
+  const only = r.verifyWindow(['tools.jsonl']);
+  assert.equal(only.ok, true, '只要求 tools 时成立');
+});

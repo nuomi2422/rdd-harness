@@ -57,7 +57,12 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   const windowVerified = windowLevel === 'verified' || windowLevel === 'verified-for-observed-window';
   const coverageVerified = contentVerified && windowVerified;
   const coverageCaveats = [];
-  if (windowLevel === 'verified-for-observed-window') coverageCaveats.push('window-scope:observed-bytes-only');
+  if (windowLevel === 'verified-for-observed-window') {
+    coverageCaveats.push('window-scope:observed-bytes-only');
+    // 明确边界：PRESENT 只代表"声明的观测窗口内，相关流都完整读到"，
+    // 不代表整段时间线完整，也不代表窗口之前发生的事。
+    coverageCaveats.push('not-whole-timeline');
+  }
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
@@ -80,7 +85,8 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   if (gapList.length) reasons.push('log-gap');
   if (!contentVerified) reasons.push('coverage-limited');
   else if (!windowVerified) reasons.push('window-completeness-unproven');
-  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, caveats: coverageCaveats, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
+  const windowScope = (coverage && coverage.windowScope) || null;
+  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, caveats: coverageCaveats, windowScope, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
 function blockerScopeKey(b) {
@@ -1140,7 +1146,7 @@ async function cmdRun(opts) {
         source: 'monitor-reader/bounded-window',
         // 窗口完整性：只声明"起点到当前每个字节都读过一次且连续"；做不到就 unproven。
         window: (() => {
-          const w = reader.verifyWindow();
+          const w = reader.verifyWindow(['tools.jsonl', 'events.jsonl']);
           return {
             start: env.timings && env.timings.stimulusSentAt || null,
             completeness: (w.ok && !Object.keys(gaps).length) ? 'verified-for-observed-window' : 'unproven',

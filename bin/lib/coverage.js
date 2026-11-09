@@ -53,6 +53,8 @@ function makeVerifiedCoverage(evidence) {
     windowCompleteness: (window && window.completeness === 'verified-for-observed-window') ? 'verified-for-observed-window' : 'unproven',
     scope: 'content-immutable-since-read',
     files: entries.map(([f]) => f),
+    // 窗口覆盖范围（哪些流、从哪到哪），供消费端展示，避免被读成"全局完整"
+    windowScope: { files: entries.map(([f]) => f), from: window && window.from, to: window && window.to },
   });
 }
 

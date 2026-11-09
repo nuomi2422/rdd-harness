@@ -133,7 +133,7 @@ function createPull(opts) {
    *   - 读到之前文件是否已被原地改写（锚只能发现开头被改）。
    * 所以签发的等级叫 verified-for-observed-window，不是全局"完整"。
    */
-  function verifyWindow() {
+  function verifyWindow(requiredFiles) {
     const files = {};
     let ok = true;
     for (const [f, list] of Object.entries(segments)) {
@@ -144,6 +144,10 @@ function createPull(opts) {
       const noGap = !gaps[f];
       if (!(contiguous && endsAtNow && noGap)) ok = false;
       files[f] = { from, to, contiguous, endsAtNow, noGap };
+    }
+    // 任何"应被覆盖但没读到段"的流都算窗口不完整（多流缺一不能算完整）。
+    if (Array.isArray(requiredFiles)) {
+      for (const f of requiredFiles) { if (!files[f]) { ok = false; files[f] = { missing: true }; } }
     }
     if (!Object.keys(files).length) ok = false;
     return { ok, files };
