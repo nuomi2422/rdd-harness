@@ -53,3 +53,24 @@ test('读取异常（tools.jsonl 是目录）→ 记 log-gap，不静默', (t) =
   assert.equal(card.actions.status, 'UNKNOWN');
   assert.ok(render(card).includes('[读取缺口]'));
 });
+test('跨进程：同 callId、不同信封 session → 必须算两次调用，不能合并', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec4-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const row = (run) => JSON.stringify({ type: 'tool_call', session: run, data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: 'same' } });
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), row('run-A') + '\n' + row('run-B') + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  assert.equal(card.actions.calls, 2, '不同进程的运行号必须分开');
+});
+
+test('迟到 + 无身份：不能配对（这正是缺身份的代价，不得当成"配对成功"）', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec5-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), result + '\n' + call + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  // 没有独立身份时账本不合并行，所以这里**配不上**是正确行为；配得上才是假绿。
+  assert.equal(card.actions.states.completed || 0, 0);
+  assert.equal(card.actions.identityKnown, '0/2');
+  assert.equal(card.actions.attributable, 'UNKNOWN');
+});

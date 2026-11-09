@@ -1170,7 +1170,9 @@ async function cmdRun(opts) {
       + ' noResult=' + (actionStates['no-result'] || 0)
       + ' 终态覆盖=' + ((lg.summary.coverage || {}).terminal || 'UNKNOWN')
       + ' 重复投递=' + ((lg.summary.duplicates || {}).results ?? 'UNKNOWN')
-      + ' 证据状态=' + env.actions.status + ' 原因=' + env.actions.reasons.join(','));
+      + ' 证据状态=' + env.actions.status + ' 原因=' + env.actions.reasons.join(',')
+      // 2026-11-09：caveat 必须跟着状态落日志，否则 PRESENT 会被读成"完整无保留"
+      + ' 保留=' + ((env.actions.caveats || []).join(',') || 'none'));
   } catch (e) {
     env.actions = { status: 'UNKNOWN', reason: String(e.message).slice(0, 200) };
     log(runDir, 'actions', '动作账本构建失败（照实记 UNKNOWN）: ' + e.message);

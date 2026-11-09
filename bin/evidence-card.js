@@ -103,7 +103,8 @@ function render(card) {
   l.push('[结算] ' + (s.status || 'UNKNOWN') + ' 按最终目标核验=' + ((s.coverage && s.coverage.judged) || '?') + ' legacy=' + ((s.settled && s.settled.legacy) ?? '?') + ' 被拒=' + ((s.rejected && s.rejected.finals && s.rejected.finals.length) || 0));
   const g = Object.keys(card.gaps || {});
   if (g.length) l.push('[读取缺口] ' + g.map((k) => k + ':' + card.gaps[k].reason).join(' '));
-  if (card.observedWindow) l.push('[观测窗口] ' + (card.observedWindow.ok ? '本窗口内完整' : '不完整') + (card.observedWindow.files ? ' 流=' + Object.keys(card.observedWindow.files).join(',') : ''));
+  // ★ 措辞必须点明：这是**观测到的字节窗口**，不是业务时间完整。
+  if (card.observedWindow) l.push('[观测窗口] ' + (card.observedWindow.ok ? '本窗口内字节完整（非业务时间完整）' : '字节窗口不完整') + (card.observedWindow.files ? ' 流=' + Object.keys(card.observedWindow.files).join(',') : ''));
   if (card.reasons.length) l.push('缺口：' + card.reasons.join(','));
   const fs2 = [...(f.reasons || []), ...(s.reasons || [])];
   if (fs2.length) l.push('理由：' + fs2.join(','));
