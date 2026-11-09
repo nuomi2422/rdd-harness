@@ -41,7 +41,7 @@ function skillsRow(opts, streams) {
   const path = require('path');
   const configDir = opts && opts.configDir;
   const out = { retrievable: 0, deliverableWithBody: 0, missingBody: 0, schemes: {}, actualEntries: 0,
-    bodyMissing: 0, readFailed: 0, gaps: {}, pointers: [] };
+    bodyMissing: 0, readFailed: 0, gapEvents: 0, invalidGaps: 0, gaps: {}, pointers: [] };
   if (!configDir) return { verdict: 'UNKNOWN', detail: '未提供 configDir', data: out };
   let registryReadable = true;
   try {
@@ -71,11 +71,23 @@ function skillsRow(opts, streams) {
   for (const r of all) {
     const d = r.o.data || {};
     if (String(r.o.type || '').includes('knowledge_gap')) {
-      const reason = d.reason || 'unknown';
-      out.gaps[reason] = (out.gaps[reason] || 0) + 1;
-      // 与探针同口径：body-missing / read-failed 单列，便于直接看这两类缺口
-      if (String(reason).includes('body-missing')) out.bodyMissing += 1;
-      else if (String(reason).includes('read-failed')) out.readFailed += 1;
+      out.gapEvents += 1;
+      // 2026-11-09：与学习者探针同口径——**counts 优先，旧 reason 回退，绝不双计**。
+      // counts 里的非正/非数值一律记 invalid，**不当 0**；两者都没有也算 invalid。
+      if (d.counts && typeof d.counts === 'object' && !Array.isArray(d.counts)) {
+        const keys = Object.keys(d.counts);
+        if (!keys.length) out.invalidGaps += 1;
+        for (const k of keys) {
+          const v = Number(d.counts[k]);
+          if (!Number.isFinite(v) || v <= 0) { out.invalidGaps += 1; continue; }
+          out.gaps[k] = (out.gaps[k] || 0) + v;
+        }
+      } else if (typeof d.reason === 'string' && d.reason.trim()) {
+        const reason = d.reason.trim();
+        out.gaps[reason] = (out.gaps[reason] || 0) + 1;
+      } else {
+        out.invalidGaps += 1;
+      }
       continue;
     }
     const ctx = typeof d.context === 'string' ? d.context : '';
@@ -84,11 +96,14 @@ function skillsRow(opts, streams) {
       out.pointers.push(r.file + ':' + r.line);
     }
   }
+  // 缺口是 UNKNOWN 还是数字：有 gap 事件就按 counts/reason 汇总；一条有效事件都没有 ⇒ 计数为 null（未知），不是 0。
+  out.bodyMissing = out.gaps['body-missing'] === undefined ? null : out.gaps['body-missing'];
+  out.readFailed = out.gaps['read-failed'] === undefined ? null : out.gaps['read-failed'];
   if (!registryReadable) return { verdict: 'UNKNOWN', detail: 'skills.jsonl 不可读', data: out };
   if (out.retrievable === 0) return { verdict: 'UNKNOWN', detail: 'registry 里没有可检索技能', data: out };
   if (out.actualEntries === 0) return { verdict: 'NOT_COVERED', detail: '运行期上下文 0 条 skill entry（0 不算通过）', data: out };
   if (out.deliverableWithBody === 0) return { verdict: 'MISMATCH', detail: '有命中但正文都取不到', data: out };
-  return { verdict: 'MATCH', detail: 'retrievable=' + out.retrievable + ' 命中=' + out.actualEntries + ' 可取正文=' + out.deliverableWithBody + ' bodyMissing=' + out.bodyMissing + ' readFailed=' + out.readFailed, data: out };
+  return { verdict: 'MATCH', detail: 'retrievable=' + out.retrievable + ' 命中=' + out.actualEntries + ' 可取正文=' + out.deliverableWithBody + ' bodyMissing=' + (out.bodyMissing === null ? 'UNKNOWN' : out.bodyMissing) + ' readFailed=' + (out.readFailed === null ? 'UNKNOWN' : out.readFailed) + (out.invalidGaps ? ' 无效缺口值=' + out.invalidGaps : ''), data: out };
 }
 function build(card, streams, opts) {
   const rows = [];
@@ -134,4 +149,19 @@ function build(card, streams, opts) {
   return { overall, rows };
 }
 
-module.exports = { build };
+/** 吸收学习者探针的 R5 JSON 行：{retrievable, deliverable, bodyMissing, actualSkillEntries, gaps} */
+function fromProbeJson(obj) {
+  const o = obj && typeof obj === "object" ? obj : {};
+  return {
+    retrievable: Number(o.retrievable) || 0,
+    deliverableWithBody: Number(o.deliverable) || 0,
+    missingBody: Number(o.bodyMissing) || 0,
+    actualEntries: Number(o.actualSkillEntries) || 0,
+    gaps: o.gaps && typeof o.gaps === "object" ? o.gaps : {},
+    bodyMissing: o.gaps && o.gaps["body-missing"] !== undefined ? o.gaps["body-missing"] : null,
+    readFailed: o.gaps && o.gaps["read-failed"] !== undefined ? o.gaps["read-failed"] : null,
+    source: "learner-probe",
+  };
+}
+
+module.exports = { build, fromProbeJson };

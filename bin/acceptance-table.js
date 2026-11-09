@@ -23,10 +23,9 @@ function main() {
   const configDir = ci >= 0 ? argv[ci + 1] : path.dirname(dir);
   const res = AT.build(card, { events: readIf(path.join(dir, 'events.jsonl')), rdd: readIf(path.join(dir, 'rdd.jsonl')) }, { configDir, monitorDir: dir });
   if (argv.includes('--json')) { console.log(JSON.stringify(res, null, 2)); return res.overall === 'MISMATCH' ? 1 : 0; }
-  console.log('部署后验收表：' + dir);
   for (const r of res.rows) {
     console.log('  ' + r.verdict.padEnd(11) + r.id + ' ' + r.name + ' — ' + r.detail);
-      if (r.data && r.id === 'R5') console.log('      retrievable=' + r.data.retrievable + ' 实际投递=' + r.data.actualEntries + ' 可取正文=' + r.data.deliverableWithBody + ' 缺正文=' + r.data.missingBody + ' bodyMissing=' + r.data.bodyMissing + ' readFailed=' + r.data.readFailed + ' schemes=' + JSON.stringify(r.data.schemes) + ' gaps=' + JSON.stringify(r.data.gaps));
+      if (r.data && r.id === 'R5') console.log('      retrievable=' + r.data.retrievable + ' 实际投递=' + r.data.actualEntries + ' 可取正文=' + r.data.deliverableWithBody + ' 缺正文=' + r.data.missingBody + ' bodyMissing=' + (r.data.bodyMissing === null ? 'UNKNOWN' : r.data.bodyMissing) + ' readFailed=' + (r.data.readFailed === null ? 'UNKNOWN' : r.data.readFailed) + ' schemes=' + JSON.stringify(r.data.schemes) + ' gaps=' + JSON.stringify(r.data.gaps));
   }
   console.log('  总判定：' + res.overall);
   return res.overall === 'MISMATCH' ? 1 : 0;

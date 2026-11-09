@@ -147,3 +147,57 @@ test('验收表支持时间窗：窗口外事件不计入 R1', (t2) => {
   const card = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
   assert.equal(card.finalRequest.total, 1, '窗口内只有 1 条');
 });
+// ---- R5 缺口口径：counts 优先、旧 reason 回退、不双计、坏值不当 0 ----
+function r5WithGaps(gapEvents) {
+  const fs = require('fs'); const os = require('os'); const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-gap-'));
+  fs.writeFileSync(path.join(dir, 'skills.jsonl'), JSON.stringify({ status: 'PUBLISHED', bodyRef: 'skill-body:a.md' }) + '\n');
+  fs.mkdirSync(path.join(dir, 'skill-bodies'));
+  fs.writeFileSync(path.join(dir, 'skill-bodies', 'a.md'), 'b');
+  const ctx = JSON.stringify({ type: 'runtime_state', data: { context: '<entry ref="skill:a">' } });
+  const streams = { events: [ctx].concat(gapEvents.map((g) => JSON.stringify(g))).join('\n'), rdd: '' };
+  const res = AT.build(card(), streams, { configDir: dir });
+  fs.rmSync(dir, { recursive: true, force: true });
+  return res.rows.find((r) => r.id === 'R5');
+}
+
+test('R5：counts 多 reason 求和', () => {
+  const r5 = r5WithGaps([{ type: 'knowledge_gap', data: { counts: { 'body-missing': 22, 'read-failed': 3 } } }]);
+  assert.equal(r5.data.gaps['body-missing'], 22);
+  assert.equal(r5.data.gaps['read-failed'], 3);
+  assert.equal(r5.data.bodyMissing, 22);
+  assert.equal(r5.data.readFailed, 3);
+});
+
+test('R5：counts 存在时不再按旧 reason 计（不双计）', () => {
+  const r5 = r5WithGaps([{ type: 'knowledge_gap', data: { counts: { 'body-missing': 5 }, reason: 'body-missing' } }]);
+  assert.equal(r5.data.bodyMissing, 5, '只能算 5，不能算 6');
+});
+
+test('R5：旧 reason 形态回退可用', () => {
+  const r5 = r5WithGaps([{ type: 'knowledge_gap', data: { reason: 'body-missing' } }]);
+  assert.equal(r5.data.bodyMissing, 1);
+});
+
+test('R5：counts 里的坏值不当 0——记 invalidGaps，不掺进计数', () => {
+  const r5 = r5WithGaps([{ type: 'knowledge_gap', data: { counts: { 'body-missing': 'x', 'read-failed': -2 } } },
+    { type: 'knowledge_gap', data: {} }]);
+  assert.equal(r5.data.invalidGaps, 3, '非数值/负值/空 data 各记一次');
+  assert.equal(r5.data.gaps['body-missing'], undefined);
+  assert.equal(r5.data.bodyMissing, null, '没有有效值 → UNKNOWN，不是 0');
+});
+
+test('R5：完全没有缺口事件 → bodyMissing/readFailed 为 null（未知）', () => {
+  const r5 = r5WithGaps([]);
+  assert.equal(r5.data.bodyMissing, null);
+  assert.equal(r5.data.readFailed, null);
+});
+
+test('R5：吸收学习者探针 JSON 行（口径一致，不另造）', () => {
+  const d = AT.fromProbeJson({ retrievable: 26, deliverable: 2, bodyMissing: 24, actualSkillEntries: 0, gaps: { 'body-missing': 24 } });
+  assert.equal(d.retrievable, 26);
+  assert.equal(d.actualEntries, 0);
+  assert.equal(d.bodyMissing, 24);
+  assert.equal(d.readFailed, null);
+  assert.equal(d.source, 'learner-probe');
+});
