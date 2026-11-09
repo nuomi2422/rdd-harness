@@ -23,7 +23,7 @@ function main() {
   console.log('部署后验收表：' + dir);
   for (const r of res.rows) {
     console.log('  ' + r.verdict.padEnd(11) + r.id + ' ' + r.name + ' — ' + r.detail);
-    if (r.data && r.id === 'R5') console.log('      retrievable=' + r.data.retrievable + ' 可取正文=' + r.data.deliverableWithBody + ' 缺正文=' + r.data.missingBody + ' 实际命中=' + r.data.actualEntries + ' schemes=' + JSON.stringify(r.data.schemes) + ' gaps=' + JSON.stringify(r.data.gaps));
+      if (r.data && r.id === 'R5') console.log('      retrievable=' + r.data.retrievable + ' 实际投递=' + r.data.actualEntries + ' 可取正文=' + r.data.deliverableWithBody + ' 缺正文=' + r.data.missingBody + ' bodyMissing=' + r.data.bodyMissing + ' readFailed=' + r.data.readFailed + ' schemes=' + JSON.stringify(r.data.schemes) + ' gaps=' + JSON.stringify(r.data.gaps));
   }
   console.log('  总判定：' + res.overall);
   return res.overall === 'MISMATCH' ? 1 : 0;

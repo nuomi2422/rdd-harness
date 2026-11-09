@@ -40,7 +40,8 @@ function skillsRow(opts, streams) {
   const fs = require('fs');
   const path = require('path');
   const configDir = opts && opts.configDir;
-  const out = { retrievable: 0, deliverableWithBody: 0, missingBody: 0, schemes: {}, actualEntries: 0, gaps: {}, pointers: [] };
+  const out = { retrievable: 0, deliverableWithBody: 0, missingBody: 0, schemes: {}, actualEntries: 0,
+    bodyMissing: 0, readFailed: 0, gaps: {}, pointers: [] };
   if (!configDir) return { verdict: 'UNKNOWN', detail: '未提供 configDir', data: out };
   let registryReadable = true;
   try {
@@ -72,6 +73,9 @@ function skillsRow(opts, streams) {
     if (String(r.o.type || '').includes('knowledge_gap')) {
       const reason = d.reason || 'unknown';
       out.gaps[reason] = (out.gaps[reason] || 0) + 1;
+      // 与探针同口径：body-missing / read-failed 单列，便于直接看这两类缺口
+      if (String(reason).includes('body-missing')) out.bodyMissing += 1;
+      else if (String(reason).includes('read-failed')) out.readFailed += 1;
       continue;
     }
     const ctx = typeof d.context === 'string' ? d.context : '';
@@ -84,7 +88,7 @@ function skillsRow(opts, streams) {
   if (out.retrievable === 0) return { verdict: 'UNKNOWN', detail: 'registry 里没有可检索技能', data: out };
   if (out.actualEntries === 0) return { verdict: 'NOT_COVERED', detail: '运行期上下文 0 条 skill entry（0 不算通过）', data: out };
   if (out.deliverableWithBody === 0) return { verdict: 'MISMATCH', detail: '有命中但正文都取不到', data: out };
-  return { verdict: 'MATCH', detail: 'retrievable=' + out.retrievable + ' 命中=' + out.actualEntries + ' 可取正文=' + out.deliverableWithBody, data: out };
+  return { verdict: 'MATCH', detail: 'retrievable=' + out.retrievable + ' 命中=' + out.actualEntries + ' 可取正文=' + out.deliverableWithBody + ' bodyMissing=' + out.bodyMissing + ' readFailed=' + out.readFailed, data: out };
 }
 function build(card, streams, opts) {
   const rows = [];

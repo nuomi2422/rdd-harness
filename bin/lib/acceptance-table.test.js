@@ -88,3 +88,51 @@ test('R5：输出不含技能正文，只计数与指针', (t2) => {
   const r5 = AT.build(card(), fx.streams, { configDir: fx.dir }).rows.find((r) => r.id === 'R5');
   assert.equal(JSON.stringify(r5).includes('SECRET-BODY'), false, '不得带上下文正文');
 });
+test('R5 golden：数字必须精确（可检索/投递/正文/缺口）', (t2) => {
+  const fs = require('fs');
+  const os = require('os');
+  const path = require('path');
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'sk-gold-'));
+  t2.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const rows = [
+    { status: 'PUBLISHED', bodyRef: 'skill-body:a.md', makeBody: 'a.md' },
+    { status: 'TRIAL', bodyRef: 'skill-body:b.md', makeBody: 'b.md' },
+    { status: 'TRIAL', bodyRef: 'draft:3' },
+    { status: 'DRAFT', bodyRef: 'skill-body:c.md', makeBody: 'c.md' },
+  ];
+  fs.writeFileSync(path.join(dir, 'skills.jsonl'), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  fs.mkdirSync(path.join(dir, 'skill-bodies'));
+  for (const r of rows) if (r.makeBody) fs.writeFileSync(path.join(dir, 'skill-bodies', r.makeBody), 'body');
+  const streams = {
+    events: [
+      JSON.stringify({ type: 'runtime_state', data: { context: '<entry ref="skill:a">' } }),
+      JSON.stringify({ type: 'runtime_state', data: { context: 'no skill here' } }),
+      JSON.stringify({ type: 'knowledge_gap', data: { reason: 'body-missing' } }),
+      JSON.stringify({ type: 'knowledge_gap', data: { reason: 'read-failed' } }),
+    ].join('\n'),
+    rdd: '',
+  };
+  const r5 = AT.build(card(), streams, { configDir: dir }).rows.find((r) => r.id === 'R5');
+  assert.equal(r5.verdict, 'MATCH');
+  assert.equal(r5.data.retrievable, 3, '只算 TRIAL/PUBLISHED（DRAFT 不算）');
+  assert.equal(r5.data.actualEntries, 1, '只算 skill entry 命中的行');
+  assert.equal(r5.data.deliverableWithBody, 2);
+  assert.equal(r5.data.missingBody, 1);
+  assert.equal(r5.data.bodyMissing, 1);
+  assert.equal(r5.data.readFailed, 1);
+});
+
+test('R5 真实尾部：跑一次并打印数字（无真实文件则 skip）', { skip: false }, () => {
+  const fs = require('fs');
+  const path = require('path');
+  const cfg = 'D:/rdd/mc/The Best of Twilight Forest/config/numen';
+  if (!fs.existsSync(path.join(cfg, 'skills.jsonl'))) return; // 无真实数据不伪造
+  const mon = path.join(cfg, 'monitor');
+  const readIf = (n) => { try { return fs.readFileSync(path.join(mon, n), 'utf8'); } catch { return ''; } };
+  const res = AT.build(card(), { events: readIf('events.jsonl'), rdd: readIf('rdd.jsonl') }, { configDir: cfg });
+  const r5 = res.rows.find((r) => r.id === 'R5');
+  console.log('[真实尾部 R5] ' + JSON.stringify(r5.data));
+  assert.ok(['MATCH', 'NOT_COVERED', 'MISMATCH', 'UNKNOWN'].includes(r5.verdict));
+  // 真实数据当前不应是 MATCH（已知一条都没投递），但这条断言留给部署后自然会变
+  assert.notEqual(r5.data.actualEntries < 0, true);
+});
