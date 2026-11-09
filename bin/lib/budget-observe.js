@@ -7,7 +7,8 @@
 function num(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n : null; }
 
 function build(linesByFile) {
-  const out = { gateEvents: 0, trimmedEvents: 0, trimmedTotal: 0, settleEvents: 0, usageEvents: 0, tokensTotal: 0, requestEvents: 0, promptTokensTotal: 0, invalid: 0, pointers: [] };
+  const out = { gateEvents: 0, trimmedEvents: 0, trimmedTotal: 0, settleEvents: 0, usageEvents: 0, tokensTotal: 0, requestEvents: 0, promptTokensTotal: 0, invalid: 0, pointers: [],
+    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [] }; 
   for (const file of Object.keys(linesByFile || {})) {
     const lines = String(linesByFile[file] || '').split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
@@ -22,7 +23,18 @@ function build(linesByFile) {
         if (d.trimmed !== undefined) {
           const tr = num(d.trimmed);
           if (tr === null) out.invalid += 1;
-          else if (tr > 0) { out.trimmedEvents += 1; out.trimmedTotal += tr; }
+          else if (tr > 0) {
+            out.trimmedEvents += 1; out.trimmedTotal += tr;
+            const mode = String(d.mode || 'unknown');
+            const prov = String(d.provider || 'unknown');
+            out.byMode[mode] = (out.byMode[mode] || 0) + 1;
+            out.byProvider[prov] = (out.byProvider[prov] || 0) + 1;
+            const ratio = num(d.ratio);
+            if (ratio !== null) out.ratios.push(ratio);
+            const lim = num(d.limitTokens);
+            if (lim !== null) out.limitTokens.push(lim);
+            if (typeof d.turn === 'number') out.turns.push(d.turn);
+          }
         }
         out.pointers.push(file + ":" + (i + 1));
       } else if (t === "budget_settle") {
@@ -42,6 +54,14 @@ function build(linesByFile) {
       }
     }
   }
+  // 汇总：裁剪比例与上限的分布（只做描述，不推因果）
+  const stat = (arr) => (arr.length ? { n: arr.length, min: Math.min(...arr), max: Math.max(...arr), avg: Number((arr.reduce((a,b)=>a+b,0)/arr.length).toFixed(3)) } : null);
+  out.ratioStat = stat(out.ratios);
+  // mode=shadow 时 trimmed 是**估算值**（BudgetGateCalibration.trimmedEstimate），不代表已经实际裁剪。
+  out.limitStat = stat(out.limitTokens);
+  const modes = Object.keys(out.byMode);
+  out.shadowOnly = modes.length > 0 && modes.every((m) => m === 'shadow');
+  out.trimmedIsEstimate = out.shadowOnly;
   const any = out.gateEvents + out.settleEvents + out.usageEvents + out.requestEvents;
   const status = any === 0 ? "UNKNOWN" : (out.invalid ? "PARTIAL" : "PRESENT");
   return { status, ...out, reasons: any === 0 ? ["no-budget-events"] : (out.invalid ? ["invalid-values"] : []) };

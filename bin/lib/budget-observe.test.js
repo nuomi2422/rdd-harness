@@ -40,3 +40,13 @@ test('真实尾部：能给出 gate/trimmed/usage 计数（无数据 skip）', (
   console.log('[真实预算] ' + JSON.stringify({ status: r.status, gate: r.gateEvents, trimmed: r.trimmedEvents, tokens: r.tokensTotal, invalid: r.invalid }));
   assert.ok(['PRESENT','PARTIAL','UNKNOWN'].includes(r.status));
 });
+test('shadow 模式：trimmed 要标为估算值（不能当已裁剪）', () => {
+  const r = B.build({ 'context.jsonl': [row({type:'budget_gate',data:{trimmed:100,mode:'shadow',provider:'p'}})].join('\n') });
+  assert.equal(r.trimmedIsEstimate, true);
+  assert.deepEqual(r.byMode, { shadow: 1 });
+});
+
+test('非 shadow 模式不算估算', () => {
+  const r = B.build({ 'context.jsonl': [row({type:'budget_gate',data:{trimmed:100,mode:'enforce'}})].join('\n') });
+  assert.equal(r.trimmedIsEstimate, false);
+});
