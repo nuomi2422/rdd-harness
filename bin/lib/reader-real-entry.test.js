@@ -30,3 +30,15 @@ test('真实动作账本：能出调用数与覆盖，且无解析器时身份�
   assert.equal(known.split('/')[0], '0', '没有解析器时不应出现已知身份');
   assert.ok(lg.summary.states && typeof lg.summary.states === 'object', '应给终态分布');
 });
+test('真实摘要：sources 指针必须逐条能对回原行', { skip: has ? false : '无真实 monitor 文件' }, () => {
+  const BD = require('./behavior-digest');
+  const read = (n) => { try { return fs.readFileSync(path.join(DIR, n), 'utf8'); } catch { return ''; } };
+  const files = { 'ai.jsonl': read('ai.jsonl'), 'tools.jsonl': read('tools.jsonl'), 'events.jsonl': read('events.jsonl'), 'rdd.jsonl': read('rdd.jsonl') };
+  const res = BD.buildDigest({ ai: files['ai.jsonl'], tools: files['tools.jsonl'], events: files['events.jsonl'], rdd: files['rdd.jsonl'], sinceMs: 0, untilMs: Date.now() });
+  if (!res.sources.length) return; // 窗口内没有说/做/果，跳过（不伪造）
+  for (const s2 of res.sources) {
+    const lines = files[s2.file].split(/\r?\n/);
+    const row = JSON.parse(lines[s2.line - 1]);
+    assert.equal(String(row.type), s2.type, '指针 ' + s2.file + ':' + s2.line + ' 必须指到同类型事件');
+  }
+});
