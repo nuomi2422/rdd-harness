@@ -108,3 +108,8 @@ test('隐私：输出不得泄漏 payload 正文/凭据', (t) => {
   assert.ok(!text.includes(SECRET) && !json.includes(SECRET), '渲染与 JSON 都不得含凭据');
   assert.ok(!text.includes('SECRET-PROMPT-TEXT') && !json.includes('SECRET-PROMPT-TEXT'), '不得含正文');
 });
+test('回归守护：exp-runner 不得私接 resolver（身份未证，接了就是假绿）', () => {
+  const src = fs.readFileSync(path.join(__dirname, 'exp-runner.js'), 'utf8');
+  const code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
+  assert.ok(!/resolveIdentity/.test(code), '若将来要接 resolver，必须先满足事件绑定+可信来源，并同步改这条测试');
+});
