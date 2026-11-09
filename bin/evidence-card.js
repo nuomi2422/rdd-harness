@@ -24,10 +24,23 @@ function readIf(p) {
 
 function buildCard(dir, opts = {}) {
   const d = dir || '';
-  const tools = readIf(path.join(d, 'tools.jsonl'));
-  const events = readIf(path.join(d, 'events.jsonl'));
-  const context = readIf(path.join(d, 'context.jsonl'));
-  const rdd = readIf(path.join(d, 'rdd.jsonl'));
+  // 2026-11-09：默认走生产读取器（monitor-reader）拿缺口/窗口信号，
+  // 直接 readFileSync 会看不到截断/轮转/半行这类"悄悄丢内容"的情形。
+  let reader = null;
+  if (opts.viaReader !== false) {
+    try {
+      reader = require('./lib/monitor-reader').createPull({ dir: d });
+    } catch { reader = null; }
+  }
+  const readThrough = (name) => {
+    if (!reader) return readIf(path.join(d, name));
+    const chunk = reader.pull(name);
+    return chunk && chunk.length ? chunk : (readIf(path.join(d, name)) || '');
+  };
+  const tools = fs.existsSync(path.join(d, 'tools.jsonl')) ? readThrough('tools.jsonl') : null;
+  const events = fs.existsSync(path.join(d, 'events.jsonl')) ? readThrough('events.jsonl') : null;
+  const context = fs.existsSync(path.join(d, 'context.jsonl')) ? readThrough('context.jsonl') : null;
+  const rdd = fs.existsSync(path.join(d, 'rdd.jsonl')) ? readThrough('rdd.jsonl') : null;
 
   const card = { dir: d, sources: {}, actions: null, finalRequest: null, settle: null, reasons: [] };
 
@@ -63,6 +76,12 @@ function buildCard(dir, opts = {}) {
   if (rdd === null) { card.reasons.push('rdd.jsonl-missing'); card.settle = { status: 'UNKNOWN', reasons: ['rdd.jsonl-missing'] }; }
   else card.settle = SE.build(rdd);
 
+  // 缺口与观测窗口：有缺口就整体降级并显式记，不让"读到一半"看起来像完整。
+  if (reader) {
+    card.gaps = reader.gaps;
+    card.observedWindow = reader.verifyWindow();
+    if (Object.keys(reader.gaps).length) card.reasons.push('log-gap');
+  }
   card.sources = {
     tools: tools === null ? 'missing' : 'present',
     events: events === null ? 'missing' : 'present',
@@ -82,6 +101,9 @@ function render(card) {
   l.push('[最终请求] ' + (f.status || 'UNKNOWN') + ' why 交付=' + (f.delivered || '?') + ' 类型=' + JSON.stringify(f.byKind || {}));
   const s = card.settle || {};
   l.push('[结算] ' + (s.status || 'UNKNOWN') + ' 按最终目标核验=' + ((s.coverage && s.coverage.judged) || '?') + ' legacy=' + ((s.settled && s.settled.legacy) ?? '?') + ' 被拒=' + ((s.rejected && s.rejected.finals && s.rejected.finals.length) || 0));
+  const g = Object.keys(card.gaps || {});
+  if (g.length) l.push('[读取缺口] ' + g.map((k) => k + ':' + card.gaps[k].reason).join(' '));
+  if (card.observedWindow) l.push('[观测窗口] ' + (card.observedWindow.ok ? '本窗口内完整' : '不完整') + (card.observedWindow.files ? ' 流=' + Object.keys(card.observedWindow.files).join(',') : ''));
   if (card.reasons.length) l.push('缺口：' + card.reasons.join(','));
   const fs2 = [...(f.reasons || []), ...(s.reasons || [])];
   if (fs2.length) l.push('理由：' + fs2.join(','));

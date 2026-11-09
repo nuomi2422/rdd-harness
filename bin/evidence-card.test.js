@@ -44,3 +44,12 @@ test('有数据：动作/最终请求/结算分别判定，互不背书', (t) =>
   assert.equal(card.settle.status, 'PRESENT');
   assert.ok(render(card).includes('[最终请求] PRESENT'));
 });
+test('读取异常（tools.jsonl 是目录）→ 记 log-gap，不静默', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec3-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.mkdirSync(path.join(d, 'tools.jsonl'));
+  const card = buildCard(d);
+  assert.ok(card.reasons.includes('log-gap'), '必须显式记缺口');
+  assert.equal(card.actions.status, 'UNKNOWN');
+  assert.ok(render(card).includes('[读取缺口]'));
+});
