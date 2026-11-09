@@ -15,21 +15,36 @@
 function checkPreDeadline(items, opts) {
   const o = opts && typeof opts === 'object' ? opts : {};
   const resolve = typeof o.resolve === 'function' ? o.resolve : null;
+  // 2026-11-09（指挥官指出）：trustedSources 只是**授权标签**，不是事实证明。
+  // 调用方必须为每个标签提供**验证器**：能核签发/不可变捕获/时钟域与误差界。
+  // 只给字符串名单 → 一律 UNKNOWN（不允许"声明即可信"）。
+  const sources = o.sources && typeof o.sources === 'object' ? o.sources : {};
   const trusted = Array.isArray(o.trustedSources) ? o.trustedSources : [];
-  const skew = Number.isFinite(o.clockSkewMs) ? Math.max(0, Number(o.clockSkewMs)) : 0;
+  const labelOk = (label) => trusted.includes(String(label || '')) && sources[String(label)] && typeof sources[String(label)].verify === 'function';
+  const skewFor = (label) => {
+    const src = sources[String(label)] || {};
+    return Number.isFinite(src.skewMs) ? Math.max(0, Number(src.skewMs)) : 0;
+  };
   const list = Array.isArray(items) ? items : [];
   const out = { total: list.length, ok: 0, late: [], unknown: [], sameInstant: 0 };
   for (const it of list) {
     if (!it || typeof it.at !== 'string' || !Number.isFinite(Date.parse(it.at))) { out.unknown.push({ id: it && it.id, why: 'bad-ref-time' }); continue; }
     // 请求侧时间来源也要可信，否则整条不可判
-    if (!trusted.includes(String(it.atSource || ''))) { out.unknown.push({ id: it.id, why: 'untrusted-use-time' }); continue; }
+    if (!labelOk(it.atSource)) { out.unknown.push({ id: it.id, why: 'untrusted-use-time' }); continue; }
+    if (!sources[String(it.atSource)].verify(it)) { out.unknown.push({ id: it.id, why: 'use-time-unverified' }); continue; }
     const refs = Array.isArray(it.refs) ? it.refs : [];
     if (!refs.length) { out.unknown.push({ id: it.id, why: 'no-refs' }); continue; }
     let allOk = true;
     for (const r of refs) {
       const rec = resolve ? (() => { try { return resolve(r); } catch { return null; } })() : null;
       if (!rec || typeof rec.at !== 'string' || !Number.isFinite(Date.parse(rec.at))) { out.unknown.push({ id: it.id, ref: r, why: 'ref-unresolved' }); allOk = false; continue; }
-      if (!trusted.includes(String(rec.atSource || ''))) { out.unknown.push({ id: it.id, ref: r, why: 'untrusted-ref-time' }); allOk = false; continue; }
+      if (!labelOk(rec.atSource)) { out.unknown.push({ id: it.id, ref: r, why: 'untrusted-ref-time' }); allOk = false; continue; }
+      if (!sources[String(rec.atSource)].verify(rec)) { out.unknown.push({ id: it.id, ref: r, why: 'ref-time-unverified' }); allOk = false; continue; }
+      // 不同时钟域不可直接比较（跨域只能 UNKNOWN）
+      const domA = sources[String(it.atSource)].clockDomain || it.atSource;
+      const domB = sources[String(rec.atSource)].clockDomain || rec.atSource;
+      if (domA !== domB) { out.unknown.push({ id: it.id, ref: r, why: 'cross-clock-domain' }); allOk = false; continue; }
+      const skew = Math.min(skewFor(it.atSource), skewFor(rec.atSource));
       const tRef = Date.parse(rec.at);
       const tUse = Date.parse(it.at);
       if (tRef > tUse + skew) { out.late.push({ id: it.id, ref: r, usedAt: it.at, refAt: rec.at, skewMs: skew }); allOk = false; }
@@ -49,20 +64,35 @@ function selftest() {
   const fails = [];
   const ok = (c, m) => { if (!c) fails.push(m); };
   const TR = ['ingestion'];
-  const src = { 'ev-1': { at: '2026-11-09T05:00:00Z', atSource: 'ingestion' }, 'ev-2': { at: '2026-11-09T07:00:00Z', atSource: 'ingestion' }, 'ev-3': { at: '2026-11-09T05:00:00Z', atSource: 'fs-mtime' } };
+  const sources = { ingestion: { clockDomain: 'host', skewMs: 1000, verify: (r) => r && r.immutable === true } };
+  const rec = (at, extra) => ({ at, atSource: 'ingestion', immutable: true, ...(extra || {}) });
+  const src = {
+    'ev-1': rec('2026-11-09T05:00:00Z'),
+    'ev-2': rec('2026-11-09T07:00:00Z'),
+    'ev-forged': rec('2026-11-09T05:00:00Z', { immutable: false }),
+    'ev-otherclock': rec('2026-11-09T05:00:00Z', { atSource: 'remote' }),
+  };
   const resolve = (k) => src[k] || null;
+  const ALL = { resolve, trustedSources: ['ingestion', 'remote'], sources: { ...sources, remote: { clockDomain: 'gpu', skewMs: 1000, verify: (r) => r && r.immutable === true } } };
+  const use = (at, extra) => ({ id: 'a', at, atSource: 'ingestion', immutable: true, ...(extra || {}) });
+
   ok(checkPreDeadline([], {}).status === 'UNKNOWN', '①空 → UNKNOWN');
-  ok(checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: ['ev-1'] }], { resolve, trustedSources: TR }).status === 'PRESENT', '②证据早于使用 → PRESENT');
-  const late = checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: ['ev-2'] }], { resolve, trustedSources: TR });
-  ok(late.status === 'VIOLATION' && late.reasons.includes('evidence-after-use'), '③证据晚于使用 → VIOLATION');
-  ok(checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: ['nope'] }], { resolve, trustedSources: TR }).status === 'UNKNOWN', '④指针解析不到 → UNKNOWN');
-  ok(checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: [] }], { resolve, trustedSources: TR }).status === 'UNKNOWN', '⑤没有依据 → UNKNOWN');
-  const same = checkPreDeadline([{ id: 'a', at: '2026-11-09T05:00:00Z', atSource: 'ingestion', refs: ['ev-1'] }], { resolve, trustedSources: TR });
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-1'] })], ALL).status === 'PRESENT', '②证据早于使用 → PRESENT');
+  const late = checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-2'] })], ALL);
+  ok(late.status === 'VIOLATION', '③证据晚于使用 → VIOLATION');
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['nope'] })], ALL).status === 'UNKNOWN', '④指针解析不到 → UNKNOWN');
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: [] })], ALL).status === 'UNKNOWN', '⑤没有依据 → UNKNOWN');
+  const same = checkPreDeadline([use('2026-11-09T05:00:00Z', { refs: ['ev-1'] })], ALL);
   ok(same.reasons.includes('same-instant-undecidable'), '⑥同刻单独提示');
-  ok(checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', refs: ['ev-1'] }], { resolve, trustedSources: TR }).why === undefined || checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', refs: ['ev-1'] }], { resolve, trustedSources: TR }).status === 'UNKNOWN', '⑦使用侧时间来源不可信 → UNKNOWN');
-  ok(checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: ['ev-3'] }], { resolve, trustedSources: TR }).status === 'UNKNOWN', '⑧证据侧时间来源不可信 → UNKNOWN（不得判违规）');
-  const skewAlready = checkPreDeadline([{ id: 'a', at: '2026-11-09T06:00:00Z', atSource: 'ingestion', refs: ['ev-2'] }], { resolve, trustedSources: TR, clockSkewMs: 2 * 3600 * 1000 });
-  ok(skewAlready.status === 'PRESENT', '⑨容差内不判违规');
+  // ⑤ 伪造 ingestion 标签：验证器说不可变证据不成立 → UNKNOWN，绝不判违规
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-forged'] })], ALL).status === 'UNKNOWN', '⑦伪造来源标签 → UNKNOWN');
+  // ⑥ 只有标签、没有验证器 → 一律 UNKNOWN
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-1'] })], { resolve, trustedSources: ['ingestion'] }).status === 'UNKNOWN', '⑧只给标签不给验证器 → UNKNOWN');
+  // ⑦ 跨时钟域不可比
+  ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-otherclock'] })], ALL).status === 'UNKNOWN', '⑨跨时钟域 → UNKNOWN');
+  // ⑧ 容差内不判违规
+  const skewOk = checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-2'] })], { ...ALL, sources: { ...ALL.sources, ingestion: { ...ALL.sources.ingestion, skewMs: 2 * 3600 * 1000 } } });
+  ok(skewOk.status === 'PRESENT', '⑩容差内不判违规');
   return fails;
 }
 
@@ -71,5 +101,5 @@ module.exports = { checkPreDeadline, selftest };
 if (require.main === module) {
   const fails = selftest();
   if (fails.length) { console.error('pre-deadline selftest FAIL: ' + fails.join(' | ')); process.exit(1); }
-  console.log('pre-deadline selftest PASS（9 组）');
+  console.log('pre-deadline selftest PASS（10 组）');
 }
