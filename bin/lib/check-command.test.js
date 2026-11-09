@@ -22,7 +22,7 @@ test('check：输出验收表与证据卡两段', () => {
 });
 
 test('check：出现 MISMATCH 时退出码非零（不被静默吞）', () => {
-  const req = JSON.stringify({ type: 'final_request', timestamp: '2026-11-09T06:00:00Z', data: { companion_id: 'c', requestKind: 'execute', turn: 1, rationalePresent: false, whyPresent: false, whyStatus: 'ABSENT', risksPresent: false, sourcePresent: false, conditionsPresent: false } });
+  const req = JSON.stringify({ type: 'final_request', timestamp: '2026-11-09T06:00:00Z', data: { companion_id: 'c', requestKind: 'execute', turn: 1, rationalePresent: true, whyPresent: false, whyStatus: 'ABSENT', risksPresent: true, sourcePresent: true, conditionsPresent: false, rationaleSource: '' } });
   const d = fixture({ 'tools.jsonl': [], 'events.jsonl': [], 'context.jsonl': [req] });
   const r = spawnSync(process.execPath, [BENCH, 'check', '--dir', d], { encoding: 'utf8' });
   assert.equal(r.status, 1, 'R1 MISMATCH 应让 check 非零退出');
