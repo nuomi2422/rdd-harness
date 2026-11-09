@@ -38,6 +38,7 @@ function within(rows, sinceMs, untilMs) {
 }
 
 function buildDigest(input) {
+  const gaps = (input && input.gaps) || null;
   // sinceMs=0 是合法边界（从头），不能用 || 取默认值，否则会被当成缺省。
   const sinceRaw = Number(input && input.sinceMs);
   const untilRaw = Number(input && input.untilMs);
@@ -89,6 +90,8 @@ function buildDigest(input) {
   const len = (v) => (typeof v === 'string' ? v.length : 0);
   const parts = [];
   parts.push('[行为摘要 ' + new Date(sinceMs).toISOString().slice(11, 16) + '~' + new Date(untilMs).toISOString().slice(11, 16) + ']');
+  // 2026-11-09：读取缺口要显式写出来，别让"读到一半"看起来像完整。
+  if (gaps && Object.keys(gaps).length) parts.push('[读取缺口] ' + Object.keys(gaps).map((k) => k + ':' + gaps[k].reason).join(' '));
   parts.push('说 ' + said.length + ' 条 / 做 ' + did.length + ' 条 / 果 ' + done.length + ' 条 / 事件 ' + events.length + ' 条');
   if (said.length) parts.push('说：\n' + said.map((r) => fmt(r, 'assistant 文本 ' + len((r.o.data || {}).text) + ' 字（内容不外带）')).join('\n'));
   if (did.length) parts.push('做：\n' + did.map((r) => fmt(r, String((r.o.data || {}).tool || '?'))).join('\n'));

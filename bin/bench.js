@@ -1235,13 +1235,21 @@ function main() {
     const di = argv.indexOf('--dir');
     const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
     const si = argv.indexOf('--since');
-    const readIf = (n) => { try { return fs.readFileSync(path.join(dir, n), 'utf8'); } catch { return ''; } };
+    // 2026-11-09：走生产读取器——半行不当整行算，缺口显式写进摘要。
+    const MR = require('./lib/monitor-reader');
+    let reader = null;
+    try { reader = MR.createPull({ dir }); } catch { reader = null; }
+    const readIf = (n) => {
+      if (reader) { const c = reader.pull(n); if (c && c.length) return c; }
+      try { return fs.readFileSync(path.join(dir, n), 'utf8'); } catch { return ''; }
+    };
     const sinceArg = si >= 0 ? argv[si + 1] : '30m';
     const m = /^(\d+)m$/.exec(String(sinceArg));
     const sinceMs = m ? Date.now() - Number(m[1]) * 60_000 : Date.parse(sinceArg);
     const res = BD.buildDigest({
       ai: readIf('ai.jsonl'), tools: readIf('tools.jsonl'), events: readIf('events.jsonl'), rdd: readIf('rdd.jsonl'),
       sinceMs: Number.isFinite(sinceMs) ? sinceMs : Date.now() - 30 * 60_000, untilMs: Date.now(),
+      gaps: reader ? reader.gaps : null,
     });
     if (argv.includes('--json')) console.log(JSON.stringify(res, null, 2));
     else console.log(res.text);
