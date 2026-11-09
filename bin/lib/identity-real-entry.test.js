@@ -40,3 +40,27 @@ test('真实流：现有字段不足以证明独立归属 → UNKNOWN', { skip: 
   assert.equal(k, 0, '真实数据上不得出现"已证身份"（现有字段不足以证明独立）');
   assert.ok(n >= 1, '应当确实读到了真实事件');
 });
+test('真实流：信封自洽但证据指向别的流/别的同伴 → 仍不得独立', { skip: has ? false : '无真实 monitor 文件' }, () => {
+  const read = (n) => {
+    const p = path.join(DIR, n);
+    if (!fs.existsSync(p)) return [];
+    return fs.readFileSync(p, 'utf8').split(/\r?\n/).filter(Boolean).slice(-500)
+      .map((l) => { try { return JSON.parse(l); } catch { return null; } }).filter(Boolean);
+  };
+  const tools = read('tools.jsonl');
+  const events = read('events.jsonl');
+  const t = tools.find((e) => e.data && e.data.companion_id);
+  const other = events.find((e) => e.data && e.data.companion_id && e.data.companion_id !== t.data.companion_id);
+  if (!t || !other) return; // 数据不足则跳过断言（不伪造）
+  const claim = {
+    worldId: t.world_id || '', serverSession: t.server_session || t.data.session_id || '',
+    companion: t.data.companion_id, evidence: 'events.jsonl#0', callId: t.data.tool_call_id,
+  };
+  // resolver 返回"别的流、别的同伴"的记录，字段看起来都合理
+  const resolve = () => ({
+    eventKey: 'ev-x', provenance: 'events.jsonl',
+    worldId: claim.worldId, serverSession: claim.serverSession, companion: other.data.companion_id,
+  });
+  const r = G.verifyIndependent(claim, resolve, { eventKey: 'ev-y', trustedSources: ['events.jsonl'] });
+  assert.equal(r.independent, false, '指向别的同伴/别的流不得判独立');
+});

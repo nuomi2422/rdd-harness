@@ -166,3 +166,21 @@ test('筛选会拆开 call/result：结论只能是 PARTIAL/UNKNOWN，不得当�
   assert.ok(win.reasons.includes('window-filtered'));
   assert.equal(win.actions.attributable, 'UNKNOWN', '不得因窗口内没有失败就当作正常');
 });
+test('守门：没有任何生产消费者把 RAW_PRESENT / 字段自洽 当通过', () => {
+  const dir = __dirname;
+  const offenders = [];
+  for (const name of fs.readdirSync(dir)) {
+    if (!name.endsWith('.js') || name.endsWith('.test.js')) continue;
+    if (name === 'evidence-card.js') continue; // 定义处
+    const src = fs.readFileSync(path.join(dir, name), 'utf8');
+    const code = src.split('\n').filter((l) => !/^\s*\*|^\s*\/\//.test(l)).join('\n');
+    if (/RAW_PRESENT/.test(code)) offenders.push(name + ':RAW_PRESENT');
+    // bench.js 是**只打印**的入口（允许 import）；门禁/验收/执行器不允许接证据卡。
+    const passThrough = new Set(['bench.js']);
+    const forbidden = new Set(['harness-gate.js', 'acceptance.js', 'exp-runner.js', 'regress.js']);
+    if (!passThrough.has(name) && forbidden.has(name) && /require\(['"]\.\/evidence-card/.test(code)) {
+      offenders.push(name + ':imports-evidence-card');
+    }
+  }
+  assert.deepEqual(offenders, [], '只允许 bench evidence 打印，不允许任何门禁/验收把它当通过条件');
+});
