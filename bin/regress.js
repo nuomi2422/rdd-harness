@@ -42,6 +42,7 @@ const STEPS = [
   ['身份claim独立性验证', path.join(ROOT, 'lib', 'identity-claim-guard.test.js'), [], 'node-test'],
   ['身份真实入口负例', path.join(ROOT, 'lib', 'identity-real-entry.test.js'), [], 'node-test'],
   ['部署后黄金样本', path.join(ROOT, 'lib', 'golden-sample.test.js'), [], 'node-test'],
+  ['部署后验收表', path.join(ROOT, 'lib', 'acceptance-table.test.js'), [], 'node-test'],
   ['C10停放态判定(离线未接线)', path.join(ROOT, 'lib', 'c10-park.js'), ['selftest']],
   ['事前截止检查(离线)', path.join(ROOT, 'lib', 'pre-deadline.js'), ['selftest']],
   ['证据合成总判定(离线)', path.join(ROOT, 'lib', 'evidence-verdict.js'), ['selftest']],
