@@ -8,7 +8,7 @@ function num(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n :
 
 function build(linesByFile) {
   const out = { gateEvents: 0, trimmedEvents: 0, trimmedTotal: 0, settleEvents: 0, usageEvents: 0, tokensTotal: 0, requestEvents: 0, promptTokensTotal: 0, invalid: 0, pointers: [],
-    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [], trimmedGreaterThanInput: 0 }; 
+    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [], trimmedGreaterThanInput: 0, gateInputTotal: 0 }; 
   for (const file of Object.keys(linesByFile || {})) {
     const lines = String(linesByFile[file] || '').split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
@@ -33,6 +33,7 @@ function build(linesByFile) {
             if (ratio !== null) out.ratios.push(ratio);
             // 记录 trimmed>gateInput 的次数：按源码这是常态（本地估算偏高），保留计数便于发现口径变化
             const gi = num(d.gateInput);
+            if (gi !== null) out.gateInputTotal += gi;
             if (gi !== null && tr > gi) out.trimmedGreaterThanInput = (out.trimmedGreaterThanInput || 0) + 1;
             const lim = num(d.limitTokens);
             if (lim !== null) out.limitTokens.push(lim);
