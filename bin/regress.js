@@ -45,6 +45,7 @@ const STEPS = [
   ['部署后验收表', path.join(ROOT, 'lib', 'acceptance-table.test.js'), [], 'node-test'],
   ['行为轨迹摘要', path.join(ROOT, 'lib', 'behavior-digest.test.js'), [], 'node-test'],
   ['子进程不闪窗', path.join(ROOT, 'lib', 'no-flash-window.test.js'), [], 'node-test'],
+  ['关键脚本防截断', path.join(ROOT, 'lib', 'no-truncation.test.js'), [], 'node-test'],
   ['C10停放态判定(离线未接线)', path.join(ROOT, 'lib', 'c10-park.js'), ['selftest']],
   ['事前截止检查(离线)', path.join(ROOT, 'lib', 'pre-deadline.js'), ['selftest']],
   ['证据合成总判定(离线)', path.join(ROOT, 'lib', 'evidence-verdict.js'), ['selftest']],
