@@ -1298,7 +1298,14 @@ function main() {
     const dir2 = di2 >= 0 ? argv[di2 + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
     const si2 = argv.indexOf('--span');
     const spanSec = si2 >= 0 ? Number(argv[si2 + 1]) : 30;
-    const readIf2 = (n) => { try { return fs.readFileSync(path.join(dir2, n), 'utf8'); } catch { return ''; } };
+    // 2026-11-10：与 digest 一致，走生产读取器（半行不当整行算）。
+    const MR2 = require('./lib/monitor-reader');
+    let rdr2 = null;
+    try { rdr2 = MR2.createPull({ dir: dir2 }); } catch { rdr2 = null; }
+    const readIf2 = (n) => {
+      if (rdr2) { const c = rdr2.pull(n); if (c && c.length) return c; }
+      try { return fs.readFileSync(path.join(dir2, n), 'utf8'); } catch { return ''; }
+    };
     const res2 = MP.pack({ 'ai.jsonl': readIf2('ai.jsonl'), 'tools.jsonl': readIf2('tools.jsonl'), 'events.jsonl': readIf2('events.jsonl'), 'rdd.jsonl': readIf2('rdd.jsonl') }, at, { spanSec });
     console.log(argv.includes('--json') ? JSON.stringify(res2, null, 2) : MP.render(res2));
     return;
