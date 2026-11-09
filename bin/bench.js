@@ -1243,6 +1243,7 @@ function main() {
         console.log('  快照=' + r5.snapshots + ' 链=' + r5.chains + ' 目标=' + r5.goals + ' 版本=' + r5.verMin + '→' + r5.verMax + ' 版本回退次数=' + r5.verRegressions);
         console.log('  旧回执被忽略=' + r5.staleResultsIgnored + (r5.staleZeroNote ? '（' + r5.staleZeroNote + '）' : ''));
         console.log('  版本缺号=' + r5.verGaps + ' 跳变=' + (r5.fastGaps + r5.slowGaps) + (r5.verGaps ? '（fast=' + r5.fastGaps + ' slow=' + r5.slowGaps + '；slow 有其它活动=' + r5.slowGapActive + ' 空白=' + r5.slowGapBlank + '）' : '') + ' 时间乱序=' + r5.tsRegressions + ' 会话=' + r5.sessions);
+        console.log('  epoch=' + JSON.stringify(r5.epochs) + ' 已结算=' + r5.settledCount + ' 当前=' + r5.currentPrimary + '/' + r5.currentSubtask + (r5.currentPrimarySettled ? ' ⚠ 当前主项目标已在已结算里（冲突）' : ''));
       }
     }
     return;

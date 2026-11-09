@@ -27,6 +27,7 @@ function build(linesByFile, opts) {
         stale: Number.isFinite(c.staleResultsIgnored) ? c.staleResultsIgnored : null,
         epoch: Number.isFinite(c.ownerEpoch) ? c.ownerEpoch : null,
         settled: c.settledStages && typeof c.settledStages === "object" ? Object.keys(c.settledStages).length : null,
+        settledKeys: c.settledStages && typeof c.settledStages === 'object' ? Object.keys(c.settledStages) : null,
         prim: c.currentPrimaryId || null, sub: c.currentSubtaskId || null,
       });
     }
@@ -78,6 +79,9 @@ function build(linesByFile, opts) {
     staleZeroNote: staleTotal === 0 ? "本样本计数为 0；计数器生命周期/重置/范围未核，不能推断机制未触发" : null,
     verGapsNote: verGaps ? "版本跳跃 fast=" + fastGaps + " slow=" + slowGaps + "；slow 中有其它 rdd 行=" + slowGapActive + "（更像节流）、空白=" + slowGapBlank + "（真空白才可疑）" : null,
     epochs, settledCount: last.settled, currentPrimary: last.prim, currentSubtask: last.sub,
+    // B2 口径：当前主项目标若已出现在 settledStages 里 ⇒ "历史完成"与"当前主支"冲突，需要人看。
+    currentPrimarySettled: !!(last.settledKeys && last.prim && last.settledKeys.includes(last.prim)),
+    settledKeysCount: last.settledKeys ? last.settledKeys.length : null,
     missingFields: missing, window, rows,
   };
 }

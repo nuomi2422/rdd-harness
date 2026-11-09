@@ -87,3 +87,10 @@ test('slow 缺口期间有其它 rdd 行 → 判节流；无其它行 → 判空
   const rb = T.build({ 'rdd.jsonl': blank });
   assert.equal(rb.slowGapBlank, 1);
 });
+test('当前主支若已在 settledStages → 冲突标记（B2 历史完成 vs 当前）', () => {
+  const mk = (settled, prim) => JSON.stringify({ type: 'taskchain_snapshot', data: { taskChain: { chainInstanceId: 'c', stateVersion: 1, settledStages: settled, currentPrimaryId: prim } } });
+  const conflict = T.build({ 'rdd.jsonl': mk({ 'p1': 'done' }, 'p1') });
+  assert.equal(conflict.currentPrimarySettled, true);
+  const ok = T.build({ 'rdd.jsonl': mk({ 'p1': 'done' }, 'p2') });
+  assert.equal(ok.currentPrimarySettled, false);
+});
