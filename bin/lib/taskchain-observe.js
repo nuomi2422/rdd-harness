@@ -38,30 +38,44 @@ function build(linesByFile, opts) {
   const goals = uniq(rows.map((r) => r.goal));
   const sessions = uniq(rows.map((r) => r.session));
   const epochs = uniq(rows.map((r) => (r.epoch === null ? null : String(r.epoch)))).map(Number);
+  // 2026-11-10：版本必须**按链**比较——不同链各自编号，混在一起算回退/缺口没有意义。
+  const byChain = new Map();
+  for (const r of rows) {
+    const key = r.chain || '(no-chain)';
+    if (!byChain.has(key)) byChain.set(key, []);
+    byChain.get(key).push(r);
+  }
   const vers = rows.map((r) => r.ver).filter((v) => v !== null);
   let verRegressions = 0, verGaps = 0;
-  for (let i = 1; i < vers.length; i += 1) {
-    if (vers[i] < vers[i - 1]) verRegressions += 1;
-    else if (vers[i] > vers[i - 1] + 1) verGaps += (vers[i] - vers[i - 1] - 1);
+  for (const list of byChain.values()) {
+    const vs = list.map((r) => r.ver).filter((v) => v !== null);
+    for (let i = 1; i < vs.length; i += 1) {
+      if (vs[i] < vs[i - 1]) verRegressions += 1;
+      else if (vs[i] > vs[i - 1] + 1) verGaps += (vs[i] - vs[i - 1] - 1);
+    }
   }
   // 版本跳跃分两类：同一瞬间多次状态变更（快照节流，不算丢失） vs 间隔很久（可疑）。
   let fastGaps = 0, slowGaps = 0;
-  for (let i = 1; i < rows.length; i += 1) {
-    const a = rows[i - 1], b = rows[i];
-    if (a.ver === null || b.ver === null) continue;
-    if (b.ver <= a.ver + 1) continue;
-    const dt = (a.ts !== null && b.ts !== null) ? (b.ts - a.ts) : null;
-    if (dt !== null && dt <= 1000) fastGaps += 1; else slowGaps += 1;
+  for (const list of byChain.values()) {
+    for (let i = 1; i < list.length; i += 1) {
+      const a = list[i - 1], b = list[i];
+      if (a.ver === null || b.ver === null) continue;
+      if (b.ver <= a.ver + 1) continue;
+      const dt = (a.ts !== null && b.ts !== null) ? (b.ts - a.ts) : null;
+      if (dt !== null && dt <= 1000) fastGaps += 1; else slowGaps += 1;
+    }
   }
   // slow 缺口期间是否还有别的 rdd 行：有 ⇒ 更像快照节流；没有 ⇒ 真空白（可疑）
   let slowGapActive = 0, slowGapBlank = 0;
-  for (let i = 1; i < rows.length; i += 1) {
-    const a = rows[i - 1], b = rows[i];
-    if (a.ver === null || b.ver === null) continue;
-    if (b.ver <= a.ver + 1) continue;
-    if (a.ts === null || b.ts === null || (b.ts - a.ts) <= 1000) continue;
-    const others = anyRddTs.filter((t) => t > a.ts && t < b.ts).length;
-    if (others > 0) slowGapActive += 1; else slowGapBlank += 1;
+  for (const list of byChain.values()) {
+    for (let i = 1; i < list.length; i += 1) {
+      const a = list[i - 1], b = list[i];
+      if (a.ver === null || b.ver === null) continue;
+      if (b.ver <= a.ver + 1) continue;
+      if (a.ts === null || b.ts === null || (b.ts - a.ts) <= 1000) continue;
+      const others = anyRddTs.filter((t) => t > a.ts && t < b.ts).length;
+      if (others > 0) slowGapActive += 1; else slowGapBlank += 1;
+    }
   }
   let tsRegressions = 0;
   const ts = rows.map((r) => r.ts).filter((t) => t !== null);
@@ -76,6 +90,7 @@ function build(linesByFile, opts) {
     snapshots: rows.length, chains: chains.length, goals: goals.length, sessions: sessions.length,
     verMin: vers.length ? Math.min(...vers) : null, verMax: vers.length ? Math.max(...vers) : null,
     verRegressions, verGaps, fastGaps, slowGaps, slowGapActive, slowGapBlank, tsRegressions, staleResultsIgnored: staleTotal,
+    chainsDetail: [...byChain.entries()].map(([id, list]) => ({ chain: id, snapshots: list.length, verMin: list.map((r) => r.ver).filter((v) => v !== null).reduce((a, b) => Math.min(a, b), Infinity), verMax: list.map((r) => r.ver).filter((v) => v !== null).reduce((a, b) => Math.max(a, b), -Infinity) })),
     staleZeroNote: staleTotal === 0 ? "本样本计数为 0；计数器生命周期/重置/范围未核，不能推断机制未触发" : null,
     verGapsNote: verGaps ? "版本跳跃 fast=" + fastGaps + " slow=" + slowGaps + "；slow 中有其它 rdd 行=" + slowGapActive + "（更像节流）、空白=" + slowGapBlank + "（真空白才可疑）" : null,
     epochs, settledCount: last.settled, currentPrimary: last.prim, currentSubtask: last.sub,

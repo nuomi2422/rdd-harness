@@ -94,3 +94,12 @@ test('当前主支若已在 settledStages → 冲突标记（B2 历史完成 vs 
   const ok = T.build({ 'rdd.jsonl': mk({ 'p1': 'done' }, 'p2') });
   assert.equal(ok.currentPrimarySettled, false);
 });
+test('不同链各自编号：跨链的版本跳变不算回退/缺口', () => {
+  const mk = (chain, ver) => JSON.stringify({ type: 'taskchain_snapshot', data: { taskChain: { chainInstanceId: chain, stateVersion: ver } } });
+  const rows = [mk('c1', 48), mk('c1', 49), mk('c2', 34), mk('c2', 35)].join('\n');
+  const r = T.build({ 'rdd.jsonl': rows });
+  assert.equal(r.verRegressions, 0, '49→34 是换链，不是回退');
+  assert.equal(r.verGaps, 0);
+  assert.equal(r.chains, 2);
+  assert.deepEqual(r.chainsDetail.map((c) => c.chain).sort(), ['c1', 'c2']);
+});
