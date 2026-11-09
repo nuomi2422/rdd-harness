@@ -85,6 +85,11 @@ function build(contextText) {
       companion: d.companion_id ?? null, requestKind: kind, turn: d.turn ?? null,
       whyPresent: d.whyPresent === true, whyStatus: d.whyStatus ?? null,
       rationaleSource: d.rationaleSource ?? null,
+      // 2026-11-09：生产侧已加 stamp 冲突标记（9790c7335），这里原样带出便于追溯，
+      // 但不因此把该事件算成"身份已证"——冲突一律不进 delivered。
+      stampConflict: d.stamp_conflict === true,
+      stampWorldId: d.stamp_world_id ?? null,
+      stampServerSession: d.stamp_server_session ?? null,
     };
   });
   const wellFormed = reported.filter((r) => r.ok).length;
@@ -119,6 +124,8 @@ function selftest() {
   const conflicted = build(ev({ stamp_conflict: true }));
   ok(conflicted.status !== 'PRESENT', '④b stamp 冲突不得 PRESENT');
   ok(conflicted.reasons.some((r) => r.includes('stamp-conflict')), '④b 要给出 stamp-conflict 理由');
+  const cf = build(ev({ stamp_conflict: true, stamp_world_id: 'world-B', stamp_server_session: 'sess-B' }));
+  ok(cf.events[0].stampConflict === true && cf.events[0].stampWorldId === 'world-B', '④c 冲突信息要原样带出');
   const wrongType = build(ev({ turn: '1' }));
   ok(wrongType.status !== 'PRESENT', '⑤类型不对不得 PRESENT');
   const garbage = build('{not json}\n' + ev());
