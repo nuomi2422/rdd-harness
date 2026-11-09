@@ -1229,6 +1229,26 @@ function main() {
     else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
+  // 2026-11-09：一条命令给全部读端结论（验收表 + 证据卡总判定 + 摘要头），只读。
+  if (cmd === 'check') {
+    const di3 = argv.indexOf('--dir');
+    const dir3 = di3 >= 0 ? argv[di3 + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const si3 = argv.indexOf('--since');
+    const ui3 = argv.indexOf('--until');
+    const cfg3 = path.dirname(dir3);
+    const read3 = (n) => { try { return fs.readFileSync(path.join(dir3, n), 'utf8'); } catch { return ''; } };
+    const card3 = require('./evidence-card.js').buildCard(dir3, { since: si3 >= 0 ? argv[si3 + 1] : null, until: ui3 >= 0 ? argv[ui3 + 1] : null });
+    const table = require('./lib/acceptance-table.js').build(card3, { events: read3('events.jsonl'), rdd: read3('rdd.jsonl') }, { configDir: cfg3, monitorDir: dir3 });
+    const verdict = require('./lib/evidence-verdict.js').buildVerdict(card3, null);
+    console.log('== 验收表 ==');
+    for (const r of table.rows) console.log('  ' + String(r.verdict).padEnd(11) + r.id + ' ' + r.name + ' — ' + r.detail);
+    console.log('  总判定：' + table.overall);
+    console.log('== 证据卡 ==');
+    console.log('  ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
+    const hasMismatch = table.overall === 'MISMATCH';
+    process.exitCode = hasMismatch ? 1 : 0;
+    return;
+  }
   // 2026-11-09（044-A1）：按时刻证据包。给一个时间点，列出四条流 ±窗口 的事件与指针。
   if (cmd === 'moment') {
     const MP = require('./lib/moment-pack.js');
@@ -1277,7 +1297,7 @@ function main() {
     if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
     process.exit(noshotCmd(path.resolve(rd), null));
   }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|verify|compare|compare-many|report|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|check|verify|compare|compare-many|report|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */
