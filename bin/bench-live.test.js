@@ -64,12 +64,17 @@ test('live loop rejects malformed observer and recovers on later ticks', { timeo
   const rdd = path.join(dir, 'rdd.jsonl');
   const record = (type, data) => JSON.stringify({type, data}) + '\n';
   fs.writeFileSync(rdd, record('taskchain_snapshot', {taskChain:{goalId:'valid-first',primaries:[{id:'good'}]}}) + record('requirement_manifest', {rows:[{key:'valid-row'}]}));
-  const child = spawn(process.execPath, [path.join(__dirname,'bench-watch.js'),'--monitor',dir,'--out',out], {stdio:'ignore'});
+  // 2026-11-09：原来 stdio:'ignore'，子进程异常退出时**没有任何证据**可查
+  // （19:53 那次 "watch exited 1" 就因此无法定位）。这里捕获 stderr 尾部，仅用于报错，
+  // 不改断言、不改超时。
+  let childErr = '';
+  const child = spawn(process.execPath, [path.join(__dirname,'bench-watch.js'),'--monitor',dir,'--out',out], {stdio:['ignore','ignore','pipe']});
+  child.stderr.on('data', (b) => { if (childErr.length < 8000) childErr += b.toString('utf8'); });
   t.after(() => { if (child.exitCode === null) child.kill(); });
   const until = async predicate => {
     const end = Date.now() + 18000;
     while (Date.now() < end) {
-      if (child.exitCode !== null) throw new Error('watch exited ' + child.exitCode);
+      if (child.exitCode !== null) throw new Error('watch exited ' + child.exitCode + ' stderr=' + childErr.slice(-600));
       try { const s = JSON.parse(fs.readFileSync(path.join(out,'status.json'))); if (predicate(s)) return s; } catch (e) { if (e.code !== 'ENOENT' && !(e instanceof SyntaxError)) throw e; }
       await new Promise(resolve => setTimeout(resolve, 100));
     }
