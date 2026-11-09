@@ -126,3 +126,43 @@ test('时间窗过滤：只统计窗口内事件，窗口外不计', (t) => {
   assert.equal(all.actions.calls, 2);
   assert.equal(win.actions.calls, 1, '时间窗内应只算 1 条');
 });
+test('时间窗语义：冲突/无时区/无效时间都保留并标记，不静默丢', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec10-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const mk = (o) => JSON.stringify(o);
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), [
+    mk({ type: 'tool_call', session: 'r', timestamp: '2026-11-09T05:30:00Z', at: '2026-11-09T09:30:00Z', data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: 'conflict' } }),
+    mk({ type: 'tool_call', session: 'r', timestamp: '2026-11-09T05:31:00', data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: 'naive' } }),
+    mk({ type: 'tool_call', session: 'r', timestamp: 'not-a-time', data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: 'bad' } }),
+  ].join('\n') + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
+  assert.equal(card.window.conflicts, 1, '双字段冲突要计数');
+  assert.equal(card.window.ambiguous, 1, '无时区要计数');
+  assert.equal(card.window.invalidOrMissing, 1, '无效时间要计数');
+  assert.ok(card.reasons.includes('window-filtered'));
+  assert.ok(card.reasons.includes('time-conflict'));
+});
+
+test('时间窗边界：闭区间两端都算在内', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec11-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const mk = (ts, id) => JSON.stringify({ type: 'tool_call', session: 'r', timestamp: ts, data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: id } });
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), mk('2026-11-09T05:00:00Z', 'a') + '\n' + mk('2026-11-09T06:00:00Z', 'b') + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
+  assert.equal(card.actions.calls, 2, '闭区间应包含两端');
+});
+
+test('筛选会拆开 call/result：结论只能是 PARTIAL/UNKNOWN，不得当无失败证明', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec12-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const callRow = JSON.stringify({ type: 'tool_call', session: 'r', timestamp: '2026-11-09T05:30:00Z', data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1' } });
+  const resRow = JSON.stringify({ type: 'tool_result', session: 'r', timestamp: '2026-11-09T07:30:00Z', data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1', result: { success: true } } });
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), callRow + '\n' + resRow + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const win = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
+  assert.equal(win.actions.calls, 1);
+  assert.ok(win.reasons.includes('window-filtered'));
+  assert.equal(win.actions.attributable, 'UNKNOWN', '不得因窗口内没有失败就当作正常');
+});

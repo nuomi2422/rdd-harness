@@ -26,27 +26,43 @@ function readIf(p) {
  * 按时间窗过滤原始行：只保留时间戳落在 [since, until] 的事件。
  * 认 `timestamp` 或 `at` 字段；没有时间字段的行**保留**（交给下游判 malformed），不静默丢。
  */
-function filterByWindow(text, since, until) {
-  if (!since && !until) return text;
+/**
+ * 按时间窗过滤（**有限语义**，别当"事前可得/完整"的证明）：
+ * - 区间取**闭区间** [since, until]；
+ * - 认 timestamp 与 at 两个字段；**两者都存在且不一致** → 记为 time-conflict，行**保留**；
+ * - 时间无时区（形如 2026-11-09T05:00:00，无 Z/偏移）→ 记为 timezone-ambiguous，行**保留**；
+ * - 时间无效或缺失 → 记为 invalid-or-missing，行**保留**（交给下游判坏行，不静默丢）；
+ * - 只保留窗口内的行；**丢弃的行不会做任何配对补偿**，所以筛选后 call/result 可能被拆开，
+ *   结论只能是 PARTIAL/UNKNOWN，不能当作"这段时间没有失败"。
+ */
+function filterByWindow(text, since, until, meta) {
+  const m = meta || { since: since || null, until: until || null, applied: false, kept: 0, dropped: 0, conflicts: 0, ambiguous: 0, invalidOrMissing: 0 };
+  if (!since && !until) return { text, meta: m };
   const lo = since ? Date.parse(since) : -Infinity;
   const hi = until ? Date.parse(until) : Infinity;
-  if (!Number.isFinite(lo) && !Number.isFinite(hi)) return text;
+  if (!Number.isFinite(lo) && !Number.isFinite(hi)) return { text, meta: m };
+  m.applied = true;
   const out = [];
+  const naive = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}(:\d{2})?(\.\d+)?$/;
   for (const line of String(text || '').split(/\r?\n/)) {
     if (!line.trim()) continue;
-    let t = NaN;
-    try {
-      const o = JSON.parse(line);
-      const raw = o.timestamp || o.at || (o.data && (o.data.timestamp || o.data.at));
-      t = raw ? Date.parse(raw) : NaN;
-    } catch { out.push(line); continue; }
-    if (!Number.isFinite(t)) { out.push(line); continue; }
-    if (t >= lo && t <= hi) out.push(line);
+    let o = null;
+    try { o = JSON.parse(line); } catch { m.invalidOrMissing++; out.push(line); continue; }
+    const rawA = o.timestamp;
+    const rawB = o.at || (o.data && (o.data.timestamp || o.data.at));
+    const ta = rawA ? Date.parse(rawA) : NaN;
+    const tb = rawB ? Date.parse(rawB) : NaN;
+    if (Number.isFinite(ta) && Number.isFinite(tb) && ta !== tb) { m.conflicts++; out.push(line); continue; }
+    if ((typeof rawA === 'string' && naive.test(rawA)) || (typeof rawB === 'string' && naive.test(rawB))) { m.ambiguous++; out.push(line); continue; }
+    const t = Number.isFinite(ta) ? ta : tb;
+    if (!Number.isFinite(t)) { m.invalidOrMissing++; out.push(line); continue; }
+    if (t >= lo && t <= hi) { out.push(line); m.kept++; } else m.dropped++;
   }
-  return out.join('\n');
+  return { text: out.join('\n'), meta: m };
 }
 
 function buildCard(dir, opts = {}) {
+  const windowMeta = { since: opts.since || null, until: opts.until || null, applied: false, kept: 0, dropped: 0, conflicts: 0, ambiguous: 0, invalidOrMissing: 0 };
   const d = dir || '';
   // 2026-11-09：默认走生产读取器（monitor-reader）拿缺口/窗口信号，
   // 直接 readFileSync 会看不到截断/轮转/半行这类"悄悄丢内容"的情形。
@@ -60,7 +76,7 @@ function buildCard(dir, opts = {}) {
     if (!reader) return readIf(path.join(d, name));
     const chunk = reader.pull(name);
     const raw = chunk && chunk.length ? chunk : (readIf(path.join(d, name)) || '');
-    return filterByWindow(raw, opts.since, opts.until);
+    return filterByWindow(raw, opts.since, opts.until, windowMeta).text;
   };
   const tools = fs.existsSync(path.join(d, 'tools.jsonl')) ? readThrough('tools.jsonl') : null;
   const events = fs.existsSync(path.join(d, 'events.jsonl')) ? readThrough('events.jsonl') : null;
@@ -108,6 +124,12 @@ function buildCard(dir, opts = {}) {
     card.observedWindow = { scope: 'observed-bytes-only', ok: !!w.ok, files: w.files };
     if (Object.keys(reader.gaps).length) card.reasons.push('log-gap');
   }
+  card.window = windowMeta;
+  if (windowMeta.applied) {
+    card.reasons.push('window-filtered');
+    if (windowMeta.conflicts) card.reasons.push('time-conflict');
+    if (windowMeta.ambiguous) card.reasons.push('timezone-ambiguous');
+  }
   card.sources = {
     tools: tools === null ? 'missing' : 'present',
     events: events === null ? 'missing' : 'present',
@@ -127,6 +149,7 @@ function render(card) {
   l.push('[最终请求] ' + (f.status || 'UNKNOWN') + ' why 交付=' + (f.delivered || '?') + ' 类型=' + JSON.stringify(f.byKind || {}));
   const s = card.settle || {};
   l.push('[结算] ' + (s.status || 'UNKNOWN') + ' 按最终目标核验=' + ((s.coverage && s.coverage.judged) || '?') + ' legacy=' + ((s.settled && s.settled.legacy) ?? '?') + ' 被拒=' + ((s.rejected && s.rejected.finals && s.rejected.finals.length) || 0));
+  if (card.window && card.window.applied) l.push('[时间窗] ' + card.window.since + ' ~ ' + card.window.until + ' 保留=' + card.window.kept + ' 丢弃=' + card.window.dropped + '（**筛选后可能拆开 call/result，结论只能 PARTIAL/UNKNOWN，不能当无失败证明**）');
   const g = Object.keys(card.gaps || {});
   if (g.length) l.push('[读取缺口] ' + g.map((k) => k + ':' + card.gaps[k].reason).join(' '));
   // ★ 措辞必须点明：这是**观测到的字节窗口**，不是业务时间完整。
