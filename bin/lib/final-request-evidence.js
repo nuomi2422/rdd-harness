@@ -52,6 +52,9 @@ function checkEvent(ev) {
     if (d[k] === undefined) { missing.push(k); continue; }
     if (!isType(d[k], t)) wrong.push(k + ':' + t);
   }
+  // 2026-11-09：信封身份与发布时刻 stamp 冲突的事件，即使字段齐全也不得计入"why 已交付"。
+  // （生产侧若采纳该标记，这里是消费端的防线；没有该字段时按 false 处理，向后兼容。）
+  if (d.stamp_conflict === true) return { ok: false, why: 'stamp-conflict' };
   if (missing.length) return { ok: false, why: 'missing-fields', missing };
   if (wrong.length) return { ok: false, why: 'wrong-types', wrong };
   return { ok: true };
@@ -113,6 +116,9 @@ function selftest() {
   ok(noWhy.status === 'PARTIAL', '③whyPresent=false → PARTIAL 而非 PRESENT');
   const missField = build(ev({}, 'rationaleSource'));
   ok(missField.status !== 'PRESENT', '④缺字段不得 PRESENT');
+  const conflicted = build(ev({ stamp_conflict: true }));
+  ok(conflicted.status !== 'PRESENT', '④b stamp 冲突不得 PRESENT');
+  ok(conflicted.reasons.some((r) => r.includes('stamp-conflict')), '④b 要给出 stamp-conflict 理由');
   const wrongType = build(ev({ turn: '1' }));
   ok(wrongType.status !== 'PRESENT', '⑤类型不对不得 PRESENT');
   const garbage = build('{not json}\n' + ev());
@@ -125,5 +131,5 @@ module.exports = { build, checkEvent, REQUIRED, selftest };
 if (require.main === module) {
   const fails = selftest();
   if (fails.length) { console.error('final-request-evidence selftest FAIL: ' + fails.join(' | ')); process.exit(1); }
-  console.log('final-request-evidence selftest PASS（6 组）');
+  console.log('final-request-evidence selftest PASS（7 组）');
 }
