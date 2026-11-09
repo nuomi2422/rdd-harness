@@ -14,7 +14,10 @@ function main() {
   const argv = process.argv.slice(2);
   const di = argv.indexOf('--dir');
   const dir = di >= 0 ? argv[di + 1] : 'D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor';
-  const card = buildCard(dir);
+  // 2026-11-09：支持按时间窗采样（部署后 1/5/10 分钟各跑一次时非常有用）
+  const si = argv.indexOf('--since');
+  const ui = argv.indexOf('--until');
+  const card = buildCard(dir, { since: si >= 0 ? argv[si + 1] : null, until: ui >= 0 ? argv[ui + 1] : null });
   const ci = argv.indexOf('--config');
   // 默认配置目录 = monitor 的上一级（skills.jsonl 与 monitor/ 同层）
   const configDir = ci >= 0 ? argv[ci + 1] : path.dirname(dir);
