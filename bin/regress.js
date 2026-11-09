@@ -44,6 +44,7 @@ const STEPS = [
   ['C10停放态判定(离线未接线)', path.join(ROOT, 'lib', 'c10-park.js'), ['selftest']],
   ['事前截止检查(离线)', path.join(ROOT, 'lib', 'pre-deadline.js'), ['selftest']],
   ['证据合成总判定(离线)', path.join(ROOT, 'lib', 'evidence-verdict.js'), ['selftest']],
+  ['证据总判定优先级', path.join(ROOT, 'lib', 'evidence-verdict.test.js'), [], 'node-test'],
   // 2026-11-09：regress 退出码 → acceptance 判定的端到端口径（FLAKY 不得被当成 PASS）。
   ['回归退出码口径', path.join(ROOT, 'regress-gating.test.js'), [], 'node-test'],
 ];
