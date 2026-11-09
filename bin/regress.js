@@ -46,6 +46,7 @@ const STEPS = [
   ['任务链快照读端', path.join(ROOT, 'lib', 'taskchain-observe.test.js'), [], 'node-test'],
   ['真实日志脱敏', path.join(ROOT, 'lib', 'real-log-redaction.test.js'), [], 'node-test'],
   ['读端CLI冒烟', path.join(ROOT, 'lib', 'cli-smoke.test.js'), [], 'node-test'],
+  ['时间锁作用域', path.join(ROOT, 'lib', 'timelock-scope.test.js'), [], 'node-test'],
   ['跨流关联可判性', path.join(ROOT, 'lib', 'cross-stream.test.js'), [], 'node-test'],
   ['部署后黄金样本', path.join(ROOT, 'lib', 'golden-sample.test.js'), [], 'node-test'],
   ['部署后验收表', path.join(ROOT, 'lib', 'acceptance-table.test.js'), [], 'node-test'],
