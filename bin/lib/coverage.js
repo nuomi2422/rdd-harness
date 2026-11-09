@@ -48,7 +48,9 @@ function makeVerifiedCoverage(evidence) {
   return Object.freeze({
     [VERIFIED]: true,
     contentIntegrity: 'verified',
-    windowCompleteness: 'unproven',
+    // 窗口维度：只要调用方给出的窗口证据覆盖了"起点到当前"，就标 verified-for-observed-window。
+    // 这个等级**只在声明的窗口内成立**，不等于"整段时间线完整"；消费端必须以 caveat 形式带出。
+    windowCompleteness: (window && window.completeness === 'verified-for-observed-window') ? 'verified-for-observed-window' : 'unproven',
     scope: 'content-immutable-since-read',
     files: entries.map(([f]) => f),
   });

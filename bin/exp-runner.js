@@ -49,8 +49,15 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   // 所以即便内容复读一致，结论仍是 UNKNOWN，理由 window-completeness-unproven。
   const covMod = require('./lib/coverage');
   const contentVerified = covMod.isVerifiedCoverage(coverage) && coverage.contentIntegrity === 'verified';
-  const windowVerified = covMod.isVerifiedCoverage(coverage) && coverage.windowCompleteness === 'verified';
+  // 窗口维度有两个可接受等级：
+  //   'verified'                     = 全局连续（当前做不到）
+  //   'verified-for-observed-window' = 从窗口起点到当前，每个字节都读过一次且连续、无缺口、锚未变
+  // 后者是**有界声明**：只对声明的窗口成立，不能推广成"整段时间线完整"，所以必须以 caveat 带出。
+  const windowLevel = covMod.isVerifiedCoverage(coverage) ? coverage.windowCompleteness : 'unproven';
+  const windowVerified = windowLevel === 'verified' || windowLevel === 'verified-for-observed-window';
   const coverageVerified = contentVerified && windowVerified;
+  const coverageCaveats = [];
+  if (windowLevel === 'verified-for-observed-window') coverageCaveats.push('window-scope:observed-bytes-only');
   // 2026-11-09：读取阶段的缺口（截断/轮转/窗口跳过）必须能传到这里。
   // 以前 pull() 只按 offset 读、不检测文件变小，轮转后会静默读到中段或永远读空，
   // 而账本看不见，于是"缺了一段"和"本来就少"无法区分 —— 那就是假绿。
@@ -73,7 +80,7 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   if (gapList.length) reasons.push('log-gap');
   if (!contentVerified) reasons.push('coverage-limited');
   else if (!windowVerified) reasons.push('window-completeness-unproven');
-  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
+  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, caveats: coverageCaveats, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
 function blockerScopeKey(b) {
@@ -1131,7 +1138,14 @@ async function cmdRun(opts) {
       coverage = require('./lib/coverage').makeVerifiedCoverage({
         segments: verify.files,
         source: 'monitor-reader/bounded-window',
-        window: { start: env.timings && env.timings.stimulusSentAt || null },
+        // 窗口完整性：只声明"起点到当前每个字节都读过一次且连续"；做不到就 unproven。
+        window: (() => {
+          const w = reader.verifyWindow();
+          return {
+            start: env.timings && env.timings.stimulusSentAt || null,
+            completeness: (w.ok && !Object.keys(gaps).length) ? 'verified-for-observed-window' : 'unproven',
+          };
+        })(),
         gaps,
         lifecycle: { closed: true },
       });

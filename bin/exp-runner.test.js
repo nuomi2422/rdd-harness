@@ -83,3 +83,27 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
   assert.ok(!issuedEv.reasons.includes('coverage-limited'), '内容维度已通过，不应再报 coverage-limited');
   console.log('覆盖分级断言 PASS（limited→UNKNOWN / 伪造verified被拒 / 内容verified但窗口unproven→UNKNOWN）');
 }
+// 2026-11-09：有界窗口完整性 —— 内容 verified + 窗口 verified-for-observed-window 时允许 PRESENT，
+// 但必须带 caveat 说明"只覆盖观测到的字节"，不得被当成整条时间线完整。
+{
+  const text = row('tool_call', {}) + '\n' + row('tool_result', { result: { success: true } });
+  const lg = AL.build(text, '', { resolveIdentity });
+  const scoped = C.makeVerifiedCoverage({
+    segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } },
+    source: 's', window: { start: 'w', completeness: 'verified-for-observed-window' },
+    gaps: {}, lifecycle: { closed: true },
+  });
+  const ev = actionEvidence(lg, text, null, scoped);
+  assert.equal(ev.status, 'PRESENT', '两个维度都成立时应可 PRESENT');
+  assert.ok(ev.caveats.includes('window-scope:observed-bytes-only'), '必须带窗口范围 caveat');
+  // 反例：窗口未证 → 仍 UNKNOWN
+  const unproven = C.makeVerifiedCoverage({
+    segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } },
+    source: 's', window: { start: 'w', completeness: 'unproven' },
+    gaps: {}, lifecycle: { closed: true },
+  });
+  const ev2 = actionEvidence(lg, text, null, unproven);
+  assert.equal(ev2.status, 'UNKNOWN');
+  assert.ok(ev2.reasons.includes('window-completeness-unproven'));
+  console.log('有界窗口断言 PASS（scoped→PRESENT+caveat / unproven→UNKNOWN）');
+}

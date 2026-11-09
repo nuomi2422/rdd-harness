@@ -151,3 +151,32 @@ test('多个流缺一：只复核到有段的文件，另一流无段即视为�
   assert.equal(Object.keys(v.files).length, 1, '只有 tools 有段');
   assert.equal(v.files['events.jsonl'], undefined);
 });
+test('窗口完整性：连续读取 → verified；截断后 → 不成立', (t) => {
+  const { r, file } = setup(t);
+  fs.writeFileSync(file, 'a\n');
+  r.pull('tools.jsonl');
+  fs.appendFileSync(file, 'b\n');
+  r.pull('tools.jsonl');
+  let w = r.verifyWindow();
+  assert.equal(w.ok, true, '连续追加应满足窗口完整性');
+  assert.equal(w.files['tools.jsonl'].contiguous, true);
+  assert.equal(w.files['tools.jsonl'].endsAtNow, true);
+  // 截断：窗口内出现缺口 → 不成立
+  fs.writeFileSync(file, 'c\n');
+  r.pull('tools.jsonl');
+  w = r.verifyWindow();
+  assert.equal(w.ok, false, '出现 truncated-or-rotated 后窗口完整性必须失败');
+  assert.equal(w.files['tools.jsonl'].noGap, false);
+});
+
+test('窗口完整性是有界的：从中间起读仍然"窗口内成立"（起点>0）', (t) => {
+  const { dir, file } = setup(t);
+  fs.writeFileSync(file, 'old1\nold2\n');
+  const start = fs.statSync(file).size;
+  const r2 = createPull({ dir, offsets: { 'tools.jsonl': start } });
+  fs.appendFileSync(file, 'new1\n');
+  r2.pull('tools.jsonl');
+  const w = r2.verifyWindow();
+  assert.equal(w.ok, true);
+  assert.ok(w.files['tools.jsonl'].from > 0, '窗口起点>0，声明只覆盖观测段');
+});
