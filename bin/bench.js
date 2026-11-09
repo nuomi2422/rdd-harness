@@ -1229,6 +1229,20 @@ function main() {
     else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
+  // 2026-11-09（044-A1）：按时刻证据包。给一个时间点，列出四条流 ±窗口 的事件与指针。
+  if (cmd === 'moment') {
+    const MP = require('./lib/moment-pack.js');
+    const at = argv[1];
+    if (!at) { console.error('usage: bench.js moment <ISO时间> [--dir <monitor>] [--span 30] [--json]'); process.exit(2); }
+    const di2 = argv.indexOf('--dir');
+    const dir2 = di2 >= 0 ? argv[di2 + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const si2 = argv.indexOf('--span');
+    const spanSec = si2 >= 0 ? Number(argv[si2 + 1]) : 30;
+    const readIf2 = (n) => { try { return fs.readFileSync(path.join(dir2, n), 'utf8'); } catch { return ''; } };
+    const res2 = MP.pack({ 'ai.jsonl': readIf2('ai.jsonl'), 'tools.jsonl': readIf2('tools.jsonl'), 'events.jsonl': readIf2('events.jsonl'), 'rdd.jsonl': readIf2('rdd.jsonl') }, at, { spanSec });
+    console.log(argv.includes('--json') ? JSON.stringify(res2, null, 2) : MP.render(res2));
+    return;
+  }
   // 2026-11-09（047-B）：行为轨迹摘要。只读，输出 ≤1200 字，必带异常摘要与来源行号。
   if (cmd === 'digest') {
     const BD = require('./lib/behavior-digest.js');
