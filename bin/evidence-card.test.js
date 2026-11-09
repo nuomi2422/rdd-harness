@@ -184,3 +184,14 @@ test('守门：没有任何生产消费者把 RAW_PRESENT / 字段自洽 当通�
   }
   assert.deepEqual(offenders, [], '只允许 bench evidence 打印，不允许任何门禁/验收把它当通过条件');
 });
+test('总判定：真实数据上只能是 UNKNOWN（身份不可归属），不会因有数据而 PRESENT', (t) => {
+  const V = require('./lib/evidence-verdict');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec13-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), call + '\n' + result + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  const v = V.buildVerdict(card, null);
+  assert.equal(v.verdict, 'UNKNOWN');
+  assert.ok(v.reasons.includes('identity-not-attributable'));
+});

@@ -1217,8 +1217,14 @@ function main() {
     const EC = require('./evidence-card.js');
     const di = argv.indexOf('--dir');
     const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
-    const card = EC.buildCard(dir);
-    console.log(argv.includes('--json') ? JSON.stringify(card, null, 2) : EC.render(card));
+    const si = argv.indexOf('--since');
+    const ui = argv.indexOf('--until');
+    const card = EC.buildCard(dir, { since: si >= 0 ? argv[si + 1] : null, until: ui >= 0 ? argv[ui + 1] : null });
+    // 2026-11-09：再给一条**保守总判定**，避免读卡的人自己拼"有数据=没问题"。
+    let verdict = null;
+    try { verdict = require('./lib/evidence-verdict.js').buildVerdict(card, null); } catch { verdict = { verdict: 'UNKNOWN', reasons: ['verdict-error'] }; }
+    if (argv.includes('--json')) console.log(JSON.stringify({ ...card, verdict }, null, 2));
+    else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
   if (cmd === 'verify') { const code = verifyCmd(argv); process.exit(code); }
