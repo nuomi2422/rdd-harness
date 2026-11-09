@@ -36,3 +36,32 @@ test('真实尾部：能出链/版本/旧回执计数（无数据 skip）', () =
   console.log('[真实任务链] ' + JSON.stringify({ status: r.status, snapshots: r.snapshots, chains: r.chains, ver: [r.verMin, r.verMax], stale: r.staleResultsIgnored }));
   assert.ok(['PRESENT','PARTIAL','UNKNOWN'].includes(r.status));
 });
+test('版本缺口要计数（快照可能丢失）', () => {
+  const rows = [snap({chainInstanceId:'c1',stateVersion:1}), snap({chainInstanceId:'c1',stateVersion:4})].join('\n');
+  assert.equal(T.build({ 'rdd.jsonl': rows }).verGaps, 2);
+});
+
+test('时间乱序要计数（不掩盖）', () => {
+  const rows = [
+    JSON.stringify({ type: 'taskchain_snapshot', timestamp: '2026-11-09T05:00:10Z', data: { taskChain: { chainInstanceId: 'c', stateVersion: 1 } } }),
+    JSON.stringify({ type: 'taskchain_snapshot', timestamp: '2026-11-09T05:00:00Z', data: { taskChain: { chainInstanceId: 'c', stateVersion: 2 } } }),
+  ].join('\n');
+  assert.equal(T.build({ 'rdd.jsonl': rows }).tsRegressions, 1);
+});
+
+test('stale=0 必须带"不能推断机制未触发"的说明', () => {
+  const rows = [snap({chainInstanceId:'c',stateVersion:1,staleResultsIgnored:0})].join('\n');
+  const r = T.build({ 'rdd.jsonl': rows });
+  assert.equal(r.staleResultsIgnored, 0);
+  assert.match(String(r.staleZeroNote), /不能推断/);
+});
+
+test('多会话/多链要如实计数（跨世界身份不硬拼）', () => {
+  const rows = [
+    JSON.stringify({ type: 'taskchain_snapshot', session: 's1', data: { taskChain: { chainInstanceId: 'c1', stateVersion: 1 } } }),
+    JSON.stringify({ type: 'taskchain_snapshot', session: 's2', data: { taskChain: { chainInstanceId: 'c2', stateVersion: 1 } } }),
+  ].join('\n');
+  const r = T.build({ 'rdd.jsonl': rows });
+  assert.equal(r.chains, 2);
+  assert.equal(r.sessions, 2);
+});

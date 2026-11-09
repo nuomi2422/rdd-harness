@@ -1241,8 +1241,8 @@ function main() {
       console.log('[任务链] ' + r5.status + (r5.reason ? '（' + r5.reason + '）' : ''));
       if (r5.rows) {
         console.log('  快照=' + r5.snapshots + ' 链=' + r5.chains + ' 目标=' + r5.goals + ' 版本=' + r5.verMin + '→' + r5.verMax + ' 版本回退次数=' + r5.verRegressions);
-        console.log('  旧回执被忽略=' + r5.staleResultsIgnored + '（0 表示机制没被触发过，不等于有效）');
-        console.log('  epoch=' + JSON.stringify(r5.epochs) + ' 已结算条目=' + r5.settledCount + ' 当前=' + r5.currentPrimary + '/' + r5.currentSubtask);
+        console.log('  旧回执被忽略=' + r5.staleResultsIgnored + (r5.staleZeroNote ? '（' + r5.staleZeroNote + '）' : ''));
+        console.log('  版本缺口=' + r5.verGaps + ' 时间乱序=' + r5.tsRegressions + ' 窗口=' + (r5.window ? (r5.window.from + '~' + r5.window.to + ' 共' + r5.window.spanSec + 's') : 'UNKNOWN') + ' 会话=' + r5.sessions);
       }
     }
     return;
