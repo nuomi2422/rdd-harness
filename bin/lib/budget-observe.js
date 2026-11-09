@@ -8,7 +8,7 @@ function num(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n :
 
 function build(linesByFile) {
   const out = { gateEvents: 0, trimmedEvents: 0, trimmedTotal: 0, settleEvents: 0, usageEvents: 0, tokensTotal: 0, requestEvents: 0, promptTokensTotal: 0, invalid: 0, pointers: [],
-    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [], trimmedGreaterThanInput: 0, gateInputTotal: 0 }; 
+    byMode: {}, byProvider: {}, bySource: {}, providerChanged: 0, uncalibrated: 0, ratios: [], limitTokens: [], turns: [], trimmedGreaterThanInput: 0, gateInputTotal: 0 }; 
   for (const file of Object.keys(linesByFile || {})) {
     const lines = String(linesByFile[file] || '').split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
@@ -32,6 +32,12 @@ function build(linesByFile) {
             const ratio = num(d.ratio);
             if (ratio !== null) out.ratios.push(ratio);
             // 记录 trimmed>gateInput 的次数：按源码这是常态（本地估算偏高），保留计数便于发现口径变化
+            const src = String(d.source || 'unknown');
+            out.bySource[src] = (out.bySource[src] || 0) + 1;
+            if (d.providerChanged === true) out.providerChanged += 1;
+            // 2026-11-09（Java 组）：source!=calibrated 或 providerChanged=true 时，
+            // 判额只有本地估算、没有厂商口径校准 ⇒ 该样本语义标 UNKNOWN，不当"已校准"。
+            if (src !== 'calibrated' || d.providerChanged === true) out.uncalibrated += 1;
             const gi = num(d.gateInput);
             if (gi !== null) out.gateInputTotal += gi;
             if (gi !== null && tr > gi) out.trimmedGreaterThanInput = (out.trimmedGreaterThanInput || 0) + 1;
@@ -71,8 +77,12 @@ function build(linesByFile) {
   out.shadowOnly = modes.length > 0 && modes.every((m) => m === 'shadow');
   out.trimmedIsEstimate = out.shadowOnly;
   const any = out.gateEvents + out.settleEvents + out.usageEvents + out.requestEvents;
-  const status = any === 0 ? "UNKNOWN" : (out.invalid ? "PARTIAL" : "PRESENT");
-  return { status, ...out, reasons: any === 0 ? ["no-budget-events"] : (out.invalid ? ["invalid-values"] : []) };
+  const status = any === 0 ? "UNKNOWN" : ((out.invalid || out.uncalibrated) ? "PARTIAL" : "PRESENT");
+  const reasons = [];
+  if (any === 0) reasons.push('no-budget-events');
+  if (out.invalid) reasons.push('invalid-values');
+  if (out.uncalibrated) reasons.push('uncalibrated-samples');
+  return { status, ...out, reasons };
 }
 
 module.exports = { build };
