@@ -209,3 +209,15 @@ test('一致性：证据卡的观测窗与 monitor-reader.verifyWindow 必须同
   assert.equal(card.observedWindow.ok, !!w.ok, '两处对"窗口是否完整"必须一致');
   assert.deepEqual(Object.keys(card.observedWindow.files || {}).sort(), Object.keys(w.files || {}).sort(), '覆盖的流必须一致');
 });
+test('半行未写完：不把未完成的行算进最终请求（读取器会扣住）', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec15-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const full = JSON.stringify({ type: 'final_request', timestamp: '2026-11-09T06:00:00Z', data: {
+    companion_id: 'c', requestKind: 'execute', turn: 1, rationalePresent: true, whyPresent: true,
+    whyStatus: 'PRESENT', risksPresent: true, sourcePresent: true, conditionsPresent: false, rationaleSource: 'x' } });
+  const partial = '{"type":"final_request","data":{"companion_id":"c","whyPres';
+  fs.writeFileSync(path.join(d, 'context.jsonl'), full + '\n' + partial); // 末行无换行
+  const card = buildCard(d);
+  assert.equal(card.finalRequest.total, 1, '未完成的半行不得计入');
+  assert.equal(card.finalRequest.delivered, '1/1');
+});
