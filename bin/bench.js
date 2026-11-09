@@ -1280,6 +1280,10 @@ function main() {
       try { out.budget = require('./lib/budget-observe.js').build({ 'context.jsonl': read3('context.jsonl') }); } catch { out.budget = null; }
       try { out.chain = require('./lib/taskchain-observe.js').build({ 'rdd.jsonl': read3('rdd.jsonl') }); if (out.chain) delete out.chain.rows; } catch { out.chain = null; }
       // 2026-11-10：JSON 也要带"待判"，自动化不能只看 status 就当真。
+      out.streams = {};
+      for (const n of ['ai.jsonl', 'tools.jsonl', 'events.jsonl', 'rdd.jsonl', 'context.jsonl']) {
+        try { const st = fs.statSync(path.join(dir3, n)); out.streams[n.replace('.jsonl', '')] = { bytes: st.size, mtime: st.mtime.toISOString() }; } catch { out.streams[n.replace('.jsonl', '')] = null; }
+      }
       out.open = [];
       const vv = verdict && verdict.reasons ? verdict.reasons : [];
       if (vv.includes('identity-not-attributable')) out.open.push('身份');
@@ -1334,6 +1338,12 @@ function main() {
       const t3 = require('./lib/taskchain-observe.js').build({ 'rdd.jsonl': read3('rdd.jsonl') });
       if (t3.staleResultsIgnored === 0) open.push('旧回执');
       if (t3.verGaps) open.push('快照缺口');
+      // 2026-11-10：数据面——哪些流在、多旧；缺流会让上面的结论失真。
+      const face = ['ai.jsonl', 'tools.jsonl', 'events.jsonl', 'rdd.jsonl', 'context.jsonl'].map((n) => {
+        try { const st = fs.statSync(path.join(dir3, n)); return n.replace('.jsonl', '') + ':' + Math.round(st.size / 1024) + 'KB'; } catch { return n.replace('.jsonl', '') + ':缺'; }
+      }).join(' ');
+      console.log('== 数据面 ==');
+      console.log('  ' + face);
       console.log('== 待判 ==');
       console.log('  ' + (open.length ? open.join(' / ') + '（均未判，不能当通过）' : '无'));
     } catch { console.log('== 待判 =='); console.log('  UNKNOWN（生成失败）'); }

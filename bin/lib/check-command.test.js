@@ -36,6 +36,7 @@ test('check --json：给自动化用，字段与文本段对应；无 MISMATCH �
   assert.ok(j.verdict && typeof j.verdict.verdict === 'string');
   assert.ok('budget' in j && 'chain' in j);
   assert.ok(Array.isArray(j.open), 'JSON 必须带待判列表');
+  assert.ok(j.streams && 'tools' in j.streams, 'JSON 应带数据面（缺流为 null）');
   assert.equal(j.hasMismatch, false);
   assert.equal(r.status, 0);
   fs.rmSync(d, { recursive: true, force: true });
