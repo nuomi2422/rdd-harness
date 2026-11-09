@@ -195,3 +195,17 @@ test('总判定：真实数据上只能是 UNKNOWN（身份不可归属），不
   assert.equal(v.verdict, 'UNKNOWN');
   assert.ok(v.reasons.includes('identity-not-attributable'));
 });
+test('一致性：证据卡的观测窗与 monitor-reader.verifyWindow 必须同判', (t) => {
+  const MR = require('./lib/monitor-reader');
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec14-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), call + '\n' + result + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  const r = MR.createPull({ dir: d });
+  r.pull('tools.jsonl');
+  r.pull('events.jsonl');
+  const w = r.verifyWindow(['tools.jsonl', 'events.jsonl']);
+  assert.equal(card.observedWindow.ok, !!w.ok, '两处对"窗口是否完整"必须一致');
+  assert.deepEqual(Object.keys(card.observedWindow.files || {}).sort(), Object.keys(w.files || {}).sort(), '覆盖的流必须一致');
+});
