@@ -75,3 +75,15 @@ test('版本跳跃分 fast/slow：同瞬间的不算可疑', () => {
   const rs = T.build({ 'rdd.jsonl': slow });
   assert.equal(rs.slowGaps, 1);
 });
+test('slow 缺口期间有其它 rdd 行 → 判节流；无其它行 → 判空白', () => {
+  const mk = (ts, ver) => JSON.stringify({ type: 'taskchain_snapshot', timestamp: ts, data: { taskChain: { chainInstanceId: 'c', stateVersion: ver } } });
+  const other = (ts) => JSON.stringify({ type: 'fact_snapshot', timestamp: ts, data: {} });
+  const active = [mk('2026-11-09T05:00:00.000Z', 1), other('2026-11-09T05:00:20.000Z'), mk('2026-11-09T05:00:40.000Z', 4)].join('\n');
+  const ra = T.build({ 'rdd.jsonl': active });
+  assert.equal(ra.slowGaps, 1);
+  assert.equal(ra.slowGapActive, 1);
+  assert.equal(ra.slowGapBlank, 0);
+  const blank = [mk('2026-11-09T05:00:00.000Z', 1), mk('2026-11-09T05:00:40.000Z', 4)].join('\n');
+  const rb = T.build({ 'rdd.jsonl': blank });
+  assert.equal(rb.slowGapBlank, 1);
+});
