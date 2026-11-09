@@ -1314,6 +1314,7 @@ function main() {
       console.log('== 待判 ==');
       console.log('  ' + (open.length ? open.join(' / ') + '（均未判，不能当通过）' : '无'));
     } catch { console.log('== 待判 =='); console.log('  UNKNOWN（生成失败）'); }
+    const hasMismatch = table.overall === 'MISMATCH';
     process.exitCode = hasMismatch ? 1 : 0;
     return;
   }
