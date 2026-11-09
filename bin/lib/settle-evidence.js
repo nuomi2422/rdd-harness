@@ -50,9 +50,14 @@ function build(rddText) {
   if (s.bad || r.bad) reasons.push('malformed-lines');
 
   const settled = { total: s.events.length, verified: 0, verifyFinalGoal: 0, legacy: 0, inconsistent: 0 };
+  // 2026-11-09：按 companion 分开记，避免"一个同伴核验过、另一个没过"被合计成好看的数字。
+  const byCompanion = {};
   for (const ev of s.events) {
     const d = ev.data && typeof ev.data === 'object' ? ev.data : {};
+    const ck = typeof d.companionId === 'string' ? d.companionId : 'unknown';
+    const g = byCompanion[ck] || (byCompanion[ck] = { total: 0, judged: 0, verifyFinalGoal: 0 });
     // 字段上线前的历史事件：没有 verified 字段 → legacy，不计入分母
+    g.total++;
     if (d.verified === undefined && d.verify_final_goal === undefined) { settled.legacy++; continue; }
     if (!isType(d.verified, 'boolean') || !isType(d.verify_final_goal, 'boolean')) { settled.inconsistent++; reasons.push('settled:bad-flag-types'); continue; }
     if (d.verify_final_goal === true && isType(d.unmet, 'array') && d.unmet.length > 0) {
@@ -60,7 +65,8 @@ function build(rddText) {
       settled.inconsistent++; reasons.push('settled:verify-final-goal-with-unmet'); continue;
     }
     if (d.verified === true) settled.verified++;
-    if (d.verify_final_goal === true) settled.verifyFinalGoal++;
+    g.judged++;
+    if (d.verify_final_goal === true) { settled.verifyFinalGoal++; g.verifyFinalGoal++; }
   }
 
   const rejected = { total: r.events.length, finals: [] };
@@ -90,7 +96,7 @@ function build(rddText) {
   if (judged === 0) status = 'UNKNOWN';
   if (status === 'UNKNOWN') reasons.push('no-judgeable-settlements');
   if (settled.inconsistent) status = 'UNKNOWN';
-  return { status, reasons, settled, rejected, coverage };
+  return { status, reasons, settled, rejected, coverage, byCompanion };
 }
 
 function selftest() {

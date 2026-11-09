@@ -95,11 +95,20 @@ function build(contextText) {
       rationaleGeneration: Number.isFinite(d.rationaleGeneration) ? d.rationaleGeneration : null,
     };
   });
+  // 2026-11-09：按 companion 分组，避免"一个同伴带 why、另一个没带"被合计成一个好看的数。
+  const byCompanion = {};
+  for (const r of reported) {
+    const k = r.companion || 'unknown';
+    const g = byCompanion[k] || (byCompanion[k] = { total: 0, delivered: 0, malformed: 0 });
+    g.total++;
+    if (!r.ok) g.malformed++; else if (r.whyPresent) g.delivered++;
+  }
   const wellFormed = reported.filter((r) => r.ok).length;
   // 任何一条坏事件都不许把整体判成"已交付"
-  const status = wellFormed === events.length ? (delivered === events.length ? 'PRESENT' : 'PARTIAL') : 'UNKNOWN';
+  const allCompanionsOk = Object.values(byCompanion).every((g) => g.malformed === 0 && g.delivered === g.total);
+  const status = wellFormed === events.length ? (allCompanionsOk ? 'PRESENT' : 'PARTIAL') : 'UNKNOWN';
   if (status === 'PARTIAL') reasons.push('why-missing-in-some-requests');
-  return { status, reasons, total: events.length, delivered: delivered + '/' + events.length, byKind, events: reported };
+  return { status, reasons, total: events.length, delivered: delivered + '/' + events.length, byKind, byCompanion, events: reported };
 }
 
 function selftest() {

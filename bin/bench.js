@@ -1212,6 +1212,15 @@ function main() {
   if (cmd === 'compare') return compareCmd(argv);
   if (cmd === 'compare-many') return compareManyCmd(argv);
   if (cmd === 'report') return reportCmd(argv);
+  // 2026-11-09：证据卡（动作/最终请求/结算三源一张卡）。生产入口，缺数据一律 UNKNOWN。
+  if (cmd === 'evidence') {
+    const EC = require('./evidence-card.js');
+    const di = argv.indexOf('--dir');
+    const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const card = EC.buildCard(dir);
+    console.log(argv.includes('--json') ? JSON.stringify(card, null, 2) : EC.render(card));
+    return;
+  }
   if (cmd === 'verify') { const code = verifyCmd(argv); process.exit(code); }
   if (cmd === 'noshot') {
     const rd = argv[1];
@@ -1220,7 +1229,7 @@ function main() {
     if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
     process.exit(noshotCmd(path.resolve(rd), null));
   }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|verify|compare|compare-many|report|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|verify|compare|compare-many|report|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */

@@ -37,3 +37,13 @@ test('旧日志（无 verified 字段）记 legacy，不冤枉成失败', (t) =>
   assert.equal(res.settled.legacy, 1);
   assert.equal(res.status, 'UNKNOWN', '没有可判定事件 → UNKNOWN，不是 PASS 也不是 FAIL');
 });
+test('跨同伴：一个核验过、一个没核验 → 整体不得 PRESENT，分组可见', () => {
+  const rows = [
+    ev('primary_settled_by_fact', { companionId: 'c1', verified: true, verify_final_goal: true, unmet: [] }),
+    ev('primary_settled_by_fact', { companionId: 'c2', verified: true, verify_final_goal: false, unmet: [] }),
+  ].join('\n');
+  const res = SE.build(rows);
+  assert.equal(res.status, 'PARTIAL');
+  assert.equal(res.byCompanion.c1.verifyFinalGoal, 1);
+  assert.equal(res.byCompanion.c2.verifyFinalGoal, 0);
+});
