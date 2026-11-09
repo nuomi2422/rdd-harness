@@ -28,3 +28,14 @@ test('check：出现 MISMATCH 时退出码非零（不被静默吞）', () => {
   assert.equal(r.status, 1, 'R1 MISMATCH 应让 check 非零退出');
   fs.rmSync(d, { recursive: true, force: true });
 });
+test('check --json：给自动化用，字段与文本段对应；无 MISMATCH 时 0', () => {
+  const d = fixture({ 'tools.jsonl': [], 'events.jsonl': [] });
+  const r = spawnSync(process.execPath, [BENCH, 'check', '--json', '--dir', d], { encoding: 'utf8' });
+  const j = JSON.parse(r.stdout);
+  assert.ok(j.table && Array.isArray(j.table.rows));
+  assert.ok(j.verdict && typeof j.verdict.verdict === 'string');
+  assert.ok('budget' in j && 'chain' in j);
+  assert.equal(j.hasMismatch, false);
+  assert.equal(r.status, 0);
+  fs.rmSync(d, { recursive: true, force: true });
+});

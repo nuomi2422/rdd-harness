@@ -1275,6 +1275,14 @@ function main() {
     const card3 = require('./evidence-card.js').buildCard(dir3, { since: si3 >= 0 ? argv[si3 + 1] : null, until: ui3 >= 0 ? argv[ui3 + 1] : null });
     const table = require('./lib/acceptance-table.js').build(card3, { events: read3('events.jsonl'), rdd: read3('rdd.jsonl') }, { configDir: cfg3, monitorDir: dir3 });
     const verdict = require('./lib/evidence-verdict.js').buildVerdict(card3, null);
+    if (argv.includes('--json')) {
+      const out = { table, verdict, hasMismatch: table.overall === 'MISMATCH' };
+      try { out.budget = require('./lib/budget-observe.js').build({ 'context.jsonl': read3('context.jsonl') }); } catch { out.budget = null; }
+      try { out.chain = require('./lib/taskchain-observe.js').build({ 'rdd.jsonl': read3('rdd.jsonl') }); if (out.chain) delete out.chain.rows; } catch { out.chain = null; }
+      console.log(JSON.stringify(out, null, 2));
+      process.exitCode = out.hasMismatch ? 1 : 0;
+      return;
+    }
     console.log('== 验收表 ==');
     for (const r of table.rows) console.log('  ' + String(r.verdict).padEnd(11) + r.id + ' ' + r.name + ' — ' + r.detail);
     console.log('  总判定：' + table.overall);
@@ -1318,7 +1326,6 @@ function main() {
     process.exitCode = hasMismatch ? 1 : 0;
     return;
   }
-  // 2026-11-09（044-A1）：按时刻证据包。给一个时间点，列出四条流 ±窗口 的事件与指针。
   if (cmd === 'moment') {
     const MP = require('./lib/moment-pack.js');
     const at = argv[1];
