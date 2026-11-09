@@ -32,14 +32,24 @@ function buildCard(dir, opts = {}) {
   const card = { dir: d, sources: {}, actions: null, finalRequest: null, settle: null, reasons: [] };
 
   // 动作账本：没有 tools 流就 UNKNOWN
-  if (tools === null) { card.reasons.push('tools.jsonl-missing'); card.actions = { status: 'UNKNOWN', reasons: ['tools.jsonl-missing'] }; }
+  if (tools === null) { card.reasons.push('tools.jsonl-missing'); card.actions = { status: 'UNKNOWN', attributable: 'UNKNOWN', identityKnown: null, reasons: ['tools.jsonl-missing'] }; }
   else {
     const lg = AL.build(tools, events || '', { minStreak: 3 });
+    // ★ 2026-11-09（指挥官指出）：**"动作流存在"绝不等于"可归属/完成/健康"**。
+    // 身份覆盖 0/6477 时若还叫 PRESENT，极容易被读成"动作没问题"。
+    // 所以这里拆两个维度：
+    //   rawPresent   = 原始动作流里确实有调用（只是"有数据"）
+    //   attributable = 能否归属到具体世界/会话/同伴并判断终态（身份未证时恒为 UNKNOWN）
+    const knownStr = String((lg.summary.coverage && lg.summary.coverage.identityKnown) || '0/0');
+    const kn = knownStr.split('/');
+    const allKnown = Number(kn[1]) > 0 && Number(kn[0]) === Number(kn[1]);
     card.actions = {
-      status: lg.summary.calls > 0 ? 'PRESENT' : 'UNKNOWN',
+      status: lg.summary.calls > 0 ? 'RAW_PRESENT' : 'UNKNOWN',
+      semantics: 'raw-flow-only; NOT attributable/completed/healthy',
+      attributable: allKnown ? 'PRESENT' : 'UNKNOWN',
+      identityKnown: knownStr,
       calls: lg.summary.calls,
       states: lg.summary.states,
-      identityKnown: lg.summary.coverage && lg.summary.coverage.identityKnown,
       acceptedOnly: lg.summary.acceptedOnly,
       duplicates: lg.summary.duplicates,
     };
@@ -67,7 +77,7 @@ function render(card) {
   l.push('证据卡：' + card.dir);
   l.push('来源：' + Object.entries(card.sources).map(([k, v]) => k + '=' + v).join(' '));
   const a = card.actions || {};
-  l.push('[动作] ' + (a.status || 'UNKNOWN') + ' 调用=' + (a.calls ?? '?') + ' 身份覆盖=' + (a.identityKnown || '?') + ' 仅受理=' + (a.acceptedOnly ?? '?'));
+  l.push('[动作] ' + (a.status || 'UNKNOWN') + '（仅表示原始流有数据，不代表可归属/完成/健康） 调用=' + (a.calls ?? '?') + ' 可归属=' + (a.attributable || 'UNKNOWN') + ' 身份覆盖=' + (a.identityKnown || '?') + ' 仅受理=' + (a.acceptedOnly ?? '?'));
   const f = card.finalRequest || {};
   l.push('[最终请求] ' + (f.status || 'UNKNOWN') + ' why 交付=' + (f.delivered || '?') + ' 类型=' + JSON.stringify(f.byKind || {}));
   const s = card.settle || {};
@@ -83,6 +93,7 @@ function selftest() {
   const ok = (c, m) => { if (!c) fails.push(m); };
   const card = buildCard(path.join(require('os').tmpdir(), '__no_such_dir__'));
   ok(card.actions.status === 'UNKNOWN', '①缺文件必须 UNKNOWN');
+  ok(card.actions.attributable === 'UNKNOWN', '①无可归属信息时必须 UNKNOWN');
   ok(card.reasons.includes('tools.jsonl-missing'), '②缺口要列出来');
   ok(render(card).includes('UNKNOWN'), '③渲染不空');
   return fails;

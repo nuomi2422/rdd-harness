@@ -36,6 +36,10 @@ test('有数据：动作/最终请求/结算分别判定，互不背书', (t) =>
   // 这不是 evidence-card 的问题，而是"身份未证"的真实后果：调用数会被拆开、终态也拼不起来。
   assert.equal(card.actions.calls, 2);
   assert.equal(card.actions.identityKnown, '0/2');
+  // 关键语义：原始流有数据 ≠ 可归属；身份 0/2 时 attributable 必须是 UNKNOWN
+  assert.equal(card.actions.status, 'RAW_PRESENT');
+  assert.equal(card.actions.attributable, 'UNKNOWN');
+  assert.ok(card.actions.semantics.includes('NOT attributable'));
   assert.equal(card.finalRequest.status, 'PRESENT');
   assert.equal(card.settle.status, 'PRESENT');
   assert.ok(render(card).includes('[最终请求] PRESENT'));
