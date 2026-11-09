@@ -81,13 +81,17 @@ function evaluate(runDir) {
     const ctx = lines(ev('context.jsonl'));
     const gates = ctx.filter((l) => l.includes('"type":"budget_gate"'));
     const trims = gates.map((l) => num(/"trimmed":(\d+)/, l)).filter((n) => n !== null && n > 0);
+    // 2026-11-09：trimmed 是**本地估算**（BudgetGateCalibration.trimmedEstimate），不是已裁剪；
+    // mode=shadow 时只观测不拦截。这里不能把估算当"真实生产裁剪"。
+    const modes = gates.map((l) => { const m = /"mode":"([a-z]+)"/.exec(l); return m ? m[1] : 'unknown'; });
+    const shadowOnly = gates.length > 0 && modes.every((m) => m === 'shadow');
     const toolsCounts = new Set(lines(ev('ai.jsonl')).filter((l) => l.includes('"type":"turn"')).map((l) => num(/"tools":(\d+)/, l)).filter((n) => n !== null));
     if (!ctx.length) add('S2', 'NOT_EXERCISED', '无 context.jsonl 证据', []);
-    else if (trims.length === 0) add('S2', 'NOT_EXERCISED', '窗口内无 trimmed>0 的 budget_gate（未触发生产裁剪）', ['evidence/context.jsonl']);
+    else if (trims.length === 0) add('S2', 'NOT_EXERCISED', '窗口内无 trimmed>0 的 budget_gate（未记录估算）', ['evidence/context.jsonl']);
+    else if (shadowOnly) add('S2', 'NOT_EXERCISED', '窗口内只有 shadow 估算（trimmed 是本地估算，≠ 已实际裁剪）', ['evidence/context.jsonl']);
     else if (toolsCounts.size > 1) add('S2', 'FAIL', '窗口内 tools 字段变化（callable 集不稳定）: ' + [...toolsCounts].join(','), ['evidence/ai.jsonl']);
-    else add('S2', 'PASS', '真实生产裁剪 ' + trims.length + ' 次（trimmed>0），tools 计数恒定=' + [...toolsCounts].join(','), ['evidence/context.jsonl', 'evidence/ai.jsonl']);
+    else add('S2', 'PASS', '非 shadow 模式记录估算 ' + trims.length + ' 次（trimmed>0，仍为估算非实测），tools 计数恒定=' + [...toolsCounts].join(','), ['evidence/context.jsonl']);
   }
-
   // ---------- S3 ACT ----------
   {
     const invAfterRaw = ev('inventory-after.json') ? ev('inventory-after.json').toString('utf8') : '';
