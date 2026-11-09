@@ -63,3 +63,13 @@ test('校准回退样本（source=trimmed 或 providerChanged）→ 语义标 UN
   assert.equal(r2.uncalibrated, 1);
   assert.equal(r2.providerChanged, 1);
 });
+test('旧 schema：budget_gate 没有 source 字段 → 视为未校准（PARTIAL），不当已校准', () => {
+  const r = B.build({ 'context.jsonl': [row({type:'budget_gate',data:{trimmed:100,gateInput:30}})].join('\n') });
+  assert.equal(r.uncalibrated, 1);
+  assert.equal(r.status, 'PARTIAL');
+});
+
+test('缺流：完全没有 context.jsonl 内容 → UNKNOWN', () => {
+  assert.equal(B.build({ 'context.jsonl': '' }).status, 'UNKNOWN');
+  assert.equal(B.build({}).status, 'UNKNOWN');
+});
