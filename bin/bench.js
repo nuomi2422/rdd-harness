@@ -1242,7 +1242,7 @@ function main() {
       if (r5.rows) {
         console.log('  快照=' + r5.snapshots + ' 链=' + r5.chains + ' 目标=' + r5.goals + ' 版本=' + r5.verMin + '→' + r5.verMax + ' 版本回退次数=' + r5.verRegressions);
         console.log('  旧回执被忽略=' + r5.staleResultsIgnored + (r5.staleZeroNote ? '（' + r5.staleZeroNote + '）' : ''));
-        console.log('  版本缺口=' + r5.verGaps + (r5.verGapsNote ? '（fast=' + r5.fastGaps + ' slow=' + r5.slowGaps + '）' : '') + ' 时间乱序=' + r5.tsRegressions + ' 窗口=' + (r5.window ? (r5.window.from + '~' + r5.window.to + ' 共' + r5.window.spanSec + 's') : 'UNKNOWN') + ' 会话=' + r5.sessions);
+        console.log('  版本缺号=' + r5.verGaps + ' 跳变=' + (r5.fastGaps + r5.slowGaps) + (r5.verGaps ? '（fast=' + r5.fastGaps + ' slow=' + r5.slowGaps + '；fast 多为节流，不等于丢失）' : '') + ' 时间乱序=' + r5.tsRegressions + ' 窗口=' + (r5.window ? (r5.window.from + '~' + r5.window.to + ' 共' + r5.window.spanSec + 's') : 'UNKNOWN') + ' 会话=' + r5.sessions);
       }
     }
     return;
