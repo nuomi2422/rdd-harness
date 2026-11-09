@@ -64,3 +64,13 @@ test('真实流：信封自洽但证据指向别的流/别的同伴 → 仍不�
   const r = G.verifyIndependent(claim, resolve, { eventKey: 'ev-y', trustedSources: ['events.jsonl'] });
   assert.equal(r.independent, false, '指向别的同伴/别的流不得判独立');
 });
+test('真实流：证据卡与总判定（只读）——观测窗口可见，总判定不得 PRESENT', { skip: has ? false : '无真实 monitor 文件' }, () => {
+  const { buildCard } = require('../evidence-card');
+  const V = require('./evidence-verdict');
+  const card = buildCard(DIR);
+  assert.ok(card.observedWindow, '必须带观测窗口');
+  assert.equal(card.observedWindow.scope, 'observed-bytes-only');
+  const v = V.buildVerdict(card, null);
+  assert.notEqual(v.verdict, 'PRESENT', '真实数据当前不可能给 PRESENT');
+  assert.ok(v.reasons.length > 0, '必须说明卡在哪');
+});
