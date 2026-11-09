@@ -53,8 +53,12 @@ function makeVerifiedCoverage(evidence) {
     windowCompleteness: (window && window.completeness === 'verified-for-observed-window') ? 'verified-for-observed-window' : 'unproven',
     scope: 'content-immutable-since-read',
     files: entries.map(([f]) => f),
-    // 窗口覆盖范围（哪些流、从哪到哪），供消费端展示，避免被读成"全局完整"
-    windowScope: { files: entries.map(([f]) => f), from: window && window.from, to: window && window.to },
+    // 命名刻意不用 'window'：这是"**观测到的字节范围**"，不是业务时间窗。
+    // 消费端看到 observedWindow 就应该知道它只描述"我读了哪些流的哪段字节"。
+    observedWindow: {
+      scope: 'observed-bytes-only',
+      streams: (window && window.streams) || Object.fromEntries(entries.map(([f]) => [f, {}])),
+    },
   });
 }
 

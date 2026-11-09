@@ -85,8 +85,8 @@ function actionEvidence(lg, toolsText, gaps, coverage) {
   if (gapList.length) reasons.push('log-gap');
   if (!contentVerified) reasons.push('coverage-limited');
   else if (!windowVerified) reasons.push('window-completeness-unproven');
-  const windowScope = (coverage && coverage.windowScope) || null;
-  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, caveats: coverageCaveats, windowScope, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
+  const observedWindow = (coverage && coverage.observedWindow) || null;
+  return Object.assign({}, s, { status: reasons.length ? 'UNKNOWN' : 'PRESENT', observedFrom: 'tools.jsonl+events.jsonl', reasons, caveats: coverageCaveats, observedWindow, blockers: Array.isArray(lg && lg.blockers) ? lg.blockers : [] });
 }
 
 function blockerScopeKey(b) {
@@ -1150,6 +1150,7 @@ async function cmdRun(opts) {
           return {
             start: env.timings && env.timings.stimulusSentAt || null,
             completeness: (w.ok && !Object.keys(gaps).length) ? 'verified-for-observed-window' : 'unproven',
+            streams: w.files,
           };
         })(),
         gaps,
