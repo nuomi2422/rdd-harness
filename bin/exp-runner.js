@@ -1161,6 +1161,18 @@ async function cmdRun(opts) {
     coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null, reject: String(e.message).slice(0, 120) };
   }
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
+  // 2026-11-09（指挥官要求）：窗口范围要**无条件**落下来，不能只有 verified 覆盖时才带。
+  // 只声明"我读了哪些流的哪段字节"，与业务时间完整无关。
+  try {
+    const w = reader.verifyWindow(['tools.jsonl', 'events.jsonl']);
+    env.actions.observedWindow = {
+      scope: 'observed-bytes-only',
+      ok: !!w.ok,
+      streams: Object.fromEntries(Object.entries(w.files || {}).map(([k, v]) => [k, { ok: !!v && !v.missing, from: v && v.from, to: v && v.to }])),
+    };
+  } catch (e) {
+    env.actions.observedWindow = { scope: 'observed-bytes-only', ok: false, error: String(e.message).slice(0, 120) };
+  }
     const actionStates = lg.summary.states || {};
     log(runDir, 'actions', '调用 ' + lg.summary.calls + ' 条：completed=' + (actionStates.completed || 0)
       + ' failed=' + (actionStates.failed || 0)
@@ -1172,7 +1184,8 @@ async function cmdRun(opts) {
       + ' 重复投递=' + ((lg.summary.duplicates || {}).results ?? 'UNKNOWN')
       + ' 证据状态=' + env.actions.status + ' 原因=' + env.actions.reasons.join(',')
       // 2026-11-09：caveat 必须跟着状态落日志，否则 PRESENT 会被读成"完整无保留"
-      + ' 保留=' + ((env.actions.caveats || []).join(',') || 'none'));
+      + ' 保留=' + ((env.actions.caveats || []).join(',') || 'none')
+      + ' 观测窗=' + (env.actions.observedWindow ? (env.actions.observedWindow.ok ? '本窗字节完整(非业务完整)' : '不完整') + '/' + Object.keys(env.actions.observedWindow.streams || {}).length + '流' : 'UNKNOWN'));
   } catch (e) {
     env.actions = { status: 'UNKNOWN', reason: String(e.message).slice(0, 200) };
     log(runDir, 'actions', '动作账本构建失败（照实记 UNKNOWN）: ' + e.message);

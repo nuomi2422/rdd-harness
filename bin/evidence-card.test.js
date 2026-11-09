@@ -74,3 +74,22 @@ test('迟到 + 无身份：不能配对（这正是缺身份的代价，不得�
   assert.equal(card.actions.identityKnown, '0/2');
   assert.equal(card.actions.attributable, 'UNKNOWN');
 });
+test('缺流：没有 context.jsonl → 最终请求 UNKNOWN，不是"没有 why"', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec6-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), call + '\n');
+  const card = buildCard(d);
+  assert.equal(card.finalRequest.status, 'UNKNOWN');
+  assert.ok(card.sources.context === 'missing');
+});
+
+test('窗口范围无条件可见：即使覆盖等级是 limited，也带 observedWindow', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec7-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), call + '\n' + result + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  assert.ok(card.observedWindow, '必须带观测窗');
+  assert.equal(card.observedWindow.scope, 'observed-bytes-only');
+  assert.ok(render(card).includes('非业务时间完整') || render(card).includes('字节窗口'));
+});
