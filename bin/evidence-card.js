@@ -79,7 +79,8 @@ function buildCard(dir, opts = {}) {
   // 缺口与观测窗口：有缺口就整体降级并显式记，不让"读到一半"看起来像完整。
   if (reader) {
     card.gaps = reader.gaps;
-    card.observedWindow = reader.verifyWindow();
+    const w = reader.verifyWindow(['tools.jsonl', 'events.jsonl']);
+    card.observedWindow = { scope: 'observed-bytes-only', ok: !!w.ok, files: w.files };
     if (Object.keys(reader.gaps).length) card.reasons.push('log-gap');
   }
   card.sources = {
