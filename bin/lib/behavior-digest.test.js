@@ -64,3 +64,18 @@ test('窗口边界：闭区间两端都算', () => {
   const res = BD.buildDigest({ tools, ai: '', events: '', rdd: '', sinceMs: a, untilMs: b });
   assert.equal(res.counts.did, 2);
 });
+test('可回查：每条 sources 指针都能在对应文件行号上找到该事件', () => {
+  const files = {
+    'tools.jsonl': [L({ type: 'tool_call', timestamp: ts(0), data: { tool: 'mine', tool_call_id: '1' } }),
+      L({ type: 'tool_result', timestamp: ts(1), data: { tool: 'mine', tool_call_id: '1', success: true } })].join('\n'),
+    'ai.jsonl': L({ type: 'assistant', timestamp: ts(2), data: { text: 'x' } }),
+  };
+  const res = BD.buildDigest({ ai: files['ai.jsonl'], tools: files['tools.jsonl'], events: '', rdd: '',
+    sinceMs: 0, untilMs: Date.UTC(2026, 10, 9, 7, 0, 0) });
+  assert.ok(res.sources.length >= 3, '应有至少三条来源指针');
+  for (const s of res.sources) {
+    const lines = files[s.file].split('\n');
+    const row = JSON.parse(lines[s.line - 1]);
+    assert.equal(String(row.type), s.type, '指针 ' + s.file + ':' + s.line + ' 必须指到同类型事件');
+  }
+});

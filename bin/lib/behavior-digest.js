@@ -102,8 +102,11 @@ function buildDigest(input) {
   let text = parts.join('\n');
   let truncated = false;
   if (text.length > LIMIT) { text = text.slice(0, LIMIT - 20) + '\n…（已截断）'; truncated = true; }
+  // 可回查指针：每条摘要都能指回原始行（047 验收第 1 条）。
+  const sources = [].concat(said, did, done).map((r) => ({ file: r.file, line: r.line, type: String(r.o.type || '') }));
   return {
     text,
+    sources,
     truncated,
     counts: { said: said.length, did: did.length, done: done.length, events: events.length, anomalies: anomalies.length },
     anomalies,
