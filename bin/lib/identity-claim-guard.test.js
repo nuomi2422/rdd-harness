@@ -43,7 +43,7 @@ test('接到账本：未通过检查的 claim 不得让身份变已知', () => {
   const lg = AL.build(text, '', { resolveIdentity: gated });
   assert.equal(lg.summary.coverage.identityKnown, '0/2');
 });
-test('端到端（模拟可信来源，仅测试）：接线齐全时身份可变 KNOWN 且消费者带 caveat', () => {
+test('仅证明给定假设成立时 JS 链路算得对（不证明接线正确）', () => {
   const { actionEvidence } = require('../exp-runner');
   // 测试内自建的"独立来源"：显式 eventKey + provenance，仅用于证明接线可行，不代表生产存在。
   const SOURCE = { 'ev-1': { eventKey: 'ev-1', provenance: 'test-source/index', worldId: 'w', serverSession: 's', companion: 'c' } };
