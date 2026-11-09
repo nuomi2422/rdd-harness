@@ -1298,7 +1298,22 @@ function main() {
       console.log('== 任务链 ==');
       console.log('  ' + t2.status + ' 快照=' + (t2.snapshots || 0) + ' 链=' + (t2.chains || 0) + ' 版本=' + t2.verMin + '→' + t2.verMax + ' 缺号=' + (t2.verGaps || 0) + ' 旧回执=' + (t2.staleResultsIgnored || 0) + ' 会话=' + (t2.sessions || 0));
     } catch { console.log('== 任务链 =='); console.log('  UNKNOWN（生成失败）'); }
-    const hasMismatch = table.overall === 'MISMATCH';
+    // 2026-11-10：把"还没判的"列出来，防止把 UNKNOWN 当通过。
+    try {
+      const open = [];
+      const v = verdict && verdict.reasons ? verdict.reasons : [];
+      if (v.includes('identity-not-attributable')) open.push('身份');
+      const r1 = table.rows.find((r) => r.id === 'R1'); if (r1 && r1.verdict === 'UNKNOWN') open.push('why');
+      const r2r = table.rows.find((r) => r.id === 'R2'); if (r2r && r2r.verdict === 'UNKNOWN') open.push('结算');
+      const r4 = table.rows.find((r) => r.id === 'R4'); if (r4 && r4.verdict === 'UNKNOWN') open.push('侧身份');
+      const b3 = require('./lib/budget-observe.js').build({ 'context.jsonl': read3('context.jsonl') });
+      if (b3.trimmedIsEstimate) open.push('预算(仅估算)');
+      const t3 = require('./lib/taskchain-observe.js').build({ 'rdd.jsonl': read3('rdd.jsonl') });
+      if (t3.staleResultsIgnored === 0) open.push('旧回执');
+      if (t3.verGaps) open.push('快照缺口');
+      console.log('== 待判 ==');
+      console.log('  ' + (open.length ? open.join(' / ') + '（均未判，不能当通过）' : '无'));
+    } catch { console.log('== 待判 =='); console.log('  UNKNOWN（生成失败）'); }
     process.exitCode = hasMismatch ? 1 : 0;
     return;
   }
