@@ -1229,6 +1229,22 @@ function main() {
     else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
+  // 2026-11-09（044）：预算可观测性——gate/trimmed/usage 计数与坏值分开报。
+  if (cmd === 'budget') {
+    const B = require('./lib/budget-observe.js');
+    const di4 = argv.indexOf('--dir');
+    const dir4 = di4 >= 0 ? argv[di4 + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const read4 = (n) => { try { return fs.readFileSync(path.join(dir4, n), 'utf8'); } catch { return ''; } };
+    const res4 = B.build({ 'context.jsonl': read4('context.jsonl'), 'events.jsonl': read4('events.jsonl'), 'rdd.jsonl': read4('rdd.jsonl'), 'tools.jsonl': read4('tools.jsonl') });
+    if (argv.includes('--json')) console.log(JSON.stringify(res4, null, 2));
+    else {
+      console.log('[预算] ' + res4.status + (res4.reasons.length ? '（' + res4.reasons.join(',') + '）' : ''));
+      console.log('  budget_gate=' + res4.gateEvents + ' 其中 trimmed>0=' + res4.trimmedEvents + ' 合计裁剪=' + res4.trimmedTotal);
+      console.log('  budget_settle=' + res4.settleEvents + ' llm_usage=' + res4.usageEvents + ' totalTokens=' + res4.tokensTotal);
+      console.log('  llm_request=' + res4.requestEvents + ' promptTokens=' + res4.promptTokensTotal + ' 坏值=' + res4.invalid);
+    }
+    return;
+  }
   // 2026-11-09：一条命令给全部读端结论（验收表 + 证据卡总判定 + 摘要头），只读。
   if (cmd === 'check') {
     const di3 = argv.indexOf('--dir');
@@ -1303,7 +1319,7 @@ function main() {
     if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
     process.exit(noshotCmd(path.resolve(rd), null));
   }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|check|verify|compare|compare-many|report|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|check|budget|verify|compare|compare-many|report|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */
