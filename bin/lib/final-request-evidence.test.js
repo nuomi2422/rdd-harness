@@ -49,3 +49,12 @@ test('可选代次：带 rationaleGeneration 时原样带出，缺省为 null', 
     rationaleSource: 'x' } }));
   assert.equal(noGen.events[0].rationaleGeneration, null);
 });
+test('代次顺序：执行请求用旧代次必须被判 STALE', () => {
+  const mk = (kind, gen) => ({ index: 0, requestKind: kind, rationaleGeneration: gen });
+  const ok = FR.checkGenerationOrder([{ ...mk('plan', 9), index: 0 }, { ...mk('execute', 10), index: 1 }]);
+  assert.equal(ok.status, 'PRESENT');
+  const stale = FR.checkGenerationOrder([{ ...mk('plan', 10), index: 0 }, { ...mk('execute', 9), index: 1 }]);
+  assert.equal(stale.status, 'STALE');
+  assert.equal(stale.stale[0].execute, 9);
+  assert.equal(stale.stale[0].plan, 10);
+});

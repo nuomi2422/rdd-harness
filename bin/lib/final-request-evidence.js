@@ -136,10 +136,32 @@ function selftest() {
   return fails;
 }
 
-module.exports = { build, checkEvent, REQUIRED, selftest };
+/**
+ * 代次顺序断言（2026-11-09）：执行请求用的理由代次不能低于它之前最后一次规划请求的代次。
+ * 为什么：旧异步回调写晚了会让"执行用的是旧理由"，而日志里看起来完全正常。
+ * 缺任何一侧（没有规划请求 / 没有代次字段）→ UNKNOWN，不下结论。
+ */
+function checkGenerationOrder(reported) {
+  const plan = reported.filter((e) => e.requestKind === 'plan' && Number.isFinite(e.rationaleGeneration));
+  const exec = reported.filter((e) => e.requestKind === 'execute' && Number.isFinite(e.rationaleGeneration));
+  if (!plan.length) return { status: 'UNKNOWN', reasons: ['no-plan-requests'], stale: [] };
+  if (!exec.length) return { status: 'UNKNOWN', reasons: ['no-execute-generations'], stale: [] };
+  const stale = [];
+  for (const e of exec) {
+    const prior = plan.filter((p) => p.index < e.index);
+    if (!prior.length) continue;
+    const maxPrior = Math.max(...prior.map((p) => p.rationaleGeneration));
+    if (e.rationaleGeneration < maxPrior) stale.push({ index: e.index, execute: e.rationaleGeneration, plan: maxPrior });
+  }
+  return stale.length
+    ? { status: 'STALE', reasons: ['stale-rationale-generation'], stale }
+    : { status: 'PRESENT', reasons: [], stale: [] };
+}
+
+module.exports = { build, checkEvent, checkGenerationOrder, REQUIRED, selftest };
 
 if (require.main === module) {
   const fails = selftest();
   if (fails.length) { console.error('final-request-evidence selftest FAIL: ' + fails.join(' | ')); process.exit(1); }
-  console.log('final-request-evidence selftest PASS（7 组）');
+  console.log('final-request-evidence selftest PASS（10 组）');
 }
