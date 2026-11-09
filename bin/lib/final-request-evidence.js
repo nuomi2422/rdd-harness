@@ -90,6 +90,9 @@ function build(contextText) {
       stampConflict: d.stamp_conflict === true,
       stampWorldId: d.stamp_world_id ?? null,
       stampServerSession: d.stamp_server_session ?? null,
+      // 2026-11-09：可选。生产侧若把 rationale 代次带上，读端就能发现
+      // "最终请求用的是旧代次理由"（异步回调写晚了）这类错误，而不是只看有没有 why。
+      rationaleGeneration: Number.isFinite(d.rationaleGeneration) ? d.rationaleGeneration : null,
     };
   });
   const wellFormed = reported.filter((r) => r.ok).length;

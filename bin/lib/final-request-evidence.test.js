@@ -37,3 +37,15 @@ test('坏行显式记录，不静默吞掉', () => {
   assert.ok(res.reasons.includes('malformed-lines'));
   assert.equal(res.total, 1);
 });
+test('可选代次：带 rationaleGeneration 时原样带出，缺省为 null', () => {
+  const withGen = FR.build(JSON.stringify({ type: 'final_request', data: {
+    companion_id: 'c', requestKind: 'execute', turn: 3, rationalePresent: true, whyPresent: true,
+    whyStatus: 'PRESENT', risksPresent: true, sourcePresent: true, conditionsPresent: false,
+    rationaleSource: 'planner_tool:rdd_patch:x', rationaleGeneration: 10 } }));
+  assert.equal(withGen.events[0].rationaleGeneration, 10);
+  const noGen = FR.build(JSON.stringify({ type: 'final_request', data: {
+    companion_id: 'c', requestKind: 'execute', turn: 3, rationalePresent: true, whyPresent: true,
+    whyStatus: 'PRESENT', risksPresent: true, sourcePresent: true, conditionsPresent: false,
+    rationaleSource: 'x' } }));
+  assert.equal(noGen.events[0].rationaleGeneration, null);
+});
