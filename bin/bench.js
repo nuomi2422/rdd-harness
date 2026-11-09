@@ -1227,6 +1227,24 @@ function main() {
     else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
+  // 2026-11-09（047-B）：行为轨迹摘要。只读，输出 ≤1200 字，必带异常摘要与来源行号。
+  if (cmd === 'digest') {
+    const BD = require('./lib/behavior-digest.js');
+    const di = argv.indexOf('--dir');
+    const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const si = argv.indexOf('--since');
+    const readIf = (n) => { try { return fs.readFileSync(path.join(dir, n), 'utf8'); } catch { return ''; } };
+    const sinceArg = si >= 0 ? argv[si + 1] : '30m';
+    const m = /^(\d+)m$/.exec(String(sinceArg));
+    const sinceMs = m ? Date.now() - Number(m[1]) * 60_000 : Date.parse(sinceArg);
+    const res = BD.buildDigest({
+      ai: readIf('ai.jsonl'), tools: readIf('tools.jsonl'), events: readIf('events.jsonl'), rdd: readIf('rdd.jsonl'),
+      sinceMs: Number.isFinite(sinceMs) ? sinceMs : Date.now() - 30 * 60_000, untilMs: Date.now(),
+    });
+    if (argv.includes('--json')) console.log(JSON.stringify(res, null, 2));
+    else console.log(res.text);
+    return;
+  }
   if (cmd === 'verify') { const code = verifyCmd(argv); process.exit(code); }
   if (cmd === 'noshot') {
     const rd = argv[1];
