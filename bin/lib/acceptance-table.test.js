@@ -201,3 +201,13 @@ test('R5：吸收学习者探针 JSON 行（口径一致，不另造）', () => 
   assert.equal(d.readFailed, null);
   assert.equal(d.source, 'learner-probe');
 });
+test('R3：新 schema counts 形态算形状完整；旧 reason 也算', () => {
+  const fs2 = require('fs'); const os2 = require('os'); const path2 = require('path');
+  const cfg = () => { const d = fs2.mkdtempSync(path2.join(os2.tmpdir(), 'r3cfg-')); fs2.writeFileSync(path2.join(d, 'skills.jsonl'), ''); return d; };
+  const okCounts = AT.build(card(), { events: JSON.stringify({ type: 'knowledge_gap', data: { counts: { 'body-missing': 2 } } }) + '\n', rdd: '' }, { configDir: cfg() });
+  assert.equal(okCounts.rows.find((r) => r.id === 'R3').verdict, 'MATCH');
+  const okReason = AT.build(card(), { events: JSON.stringify({ type: 'knowledge_gap', data: { reason: 'body-missing' } }) + '\n', rdd: '' }, { configDir: cfg() });
+  assert.equal(okReason.rows.find((r) => r.id === 'R3').verdict, 'MATCH');
+  const bad = AT.build(card(), { events: JSON.stringify({ type: 'knowledge_gap', data: { counts: { 'x': 'bad' } } }) + '\n', rdd: '' }, { configDir: cfg() });
+  assert.equal(bad.rows.find((r) => r.id === 'R3').verdict, 'MISMATCH');
+});

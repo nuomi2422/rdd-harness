@@ -128,7 +128,16 @@ function build(card, streams, opts) {
   const gaps = [...parse(ev).rows, ...parse(rd).rows].filter(isGap);
   if (!gaps.length) push('R3', 'knowledge_gap', 'UNKNOWN', '没有 body-missing/read-failed 事件');
   else {
-    const okShape = gaps.every((g) => g.data && (g.data.reason || g.data.gapReason));
+    // 2026-11-10：与 R5 同口径——新 schema 用 counts，旧 schema 用 reason/gapReason，两种形态都算"形状完整"。
+    const okShape = gaps.every((g) => {
+      const d = g.data || {};
+      if (d.reason || d.gapReason) return true;
+      if (d.counts && typeof d.counts === 'object' && !Array.isArray(d.counts)) {
+        const keys = Object.keys(d.counts);
+        return keys.length > 0 && keys.every((k) => { const v = Number(d.counts[k]); return Number.isFinite(v) && v > 0; });
+      }
+      return false;
+    });
     push('R3', 'knowledge_gap', okShape ? 'MATCH' : 'MISMATCH', 'gap 事件 ' + gaps.length + ' 条');
   }
 
