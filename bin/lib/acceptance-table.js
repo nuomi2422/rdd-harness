@@ -29,7 +29,64 @@ const isGap = (o) => {
   return /knowledge_gap|knowledge_gap_body|knowledge_gap_read/.test(t + ' ' + r) || /body-missing|read-failed/.test(r);
 };
 
-function build(card, streams) {
+
+/**
+ * R5：skills 检索是否真的进了运行期上下文（口径对齐 scripts/verify-skills-retrieval.js）。
+ * 期望 = skills.jsonl 里 status∈{TRIAL,PUBLISHED} 的条数与正文可取性；
+ * 实际 = runtime_state 的 data.context 里出现 skill entry 的次数；缺口 = knowledge_gap 按 reason 计数。
+ * 无数据 → UNKNOWN；有数据但 0 命中 → NOT_COVERED（0 不当通过）；只输出计数与指针，不含正文。
+ */
+function skillsRow(opts, streams) {
+  const fs = require('fs');
+  const path = require('path');
+  const configDir = opts && opts.configDir;
+  const out = { retrievable: 0, deliverableWithBody: 0, missingBody: 0, schemes: {}, actualEntries: 0, gaps: {}, pointers: [] };
+  if (!configDir) return { verdict: 'UNKNOWN', detail: '未提供 configDir', data: out };
+  let registryReadable = true;
+  try {
+    const lines = fs.readFileSync(path.join(configDir, 'skills.jsonl'), 'utf8').replace(/^\uFEFF/, '').split(/\r?\n/).filter(Boolean);
+    for (const line of lines) {
+      let e; try { e = JSON.parse(line); } catch { continue; }
+      if (!['TRIAL', 'PUBLISHED'].includes(e.status)) continue;
+      out.retrievable += 1;
+      const ref = String(e.bodyRef || '');
+      const scheme = ref.includes(':') ? ref.slice(0, ref.indexOf(':')) : 'none';
+      out.schemes[scheme] = (out.schemes[scheme] || 0) + 1;
+      if (!ref.startsWith('skill-body:')) { out.missingBody += 1; continue; }
+      const body = path.join(configDir, 'skill-bodies', ref.substring('skill-body:'.length));
+      if (fs.existsSync(body)) out.deliverableWithBody += 1; else out.missingBody += 1;
+    }
+    out.pointers.push('skills.jsonl');
+  } catch { registryReadable = false; }
+  const all = [];
+  for (const [file, text] of [['events.jsonl', (streams && streams.events) || ''], ['rdd.jsonl', (streams && streams.rdd) || '']]) {
+    const lines = String(text).split(/\r?\n/);
+    for (let i = 0; i < lines.length; i += 1) {
+      const t = lines[i].trim();
+      if (!t) continue;
+      try { all.push({ o: JSON.parse(t), file, line: i + 1 }); } catch { /* 坏行跳过 */ }
+    }
+  }
+  for (const r of all) {
+    const d = r.o.data || {};
+    if (String(r.o.type || '').includes('knowledge_gap')) {
+      const reason = d.reason || 'unknown';
+      out.gaps[reason] = (out.gaps[reason] || 0) + 1;
+      continue;
+    }
+    const ctx = typeof d.context === 'string' ? d.context : '';
+    if (ctx.includes('<entry ref="skill:')) {
+      out.actualEntries += 1;
+      out.pointers.push(r.file + ':' + r.line);
+    }
+  }
+  if (!registryReadable) return { verdict: 'UNKNOWN', detail: 'skills.jsonl 不可读', data: out };
+  if (out.retrievable === 0) return { verdict: 'UNKNOWN', detail: 'registry 里没有可检索技能', data: out };
+  if (out.actualEntries === 0) return { verdict: 'NOT_COVERED', detail: '运行期上下文 0 条 skill entry（0 不算通过）', data: out };
+  if (out.deliverableWithBody === 0) return { verdict: 'MISMATCH', detail: '有命中但正文都取不到', data: out };
+  return { verdict: 'MATCH', detail: 'retrievable=' + out.retrievable + ' 命中=' + out.actualEntries + ' 可取正文=' + out.deliverableWithBody, data: out };
+}
+function build(card, streams, opts) {
   const rows = [];
   const push = (id, name, verdict, detail) => rows.push({ id, name, verdict, detail });
 
@@ -66,8 +123,10 @@ function build(card, streams) {
       claimedVerified.length ? '出现身份已验证声明（应为 UNKNOWN）' : '全部 UNKNOWN（符合预期）');
   }
 
-  const overall = rows.some((r) => r.verdict === 'MISMATCH') ? 'MISMATCH'
-    : rows.some((r) => r.verdict === 'UNKNOWN') ? 'UNKNOWN' : 'MATCH';
+  const r5 = skillsRow(opts, streams);
+  rows.push({ id: 'R5', name: 'skills 检索', verdict: r5.verdict, detail: r5.detail, data: r5.data });
+  const rank = { MISMATCH: 3, NOT_COVERED: 2, UNKNOWN: 1, MATCH: 0 };
+  const overall = rows.reduce((worst, r) => (rank[r.verdict] > rank[worst] ? r.verdict : worst), 'MATCH');
   return { overall, rows };
 }
 
