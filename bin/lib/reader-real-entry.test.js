@@ -42,3 +42,16 @@ test('真实摘要：sources 指针必须逐条能对回原行', { skip: has ? f
     assert.equal(String(row.type), s2.type, '指针 ' + s2.file + ':' + s2.line + ' 必须指到同类型事件');
   }
 });
+test('真实时刻证据包：每条指针都要能对回同一行同一类型', { skip: has ? false : '无真实 monitor 文件' }, () => {
+  const MPk = require('./moment-pack');
+  const toolsText = fs.readFileSync(path.join(DIR, 'tools.jsonl'), 'utf8');
+  const rows = toolsText.split(/\r?\n/).filter(Boolean);
+  const last = rows[rows.length - 1];
+  const ts = JSON.parse(last).timestamp;
+  const res = MPk.pack({ 'tools.jsonl': toolsText }, ts, { spanSec: 5 });
+  for (const r of res.rows) {
+    const line = fs.readFileSync(path.join(DIR, r.file), 'utf8').split(/\r?\n/)[r.line - 1];
+    const obj = JSON.parse(line);
+    assert.equal(String(obj.type), r.type, r.file + ':' + r.line + ' 类型必须一致');
+  }
+});
