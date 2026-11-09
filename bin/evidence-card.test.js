@@ -113,3 +113,16 @@ test('回归守护：exp-runner 不得私接 resolver（身份未证，接了就
   const code = src.split('\n').filter((l) => !/^\s*\/\//.test(l)).join('\n');
   assert.ok(!/resolveIdentity/.test(code), '若将来要接 resolver，必须先满足事件绑定+可信来源，并同步改这条测试');
 });
+test('时间窗过滤：只统计窗口内事件，窗口外不计', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec9-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const row = (ts, id) => JSON.stringify({ type: 'tool_call', session: 'run-1', timestamp: ts,
+    data: { companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: id } });
+  fs.writeFileSync(path.join(d, 'tools.jsonl'),
+    row('2026-11-09T05:30:00Z', 'a') + '\n' + row('2026-11-09T08:30:00Z', 'b') + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const all = buildCard(d);
+  const win = buildCard(d, { since: '2026-11-09T05:00:00Z', until: '2026-11-09T06:00:00Z' });
+  assert.equal(all.actions.calls, 2);
+  assert.equal(win.actions.calls, 1, '时间窗内应只算 1 条');
+});

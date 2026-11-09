@@ -22,6 +22,30 @@ function readIf(p) {
   try { return fs.readFileSync(p, 'utf8'); } catch { return null; }
 }
 
+/**
+ * 按时间窗过滤原始行：只保留时间戳落在 [since, until] 的事件。
+ * 认 `timestamp` 或 `at` 字段；没有时间字段的行**保留**（交给下游判 malformed），不静默丢。
+ */
+function filterByWindow(text, since, until) {
+  if (!since && !until) return text;
+  const lo = since ? Date.parse(since) : -Infinity;
+  const hi = until ? Date.parse(until) : Infinity;
+  if (!Number.isFinite(lo) && !Number.isFinite(hi)) return text;
+  const out = [];
+  for (const line of String(text || '').split(/\r?\n/)) {
+    if (!line.trim()) continue;
+    let t = NaN;
+    try {
+      const o = JSON.parse(line);
+      const raw = o.timestamp || o.at || (o.data && (o.data.timestamp || o.data.at));
+      t = raw ? Date.parse(raw) : NaN;
+    } catch { out.push(line); continue; }
+    if (!Number.isFinite(t)) { out.push(line); continue; }
+    if (t >= lo && t <= hi) out.push(line);
+  }
+  return out.join('\n');
+}
+
 function buildCard(dir, opts = {}) {
   const d = dir || '';
   // 2026-11-09：默认走生产读取器（monitor-reader）拿缺口/窗口信号，
@@ -35,7 +59,8 @@ function buildCard(dir, opts = {}) {
   const readThrough = (name) => {
     if (!reader) return readIf(path.join(d, name));
     const chunk = reader.pull(name);
-    return chunk && chunk.length ? chunk : (readIf(path.join(d, name)) || '');
+    const raw = chunk && chunk.length ? chunk : (readIf(path.join(d, name)) || '');
+    return filterByWindow(raw, opts.since, opts.until);
   };
   const tools = fs.existsSync(path.join(d, 'tools.jsonl')) ? readThrough('tools.jsonl') : null;
   const events = fs.existsSync(path.join(d, 'events.jsonl')) ? readThrough('events.jsonl') : null;
@@ -128,6 +153,8 @@ module.exports = { buildCard, render, selftest };
 if (require.main === module) {
   const argv = process.argv.slice(2);
   const di = argv.indexOf('--dir');
+  const si = argv.indexOf('--since');
+  const ui = argv.indexOf('--until');
   const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
   if (argv.includes('--selftest')) {
     const fails = selftest();
@@ -135,7 +162,7 @@ if (require.main === module) {
     console.log('evidence-card selftest PASS（3 组）');
     process.exit(0);
   }
-  const card = buildCard(dir);
+  const card = buildCard(dir, { since: si >= 0 ? argv[si + 1] : null, until: ui >= 0 ? argv[ui + 1] : null });
   if (argv.includes('--json')) console.log(JSON.stringify(card, null, 2));
   else console.log(render(card));
 }
