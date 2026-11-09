@@ -44,11 +44,18 @@ function checkPreDeadline(items, opts) {
       const domA = sources[String(it.atSource)].clockDomain || it.atSource;
       const domB = sources[String(rec.atSource)].clockDomain || rec.atSource;
       if (domA !== domB) { out.unknown.push({ id: it.id, ref: r, why: 'cross-clock-domain' }); allOk = false; continue; }
-      const skew = Math.min(skewFor(it.atSource), skewFor(rec.atSource));
+      // 2026-11-09（指挥官指出）：**不能用 min 误差界**。两个独立测量各自带不确定度，
+      // 应比较区间端点：证据最早时刻 > 使用最晚时刻 → 违规；反之重叠或未知 → UNKNOWN。
+      const eUse = skewFor(it.atSource);
+      const eRef = skewFor(rec.atSource);
+      if (!Number.isFinite(eUse) || !Number.isFinite(eRef)) { out.unknown.push({ id: it.id, ref: r, why: 'missing-error-bound' }); allOk = false; continue; }
       const tRef = Date.parse(rec.at);
       const tUse = Date.parse(it.at);
-      if (tRef > tUse + skew) { out.late.push({ id: it.id, ref: r, usedAt: it.at, refAt: rec.at, skewMs: skew }); allOk = false; }
-      else if (tRef === tUse) { out.sameInstant++; }
+      const useLow = tUse - eUse, useHigh = tUse + eUse;
+      const refLow = tRef - eRef, refHigh = tRef + eRef;
+      if (refLow > useHigh) { out.late.push({ id: it.id, ref: r, usedAt: it.at, refAt: rec.at, refLow, useHigh }); allOk = false; }
+      else if (refHigh <= useLow) { /* 明确早于 */ }
+      else { out.unknown.push({ id: it.id, ref: r, why: 'uncertain-overlap' }); allOk = false; out.sameInstant++; }
     }
     if (allOk) out.ok++;
   }
@@ -91,8 +98,19 @@ function selftest() {
   // ⑦ 跨时钟域不可比
   ok(checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-otherclock'] })], ALL).status === 'UNKNOWN', '⑨跨时钟域 → UNKNOWN');
   // ⑧ 容差内不判违规
-  const skewOk = checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-2'] })], { ...ALL, sources: { ...ALL.sources, ingestion: { ...ALL.sources.ingestion, skewMs: 2 * 3600 * 1000 } } });
-  ok(skewOk.status === 'PRESENT', '⑩容差内不判违规');
+  // 大误差界导致区间重叠 → UNKNOWN（不是"不违规"）
+  const overlap = checkPreDeadline([use('2026-11-09T06:00:00Z', { refs: ['ev-2'] })], { ...ALL, sources: { ...ALL.sources, ingestion: { ...ALL.sources.ingestion, skewMs: 2 * 3600 * 1000 } } });
+  ok(overlap.status === 'UNKNOWN', '⑩误差区间重叠 → UNKNOWN');
+  // 指挥官给的例子：use=100±10, evidence=115±10（秒）→ 区间 [105,125] 与 [90,110] 重叠 → UNKNOWN
+  const t0 = Date.parse('2026-11-09T00:00:00Z');
+  const exSrc = { ingestion: { clockDomain: 'host', skewMs: 10_000, verify: () => true } };
+  const ex = checkPreDeadline([{ id: 'x', at: new Date(t0 + 100_000).toISOString(), atSource: 'ingestion', refs: ['ev'] }],
+    { trustedSources: ['ingestion'], sources: exSrc, resolve: () => ({ at: new Date(t0 + 115_000).toISOString(), atSource: 'ingestion' }) });
+  ok(ex.status === 'UNKNOWN' && ex.unknown.some((u) => u.why === 'uncertain-overlap'), '⑪重叠不确定区 → UNKNOWN，不判违规');
+  // 明确早于：证据远早于使用
+  const early = checkPreDeadline([{ id: 'y', at: new Date(t0 + 200_000).toISOString(), atSource: 'ingestion', refs: ['ev'] }],
+    { trustedSources: ['ingestion'], sources: exSrc, resolve: () => ({ at: new Date(t0 + 100_000).toISOString(), atSource: 'ingestion' }) });
+  ok(early.status === 'PRESENT', '⑫区间不重叠且证据更早 → PRESENT');
   return fails;
 }
 
@@ -101,5 +119,5 @@ module.exports = { checkPreDeadline, selftest };
 if (require.main === module) {
   const fails = selftest();
   if (fails.length) { console.error('pre-deadline selftest FAIL: ' + fails.join(' | ')); process.exit(1); }
-  console.log('pre-deadline selftest PASS（10 组）');
+  console.log('pre-deadline selftest PASS（12 组）');
 }
