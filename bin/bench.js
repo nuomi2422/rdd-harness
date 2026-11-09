@@ -942,7 +942,9 @@ function liveMain(argv) {
   const { spawn, spawnSync } = require('child_process');
   const engine = path.join(__dirname, 'bench-watch.js');
   const ctl = LB.loadControl(LIVE_DIR);
-  const block = (ms) => spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},' + ms + ')'], { stdio: 'ignore' });
+  // 2026-11-09：**必须带 windowsHide**。此前只设 stdio:'ignore'，子进程仍可能短暂创建控制台窗口，
+  // 表现为"脚本窗闪一下抢焦点"。live start/stop 才走这条，故不是周期闪窗的根因，但属于同类问题。
+  const block = (ms) => spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},' + ms + ')'], { stdio: 'ignore', windowsHide: true });
 
   if (sub === 'status') {
     const st = liveStatusOf();
@@ -1057,7 +1059,7 @@ function selfTest() {
   fs.writeFileSync(f, JSON.stringify({ schema: 1, updated_at: '', probes: [], tips: [], signals: [], verdicts: [], queue: [], masters: [] }));
   fs.writeFileSync(checkpointF, '# CHECKPOINT\n\n> 写入时间：2026-10-29 13:00\n\n- **主线目标**：测试目标\n- **下一步**：测试下一步\n');
   const run = (args) => {
-    const r = require('child_process').spawnSync(process.execPath, [__filename].concat(args), {
+    const r = require('child_process').spawnSync(process.execPath, [__filename].concat(args), { windowsHide: true,
       encoding: 'utf8',
       env: Object.assign({}, process.env, { BENCH_FILE: f, BENCH_USAGE_FILE: usageF, BENCH_VERIFICATION_HISTORY: path.join(tmp, 'verification-history.jsonl'), RDD_CHECKPOINT: checkpointF, DSH_SESSION_ID: '' }),
     });

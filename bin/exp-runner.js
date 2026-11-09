@@ -165,7 +165,7 @@ function manifestOf(dir) {
   return { count: items.length, sha256: sha256(items.join('\n')) };
 }
 function ps(cmd, timeoutMs) {
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: timeoutMs || 30000 });
+  const r = spawnSync('powershell.exe', ['-NoProfile', '-Command', cmd], { encoding: 'utf8', timeout: timeoutMs || 30000, windowsHide: true });
   return (r.stdout || '').trim();
 }
 function javaProcs() {
@@ -236,7 +236,7 @@ function mcp(tool, companion, args, timeoutMs) {
   // 否则 args 会被当成 companion 读走（mcp-call.js 是按位置取参的）。
   if (companion !== undefined && companion !== null) argv.push(companion);
   if (args) argv.push(args);
-  const r = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: timeoutMs || 25000 });
+  const r = spawnSync(process.execPath, argv, { encoding: 'utf8', timeout: timeoutMs || 25000, windowsHide: true });
   return { ok: r.status === 0, status: r.status, out: (r.stdout || '').trim(), err: (r.stderr || '').trim() };
 }
 
@@ -360,7 +360,7 @@ function emergencyCleanup(reason) {
   try {
     const pids = javaProcs();
     if (pids.length) ps('Get-CimInstance Win32_Process -Filter "Name=\'java.exe\' OR Name=\'javaw.exe\'" | Where-Object { $_.CommandLine -and $_.CommandLine -like \'*' + GAME.replace(/'/g, "''") + '*\' } | ForEach-Object { Stop-Process -Id $_.ProcessId -Force }', 30000);
-    for (let i = 0; i < 30 && javaProcs().length; i++) { spawnSync('powershell.exe', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 500']); }
+    for (let i = 0; i < 30 && javaProcs().length; i++) { spawnSync('powershell.exe', ['-NoProfile', '-Command', 'Start-Sleep -Milliseconds 500'], { windowsHide: true }); }
     // 受控复位
     if (baseDir && fs.existsSync(baseDir)) {
       for (const d of NUMEN_STATE_DIRS) {
@@ -409,7 +409,7 @@ function localYmd(d) {
 /** P2 的执行体：退出码 2 = 有源码领先于 jar。读不到工具时返回 null（不装作通过）。 */
 function deployGate(runDir) {
   if (!fs.existsSync(DEPLOY_CHECK)) return { ok: null, reason: 'verifier-missing' };
-  const r = spawnSync(process.execPath, [DEPLOY_CHECK], { encoding: 'utf8', timeout: 240000 });
+  const r = spawnSync(process.execPath, [DEPLOY_CHECK], { encoding: 'utf8', timeout: 240000, windowsHide: true });
   const out = ((r.stdout || '') + (r.stderr || '')).trim();
   try { fs.writeFileSync(path.join(runDir, 'evidence', 'gate-deploy.txt'), out + '\n\nexit=' + r.status + '\n'); } catch { /* 存档失败不改判 */ }
   const stale = /VERDICT=STALE/.test(out);
@@ -425,7 +425,7 @@ function postflightAfterRun(runDir, label) {
   if (!fs.existsSync(GATE)) return { ok: null, reason: 'gate-missing', blocks: [] };
   const since = localYmd(new Date());
   const r = spawnSync(process.execPath, [GATE, 'postflight', '--since', since, '--keyword', label],
-    { encoding: 'utf8', timeout: 300000 });
+    { encoding: 'utf8', timeout: 300000, windowsHide: true });
   const out = ((r.stdout || '') + (r.stderr || '')).trim();
   try { fs.writeFileSync(path.join(runDir, 'evidence', 'gate-postflight.txt'), out + '\n\nexit=' + r.status + '\n'); } catch { /* 存档失败不改判 */ }
   const blocks = [];
@@ -491,7 +491,7 @@ async function cmdRun(opts) {
   if (!(await portOpen(8080))) {
     log(runDir, 'preflight', 'OpenClaw 8080 未监听 → 拉起 server.js');
     const ocLog = fs.openSync(path.join(runDir, 'evidence', 'oc-server.log'), 'a');
-    spawn(process.execPath, ['server.js'], { cwd: OC_DIR, detached: true, stdio: ['ignore', ocLog, ocLog] }).unref();
+    spawn(process.execPath, ['server.js'], { cwd: OC_DIR, detached: true, stdio: ['ignore', ocLog, ocLog], windowsHide: true }).unref();
     for (let i = 0; i < 40 && !(await portOpen(8080)); i++) await sleep(250);
     if (!(await portOpen(8080))) fail(runDir, 'preflight', 'OpenClaw 8080 起不来（见 evidence/oc-server.log）', 3);
   }
@@ -621,11 +621,11 @@ async function cmdRun(opts) {
   const logStart = fs.existsSync(logPath) ? fs.statSync(logPath).size : 0;
   const launchLog = fs.openSync(path.join(runDir, 'evidence', 'launcher.log'), 'a');
   spawn(process.execPath, [MC_LAUNCH, '--instance', GAME, '--level', world, '--mem', '4G'],
-    { cwd: RDD, detached: true, stdio: ['ignore', launchLog, launchLog] }).unref();
+    { cwd: RDD, detached: true, stdio: ['ignore', launchLog, launchLog], windowsHide: true }).unref();
   log(runDir, 'launch', '游戏已脱离启动（world=' + world + '），等待 MCP 8765…');
   // 实验台常驻视图：实验期间 bench 也要看得到现场（幂等；起不来不影响实验）
   try {
-    const bl = spawnSync(process.execPath, [path.join(HARNESS, 'bin', 'bench.js'), 'live', 'start'], { cwd: HARNESS, stdio: 'ignore', timeout: 30000 });
+    const bl = spawnSync(process.execPath, [path.join(HARNESS, 'bin', 'bench.js'), 'live', 'start'], { cwd: HARNESS, stdio: 'ignore', timeout: 30000, windowsHide: true });
     log(runDir, 'launch', 'bench live start → ' + (bl.status === 0 ? 'ok' : 'exit ' + bl.status));
   } catch (e) { log(runDir, 'launch', 'bench live start 失败（忽略）：' + (e && e.message)); }
 
@@ -769,16 +769,16 @@ async function cmdRun(opts) {
     // 2026-10-25 短测：清 RDDDev（客户端玩家、我们打字用的那个）时同伴背包分毫未动；
     // 改清 RDD 后 latest.log 实测「已移除玩家RDD的192个物品」，背包归零。
     const SEND = path.join(HARNESS, 'bin', 'send-mc-command.ps1');
-    const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/clear ' + companionName], { encoding: 'utf8', timeout: 40000 });
+    const r = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/clear ' + companionName], { windowsHide: true, encoding: 'utf8', timeout: 40000 });
     log(runDir, 'zero-start', '/clear ' + companionName + ' exit=' + r.status);
     await sleep(1500);
-    const da = spawnSync(process.execPath, [path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'drop-all.js'), companionName], { encoding: 'utf8', timeout: 90000 });
+    const da = spawnSync(process.execPath, [path.join(RDD_ROOT(), 'workspace', 'rdd-selfcompile', 'scripts', 'drop-all.js'), companionName], { encoding: 'utf8', timeout: 90000, windowsHide: true });
     log(runDir, 'zero-start', 'drop-all exit=' + da.status + (da.stderr ? ' ' + String(da.stderr).slice(0, 120) : ''));
     await sleep(1500);
     // --night：质量触发环境。强制深夜刷怪，让「death」事件进 instrumentation（学习系统的食源）。
     // 干净母版无床无掩体，她无法睡觉跳过；easy 下 mob 可战可不战，死亡是可控风险而非必死。
     if (opts.night) {
-      const nt = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/time set midnight'], { encoding: 'utf8', timeout: 40000 });
+      const nt = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', SEND, '-Text', '/time set midnight'], { windowsHide: true, encoding: 'utf8', timeout: 40000 });
       log(runDir, 'zero-start', '/time set midnight exit=' + nt.status);
       await sleep(800);
     }
@@ -865,7 +865,7 @@ async function cmdRun(opts) {
     const elapsed = Date.now() - t0;
     if (triggerDeathAt && Date.now() >= triggerDeathAt) {
       triggerDeathAt = null;
-      const kd = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(HARNESS, 'bin', 'send-mc-command.ps1'), '-Text', '/kill ' + companionName], { encoding: 'utf8', timeout: 40000 });
+      const kd = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(HARNESS, 'bin', 'send-mc-command.ps1'), '-Text', '/kill ' + companionName], { encoding: 'utf8', timeout: 40000, windowsHide: true });
       log(runDir, 'trigger-death', '/kill ' + companionName + ' exit=' + kd.status);
     }
     const chunkTools = pull('tools.jsonl');
