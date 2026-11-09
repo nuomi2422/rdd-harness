@@ -1245,6 +1245,12 @@ function main() {
     console.log('  总判定：' + table.overall);
     console.log('== 证据卡 ==');
     console.log('  ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
+    try {
+      const BD = require('./lib/behavior-digest.js');
+      const dg = BD.buildDigest({ ai: read3('ai.jsonl'), tools: read3('tools.jsonl'), events: read3('events.jsonl'), rdd: read3('rdd.jsonl'), sinceMs: Date.now() - 30 * 60_000, untilMs: Date.now() });
+      console.log('== 摘要 ==');
+      console.log('  ' + (dg.anomalies && dg.anomalies.length ? dg.anomalies.join(' / ') : '异常：UNKNOWN（窗口内没检出已知模式，不代表没有问题）'));
+    } catch (e) { console.log('== 摘要 =='); console.log('  摘要生成失败（不影响上面两项）'); }
     const hasMismatch = table.overall === 'MISMATCH';
     process.exitCode = hasMismatch ? 1 : 0;
     return;
