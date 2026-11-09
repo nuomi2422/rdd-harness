@@ -38,6 +38,7 @@ const STEPS = [
   ['监控读取器缺口语义', path.join(ROOT, 'lib', 'monitor-reader.test.js'), [], 'node-test'],
   ['最终请求 why 字段', path.join(ROOT, 'lib', 'final-request-evidence.test.js'), [], 'node-test'],
   ['结算最终目标核验', path.join(ROOT, 'lib', 'settle-evidence.test.js'), [], 'node-test'],
+  ['运行证据卡', path.join(ROOT, 'evidence-card.test.js'), [], 'node-test'],
   // 2026-11-09：regress 退出码 → acceptance 判定的端到端口径（FLAKY 不得被当成 PASS）。
   ['回归退出码口径', path.join(ROOT, 'regress-gating.test.js'), [], 'node-test'],
 ];
