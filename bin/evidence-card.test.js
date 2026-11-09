@@ -93,3 +93,18 @@ test('窗口范围无条件可见：即使覆盖等级是 limited，也带 obser
   assert.equal(card.observedWindow.scope, 'observed-bytes-only');
   assert.ok(render(card).includes('非业务时间完整') || render(card).includes('字节窗口'));
 });
+test('隐私：输出不得泄漏 payload 正文/凭据', (t) => {
+  const d = fs.mkdtempSync(path.join(os.tmpdir(), 'ec8-'));
+  t.after(() => fs.rmSync(d, { recursive: true, force: true }));
+  const SECRET = 'sk-live-DEADBEEF-not-for-output';
+  const row = JSON.stringify({ type: 'tool_result', session: 'run-1', data: {
+    companion_id: 'c', session_id: 's', tool: 'x', tool_call_id: '1',
+    result: { success: true, data: { api_key: SECRET, body: 'SECRET-PROMPT-TEXT' } } } });
+  fs.writeFileSync(path.join(d, 'tools.jsonl'), row + '\n');
+  fs.writeFileSync(path.join(d, 'events.jsonl'), '');
+  const card = buildCard(d);
+  const text = render(card);
+  const json = JSON.stringify(card);
+  assert.ok(!text.includes(SECRET) && !json.includes(SECRET), '渲染与 JSON 都不得含凭据');
+  assert.ok(!text.includes('SECRET-PROMPT-TEXT') && !json.includes('SECRET-PROMPT-TEXT'), '不得含正文');
+});
