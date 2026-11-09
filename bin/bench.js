@@ -1229,6 +1229,24 @@ function main() {
     else console.log(EC.render(card) + '\n[总判定] ' + verdict.verdict + '（' + (verdict.reasons.join(',') || '无') + '）');
     return;
   }
+  // 2026-11-09（044-B2）：任务链快照读端——链/版本/旧回执/当前主支。
+  if (cmd === 'chain') {
+    const T = require('./lib/taskchain-observe.js');
+    const di5 = argv.indexOf('--dir');
+    const dir5 = di5 >= 0 ? argv[di5 + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');
+    const read5 = (n) => { try { return fs.readFileSync(path.join(dir5, n), 'utf8'); } catch { return ''; } };
+    const r5 = T.build({ 'rdd.jsonl': read5('rdd.jsonl') });
+    if (argv.includes('--json')) console.log(JSON.stringify(r5, null, 2));
+    else {
+      console.log('[任务链] ' + r5.status + (r5.reason ? '（' + r5.reason + '）' : ''));
+      if (r5.rows) {
+        console.log('  快照=' + r5.snapshots + ' 链=' + r5.chains + ' 目标=' + r5.goals + ' 版本=' + r5.verMin + '→' + r5.verMax + ' 版本回退次数=' + r5.verRegressions);
+        console.log('  旧回执被忽略=' + r5.staleResultsIgnored + '（0 表示机制没被触发过，不等于有效）');
+        console.log('  epoch=' + JSON.stringify(r5.epochs) + ' 已结算条目=' + r5.settledCount + ' 当前=' + r5.currentPrimary + '/' + r5.currentSubtask);
+      }
+    }
+    return;
+  }
   // 2026-11-09（044）：预算可观测性——gate/trimmed/usage 计数与坏值分开报。
   if (cmd === 'budget') {
     const B = require('./lib/budget-observe.js');
@@ -1319,7 +1337,7 @@ function main() {
     if (li >= 0) process.exit(noshotCmd(path.resolve(rd), path.resolve(argv[li + 1])));
     process.exit(noshotCmd(path.resolve(rd), null));
   }
-  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|check|budget|verify|compare|compare-many|report|live|selftest');
+  die(2, 'usage: bench.js catalog|tip|signal|verdict|queue|master|probe|brief|layers|usage|timeline|health|coverage|evidence|digest|moment|check|budget|chain|verify|compare|compare-many|report|live|selftest');
 }
 
 /** A7：`bench compare <runA> <runB>` —— 同目标同母版才给 DIRECTIONAL，否则 INCONCLUSIVE。 */
