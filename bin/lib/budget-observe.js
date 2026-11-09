@@ -8,7 +8,7 @@ function num(v) { const n = Number(v); return Number.isFinite(n) && n >= 0 ? n :
 
 function build(linesByFile) {
   const out = { gateEvents: 0, trimmedEvents: 0, trimmedTotal: 0, settleEvents: 0, usageEvents: 0, tokensTotal: 0, requestEvents: 0, promptTokensTotal: 0, invalid: 0, pointers: [],
-    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [] }; 
+    byMode: {}, byProvider: {}, ratios: [], limitTokens: [], turns: [], trimmedGreaterThanInput: 0 }; 
   for (const file of Object.keys(linesByFile || {})) {
     const lines = String(linesByFile[file] || '').split(/\r?\n/);
     for (let i = 0; i < lines.length; i += 1) {
@@ -31,6 +31,9 @@ function build(linesByFile) {
             out.byProvider[prov] = (out.byProvider[prov] || 0) + 1;
             const ratio = num(d.ratio);
             if (ratio !== null) out.ratios.push(ratio);
+            // 一致性护栏：trimmed 大于本次 gateInput 时记一次（可能是单位/字段语义问题，不擅自解释）
+            const gi = num(d.gateInput);
+            if (gi !== null && tr > gi) out.trimmedGreaterThanInput = (out.trimmedGreaterThanInput || 0) + 1;
             const lim = num(d.limitTokens);
             if (lim !== null) out.limitTokens.push(lim);
             if (typeof d.turn === 'number') out.turns.push(d.turn);

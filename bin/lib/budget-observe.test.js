@@ -50,3 +50,7 @@ test('非 shadow 模式不算估算', () => {
   const r = B.build({ 'context.jsonl': [row({type:'budget_gate',data:{trimmed:100,mode:'enforce'}})].join('\n') });
   assert.equal(r.trimmedIsEstimate, false);
 });
+test('一致性护栏：trimmed 大于 gateInput 要计数（不擅自解释）', () => {
+  const r = B.build({ 'context.jsonl': [row({type:'budget_gate',data:{trimmed:148412,gateInput:41425,mode:'shadow'}})].join('\n') });
+  assert.equal(r.trimmedGreaterThanInput, 1);
+});
