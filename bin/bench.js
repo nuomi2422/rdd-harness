@@ -1285,6 +1285,18 @@ function main() {
       console.log('== 摘要 ==');
       console.log('  ' + (dg.anomalies && dg.anomalies.length ? dg.anomalies.join(' / ') : '异常：UNKNOWN（窗口内没检出已知模式，不代表没有问题）'));
     } catch (e) { console.log('== 摘要 =='); console.log('  摘要生成失败（不影响上面两项）'); }
+    try {
+      const B2 = require('./lib/budget-observe.js');
+      const b2 = B2.build({ 'context.jsonl': read3('context.jsonl'), 'events.jsonl': read3('events.jsonl'), 'rdd.jsonl': read3('rdd.jsonl'), 'tools.jsonl': read3('tools.jsonl') });
+      console.log('== 预算 ==');
+      console.log('  ' + b2.status + ' gate=' + b2.gateEvents + ' 估算合计=' + b2.trimmedTotal + ' 校准判额=' + b2.gateInputTotal + ' 坏值=' + b2.invalid + (b2.uncalibrated ? ' 未校准=' + b2.uncalibrated : ''));
+    } catch { console.log('== 预算 =='); console.log('  UNKNOWN（生成失败）'); }
+    try {
+      const T2 = require('./lib/taskchain-observe.js');
+      const t2 = T2.build({ 'rdd.jsonl': read3('rdd.jsonl') });
+      console.log('== 任务链 ==');
+      console.log('  ' + t2.status + ' 快照=' + (t2.snapshots || 0) + ' 链=' + (t2.chains || 0) + ' 版本=' + t2.verMin + '→' + t2.verMax + ' 缺号=' + (t2.verGaps || 0) + ' 旧回执=' + (t2.staleResultsIgnored || 0) + ' 会话=' + (t2.sessions || 0));
+    } catch { console.log('== 任务链 =='); console.log('  UNKNOWN（生成失败）'); }
     const hasMismatch = table.overall === 'MISMATCH';
     process.exitCode = hasMismatch ? 1 : 0;
     return;
