@@ -109,6 +109,22 @@ const OC_DIR = path.join(RDD, 'workspace', 'mc-openclaw-controller', 'scripts');
 
 const GIT = 'C:/Users/admin/AppData/Local/Programs/MinGit/cmd/git.exe';
 
+/** Independent post-stop count across rotated context streams; used to cross-check the incremental cursor. */
+function countContextRequestsSince(dir, iso) {
+  let n = 0;
+  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /^context.*\.jsonl$/.test(f)) : [];
+  for (const f of files) {
+    let text = '';
+    try { text = fs.readFileSync(path.join(dir, f), 'utf8'); } catch { continue; }
+    for (const line of text.split('\n')) {
+      if (!line.includes('"type":"llm_request"')) continue;
+      const m = /"timestamp":"([^"]+)"/.exec(line);
+      if (m && m[1] >= iso) n++;
+    }
+  }
+  return n;
+}
+
 // 受控复位的"存档外"状态（glob 展开后拷贝）
 // 2026-10-27：把 'acx' 从复位清单里摘了 —— ACX 版本库是**学习产物**（学习者写、人批准），
 // 复位它等于每轮把产物扔掉。实测：今晚批准的两个脚本（night_clear_then_sleep /
@@ -998,6 +1014,7 @@ async function cmdRun(opts) {
   // 停机后 123 请求。先让 RDD 进入 owner-pause，能挡住随后的开工/催工推。
   // 2026-11-10：task_stop 只停身体任务，不 drain 事件队列；ownerStop(/stop) 才 abort+drain+闩。
   // 走 MCP enqueue→NumenGateway.dispatchIfCommand，不用键盘斜杠（避免被原生命令路由接走）。
+  const stopAtIso = nowIso();
   const os = mcp('enqueue', companionName, JSON.stringify({ text: '/stop' }), 20000);
   env.stop = env.stop || {};
   env.stop.ownerStop = os;
@@ -1053,7 +1070,8 @@ async function cmdRun(opts) {
     if (postStopRequests === 0 && Date.now() > graceEnd - 45000) break; // 15s 静默即可判
     await sleep(5000);
   }
-  env.stop = { postStopRequests, graceSeconds: 60 };
+  const independentPostStop = countContextRequestsSince(MONITOR, stopAtIso);
+  env.stop = { postStopRequests, independentPostStop, stopAt: stopAtIso, graceSeconds: 60 };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
     windowStartOffset: reader.windowStartOffset };
