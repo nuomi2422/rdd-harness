@@ -1054,6 +1054,12 @@ async function cmdRun(opts) {
     await sleep(5000);
   }
   env.stop = { postStopRequests, graceSeconds: 60 };
+  // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
+  env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
+    windowStartOffset: reader.windowStartOffset };
+  fs.writeFileSync(path.join(runDir, 'evidence', 'monitor-coverage.json'), JSON.stringify(env.monitor, null, 2));
+  log(runDir, 'stop', 'monitor gaps=' + Object.keys(reader.gaps || {}).length
+      + ' offsets=' + JSON.stringify(reader.offsets));
   log(runDir, 'stop', '停止后新 llm_request=' + postStopRequests);
 
   const pids = javaProcs();
