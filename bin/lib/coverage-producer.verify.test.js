@@ -17,10 +17,13 @@ const coverage = require('./coverage');
 const STREAMS = ['tools', 'context', 'events', 'ai', 'rdd', 'expmem', 'instrumentation'];
 const BINDINGS = { world_id: 'w1', server_session: 's1', companionId: 'c1', requestId: 'r1' };
 
-function makeDir(empty) {
+function makeDir(empty, idPrefix = 'ev') {
   const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'p1a-'));
   for (const s of STREAMS) {
-    const body = empty && empty.includes(s) ? '' : JSON.stringify({ a: 1 }) + '\n';
+    // 真实事件形状：带 event_id（重放检测的身份域）
+    const body = empty && empty.includes(s)
+      ? ''
+      : JSON.stringify({ event_id: idPrefix + '-' + s + '-1', type: 'x', s }) + '\n';
     fs.writeFileSync(path.join(dir, s + '.jsonl'), body, 'utf8');
   }
   return dir;
@@ -77,10 +80,22 @@ test('P1-A-4 重放未核（replays 未知）→ 不得按 0 通过', () => {
   assert.throws(() => coverage.makeVerifiedCoverage(evidence), /coverage-rejected/);
 });
 
+
+test('P1-A-6 生产重放检测：同一 event_id 出现两次 → reader.replays=1 → 拒签', () => {
+  const dir = makeDir();
+  const reader = readAll(dir);
+  fs.appendFileSync(path.join(dir, 'ai.jsonl'), JSON.stringify({ event_id: 'ev-tools-1', type: 'x', s: 'tools' }) + '\n');
+  reader.pull('ai.jsonl');
+  assert.equal(reader.replays, 1, '真实重放必须被计数');
+  const evidence = build(reader, reader.verifySegments());
+  assert.throws(() => coverage.makeVerifiedCoverage(evidence), /coverage-rejected/);
+});
+
 test('P1-A-5 合法零字节流：有起止与文件身份 → 允许（正例保留）', () => {
   const dir = makeDir(['instrumentation', 'expmem']);
   const reader = readAll(dir);
-  reader.replays = 0; // 已核且无重放（未知时 A-4 已要求拒签）
+  // 不手填：重放计数来自 reader 的真实扫描（本目录 event_id 唯一 → 0）
+  assert.equal(reader.replays, 0, '真实 reader 应报 0 重放');
   const evidence = build(reader, reader.verifySegments());
   coverage.makeVerifiedCoverage(evidence);
   for (const s of ['instrumentation', 'expmem']) {

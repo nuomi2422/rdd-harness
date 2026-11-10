@@ -38,6 +38,18 @@ function createPull(opts) {
   const windowStartOffset = {};
   // 已消费的字节段：用于事后复核（我读到的内容现在是否还在磁盘上）
   const segments = {};
+  // 2026-11-10 P1-A（R-20261110-02 第 1 点）：生产重放检测。
+  // 身份域 = event_id 全局（同一事件在任意流里出现两次即重放）；只看窗口内已消费字节。
+  const seenEventIds = new Set();
+  let replays = 0;
+  const scanEventIds = (s) => {
+    const re = /"event_id"\s*:\s*"([^"]+)"/g;
+    let m;
+    while ((m = re.exec(s)) !== null) {
+      if (seenEventIds.has(m[1])) replays += 1;
+      else seenEventIds.add(m[1]);
+    }
+  };
   const ANCHOR_BYTES = 64;
   // 只读前 len 字节做比较：窗口起点时文件可能还不到 64 字节，若每次都读满 64 再比，
   // 文件正常增长就会被误判成"锚变了"。所以比较长度固定为**起点时的长度**。
@@ -111,6 +123,7 @@ function createPull(opts) {
         return '';
       }
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
+      scanEventIds(complete.toString('utf8'));
       if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
       pending[f] = complete.length < n ? { size } : null;
       const from = offsets[f] || 0;
@@ -128,7 +141,12 @@ function createPull(opts) {
     } finally { fs.closeSync(fd); }
   }
 
-  return { pull, gaps, offsets, fileId, pending, anchors, segments, windowStartOffset, verifySegments, verifyWindow };
+  return {
+    pull, gaps, offsets, fileId, pending, anchors, segments, windowStartOffset, verifySegments, verifyWindow,
+    // 生产重放计数（只增不减；消费方拿不到就读不到，不得默认 0）。
+    get replays() { return replays; },
+    get eventIds() { return seenEventIds.size; },
+  };
 
   /**
    * 窗口完整性（**有界声明**）：只证明"从窗口起点偏移到当前已读位置，每个字节都被读过一次，
