@@ -354,7 +354,7 @@ function interventionScope(ev) {
   return [ev && ev.world_id, ev && ev.server_session, d.companion_id || d.companionId];
 }
 function collectToolInterventions(rows, target, out) {
-  const sensitive = /^(rdd_replan_chain|rdd_settle_stage|rdd_supervisor|debug_.+)$/;
+  const sensitive = /^(rdd_replan_chain|rdd_settle_stage|rdd_supervisor_submit|debug_.+)$/;
   const groups = new Map();
   for (const ev of rows) {
     if (!ev || !['tool_call', 'tool_result', 'tool_rejected'].includes(ev.type)) continue;

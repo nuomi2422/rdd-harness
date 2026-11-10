@@ -65,6 +65,12 @@ for(const stream of ['rdd.jsonl','tools.jsonl','context.jsonl','expmem.jsonl']) 
 check('admin-positive-plus-gap',{admin:[event('admin_command_used',{mode:'direct-give',companionId:'A'})],bad:'tools.jsonl'},'INCONCLUSIVE',null,r=>{
  assert.equal(r.collected.interventions.status,'PRESENT');assert.match(r.verdict.detail,/已证介入/);assert(r.collected.interventions.reasons.length);
 });
+// Actual ExecuteToolPayload result shape: server writer, string result, no actor.
+check('unknown-supervisor-submit-writer-shape',{tools:[event('tool_result',{
+ companion_id:'A',tool_call_id:'mcp-submit',tool:'rdd_supervisor_submit',journaled_by:'server',result:JSON.stringify({success:true,data:{ok:true}})
+})]},'INCONCLUSIVE',null,r=>assert.equal(r.collected.interventions.status,'UNKNOWN'));
+check('automatic-supervisor-submit',{tools:toolPair('numen','A','rdd_supervisor_submit')},'PASS',null,r=>assert.equal(r.collected.interventions.automatic.length,1));
+check('human-supervisor-submit',{tools:toolPair('HUMAN','A','rdd_supervisor_submit')},'INCONCLUSIVE',null,r=>assert.equal(r.collected.interventions.status,'PRESENT'));
 check('unknown-external-replan',{tools:toolPair(null,'A','rdd_replan_chain','mcp-123')},'INCONCLUSIVE');
 check('confirmed-human-replan',{tools:toolPair('HUMAN')},'INCONCLUSIVE',null,r=>assert.equal(r.collected.interventions.status,'PRESENT'));
 check('automatic-replan',{tools:toolPair('numen')},'PASS',null,r=>assert.equal(r.collected.interventions.automatic.length,1));
