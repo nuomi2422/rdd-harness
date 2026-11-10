@@ -1051,6 +1051,8 @@ async function cmdRun(opts) {
   // 但不进 S4 通过条件（那条产品债仍记 D-044-STOPDISPATCH）。
   const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
+    // 2026-11-10 P1-B：必须传本次同伴，否则别同伴的 owner_stop 回执也会被当成生效。
+    companionId: companionName,
     enqueueAtIso: stopAtIso,
     timeoutMs: 15000,
     pollMs: 250,
@@ -1104,12 +1106,23 @@ async function cmdRun(opts) {
   // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
   // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
   const cutoffIso = stopEffectiveIso || stopAtIso;
-  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso);
+  // 2026-11-10 P1-B：本次 stop 的归属 scope（世界/会话/同伴），缺一即 bound=false → 消费者判 UNKNOWN。
+  const stopScope = {
+    worldId: (env.world && (env.world.id || env.world.worldId)) || null,
+    serverSession: (env.session && (env.session.serverSession || env.session.id)) || null,
+    companionId: companionName,
+  };
+  // 本次 stop 的回执关联键（同一 run 内递增；事件若不带同键就不归属本次）。
+  const stopSeq = (env.stop && Number.isFinite(env.stop.stopSeq) ? env.stop.stopSeq : 0) + 1;
+  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, { stopSeq });
   let postStopRequests = 0;
   const observation = await require('./lib/stop-observation').observeStopWindow({
     clock: monotonicMs, sleep, cutoffMono: stopEffectiveIso ? stopEffectiveMono : stopAtMono, durationMs: 60000, intervalMs: 5000,
     collect: () => {
-      postStopRequests = stopCounter.collect();
+      stopCounter.collect();
+      // 2026-11-10 P1-B：postStopRequests 只放**已归属**计数（未归属走诊断），
+      // collect() 的返回值是含未归属的物理请求数，只作诊断。
+      postStopRequests = stopCounter.snapshot().boundCount;
       return { ok: !reader.gaps['context.jsonl'] && !reader.gaps['ai.jsonl']
         && !reader.pending['context.jsonl'] && !reader.pending['ai.jsonl'] };
     },
@@ -1117,7 +1130,12 @@ async function cmdRun(opts) {
   const observedGraceMs = observation.observedMs;
   const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
   // independentPostStop 只放**游标计数**（权威）；启发式 count 不再混进这个字段。
+  const stopSnap = stopCounter.snapshot();
   env.stop = { ...env.stop, postStopRequests, independentPostStop: postStopRequests, postStopStatus: postCheck.status,
+    // 2026-11-10 P1-B：归属与诊断分开；independent 不再复用同一个数冒充独立证据。
+    postStopAttribution: stopSnap.bound ? 'bound' : (stopSnap.status === 'UNKNOWN' ? 'unknown' : 'none'),
+    postStopDiagnostic: { foreign: stopSnap.foreign, unbound: stopSnap.unbound, failed: stopSnap.failed, rawCount: stopSnap.rawCount },
+    stopScope, stopSeq,
     postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
     stopAt: stopAtIso, stopEffectiveAt: stopEffectiveIso, stopEffectiveReceipt: stopEffective,
     // 旧字段名保留兼容，但语义写清：这是**整目录启发式扫描**的条数，只作诊断，不参与判定。

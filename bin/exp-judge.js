@@ -147,11 +147,19 @@ function evaluate(runDir) {
     else if (stop.attributedPostStopRequest === true) add('S4', 'FAIL', '已核验目标同伴停止后仍有新请求；完整性缺口不掩盖正证', ['evidence/context.jsonl']);
     // 2026-11-10（COV-r1 原证）：游标计数 >0 就是**已核验的**停后派发，
     // 必须优先 FAIL，不能被下面的"覆盖/作用域未核验"掩盖成 NOT_COVERED。
-    else if (Number.isFinite(post) && post > 0) add('S4', 'FAIL', '停止生效后仍有 ' + post + ' 条新 llm_request（游标计数，归属已核）', ['evidence/context.jsonl']);
+    // 2026-11-10 P1-B：有停后请求就是 FAIL（优先），但不得宣称“归属已核”——
+    // 只有 postStopAttribution==='bound' 才算已核；否则 detail 如实写未核。
+    else if (Number.isFinite(post) && post > 0) add('S4', 'FAIL',
+      '停止生效后仍有 ' + post + ' 条新 llm_request（' +
+        (stop.postStopAttribution === 'bound' ? '归属已核' : '归属未核，attribution=' + (stop.postStopAttribution || 'unknown')) + '）',
+      ['evidence/context.jsonl']);
     else if (post === undefined || exited === undefined) add('S4', 'INCONCLUSIVE', '缺停止期证据（run 未跑完？）', []);
     else if (!stop.coverageVerified || !stop.scopeVerified || coverage !== 'PRESENT' || !stop.observation || stop.observation.complete !== true || !Number.isFinite(stop.observedGraceMs) || stop.observedGraceMs < 60000) add('S4', 'NOT_COVERED', '停止窗连续性、60秒观察或目标归属未核验：' + (stop.postStopReasons || []).join(','), ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (independent !== undefined && independent !== null && independent !== post) add('S4', 'INCONCLUSIVE', '停后计数不一致：cursor=' + post + ' independent=' + independent, ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (post > 0) add('S4', 'FAIL', '停止后仍有 ' + post + ' 条新 llm_request', ['evidence/context.jsonl']);
+    // 2026-11-10 P1-B：0 条只有在归属已核时才可 PASS；归属未核 = 证不了，不能当 0。
+    else if (stop.postStopAttribution !== 'bound') add('S4', 'NOT_COVERED',
+      '停后 0 条但归属未核（scope/身份缺失）：attribution=' + (stop.postStopAttribution || 'unknown'), ['envelope.json']);
     else if (!done) add('S4', 'FAIL', 'runner 未走到 done（复位/归档可能缺）phase=' + env.phase, []);
     else add('S4', 'PASS', '停止后 0 条新请求，java 已退出，证据已归档，状态已复位', ['envelope.json', 'evidence/']);
   }

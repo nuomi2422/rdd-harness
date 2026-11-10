@@ -26,7 +26,8 @@ function scanOwnerStop(lines, companionId, sinceIso) {
     // 日志里的时间戳精度不一（有的带毫秒有的不带），必须按时间比较，不能按字符串比。
     if (!Number.isFinite(atMs) || (Number.isFinite(sinceMs) && atMs < sinceMs)) continue;
     const d = ev.data || {};
-    if (companionId && d.companion_id && d.companion_id !== companionId) continue;
+    // 2026-11-10 P1-B：同伴必须严格匹配；事件缺 companion_id 时不能默认归给本次同伴。
+    if (!companionId || !d.companion_id || d.companion_id !== companionId) continue;
     if (d.drained === undefined && d.overflow_dropped === undefined) continue;
     hit = { at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped };
   }
