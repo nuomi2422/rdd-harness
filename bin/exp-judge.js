@@ -164,34 +164,13 @@ function evaluate(runDir) {
   //   于是「会话 DIRTY + 有 1 次人工给物」的 run 只显示 DIRTY，介入被吞掉。
   //   现在把所有命中项都列进 detail，严重度取最坏的（截断>DIRTY>介入/UNKNOWN>PASS）。
   {
-    const s = env.session;
-    const itv = env.interventions;
-    const dl = env.context_delivery;
-    if (!env.a0) {
-      add('S5', 'INCONCLUSIVE', '缺 A0 证据块（老 run 或采集失败）：会话/介入/投送都无法判定', ['envelope.json#a0']);
-    } else {
-      const bad = [];
-      if (s && s.status === 'DIRTY') bad.push('会话 DIRTY（首请求 msgs=' + s.first_request_message_count + '，带历史）');
-      if (s && s.status === 'UNKNOWN') bad.push('会话 UNKNOWN（' + ((s.reasons || []).join(',') || 'no-reason') + '）');
-      if (itv && itv.status === 'PRESENT') bad.push('人工介入 ' + itv.count + ' 条 ' + JSON.stringify(itv.byKind || {}) + '（只能算「介入后结果」）');
-      if (itv && itv.status === 'UNKNOWN') bad.push('人工介入 UNKNOWN（拿不到事件流，不能声称无介入）');
-      if (dl && dl.status === 'UNKNOWN') bad.push('投送 UNKNOWN');
-      const fatal = dl && dl.truncatedCountedAsDelivered;
-      let verdict;
-      if (fatal) verdict = 'FAIL';
-      else if (s && s.status === 'DIRTY') verdict = 'FAIL';
-      else if (bad.length) verdict = 'INCONCLUSIVE';
-      else verdict = 'PASS';
-      const detail = verdict === 'PASS'
-        ? ('会话 CLEAN（msgs=' + (s ? s.first_request_message_count : '?') + '）、无人工介入、投送账本一致'
-          + (dl && dl.delivered ? '（delivered=' + dl.delivered.refs.length + '，dropped=' + (dl.dropped ? dl.dropped.count : '?') + '）' : ''))
-        : (fatal ? '截断条目被当成 REQUEST_DELIVERED；' : '') + bad.join('；');
-      add('S5', verdict, detail, ['envelope.json#session', 'envelope.json#interventions', 'envelope.json#context_delivery']);
-    }
+    const assessment = A0.evaluateA0(env);
+    add('S5', assessment.verdict, assessment.detail,
+      ['envelope.json#session', 'envelope.json#interventions', 'envelope.json#context_delivery']);
   }
 
   // ---------- overall ----------
-  const required = env.a0 ? ['S1', 'S3', 'S4', 'S5'] : ['S1', 'S3', 'S4'];
+  const required = ['S1', 'S3', 'S4', 'S5']; // missing A0 cannot support a natural overall PASS
   const get = (id) => A.find((x) => x.id === id);
   const anyFail = required.some((id) => get(id) && get(id).verdict === 'FAIL');
   const anyInc = required.some((id) => !get(id) || get(id).verdict === 'INCONCLUSIVE' || get(id).verdict === 'NOT_COVERED');
@@ -396,6 +375,7 @@ function selftest() {
 }
 
 // ---- CLI ----
+if (require.main === module) {
 const arg = process.argv[2];
 if (arg === '--selftest') selftest();
 else if (arg) {
@@ -405,3 +385,5 @@ else if (arg) {
   console.log('usage: node exp-judge.js <runDir> | --selftest');
   process.exit(2);
 }
+}
+module.exports = { evaluate };

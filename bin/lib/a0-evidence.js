@@ -59,11 +59,14 @@ function parseJsonl(text) {
     const line = lines[i];
     if (!line.trim()) continue;
     try {
-      rows.push(JSON.parse(line));
+      const row = JSON.parse(line);
+      if (!row || typeof row !== 'object' || Array.isArray(row)) throw new Error('event is not an object');
+      rows.push(row);
     } catch (e) {
       bad.push({ line: i + 1, reason: e.message.slice(0, 120) });
     }
   }
+  if (String(text || '').trim() && !String(text).endsWith('\n')) bad.push({ line: lines.length, reason: 'unterminated-line' });
   return { rows, bad };
 }
 
@@ -330,7 +333,9 @@ function collectInterventions(events, opts) {
     entries.push(n.entry);
   }
   entries.sort((a, b) => a.atMs - b.atMs);
-  const status = entries.length ? 'PRESENT' : (options.eventsAvailable === false ? 'UNKNOWN' : 'NONE');
+  const reasons = [...(options.reasons || []), ...rejected.map(r => r.reason)];
+  if (options.eventsAvailable === false) reasons.push('rdd-stream-missing');
+  const status = entries.length ? 'PRESENT' : (reasons.length ? 'UNKNOWN' : 'NONE');
   return {
     count: entries.length,
     ids: entries.map((e) => e.interventionId),
@@ -339,7 +344,74 @@ function collectInterventions(events, opts) {
     entries,
     rejected,
     duplicatesDropped: dup,
+    reasons,
   };
+}
+
+// S5/INT (2026-11-11): retain gaps and source uncertainty instead of signing natural.
+function interventionScope(ev) {
+  const d = ev && ev.data || {};
+  return [ev && ev.world_id, ev && ev.server_session, d.companion_id || d.companionId];
+}
+function collectToolInterventions(rows, target, out) {
+  const sensitive = /^(rdd_replan_chain|rdd_settle_stage|rdd_supervisor|debug_.+)$/;
+  const groups = new Map();
+  for (const ev of rows) {
+    if (!ev || !['tool_call', 'tool_result', 'tool_rejected'].includes(ev.type)) continue;
+    const d = ev.data || {};
+    const explicitHuman = ['HUMAN', 'AGENT_ADMIN'].includes(d.actor);
+    const externalSensitive = sensitive.test(d.tool || '');
+    if (!externalSensitive && !explicitHuman) continue;
+    const scope = interventionScope(ev);
+    if (target && scope.every(Boolean) && scope.some((v, i) => v !== target[i])) continue;
+    if (!target || !scope.every(Boolean)) { out.reasons.push('tool-scope-unknown'); continue; }
+    if (!d.tool_call_id) { out.reasons.push('tool-call-id-missing'); continue; }
+    const key = JSON.stringify([...scope, d.tool_call_id]);
+    if (!groups.has(key)) groups.set(key, []);
+    groups.get(key).push(ev);
+  }
+  for (const [key, group] of groups) {
+    const unique = new Map(group.map(e => [JSON.stringify(e), e]));
+    const values = [...unique.values()];
+    const calls = values.filter(e => e.type === 'tool_call');
+    const results = values.filter(e => e.type !== 'tool_call');
+    if (new Set(values.map(e => e.data.tool)).size !== 1 || results.length !== 1 || calls.length > 1) {
+      out.reasons.push('tool-correlation-conflict-or-missing');
+      // Preserve an independently explicit positive even when another receipt conflicts.
+      for (const positive of results) {
+        const d = positive.data;
+        let success = d.success;
+        if (typeof success !== 'boolean' && typeof d.result === 'string') {
+          try { success = JSON.parse(d.result).success; } catch {}
+        }
+        if (positive.type === 'tool_result' && success === true && ['HUMAN', 'AGENT_ADMIN'].includes(d.actor)) {
+          out.entries.push({ interventionId: 'tool-' + key, eventId: positive.event_id || null,
+            kind: d.tool, actor: d.actor, via: 'tool-result', source: 'MONITOR_EVENT',
+            companionId: target[2], worldId: target[0], serverSession: target[1],
+            toolCallId: d.tool_call_id, at: positive.timestamp || null, actor_evidence: 'event-field' });
+          break;
+        }
+      }
+      continue;
+    }
+    const ev = results[0], d = ev.data;
+    let success = typeof d.success === 'boolean' ? d.success : null;
+    if (success === null && typeof d.result === 'string') {
+      try { const r = JSON.parse(d.result); success = typeof r.success === 'boolean' ? r.success : null; } catch {}
+    }
+    // A failed call is not evidence that no side effect occurred.
+    if (ev.type === 'tool_rejected' || success !== true) { out.reasons.push('tool-effect-unknown'); continue; }
+    const actors = [...calls, ev].map(e => e.data.actor).filter(Boolean);
+    const actor = actors.length && actors.every(a => a === actors[0]) ? actors[0] : 'UNKNOWN';
+    const entry = { interventionId: 'tool-' + key, eventId: ev.event_id || null,
+      kind: d.tool, actor, via: 'tool-result', source: 'MONITOR_EVENT',
+      companionId: target[2], worldId: target[0], serverSession: target[1],
+      toolCallId: d.tool_call_id, at: ev.timestamp || null, actor_evidence: actors.length ? 'event-field' : 'not-recorded' };
+    if (['HUMAN', 'AGENT_ADMIN'].includes(actor)) out.entries.push(entry);
+    else if (calls.length === 1 && ['NUMEN', 'numen', 'HARNESS', 'GAME_RULE'].includes(actor)
+        && calls[0].data.actor === actor && ev.data.actor === actor) out.automatic.push(entry);
+    else out.reasons.push('tool-actor-unknown:' + d.tool_call_id);
+  }
 }
 
 // ---------------------------------------------------- 检索投送四阶段 ----
@@ -567,22 +639,39 @@ function applyToEnvelope(env, { session, interventions, delivery, worldViews, de
  * 结论侧闸门：A0 证据不足以支持"自主成功"时，把 PASS 降级。
  * 返回 {overall, downgraded, reasons[]}；不改动其它任何字段。
  */
-function gateVerdict(overall, env) {
+/** Shared S5 consumer: missing blocks must never be promoted to natural. */
+function evaluateA0(env) {
   const reasons = [];
-  const s = env && env.session;
-  const i = env && env.interventions;
-  const d = env && env.context_delivery;
-  if (!env || !env.a0) {
-    return { overall: overall === 'PASS' ? 'INCONCLUSIVE' : overall, downgraded: overall === 'PASS', reasons: ['a0:missing'] };
+  if (!env || !env.a0 || env.a0.version !== A0_VERSION) reasons.push('a0:missing-or-unknown');
+  const s = env && env.session, i = env && env.interventions, d = env && env.context_delivery;
+  for (const [name, value, allowed] of [['session', s, ['CLEAN', 'DIRTY', 'UNKNOWN']],
+      ['interventions', i, ['NONE', 'PRESENT', 'UNKNOWN']], ['delivery', d, ['NONE', 'PRESENT', 'UNKNOWN']]]) {
+    if (!value || !allowed.includes(value.status)) reasons.push(name + ':missing-or-invalid');
+    else if (value.status === 'UNKNOWN') reasons.push(name + ':UNKNOWN');
+    if (name !== 'session' && value && Array.isArray(value.reasons)) reasons.push(...value.reasons.map(r => name + ':' + r));
   }
+  if (s && s.status === 'CLEAN' && (!Number.isInteger(s.first_request_message_count)
+      || s.first_request_message_count < 1 || !Number.isFinite(Date.parse(s.first_request_at)))) reasons.push('session:clean-proof-missing');
+  const intervened = !!(i && (i.status === 'PRESENT' || (Array.isArray(i.entries) && i.entries.length)));
+  if (intervened) reasons.push('interventions:PRESENT(' + i.count + ')');
+  if (i && (!Number.isInteger(i.count) || i.count < 0 || !Array.isArray(i.entries)
+      || i.entries.length !== i.count || (i.status === 'NONE' && i.count !== 0)
+      || (i.status === 'PRESENT' && i.count === 0))) reasons.push('interventions:invalid-count');
+  if (i && Array.isArray(i.rejected) && i.rejected.length) reasons.push('interventions:rejected');
+  if (d && ['NONE', 'PRESENT'].includes(d.status) && (typeof d.truncatedCountedAsDelivered !== 'boolean'
+      || !d.delivered || !Array.isArray(d.delivered.refs))) reasons.push('delivery:proof-missing');
+  const fatal = !!(d && d.truncatedCountedAsDelivered);
+  if (fatal) reasons.push('delivery:truncated-counted-as-delivered');
   if (s && s.status === 'DIRTY') reasons.push('session:DIRTY');
-  if (s && s.status === 'UNKNOWN') reasons.push('session:UNKNOWN');
-  if (i && i.status === 'UNKNOWN') reasons.push('interventions:UNKNOWN');
-  if (i && i.status === 'PRESENT') reasons.push('interventions:PRESENT(' + i.count + ')');
-  if (d && d.truncatedCountedAsDelivered) reasons.push('delivery:truncated-counted-as-delivered');
-  if (!reasons.length) return { overall, downgraded: false, reasons: [] };
-  const downgraded = overall === 'PASS' || overall === 'PASS_WITH_GAPS';
-  return { overall: downgraded ? 'INCONCLUSIVE' : overall, downgraded, reasons };
+  const verdict = fatal || (s && s.status === 'DIRTY') ? 'FAIL' : reasons.length ? 'INCONCLUSIVE' : 'PASS';
+  return { verdict, reasons: [...new Set(reasons)], intervened,
+    detail: verdict === 'PASS' ? '会话CLEAN、介入证据完整且无已证介入、投送一致'
+      : (intervened ? '已证介入；' : '') + [...new Set(reasons)].join('；') };
+}
+function gateVerdict(overall, env) {
+  const evaluation = evaluateA0(env);
+  const downgraded = evaluation.verdict !== 'PASS' && ['PASS', 'PASS_WITH_GAPS'].includes(overall);
+  return { overall: downgraded ? 'INCONCLUSIVE' : overall, downgraded, reasons: evaluation.reasons };
 }
 
 /** timeline 用的行（不含时间侧判定；没有来源就返回空数组，不造事件）。 */
@@ -695,6 +784,7 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   let chatUuid = null;
   let chatRows = null;
   let chatArchive = null;
+  let chatParseBad = false;
   try {
     const dirs = (companionsDir && fs.existsSync(companionsDir))
       ? fs.readdirSync(companionsDir, { withFileTypes: true }).filter((d) => d.isDirectory())
@@ -715,6 +805,7 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
     if (best.uuid) {
       chatUuid = best.uuid;
       chatRows = best.rows;
+      chatParseBad = parseJsonl(best.text).bad.length > 0;
       const outDir = ev('chat');
       fs.mkdirSync(outDir, { recursive: true });
       chatArchive = path.join(outDir, best.uuid + '.jsonl');
@@ -728,18 +819,43 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   }
 
   const session = classifySession({ chatRows, firstRequest, runStartAt: launchStart });
+  if (chatParseBad) { if (session.status !== 'DIRTY') session.status = 'UNKNOWN'; session.reasons.push('chat-parse-errors'); }
   session.chat_uuid = chatUuid;
   if (chatUuid) session.evidence.push('evidence/chat/' + chatUuid + '.jsonl');
 
   // 2) 人工介入：只从 run 窗口内的 rdd.jsonl 取
   const rddText = readIfExists(ev('rdd.jsonl'));
   sources.rdd = rddText != null;
-  const rddRows = rddText != null ? parseJsonl(rddText).rows : [];
-  const interventions = collectInterventions(rddRows, { eventsAvailable: sources.rdd });
+  const rddParsed = parseJsonl(rddText);
+  const scopeEnvText = readIfExists(path.join(runDir, 'envelope.json'));
+  const scopeEnv = scopeEnvText ? JSON.parse(scopeEnvText) : {};
+  const scope = scopeEnv.stopScopeFrozen || {};
+  const target = scope.authority === 'enqueue-receipt' && scope.worldId && scope.serverSession && scope.companionId
+    ? [scope.worldId, scope.serverSession, scope.companionId] : null;
+  const scopedRdd = rddParsed.rows.filter(e => {
+    if (!e || e.type !== 'admin_command_used') return true;
+    const actual = interventionScope(e);
+    return !target || !actual.every(Boolean) || actual.every((v, i) => v === target[i]);
+  });
+  const interventions = collectInterventions(scopedRdd, { eventsAvailable: sources.rdd,
+    reasons: rddParsed.bad.length ? ['rdd-parse-errors'] : [] });
+  interventions.automatic = [];
+  if (!target) interventions.reasons.push('target-scope-missing');
+  if (scopedRdd.some(e => e && e.type === 'admin_command_used' && !interventionScope(e).every(Boolean))) {
+    interventions.reasons.push('admin-scope-unknown');
+  }
   // 2026-10-30：debug_* 的回执在 **tools.jsonl**（monitoring category=tools），不在 rdd.jsonl。
   const toolsText = readIfExists(ev('tools.jsonl'));
   sources.tools = toolsText != null;
-  const toolsRows = toolsText != null ? parseJsonl(toolsText).rows : [];
+  const toolsParsed = parseJsonl(toolsText);
+  const toolsRows = toolsParsed.rows;
+  if (!sources.tools) interventions.reasons.push('tools-stream-missing');
+  if (toolsParsed.bad.length) interventions.reasons.push('tools-parse-errors');
+  collectToolInterventions(toolsRows, target, interventions);
+  interventions.count = interventions.entries.length;
+  interventions.ids = interventions.entries.map(e => e.interventionId);
+  interventions.byKind = interventions.entries.reduce((m, e) => { m[e.kind] = (m[e.kind] || 0) + 1; return m; }, {});
+  interventions.status = interventions.count ? 'PRESENT' : interventions.reasons.length ? 'UNKNOWN' : 'NONE';
   const debugTools = collectDebugTools(toolsRows);
   // 事件本身不带 runId；这些行来自**本轮窗口切片**（evidence/rdd.jsonl 只装了本 run 的增量），
   // 所以按 run 补 runId 是事实，不是猜。补不上的（没有 envelope）保持 null。
@@ -755,6 +871,14 @@ function collect({ runDir, monitorDir, companionsDir, launchStart, now }) {
   const contextRows = ctxText != null ? parseJsonl(ctxText).rows : null;
   const expmemRows = expmemText != null ? parseJsonl(expmemText).rows : null;
   const delivery = collectDelivery({ contextRows, expmemRows });
+  const deliveryGaps = [];
+  for (const [name, text] of [['context', ctxText], ['expmem', expmemText]]) {
+    if (text == null) deliveryGaps.push(name + '-stream-missing');
+    else if (parseJsonl(text).bad.length) deliveryGaps.push(name + '-parse-errors');
+  }
+  delivery.reasons = deliveryGaps;
+  if (deliveryGaps.length) delivery.status = 'UNKNOWN';
+  if (ctxText != null && parseJsonl(ctxText).bad.length) { if (session.status !== 'DIRTY') session.status = 'UNKNOWN'; session.reasons.push('context-parse-errors'); }
 
   // 4) 死亡事实（A1，93 号）：只读 instrumentation 切片；缺失 UNKNOWN，不当 0
   const insText = readIfExists(ev('instrumentation.jsonl'));
@@ -973,11 +1097,11 @@ function selftest() {
 
   // ⑧ 结论闸门：DIRTY/UNKNOWN/介入 一律不能 PASS
   {
-    const base = applyToEnvelope({}, { session: { status: 'CLEAN' }, interventions: { count: 0, status: 'NONE', entries: [] }, delivery: { status: 'NONE' } });
+    const base = applyToEnvelope({}, { session: { status: 'CLEAN', first_request_message_count: 2, first_request_at: iso(T0) }, interventions: { count: 0, status: 'NONE', entries: [] }, delivery: { status: 'NONE', truncatedCountedAsDelivered: false, delivered: { refs: [] } } });
     assert(gateVerdict('PASS', base).overall === 'PASS', '⑧ 全干净时应允许 PASS', fails);
-    const withIv = applyToEnvelope({}, { session: { status: 'CLEAN' }, interventions: { count: 2, status: 'PRESENT', entries: [] }, delivery: { status: 'NONE' } });
+    const withIv = applyToEnvelope({}, { session: { status: 'CLEAN' }, interventions: { count: 2, status: 'PRESENT', entries: [] }, delivery: { status: 'NONE', truncatedCountedAsDelivered: false, delivered: { refs: [] } } });
     assert(gateVerdict('PASS', withIv).overall === 'INCONCLUSIVE', '⑧ 有人工介入时不得 PASS', fails);
-    const dirty = applyToEnvelope({}, { session: { status: 'DIRTY' }, interventions: { count: 0, status: 'NONE', entries: [] }, delivery: { status: 'NONE' } });
+    const dirty = applyToEnvelope({}, { session: { status: 'DIRTY' }, interventions: { count: 0, status: 'NONE', entries: [] }, delivery: { status: 'NONE', truncatedCountedAsDelivered: false, delivered: { refs: [] } } });
     assert(gateVerdict('PASS', dirty).overall === 'INCONCLUSIVE', '⑧ 上下文脏时不得 PASS', fails);
     assert(gateVerdict('FAIL', dirty).overall === 'FAIL', '⑧ 闸门不得把 FAIL 改成别的', fails);
   }
@@ -1163,6 +1287,7 @@ if (require.main === module) {
 }
 
 module.exports = {
+  evaluateA0,
   filterSince,
   collectDebugTools,
   A0_VERSION, KINDS, ACTORS, SOURCES,
