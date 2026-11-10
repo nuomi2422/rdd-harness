@@ -108,7 +108,7 @@ const MCP_CALL = path.join(RDD, 'workspace', 'rdd-selfcompile', 'scripts', 'mcp-
 const OC_DIR = path.join(RDD, 'workspace', 'mc-openclaw-controller', 'scripts');
 
 const GIT = 'C:/Users/admin/AppData/Local/Programs/MinGit/cmd/git.exe';
-const { countContextRequestsSince } = require('./lib/post-stop-count');
+const { inspectContextRequestsSince } = require('./lib/post-stop-count');
 
 // 受控复位的"存档外"状态（glob 展开后拷贝）
 // 2026-10-27：把 'acx' 从复位清单里摘了 —— ACX 版本库是**学习产物**（学习者写、人批准），
@@ -1055,8 +1055,10 @@ async function cmdRun(opts) {
     if (postStopRequests === 0 && Date.now() > graceEnd - 45000) break; // 15s 静默即可判
     await sleep(5000);
   }
-  const independentPostStop = countContextRequestsSince(MONITOR, stopAtIso);
-  env.stop = { postStopRequests, independentPostStop, stopAt: stopAtIso, graceSeconds: 60 };
+  const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
+  env.stop = { postStopRequests, independentPostStop: postCheck.count, postStopStatus: postCheck.status,
+    postStopReasons: postCheck.reasons, postStopRawCount: postCheck.rawCount,
+    stopAt: stopAtIso, graceSeconds: 60 };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
     windowStartOffset: reader.windowStartOffset };
