@@ -63,6 +63,13 @@ test('同大小替换（inode 变）：记 replaced-same-size', (t) => {
   assert.equal(r.gaps['tools.jsonl'].reason, 'replaced-same-size');
 });
 
+test('起始偏移为零且流不存在也必须记录缺口', (t) => {
+  const { r } = setup(t);
+  assert.equal(r.pull('tools.jsonl'), '');
+  assert.equal(r.gaps['tools.jsonl'].reason, 'missing-file');
+  assert.equal(r.gaps['tools.jsonl'].from, 0);
+});
+
 test('缺失文件：读过之后消失 → missing-file；重建后能继续读', (t) => {
   const { r, file } = setup(t);
   fs.writeFileSync(file, 'a\n');

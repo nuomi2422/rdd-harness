@@ -59,7 +59,9 @@ function createPull(opts) {
   function pull(f) {
     const p = path.join(dir, f);
     if (!fs.existsSync(p)) {
-      if ((offsets[f] || 0) > 0) noteGap(f, 'missing-file', { from: offsets[f] });
+      // A missing required stream is never evidence of a complete empty window,
+      // including at offset zero before the first record arrives.
+      noteGap(f, 'missing-file', { from: offsets[f] || 0 });
       return '';
     }
     let st;

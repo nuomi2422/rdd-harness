@@ -30,9 +30,11 @@ function inspectContextRequestsSince(dir, iso, nowMs = Date.now()) {
       if (Number.isFinite(cutoffMs) && Date.parse(ts) >= cutoffMs) count++;
     }
   }
-  return reasons.length
-    ? { count: null, status: 'UNKNOWN', reasons: [...new Set(reasons)].sort(), rawCount }
-    : { count, status: 'PRESENT', reasons: [], rawCount };
+  // A global timestamp scan cannot establish companion/world/session ownership,
+  // continuity across rotations, or a complete observation window. Never sign a
+  // scoped logical count from this diagnostic scan, even when all JSON parses.
+  reasons.push('scope-and-window-unverified');
+  return { count: null, status: 'UNKNOWN', reasons: [...new Set(reasons)].sort(), rawCount, diagnosticAfterCutoff: count };
 }
 
 function countContextRequestsSince(dir, iso) { return inspectContextRequestsSince(dir, iso).count; }

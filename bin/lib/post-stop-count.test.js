@@ -13,8 +13,11 @@ test('counts current and rotated context files independently', () => {
   const d = tmp();
   fs.writeFileSync(path.join(d, 'context.jsonl'), [line('2026-11-10T01:00:00Z'), line('2026-11-10T01:10:00Z')].join('\n'));
   fs.writeFileSync(path.join(d, 'context-1.jsonl'), [line('2026-11-10T01:11:00Z'), line('2026-11-10T01:11:30Z', 'other')].join('\n'));
-  assert.deepEqual(inspectContextRequestsSince(d, '2026-11-10T01:05:00Z').count, 2);
-  assert.deepEqual(inspectContextRequestsSince(d, '2026-11-10T01:20:00Z').count, 0);
+  const after = inspectContextRequestsSince(d, '2026-11-10T01:05:00Z');
+  assert.equal(after.count, null);
+  assert.equal(after.status, 'UNKNOWN');
+  assert.equal(after.diagnosticAfterCutoff, 2);
+  assert.equal(inspectContextRequestsSince(d, '2026-11-10T01:20:00Z').count, null);
 });
 
 test('overlapping/duplicate raw lines are counted, not silently deduped', () => {
@@ -23,7 +26,9 @@ test('overlapping/duplicate raw lines are counted, not silently deduped', () => 
   fs.writeFileSync(path.join(d, 'context.jsonl'), same + '\n' + same + '\n');
   fs.writeFileSync(path.join(d, 'context-2.jsonl'), same + '\n');
   const r = inspectContextRequestsSince(d, '2026-11-10T01:05:00Z');
-  assert.equal(r.count, 3);
+  assert.equal(r.count, null);
+  assert.equal(r.status, 'UNKNOWN');
+  assert.equal(r.diagnosticAfterCutoff, 3);
   assert.equal(r.rawCount, 3);
 });
 
@@ -45,7 +50,7 @@ test('cutoff uses instants for fractional seconds and offsets', () => {
   fs.writeFileSync(path.join(d, 'context.jsonl'), [
     line('2026-11-10T00:59:59.999Z'), line('2026-11-10T09:00:00+08:00'),
   ].join('\n'));
-  assert.equal(inspectContextRequestsSince(d, '2026-11-10T01:00:00Z').count, 1);
+  assert.equal(inspectContextRequestsSince(d, '2026-11-10T01:00:00Z').diagnosticAfterCutoff, 1);
   assert.equal(inspectContextRequestsSince(d, 'not-a-time').status, 'UNKNOWN');
 });
 

@@ -138,12 +138,12 @@ function evaluate(runDir) {
     const done = env.phase === 'done';
     const coverage = stop.postStopStatus;
     const independent = stop.independentPostStop;
-    if (post === undefined || exited === undefined) add('S4', 'INCONCLUSIVE', '缺停止期证据（run 未跑完？）', []);
+    if (exited === false) add('S4', 'FAIL', 'java 未退出（实例仍在运行=污染生产状态）', []);
     else if (stop.attributedPostStopRequest === true) add('S4', 'FAIL', '已核验目标同伴停止后仍有新请求；完整性缺口不掩盖正证', ['evidence/context.jsonl']);
+    else if (post === undefined || exited === undefined) add('S4', 'INCONCLUSIVE', '缺停止期证据（run 未跑完？）', []);
     else if (!stop.coverageVerified || !stop.scopeVerified || coverage !== 'PRESENT') add('S4', 'NOT_COVERED', '停止窗连续性或目标归属未核验：' + (stop.postStopReasons || []).join(','), ['envelope.json', 'evidence/monitor-coverage.json']);
-    else if (independent === undefined || independent === null || independent !== post) add('S4', 'INCONCLUSIVE', '停后计数缺失或不一致：cursor=' + post + ' independent=' + independent, ['envelope.json', 'evidence/monitor-coverage.json']);
+    else if (independent !== undefined && independent !== null && independent !== post) add('S4', 'INCONCLUSIVE', '停后计数不一致：cursor=' + post + ' independent=' + independent, ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (post > 0) add('S4', 'FAIL', '停止后仍有 ' + post + ' 条新 llm_request', ['evidence/context.jsonl']);
-    else if (!exited) add('S4', 'FAIL', 'java 未退出（实例仍在运行=污染生产状态）', []);
     else if (!done) add('S4', 'FAIL', 'runner 未走到 done（复位/归档可能缺）phase=' + env.phase, []);
     else add('S4', 'PASS', '停止后 0 条新请求，java 已退出，证据已归档，状态已复位', ['envelope.json', 'evidence/']);
   }
@@ -310,10 +310,17 @@ function selftest() {
   }
   {
     const { dir } = makeRun('post-positive', (env, W, d) => {
-      env.stop.postStopRequests = 1; env.stop.independentPostStop = 1; env.stop.attributedPostStopRequest = true; env.stop.postStopStatus = 'UNKNOWN';
+      delete env.stop.postStopRequests; delete env.stop.javaExited; env.stop.attributedPostStopRequest = true; env.stop.postStopStatus = 'UNKNOWN';
       fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
     });
     cases.push({ name: '已证有后停请求（FAIL 优先）', dir, expect: 'FAIL', expectAssertion: ['S4', 'FAIL'] });
+  }
+  {
+    const { dir } = makeRun('unknown-coverage-live-process', (env, W, d) => {
+      env.stop.postStopStatus = 'UNKNOWN'; env.stop.javaExited = false;
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '覆盖未知但进程未退出（FAIL 优先）', dir, expect: 'FAIL', expectAssertion: ['S4', 'FAIL'] });
   }
   {
     const { dir } = makeRun('equal-zero-unverified-scope', (env, W, d) => {
@@ -321,6 +328,13 @@ function selftest() {
       fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
     });
     cases.push({ name: '双零但窗口/归属未验证', dir, expect: 'INCONCLUSIVE', expectAssertion: ['S4', 'NOT_COVERED'] });
+  }
+  {
+    const { dir } = makeRun('diagnostic-unknown-main-verified', (env, W, d) => {
+      env.stop.independentPostStop = null;
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '诊断未知不否决已验证主证据', dir, expect: 'PASS', expectAssertion: ['S4', 'PASS'] });
   }
   {
     const { dir } = makeRun('counts-disagree', (env, W, d) => {
