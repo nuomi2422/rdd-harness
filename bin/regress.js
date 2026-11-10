@@ -34,6 +34,7 @@ const STEPS = [
   ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
   // 2026-11-10：lib 下这 6 个测试此前没登记（回归不跑=没测），本次补齐。
   ['覆盖生产者(七流单源)', path.join(ROOT, 'lib', 'coverage-producer.test.js'), [], 'node-test'],
+  ['覆盖生产者复读反例(P1-A)', path.join(ROOT, 'lib', 'coverage-producer.verify.test.js'), [], 'node-test'],
   ['停后计数', path.join(ROOT, 'lib', 'post-stop-count.test.js'), [], 'node-test'],
   ['预算观测', path.join(ROOT, 'lib', 'run-budget.test.js'), [], 'node-test'],
   ['保存回执', path.join(ROOT, 'lib', 'save-receipt.test.js'), [], 'node-test'],

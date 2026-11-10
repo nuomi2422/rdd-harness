@@ -15,6 +15,7 @@ const STREAMS = ['tools', 'context', 'events', 'ai', 'rdd', 'expmem', 'instrumen
 
 function buildEvidence({ reader, bindings, stimulusSentAt, stopEnqueuedAt, streams = STREAMS, verify }) {
   if (!reader) throw new Error('coverage-producer: reader required');
+  // 2026-11-10 P1-A（思考者 R-20261110-01）：verify 结果必须逐流消费，拿不到就按失败处理。
   const v = verify || (typeof reader.verifySegments === 'function' ? reader.verifySegments() : { ok: false, files: {} });
   const segments = {};
   const gaps = {};
@@ -26,12 +27,20 @@ function buildEvidence({ reader, bindings, stimulusSentAt, stopEnqueuedAt, strea
   for (const s of streams) {
     const f = s + '.jsonl';
     const from = reader.windowStartOffset ? reader.windowStartOffset[f] : undefined;
-    const to = reader.offsets ? reader.offsets[f] : undefined;
+    // 2026-11-10 P1-A：合法空流（窗口内 0 字节）reader 只留 windowStartOffset 与 fileId，
+    // offsets 仍是 undefined；此时 to=from 是事实（读了 0 字节），不是"没读"。
+    const rawTo = reader.offsets ? reader.offsets[f] : undefined;
+    const hasIdentity = !!(reader.fileId && reader.fileId[f] !== undefined);
+    const to = Number.isFinite(rawTo) ? rawTo : (hasIdentity ? from : undefined);
     if (!Number.isFinite(from) || !Number.isFinite(to)) { missing.push(s); continue; }
     const raw = (reader.segments && reader.segments[f]) || [];
-    const segs = raw
-      .filter((g) => g && Number.isFinite(g.from) && Number.isFinite(g.to) && g.to > from)
-      .map((g) => ({ from: Math.max(g.from, from), to: g.to, fingerprintMatch: true }));
+    // 逐流验证：只有 verify.ok 为真且该流没有 broken 段，才允许 fingerprintMatch。
+    const vf = (v && v.ok === true && v.files) ? v.files[f] : null;
+    const filtered = raw.filter((g) => g && Number.isFinite(g.from) && Number.isFinite(g.to) && g.to > from);
+    // 合法空流（from===to 且 0 段）不会出现在 verify.files 里：verify.ok 为真即视为"空得可信"。
+    const zeroSeg = filtered.length === 0 && from === to;
+    const fingerprintOk = vf ? vf.broken === 0 : (zeroSeg && !!(v && v.ok === true));
+    const segs = filtered.map((g) => ({ from: Math.max(g.from, from), to: g.to, fingerprintMatch: fingerprintOk }));
 
     // 连续性：首段必须从窗口起点开始、段段相接、末段到止点。
     // 合法空流（窗口内 0 字节）：from===to 且没有段，视为连续。
@@ -55,17 +64,24 @@ function buildEvidence({ reader, bindings, stimulusSentAt, stopEnqueuedAt, strea
 
     const inode = reader.fileId ? reader.fileId[f] : undefined;
     const rotated = !!(reader.gaps && reader.gaps[f]);
-    segments[s] = { segments: segs, broken: contiguous ? 0 : 1, halfLine };
+    // broken 仍只数“连续性失败”（保持原语义）；复读失败单独用 verifyFailed 表达，
+    // 这样空流（0 段）也能拒签，而不是靠段上指纹才拦。
+    segments[s] = { segments: segs, broken: contiguous ? 0 : 1, halfLine, verifyFailed: !fingerprintOk };
     gaps[s] = gapCount;
     start[s] = from;
     end[s] = to;
     // 换文件时开始/结束身份必然不同，让 coverage 的 fileId 检查也能拒。
-    fileIds[s] = { start: String(rotated ? 'rotated-before' : inode), end: String(inode) };
+    // 2026-11-10 P1-A：拿不到 inode 时必须留空（让 coverage 拒），不能用 String(undefined) 冒充身份。
+    fileIds[s] = (inode === undefined || inode === null)
+      ? { start: undefined, end: undefined }
+      : { start: String(rotated ? 'rotated-before' : inode), end: String(inode) };
   }
 
+  // 2026-11-10 P1-A：replays 未知时不能默认 0（0 = "已核且无重放"）。
+  // 用 -1 表示"未核"，coverage.checkLifecycle 会按非 0 拒签。
   const replays = (() => {
     if (typeof reader.replays === 'number') return reader.replays;
-    return 0;
+    return -1;
   })();
 
   return {

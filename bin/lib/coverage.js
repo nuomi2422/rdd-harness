@@ -59,6 +59,8 @@ function checkSegments(segments, window) {
     if (!Array.isArray(s.segments)) fail('段结构非法：' + name);
     if (s.halfLine === true) fail('存在半行未完成段：' + name);
     if (Number.isFinite(s.broken) && s.broken !== 0) fail('存在段比对失败：' + name + ' broken=' + s.broken);
+    // 2026-11-10 P1-A：复读验证失败（含 0 段空流）必须拒签，不能只靠段上的 fingerprintMatch。
+    if (s.verifyFailed === true) fail('复读验证失败：' + name);
     const start = window && window.start ? window.start[name] : undefined;
     const end = window && window.end ? window.end[name] : undefined;
     if (!Number.isFinite(start) || !Number.isFinite(end)) fail('窗口起止缺字节位：' + name);
