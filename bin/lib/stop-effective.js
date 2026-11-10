@@ -56,13 +56,21 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
     // R-03：必须与本次命令同键；只按时间/seq 不算本次关联。
     if (!expectedCommandId || !key || key !== expectedCommandId) continue;
     // R-04：scope 提供时，事件的世界/服务器也必须严格匹配；缺失或不符 → 不接受（不猜）。
+    // R-06：冲突/同源校验——top 与 data 不一致、stamp_conflict、非法/缺失身份一律不接受。
+    if (ev.stamp_conflict === true) continue;
+    if (ev.world_id && d.world_id && ev.world_id !== d.world_id) continue;
+    if (ev.server_session && d.server_session && ev.server_session !== d.server_session) continue;
+    if (d.identity_status && d.identity_status !== 'OK') continue;
     if (scope) {
       const w = ev.world_id || d.world_id || null;
       const s = ev.server_session || d.server_session || null;
       const ep = ev.stamp_epoch != null ? ev.stamp_epoch : (d.stamp_epoch != null ? d.stamp_epoch : null);
       if (!w || !s || w !== scope.worldId || s !== scope.serverSession) continue;
-      // epoch 只是本地代次：给了就必须一致（换世界/重启会变），不给不猜。
-      if (scope.epoch != null && ep != null && Number(ep) !== Number(scope.epoch)) continue;
+      // epoch 只是本地代次：scope 要求时必须存在且一致（缺/非法 = UNKNOWN，不猜）。
+      if (scope.epoch != null) {
+        if (!Number.isSafeInteger(Number(ep)) || Number(ep) < 0) continue;
+        if (Number(ep) !== Number(scope.epoch)) continue;
+      }
     }
     hit = {
       at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped,

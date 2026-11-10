@@ -1054,9 +1054,21 @@ async function cmdRun(opts) {
   env.stop = env.stop || {};
   env.stop.ownerStop = os;
   env.stop.enqueueReceipt = stopReceipt;
-  // 权威作用域：只有回执 identityStatus=OK 且 commandId 非空才可用；否则一律 UNKNOWN。
-  const receiptAuthority = !!(stopReceipt && stopReceipt.commandId && stopReceipt.identityStatus === 'OK'
-    && stopReceipt.worldId && stopReceipt.serverSession);
+  // R-06 严格门：delivery 白名单（命令只认 SEEN）、UUID 相等、字段类型/epoch 合法，
+  // 解析成功不等于业务成功；任一项不满足一律 UNKNOWN。
+  const selectedUuid = (env.companionBinding && env.companionBinding.companionId) || null;
+  const receiptAuthority = (() => {
+    if (!stopReceipt || typeof stopReceipt !== 'object') return false;
+    const deliveryOk = stopReceipt.delivery === 'SEEN';
+    const keyOk = typeof stopReceipt.commandId === 'string' && stopReceipt.commandId.length > 0;
+    const uuidOk = typeof stopReceipt.companionUuid === 'string' && !!selectedUuid
+      && stopReceipt.companionUuid.toLowerCase() === String(selectedUuid).toLowerCase();
+    const identityOk = stopReceipt.identityStatus === 'OK';
+    const worldOk = typeof stopReceipt.worldId === 'string' && stopReceipt.worldId.length > 0;
+    const sessionOk = typeof stopReceipt.serverSession === 'string' && stopReceipt.serverSession.length > 0;
+    const epochOk = Number.isSafeInteger(stopReceipt.epoch) && stopReceipt.epoch >= 0;
+    return deliveryOk && keyOk && uuidOk && identityOk && worldOk && sessionOk && epochOk;
+  })();
   const expectedCommandId = receiptAuthority ? stopReceipt.commandId : null;
   const receiptScope = receiptAuthority
     ? { worldId: stopReceipt.worldId, serverSession: stopReceipt.serverSession, epoch: stopReceipt.epoch }
