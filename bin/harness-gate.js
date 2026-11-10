@@ -1424,7 +1424,7 @@ function builtinChecks(ctx, phase) {
   // P22（2026-11-08 主人更正）：**进游戏前**要过一遍实验台，不是退游戏后。
   //   主人的原话意思：进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。
   //   判据：bench-digest 的留痕在 30 分钟内 —— 只在进游戏前执行。
-  if (phase === 'preflight') {
+  if (phase === 'preflight' && !titleSkip('P22')) {
     const root22 = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
     let p22state = BLOCK, p22detail = '没跑过 bench-digest（.harness/audit/bench-digest.jsonl 不存在）→ node bin/bench-digest.js --since 6h';
     try {

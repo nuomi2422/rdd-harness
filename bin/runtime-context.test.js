@@ -39,7 +39,7 @@ function harness(args = [], status = 0) {
     } };
   vm.createContext(sandbox);
   vm.runInContext(source.slice(0, source.lastIndexOf('try { process.exit(main()); }')) +
-    '\n globalThis.api = { setMode(mode) { process.argv[2] = mode; }, main, preflight, postflight, printPlannerBanner, printBenchReminder, appendGateUsage, results, setup() { REG = registryLib.load(); RUNTIME = runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)), REG); } };', sandbox);
+    '\n globalThis.api = { setMode(mode) { process.argv[2] = mode; }, main, preflight, postflight, builtinChecks, printPlannerBanner, printBenchReminder, appendGateUsage, results, setup() { REG = registryLib.load(); RUNTIME = runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)), REG); } };', sandbox);
   return {api:sandbox.api, io, children, logs, reg, before, loads:() => loads};
 }
 test('default scope unchanged and REG immutable; fixed test root ignores project root', () => {
@@ -80,14 +80,25 @@ for (const phase of ['preflight','postflight']) test(phase + ' isolated body: no
   const h = harness(titleArgs, 3); h.api.setup();
   const ctx = {since:new Date('2026-11-11T00:00:00'), keyword:'fixture', head:'', stageTxt:''};
   h.api[phase](ctx); h.api.printPlannerBanner(ctx); h.api.printBenchReminder(); h.api.appendGateUsage({});
-  const skips = phase === 'preflight' ? ['P0','P15','P18'] : ['Q10','Q14','Q18','Q19','Q20'];
+  const skips = phase === 'preflight' ? ['P0','P15','P18','P22'] : ['Q10','Q14','Q18','Q19','Q20'];
   for (const id of skips) assert.equal(h.api.results.find(r => r.id === id).state, 'SKIP', id);
   assert.equal(JSON.stringify(h.reg), h.before);
-  assert.ok(!h.io.some(p => /FORBIDDEN-LIVE|gate-usage|The Best of Twilight Forest|snapshot-world/.test(p)), JSON.stringify(h.io));
+  assert.ok(!h.io.some(p => /FORBIDDEN-LIVE|gate-usage|bench-digest|The Best of Twilight Forest|snapshot-world/.test(p)), JSON.stringify(h.io));
   assert.ok(!h.children.some(c => /snapshot-world|check-evidence-anchor|check-experiment-reflection/.test(c.argv.join(' '))));
   if (phase === 'preflight') {
     const deployment = h.children.find(c => c.argv.some(a => /check-runtime-deployment/.test(a)));
     assert.equal(deployment.argv[1], '--mods'); assert.equal(deployment.argv[2], path.join(path.normalize(runtime.TEST_ROOT), 'mods'));
     assert.equal(h.api.results.find(r => r.id === 'P2').state, 'BLOCK');
+  }
+});
+test('P22 default preflight keeps digest evaluation; title pre/post never read it', () => {
+  const ctx = {since:new Date('2026-11-11T00:00:00'), keyword:'fixture', head:'', stageTxt:''};
+  const normal = harness([]); normal.api.setup(); normal.api.builtinChecks(ctx, 'preflight');
+  assert.ok(normal.io.some(p => /bench-digest\.jsonl/.test(p)));
+  assert.notEqual(normal.api.results.find(r => r.id === 'P22').state, 'SKIP');
+  for (const phase of ['preflight','postflight']) {
+    const isolated = harness(titleArgs); isolated.api.setup(); isolated.api[phase](ctx);
+    assert.ok(!isolated.io.some(p => /bench-digest/.test(p)));
+    if (phase === 'preflight') assert.equal(isolated.api.results.find(r => r.id === 'P22').state, 'SKIP');
   }
 });
