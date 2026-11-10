@@ -9,6 +9,8 @@ const path = require('path');
  */
 function inspectContextRequestsSince(dir, iso, nowMs = Date.now()) {
   const reasons = [];
+  const cutoffMs = Date.parse(iso);
+  if (!Number.isFinite(cutoffMs)) reasons.push('invalid-cutoff');
   if (!fs.existsSync(dir)) return { count: null, status: 'UNKNOWN', reasons: ['missing-dir'], rawCount: 0 };
   const files = fs.readdirSync(dir).filter(f => /^context.*\.jsonl$/.test(f));
   if (files.length === 0) return { count: null, status: 'UNKNOWN', reasons: ['no-context-stream'], rawCount: 0 };
@@ -25,7 +27,7 @@ function inspectContextRequestsSince(dir, iso, nowMs = Date.now()) {
       const ts = obj.timestamp;
       if (typeof ts !== 'string' || !Number.isFinite(Date.parse(ts))) { reasons.push('untrusted-timestamp:' + f); continue; }
       if (Date.parse(ts) > nowMs + 300000) reasons.push('future-clock:' + f);
-      if (ts >= iso) count++;
+      if (Number.isFinite(cutoffMs) && Date.parse(ts) >= cutoffMs) count++;
     }
   }
   return reasons.length

@@ -40,6 +40,15 @@ test('malformed/truncated/future-clock lines force UNKNOWN, not zero', () => {
   assert.ok(r.reasons.length > 0);
 });
 
+test('cutoff uses instants for fractional seconds and offsets', () => {
+  const d = tmp();
+  fs.writeFileSync(path.join(d, 'context.jsonl'), [
+    line('2026-11-10T00:59:59.999Z'), line('2026-11-10T09:00:00+08:00'),
+  ].join('\n'));
+  assert.equal(inspectContextRequestsSince(d, '2026-11-10T01:00:00Z').count, 1);
+  assert.equal(inspectContextRequestsSince(d, 'not-a-time').status, 'UNKNOWN');
+});
+
 test('missing directory is UNKNOWN, not a trusted zero', () => {
   const r = inspectContextRequestsSince(path.join(tmp(), 'none'), '2026-11-10T01:00:00Z');
   assert.equal(r.count, null);

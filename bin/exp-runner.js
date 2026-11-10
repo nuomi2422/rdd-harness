@@ -976,7 +976,9 @@ async function cmdRun(opts) {
 
   // ---------- stop ----------
   env.phase = 'stop';
-  const stopOff = fs.statSync(path.join(MONITOR, 'context.jsonl')).size;
+  // 从 watch 使用的同一 reader 游标继续；不得另取 stopOff 跳过中间字节。
+  pull('context.jsonl');
+  pull('ai.jsonl');
   // 停机前最后一次背包采样（避免 30s 节奏错过交付瞬间）
   const finInv = mcp('rdd_get_inventory', companionName, null, 25000);
   if (finInv.ok) {
@@ -1027,37 +1029,19 @@ async function cmdRun(opts) {
   const sb = sbEarly;
   fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ rdd_standby: sb, task_stop: ts, rdd_save: sv }, null, 2));
   log(runDir, 'stop', 'rdd_standby → ' + (sb.ok ? 'ok' : 'failed') + '；task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed'));
-  // 60s 宽限：数一数还有没有新的 llm_request
+  // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
+  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, stopAtIso);
   let postStopRequests = 0;
   const graceEnd = Date.now() + 60000;
   while (Date.now() < graceEnd) {
-    const p = path.join(MONITOR, 'context.jsonl');
-    // 2026-10-30（exp-loop-r16 实测）：context.jsonl 会**轮转**（改名成 context-<ts>.jsonl），
-    // 轮转瞬间 statSync 抛 ENOENT。原来这一行在 a0 的 try/catch **之外**，于是整个收尾直接崩，
-    // 连 restore 都没跑（环境状态没还原）——比丢一条观测严重得多。
-    // 处理：读不到就当作「本轮轮询没有新数据」并跳出；不猜、不补。
-    let size = 0;
-    try {
-      size = fs.statSync(p).size;
-    } catch (e) {
-      log(runDir, 'stop', 'context.jsonl 轮转中（' + e.code + '），停止后静默检查提前结束');
-      break;
-    }
-    if (size > stopOff) {
-      const fd = fs.openSync(p, 'r');
-      const len = size - stopOff;
-      const buf = Buffer.alloc(len);
-      fs.readSync(fd, buf, 0, len, stopOff);
-      fs.closeSync(fd);
-      fs.appendFileSync(path.join(runDir, 'evidence', 'context.jsonl'), buf);
-      for (const line of buf.toString('utf8').split('\n')) if (line.includes('"type":"llm_request"')) postStopRequests++;
-    }
-    if (postStopRequests === 0 && Date.now() > graceEnd - 45000) break; // 15s 静默即可判
+    postStopRequests = stopCounter.collect();
+    if (postStopRequests === 0 && Date.now() > graceEnd - 45000) break;
     await sleep(5000);
   }
+  postStopRequests = stopCounter.collect();
   const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
-  env.stop = { postStopRequests, independentPostStop: postCheck.count, postStopStatus: postCheck.status,
-    postStopReasons: postCheck.reasons, postStopRawCount: postCheck.rawCount,
+  env.stop = { ...env.stop, postStopRequests, independentPostStop: postCheck.count, postStopStatus: postCheck.status,
+    postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
     stopAt: stopAtIso, graceSeconds: 60 };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
