@@ -67,13 +67,18 @@ test('scope 缺键 → bound=false、UNKNOWN（不能签 0）', () => {
   assert.equal(s.status, 'UNKNOWN');
 });
 
-test('缺 stop 回执关联 → 不归属、UNKNOWN；事件无 stopSeq 也不归属', () => {
-  const s = counter([req()], SCOPE, {});
-  assert.equal(s.bound, false);
+test('回执时间关联：事件无 stop 标记也可归属；无任何回执 → 不归属', () => {
+  const byReceipt = counter([req()], SCOPE, { receiptAt: CUT });
+  assert.equal(byReceipt.boundCount, 1, '有回执基准即可按时间窗归属');
+  const none = counter([req()], SCOPE, {});
+  assert.equal(none.bound, false);
+  assert.equal(none.status, 'UNKNOWN');
+});
+
+test('事件自带 stop 标记时，与本次回执不一致 → 不归属', () => {
+  const s = counter([req({ stopSeq: 8 })], SCOPE, { receiptAt: CUT, stopSeq: 7 });
+  assert.equal(s.boundCount, 0);
   assert.equal(s.status, 'UNKNOWN');
-  const s2 = counter([req({ stopSeq: undefined })]);
-  assert.equal(s2.boundCount, 0);
-  assert.equal(s2.status, 'UNKNOWN');
 });
 
 test('非 dispatched（failed/pending/缺 status）不计数', () => {

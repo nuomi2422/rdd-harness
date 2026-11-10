@@ -1113,8 +1113,12 @@ async function cmdRun(opts) {
     companionId: companionName,
   };
   // 本次 stop 的回执关联键（同一 run 内递增；事件若不带同键就不归属本次）。
-  const stopSeq = (env.stop && Number.isFinite(env.stop.stopSeq) ? env.stop.stopSeq : 0) + 1;
-  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, { stopSeq });
+  // 回执关联：以 owner_stop 生效回执时间（缺则入队时间）为本窗基准；生产事件无 stopSeq。
+  const stopReceiptAt = stopEffectiveIso || stopAtIso;
+  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, {
+    receiptAt: stopReceiptAt,
+    stopSeq: stopEffective && stopEffective.seq != null ? stopEffective.seq : null,
+  });
   let postStopRequests = 0;
   const observation = await require('./lib/stop-observation').observeStopWindow({
     clock: monotonicMs, sleep, cutoffMono: stopEffectiveIso ? stopEffectiveMono : stopAtMono, durationMs: 60000, intervalMs: 5000,
@@ -1135,7 +1139,7 @@ async function cmdRun(opts) {
     // 2026-11-10 P1-B：归属与诊断分开；independent 不再复用同一个数冒充独立证据。
     postStopAttribution: stopSnap.bound ? 'bound' : (stopSnap.status === 'UNKNOWN' ? 'unknown' : 'none'),
     postStopDiagnostic: { foreign: stopSnap.foreign, unbound: stopSnap.unbound, failed: stopSnap.failed, rawCount: stopSnap.rawCount },
-    stopScope, stopSeq,
+    stopScope, stopReceiptAt,
     postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
     stopAt: stopAtIso, stopEffectiveAt: stopEffectiveIso, stopEffectiveReceipt: stopEffective,
     // 旧字段名保留兼容，但语义写清：这是**整目录启发式扫描**的条数，只作诊断，不参与判定。
