@@ -29,7 +29,15 @@ function scanOwnerStop(lines, companionId, sinceIso) {
     // 2026-11-10 P1-B：同伴必须严格匹配；事件缺 companion_id 时不能默认归给本次同伴。
     if (!companionId || !d.companion_id || d.companion_id !== companionId) continue;
     if (d.drained === undefined && d.overflow_dropped === undefined) continue;
-    hit = { at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped };
+    // R-02 第 3 点：真实 owner_stop 会附 command_correlation_id（Gateway 提供时）。
+    // 这是"本次命令"的身份；time/seq 只用于排序，不能代替它。
+    hit = {
+      at: ev.timestamp,
+      drained: d.drained,
+      overflowDropped: d.overflow_dropped,
+      commandCorrelationId: d.command_correlation_id || d.commandCorrelationId || null,
+      eventSeq: ev.event_seq == null ? null : ev.event_seq,
+    };
   }
   return hit;
 }

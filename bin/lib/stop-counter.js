@@ -1,14 +1,15 @@
 'use strict';
 /**
- * stop-counter.js —— 停后派发计数（2026-11-10 P1-B，思考者 R-20261110-01）。
+ * stop-counter.js —— 停后派发计数（2026-11-10，R-20261110-02 六点返工版）。
  *
- * 旧实现只按 type+时间计数：别的同伴、别的世界、别的会话、failed/重复回执都可能混进来，
- * 于是"0 条"被当成"已证无泄漏"。现在：
- *   1. **归属**：只数本次 stop 关联的 world/server/companion；事件缺身份或与 scope 不符 → 不计入，
- *      但记 unbound/foreign 证据（不静默丢）；
- *   2. **去重**：以 requestId 为逻辑请求、attemptId 为尝试；同一逻辑请求多次尝试只算 1 条派发；
- *   3. **状态**：failed 计诊断不计"已派发"；时间戳/JSON 坏行记 error；
- *   4. **未知**：没有任何带身份的事件、或 scope 缺键 → bound=false，消费者必须判 UNKNOWN，不能当 0。
+ * 语义分离（关键）：
+ *   - **窗口归属（attributable）**：scope(world/session/companion) 齐全 + 本次 stop 回执关联存在
+ *     + 无坏行/半行/未知状态。只有 attributable 时，"0 条"才是合法完整零。
+ *   - **违规（violations）**：窗口内、身份已归属、status=dispatched 的请求（按 requestId+attempt 去重）。
+ *   - failed / 缺 status / 坏 JSON / 半行 只作诊断，**不占用去重位、不吞后续 dispatched**，
+ *     没有归属于本窗的违规时不得签 0。
+ *
+ * 身份读取（R-02 第 2 点）：真实事件顶层有 world_id/server_session，companionId 在 data。
  */
 function createStopCounter(pull, stopAt, scope, correlation) {
   const cutoffMs = Date.parse(stopAt);
@@ -18,23 +19,19 @@ function createStopCounter(pull, stopAt, scope, correlation) {
   const c = correlation || {};
   const scopeGiven = !!(s.worldId && s.serverSession && s.companionId);
   if (!scopeGiven) errors.push('scope-incomplete');
-  // 2026-11-10 P1-B 修正：生产事件没有 stopSeq（见实验数据记录/010），
-  // 所以"本次 stop 关联"以**回执时间**为基准：receiptAt（owner_stop 生效时刻，缺则入队时刻）；
-  // 事件若自带 stop 标记（stopSeq/stopId）则必须与 correlation 一致。
-  const corrGiven = !!(c.receiptAt || c.stopSeq || c.stopId);
+  // R-02 第 3 点：stopSeq 是自造协议，生产不发。只接受真实回执关联或时间基准。
+  const corrGiven = !!(c.commandCorrelationId || c.receiptAt);
   if (!corrGiven) errors.push('no-stop-correlation');
 
   let rawCount = 0;
   let unboundCount = 0;
   const seenRequest = new Set();
-  const seenAttempt = new Set();
-  const boundRequests = [];      // 已归属、已去重、status 非 failed
-  const foreign = [];            // 有身份但不匹配（别的同伴/世界/会话）
-  const unbound = [];            // 缺身份，无法归属
-  const failed = [];             // 已归属但 status=failed
+  const violations = [];
+  const foreign = [];
+  const unbound = [];
+  const failed = [];
+  const unknowns = [];
 
-  // 2026-11-10 P1-B 修正：真实事件把 world_id/server_session 放在**事件顶层**，
-  // companionId 在 data 内（见实验数据记录/010）。两处都要读，否则真实窗口恒 unbound。
   const idOf = (event) => {
     const d = event.data || {};
     return {
@@ -60,12 +57,7 @@ function createStopCounter(pull, stopAt, scope, correlation) {
       const d = event.data || {};
       const ids = idOf(event);
       const requestId = d.requestId || d.request_id || null;
-      if (!requestId) {
-        // 无 requestId 的旧事件：reader 已保证每字节只消费一次，这里按物理行计一次诊断数。
-        unbound.push({ at, reason: 'no-request-id' });
-        unboundCount += 1;
-        continue;
-      }
+      if (!requestId) { unbound.push({ at, reason: 'no-request-id' }); unboundCount += 1; continue; }
       if (!ids.companion || !ids.world || !ids.session) {
         unbound.push({ at, requestId, ids, reason: 'no-identity' });
         if (!seenRequest.has(requestId)) { seenRequest.add(requestId); unboundCount += 1; }
@@ -76,55 +68,61 @@ function createStopCounter(pull, stopAt, scope, correlation) {
         if (!seenRequest.has(requestId)) { seenRequest.add(requestId); unboundCount += 1; }
         continue;
       }
-      const match = ids.companion === s.companionId && ids.world === s.worldId && ids.session === s.serverSession;
-      if (!match) { foreign.push({ at, requestId, ids }); continue; }
-
-      // 回执关联：生产事件通常不带 stop 标记（见实验数据记录/010），
-      // 因此以"回执时间"为基准归属；若事件自带标记则必须与本次回执一致。
+      if (ids.companion !== s.companionId || ids.world !== s.worldId || ids.session !== s.serverSession) {
+        foreign.push({ at, requestId, ids });
+        continue;
+      }
+      // 回执关联：命令关联键优先；事件若带命令键必须一致；仅时间窗时如实标注。
+      const evCmd = d.command_correlation_id || d.commandCorrelationId || null;
+      if (evCmd && c.commandCorrelationId && evCmd !== c.commandCorrelationId) {
+        unbound.push({ at, requestId, reason: 'command-correlation-mismatch' });
+        continue;
+      }
       if (!corrGiven) {
         unbound.push({ at, requestId, reason: 'no-stop-correlation' });
         if (!seenRequest.has(requestId)) { seenRequest.add(requestId); unboundCount += 1; }
         continue;
       }
-      const evStop = d.stopSeq || d.stopId || null;
-      if (evStop && (c.stopSeq || c.stopId) && String(evStop) !== String(c.stopSeq || c.stopId)) {
-        unbound.push({ at, requestId, reason: 'stop-correlation-mismatch' });
-        if (!seenRequest.has(requestId)) { seenRequest.add(requestId); unboundCount += 1; }
-        continue;
-      }
-      const attemptId = d.attemptId || d.attempt_id || null;
-      if (attemptId) {
-        if (seenAttempt.has(attemptId)) continue;
-        seenAttempt.add(attemptId);
-      }
-      if (seenRequest.has(requestId)) continue;
-      seenRequest.add(requestId);
 
-      // 2026-11-10 P1-B：只有明确 dispatched 才算"停后派发"；failed/其它/缺 status 全部只进诊断。
       const status = d.status || null;
-      if (status !== 'dispatched') { failed.push({ at, requestId, status }); continue; }
-      boundRequests.push({ at, requestId, attemptId, correlatedBy: evStop ? 'stop-marker' : 'receipt-window' });
+      const attempt = d.attempt != null ? d.attempt : null;
+      if (status === 'failed') { failed.push({ at, requestId, attempt }); continue; }
+      if (status !== 'dispatched') { unknowns.push({ at, requestId, status }); continue; }
+      const dedupeKey = requestId + '#' + (attempt == null ? '-' : attempt);
+      if (seenRequest.has(dedupeKey)) continue;
+      seenRequest.add(dedupeKey);
+      violations.push({
+        at, requestId, attempt, status,
+        correlatedBy: evCmd ? 'command-correlation' : (c.commandCorrelationId ? 'command-correlation' : 'receipt-window'),
+      });
     }
-    // 兼容：无 scope/correlation 的旧调用仍返回"去重后的物理请求数"（诊断用途）；
-    // 消费者必须用 snapshot().boundCount 才能签 PASS，不能拿这个返回值当归属证据。
-    return boundRequests.length + unboundCount;
+    // 兼容旧调用：返回含未归属的物理计数（仅诊断，不可当归属证据）。
+    return violations.length + unboundCount;
   }
 
   return {
     collect,
-    snapshot: () => ({
-      boundCount: boundRequests.length,
-      boundRequests,
-      failed: failed.length,
-      foreign: foreign.length,
-      unbound: unbound.length,
-      status: boundRequests.length ? 'PRESENT' : (scopeGiven && corrGiven && !unbound.length && !foreign.length && !errors.length ? 'NONE' : 'UNKNOWN'),
-      bound: scopeGiven && corrGiven && boundRequests.length > 0,
-      correlationBound: corrGiven,
-      errors: [...new Set(errors)],
-      rawCount,
-      diagnostic: { unbound, foreign, failed },
-    }),
+    snapshot: () => {
+      // 缺 status 的请求让"窗口可归属"不成立（不能把未知当干净零）。
+      const attributable = scopeGiven && corrGiven && !errors.length && unknowns.length === 0;
+      const status = violations.length ? 'PRESENT' : (attributable ? 'NONE' : 'UNKNOWN');
+      return {
+        violationCount: violations.length,
+        violations,
+        failed: failed.length,
+        foreign: foreign.length,
+        unbound: unbound.length,
+        unknownStatus: unknowns.length,
+        status,
+        attributable,
+        // 兼容字段：bound 只在"窗口可归属且确有违规"时为真；零请求用 attributable 表达。
+        bound: attributable && violations.length > 0,
+        correlationBound: corrGiven,
+        errors: [...new Set(errors)],
+        rawCount,
+        diagnostic: { unbound, foreign, failed, unknowns },
+      };
+    },
   };
 }
 module.exports = { createStopCounter };

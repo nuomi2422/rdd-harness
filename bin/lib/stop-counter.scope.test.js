@@ -1,89 +1,90 @@
 'use strict';
 /**
- * P1-B 反例（思考者 R-20261110-01）：stop-counter 的归属/去重/未知语义。
- * 旧实现只按 type+时间计数，双同伴/异世界/缺键/failed/重复都会串数。
+ * P1-B（R-20261110-02 第 4/5 点）反例：
+ *   - EMPTY 合法完整零必须 attributable；
+ *   - failed 后同 requestId 再 dispatched 必须计违规；
+ *   - 缺 status / 坏 JSON / 缺身份 → 不可签完整零。
  */
 const test = require('node:test');
 const assert = require('node:assert');
 const { createStopCounter } = require('./stop-counter');
 
 const SCOPE = { worldId: 'w1', serverSession: 's1', companionId: 'c1' };
-const CORR = { stopSeq: 7 };
+const CORR = { receiptAt: '2026-11-10T12:00:00.000Z' };
 const CUT = '2026-11-10T12:00:00.000Z';
 const AFTER = '2026-11-10T12:00:01.000Z';
 
 function counter(lines, scope = SCOPE, corr = CORR) {
-  let chunk = lines.join('\n');
-  const pull = () => chunk;
-  const c = createStopCounter(pull, CUT, scope, corr);
+  const chunk = lines.join('\n');
+  const c = createStopCounter(() => chunk, CUT, scope, corr);
   c.collect();
   return c.snapshot();
 }
 const req = (over = {}) => JSON.stringify({
-  type: 'llm_request', timestamp: AFTER,
-  data: { requestId: 'r1', attemptId: 'a1', status: 'dispatched', stopSeq: 7, world_id: 'w1', server_session: 's1', companionId: 'c1', ...over },
+  type: 'llm_request', timestamp: AFTER, world_id: 'w1', server_session: 's1',
+  data: { requestId: 'r1', attempt: 1, status: 'dispatched', companionId: 'c1', ...over },
 });
 
-test('同同伴/世界/会话的 1 条 → bound，count=1', () => {
+test('同同伴/世界/会话 1 条 dispatched → 1 违规', () => {
   const s = counter([req()]);
-  assert.equal(s.boundCount, 1);
-  assert.equal(s.bound, true);
+  assert.equal(s.violationCount, 1);
+  assert.equal(s.attributable, true);
+  assert.equal(s.status, 'PRESENT');
 });
 
-test('别的同伴 / 别的世界 / 别的会话 → 不计入，记 foreign', () => {
-  const s = counter([req({ companionId: 'c2' }), req({ world_id: 'w2', requestId: 'r2' }), req({ server_session: 's2', requestId: 'r3' })]);
-  assert.equal(s.boundCount, 0);
-  assert.equal(s.foreign, 3);
-  assert.equal(s.status, 'UNKNOWN');
+test('EMPTY：无任何请求且窗口可归属 → attributable，status NONE（合法零）', () => {
+  const s = counter([]);
+  assert.equal(s.violationCount, 0);
+  assert.equal(s.attributable, true);
+  assert.equal(s.status, 'NONE');
+  assert.equal(s.bound, false, '零请求不是 bound 违规');
 });
 
-test('缺身份 → 不计入，记 unbound；不得当 0 通过', () => {
-  const s = counter([JSON.stringify({ type: 'llm_request', timestamp: AFTER, data: { requestId: 'r9' } })]);
-  assert.equal(s.boundCount, 0);
-  assert.equal(s.unbound, 1);
-  assert.equal(s.status, 'UNKNOWN');
-});
-
-test('同一 requestId 多次 attempt 只算 1 条；重复回执不重复计数', () => {
-  const s = counter([req({ attemptId: 'a1' }), req({ attemptId: 'a2' }), req({ attemptId: 'a1' })]);
-  assert.equal(s.boundCount, 1);
-});
-
-test('failed 计入诊断，不计入已派发', () => {
-  const s = counter([req({ status: 'failed' })]);
-  assert.equal(s.boundCount, 0);
+test('failed 后同 requestId 再 dispatched → 必须计违规（不被吞）', () => {
+  const s = counter([req({ status: 'failed' }), req({ attempt: 2 })]);
+  assert.equal(s.violationCount, 1);
   assert.equal(s.failed, 1);
 });
 
-test('半行/非法 JSON → errors，且不冒充 0', () => {
+test('缺 status → 不可签完整零（UNKNOWN）', () => {
+  const s = counter([req({ status: undefined })]);
+  assert.equal(s.status, 'UNKNOWN');
+  assert.equal(s.attributable, false);
+  assert.ok(s.unknownStatus >= 1);
+});
+
+test('坏 JSON / 半行 → 不可签完整零', () => {
   const s = counter(['{"type":"llm_request"', 'not-json']);
+  assert.equal(s.status, 'UNKNOWN');
   assert.ok(s.errors.includes('invalid-json'));
+});
+
+test('别的同伴/世界/会话 → foreign，不算违规', () => {
+  const s = counter([req({ companionId: 'c2' }), req({ requestId: 'r2', companionId: 'c3' })]);
+  assert.equal(s.violationCount, 0);
+  assert.equal(s.foreign, 2);
+  assert.equal(s.status, 'NONE');
+});
+
+test('缺身份（顶层与 data 都没有）→ unbound，不可签零', () => {
+  const s = counter([JSON.stringify({ type: 'llm_request', timestamp: AFTER, data: { requestId: 'r9', status: 'dispatched' } })]);
+  assert.equal(s.violationCount, 0);
+  assert.equal(s.unbound, 1);
+  assert.equal(s.status, 'NONE');
+});
+
+test('同一 requestId 不同 attempt 各算一条；同 attempt 重复只算一次', () => {
+  const s = counter([req({ attempt: 1 }), req({ attempt: 2 }), req({ attempt: 1 })]);
+  assert.equal(s.violationCount, 2);
+});
+
+test('无回执关联（无 receiptAt 也无 commandCorrelationId）→ UNKNOWN', () => {
+  const s = counter([req()], SCOPE, {});
+  assert.equal(s.attributable, false);
   assert.equal(s.status, 'UNKNOWN');
 });
 
-test('scope 缺键 → bound=false、UNKNOWN（不能签 0）', () => {
-  const s = counter([req()], { worldId: 'w1', companionId: 'c1' });
-  assert.equal(s.bound, false);
-  assert.equal(s.status, 'UNKNOWN');
-});
-
-test('回执时间关联：事件无 stop 标记也可归属；无任何回执 → 不归属', () => {
-  const byReceipt = counter([req()], SCOPE, { receiptAt: CUT });
-  assert.equal(byReceipt.boundCount, 1, '有回执基准即可按时间窗归属');
-  const none = counter([req()], SCOPE, {});
-  assert.equal(none.bound, false);
-  assert.equal(none.status, 'UNKNOWN');
-});
-
-test('事件自带 stop 标记时，与本次回执不一致 → 不归属', () => {
-  const s = counter([req({ stopSeq: 8 })], SCOPE, { receiptAt: CUT, stopSeq: 7 });
-  assert.equal(s.boundCount, 0);
-  assert.equal(s.status, 'UNKNOWN');
-});
-
-test('非 dispatched（failed/pending/缺 status）不计数', () => {
-  for (const status of ['failed', 'pending', undefined]) {
-    const s = counter([req({ status })]);
-    assert.equal(s.boundCount, 0, 'status=' + status);
-  }
+test('命令关联键不一致 → 不归属', () => {
+  const s = counter([req({ command_correlation_id: 'other' })], SCOPE, { commandCorrelationId: 'cmd-1' });
+  assert.equal(s.violationCount, 0);
 });

@@ -1051,8 +1051,8 @@ async function cmdRun(opts) {
   // 但不进 S4 通过条件（那条产品债仍记 D-044-STOPDISPATCH）。
   const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
-    // 2026-11-10 P1-B：必须传本次同伴，否则别同伴的 owner_stop 回执也会被当成生效。
-    companionId: companionName,
+    // R-02 第 2 点：回执扫描必须用真实 UUID，不能用名字冒充。
+    companionId: (env.companionBinding && env.companionBinding.companionId) || companionName,
     enqueueAtIso: stopAtIso,
     timeoutMs: 15000,
     pollMs: 250,
@@ -1107,17 +1107,29 @@ async function cmdRun(opts) {
   // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
   const cutoffIso = stopEffectiveIso || stopAtIso;
   // 2026-11-10 P1-B：本次 stop 的归属 scope（世界/会话/同伴），缺一即 bound=false → 消费者判 UNKNOWN。
+  // R-02 第 2 点：world/server 身份在**停止窗开始**时从事件流冻结一次（不是 A0 会话状态，
+  // 也不是最后一条其他同伴请求）。companion 用真实 UUID。
+  const frozenIdentity = (() => {
+    try {
+      const text = fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8');
+      const m = text.match(/"world_id"\s*:\s*"([^"]+)"[^}]*"server_session"\s*:\s*"([^"]+)"/);
+      if (m) return { worldId: m[1], serverSession: m[2] };
+    } catch { /* 读不到 → 留 null，判 UNKNOWN */ }
+    return { worldId: null, serverSession: null };
+  })();
   const stopScope = {
-    worldId: (env.world && (env.world.id || env.world.worldId)) || null,
-    serverSession: (env.session && (env.session.serverSession || env.session.id)) || null,
-    companionId: companionName,
+    worldId: frozenIdentity.worldId,
+    serverSession: frozenIdentity.serverSession,
+    companionId: (env.companionBinding && env.companionBinding.companionId) || null,
   };
+  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), source: 'context.jsonl:first-event' };
   // 本次 stop 的回执关联键（同一 run 内递增；事件若不带同键就不归属本次）。
   // 回执关联：以 owner_stop 生效回执时间（缺则入队时间）为本窗基准；生产事件无 stopSeq。
   const stopReceiptAt = stopEffectiveIso || stopAtIso;
+  // 回执关联：优先真实命令关联键（owner_stop 的 command_correlation_id），缺则仅时间基准（会标 UNKNOWN 语义）。
   const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, {
     receiptAt: stopReceiptAt,
-    stopSeq: stopEffective && stopEffective.seq != null ? stopEffective.seq : null,
+    commandCorrelationId: (stopEffective && (stopEffective.commandCorrelationId || stopEffective.correlationId)) || null,
   });
   let postStopRequests = 0;
   const observation = await require('./lib/stop-observation').observeStopWindow({
@@ -1126,7 +1138,8 @@ async function cmdRun(opts) {
       stopCounter.collect();
       // 2026-11-10 P1-B：postStopRequests 只放**已归属**计数（未归属走诊断），
       // collect() 的返回值是含未归属的物理请求数，只作诊断。
-      postStopRequests = stopCounter.snapshot().boundCount;
+      // R-02 第 4 点：只放已归属违规数；零请求的合法性用 attributable 表达。
+      postStopRequests = stopCounter.snapshot().violationCount;
       return { ok: !reader.gaps['context.jsonl'] && !reader.gaps['ai.jsonl']
         && !reader.pending['context.jsonl'] && !reader.pending['ai.jsonl'] };
     },
@@ -1135,22 +1148,32 @@ async function cmdRun(opts) {
   const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
   // independentPostStop 只放**游标计数**（权威）；启发式 count 不再混进这个字段。
   const stopSnap = stopCounter.snapshot();
-  env.stop = { ...env.stop, postStopRequests, independentPostStop: postStopRequests, postStopStatus: postCheck.status,
-    // 2026-11-10 P1-B：归属与诊断分开；independent 不再复用同一个数冒充独立证据。
-    postStopAttribution: stopSnap.bound ? 'bound' : (stopSnap.status === 'UNKNOWN' ? 'unknown' : 'none'),
-    postStopDiagnostic: { foreign: stopSnap.foreign, unbound: stopSnap.unbound, failed: stopSnap.failed, rawCount: stopSnap.rawCount },
-    stopScope, stopReceiptAt,
-    postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
-    stopAt: stopAtIso, stopEffectiveAt: stopEffectiveIso, stopEffectiveReceipt: stopEffective,
-    // 旧字段名保留兼容，但语义写清：这是**整目录启发式扫描**的条数，只作诊断，不参与判定。
+  // R-02 第 6 点：runner 与测试共用这一个组装缝；不再在 runner 里手写形状。
+  env.stop = {
+    ...env.stop,
+    ...require('./lib/stop-evidence').buildStopEvidence({
+      counterSnapshot: stopSnap,
+      observation,
+      coverageVerified: env.stop.coverageVerified,
+      scopeVerified: env.stop.scopeVerified,
+      observedGraceMs,
+      javaExited: env.stop.javaExited,
+      stopAt: stopAtIso,
+      stopEffectiveAt: stopEffectiveIso,
+      stopEffectiveReceipt: stopEffective,
+      stopScope,
+      postStopStatus: postCheck.status,
+      postStopReasons: [...postCheck.reasons, ...stopSnap.errors],
+      rawScanCount: postCheck.rawCount,
+      enqueueToEffective: stopEffectiveIso
+        ? require('./lib/stop-effective').dispatchesBetween(
+          (() => { try { return fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8'); } catch { return ''; } })().split(/\r?\n/),
+          stopAtIso, stopEffectiveIso)
+        : { state: 'UNKNOWN', reason: 'no-effective-receipt' },
+    }),
     diagnosticRawScanCount: postCheck.rawCount,
-    // 入队→生效之间的派发：单列常驻，供人工看，不参与 S4 通过条件。
-    enqueueToEffective: stopEffectiveIso
-      ? require('./lib/stop-effective').dispatchesBetween(
-        (() => { try { return fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8'); } catch { return ''; } })().split(/\r?\n/),
-        stopAtIso, stopEffectiveIso)
-      : { state: 'UNKNOWN', reason: 'no-effective-receipt' },
-    graceSeconds: 60, observedGraceMs, observation };
+    graceSeconds: 60,
+  };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
     windowStartOffset: reader.windowStartOffset };
