@@ -1,12 +1,12 @@
 'use strict';
 /**
- * stop-evidence.js —— runner→judge 的**唯一组装缝**（2026-11-10 R-02 第 6 点）。
+ * stop-evidence.js —— runner→judge 的唯一组装缝（R-02 #6 / R-03 #5）。
  *
- * 为什么抽出来：chain 测试自己手写 coverageVerified/scopeVerified/postStopAttribution，
- * 等于测了第二份实现。现在 runner 与测试都调用这里，judge 的输入形状只由这一处决定。
- *
- * 输入只接受**已经算出来的事实**（counter snapshot、观察窗、覆盖验证结果），
- * 本模块不做判定、不补默认值——缺什么就写 null/UNKNOWN。
+ * 原则：
+ *   - **不补默认值**：saveConfirmed/ownerStop/coverageVerified/scopeVerified 都由调用方
+ *     给真实值；没给就写 null/undefined，由 judge 判 UNKNOWN。
+ *   - **不覆盖真实回执**：ownerStop 原样透传。
+ *   - 三态契约：violationBound（已归属违规）/ cleanZeroVerified（可证合法零）/ unknown。
  */
 function buildStopEvidence({
   counterSnapshot,
@@ -23,23 +23,23 @@ function buildStopEvidence({
   postStopReasons,
   rawScanCount,
   enqueueToEffective,
+  saveConfirmed,
+  ownerStop,
 }) {
   const snap = counterSnapshot || {};
-  const attributable = snap.attributable === true;
-  const violations = Number.isFinite(snap.violationCount) ? snap.violationCount : null;
-  const attribution = attributable
-    ? (violations > 0 ? 'bound-violation' : 'bound-clean')
-    : 'unknown';
+  const violationBound = snap.violationBound === true;
+  const cleanZeroVerified = snap.cleanZeroVerifiable === true;
+  const attribution = violationBound ? 'bound-violation' : (cleanZeroVerified ? 'bound-clean' : 'unknown');
   return {
-    ownerStop: stopEffectiveReceipt ? stopEffectiveReceipt.ownerStop || null : null,
-    saveConfirmed: true,
-    postStopRequests: violations,
-    // R-02 第 5 点：不再复用一个数冒充独立证据；字段保留为 null 并注明。
+    saveConfirmed: saveConfirmed === true ? true : (saveConfirmed === false ? false : null),
+    ownerStop: ownerStop === undefined ? null : ownerStop,
+    postStopRequests: Number.isFinite(snap.violationCount) ? snap.violationCount : null,
+    violationBound,
+    cleanZeroVerified,
     independentPostStop: null,
     independentPostStopNote: 'removed: same-number pseudo-independence',
     postStopAttribution: attribution,
-    postStopCleanZero: attributable && violations === 0,
-    postStopStatus,
+    postStopStatus: postStopStatus == null ? null : postStopStatus,
     postStopReasons: postStopReasons || [],
     postStopRawCount: rawScanCount == null ? null : rawScanCount,
     postStopDiagnostic: {
@@ -52,11 +52,11 @@ function buildStopEvidence({
     stopScope: stopScope || null,
     stopAt,
     stopEffectiveAt: stopEffectiveAt || null,
-    observedGraceMs,
-    observation,
-    javaExited,
-    coverageVerified,
-    scopeVerified,
+    observedGraceMs: Number.isFinite(observedGraceMs) ? observedGraceMs : null,
+    observation: observation || null,
+    javaExited: javaExited === true ? true : (javaExited === false ? false : null),
+    coverageVerified: coverageVerified === true ? true : (coverageVerified === false ? false : null),
+    scopeVerified: scopeVerified === true ? true : (scopeVerified === false ? false : null),
     enqueueToEffective: enqueueToEffective || null,
   };
 }

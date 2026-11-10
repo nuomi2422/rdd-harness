@@ -1,45 +1,79 @@
 'use strict';
 /**
- * stop-effective.js —— 等 owner_stop **生效回执**，并区分"入队→生效"这段窗口（2026-11-10）。
+ * stop-effective.js —— 等 owner_stop **生效回执**（R-03 第 3 点：必须与本次命令关联）。
  *
- * 为什么需要：cov4 实测停止入队 → 1.47 秒后才生效；这段时间里旧响应落地、开了新回合、
- * 并在闩生效前 17ms 发出请求。旧的截止时刻用**入队**时间，于是把"闩生效前的正常竞态"
- * 判成"停后仍在派发"；而把截止改成"生效"又可能把慢停止的真实泄漏洗白。
+ * 真实链路（已核源码）：
+ *   NumenGateway 命令路径生成 commandId 并发布 ai/command_dispatch{companion_id, command, correlation_id}
+ *   → EntityAgentLoop 发布 ai/owner_stop{companion_id, command_correlation_id, drained, overflow_dropped}
+ * 因此本次 stop 的关联 = **两条事件同键**，而不是时间窗。时间只用于排序。
  *
- * 本模块只做两件事，不改判据：
- *   1. 轮询 ai.jsonl 等 owner_stop 回执（同 companion、带 drained/overflow 字段）；
- *   2. 把 enqueue→effective 之间的派发单独数出来（进报告，不进 S4 通过条件）。
- * 超时/找不到回执 → state='TIMEOUT'，调用方必须记 UNKNOWN，不许当成功。
+ * 缺 dispatch 或 owner_stop、或键不一致 → 返回 UNKNOWN（调用方不得用入队时刻冒充生效）。
  */
-
 const OWNER_STOP = '"type":"owner_stop"';
+const COMMAND_DISPATCH = '"type":"command_dispatch"';
 
-function scanOwnerStop(lines, companionId, sinceIso) {
-  let hit = null;
+function parseLines(lines) {
+  const out = [];
   for (const line of lines) {
-    if (!line || !line.includes(OWNER_STOP)) continue;
-    let ev;
-    try { ev = JSON.parse(line); } catch { continue; }
-    if (!ev || ev.timestamp === undefined) continue;
-    const atMs = Date.parse(ev.timestamp);
-    const sinceMs = Date.parse(sinceIso);
-    // 日志里的时间戳精度不一（有的带毫秒有的不带），必须按时间比较，不能按字符串比。
-    if (!Number.isFinite(atMs) || (Number.isFinite(sinceMs) && atMs < sinceMs)) continue;
+    if (!line || !line.trim()) continue;
+    try { out.push(JSON.parse(line)); } catch { /* 坏行由调用方缺口覆盖 */ }
+  }
+  return out;
+}
+
+/** 找本次 /stop 的 command_dispatch 回执（同 companion、时间不早于入队）。 */
+function findStopCommand(lines, companionId, sinceIso) {
+  const sinceMs = Date.parse(sinceIso);
+  let hit = null;
+  for (const ev of parseLines(lines)) {
+    if (!ev || ev.type !== 'command_dispatch') continue;
     const d = ev.data || {};
-    // 2026-11-10 P1-B：同伴必须严格匹配；事件缺 companion_id 时不能默认归给本次同伴。
+    if (d.companion_id !== companionId) continue;
+    const cmd = String(d.command || '').toLowerCase();
+    if (cmd !== 'stop' && cmd !== '/stop') continue;
+    const atMs = Date.parse(ev.timestamp);
+    if (!Number.isFinite(atMs) || (Number.isFinite(sinceMs) && atMs < sinceMs)) continue;
+    if (!d.correlation_id) continue;
+    hit = { at: ev.timestamp, correlationId: d.correlation_id, eventSeq: ev.event_seq == null ? null : ev.event_seq };
+  }
+  return hit;
+}
+
+/** 找与本次命令同键的 owner_stop 回执。 */
+function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId) {
+  const sinceMs = Date.parse(sinceIso);
+  let hit = null;
+  for (const ev of parseLines(lines)) {
+    if (!ev || ev.type !== 'owner_stop') continue;
+    const d = ev.data || {};
+    const atMs = Date.parse(ev.timestamp);
+    if (!Number.isFinite(atMs) || (Number.isFinite(sinceMs) && atMs < sinceMs)) continue;
+    // R-03：同伴必须严格匹配；事件缺 companion_id 时不能默认归给本次同伴。
     if (!companionId || !d.companion_id || d.companion_id !== companionId) continue;
     if (d.drained === undefined && d.overflow_dropped === undefined) continue;
-    // R-02 第 3 点：真实 owner_stop 会附 command_correlation_id（Gateway 提供时）。
-    // 这是"本次命令"的身份；time/seq 只用于排序，不能代替它。
+    const key = d.command_correlation_id || d.commandCorrelationId || null;
+    // R-03：必须与本次命令同键；只按时间/seq 不算本次关联。
+    if (!expectedCommandId || !key || key !== expectedCommandId) continue;
     hit = {
-      at: ev.timestamp,
-      drained: d.drained,
-      overflowDropped: d.overflow_dropped,
-      commandCorrelationId: d.command_correlation_id || d.commandCorrelationId || null,
-      eventSeq: ev.event_seq == null ? null : ev.event_seq,
+      at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped,
+      commandCorrelationId: key, eventSeq: ev.event_seq == null ? null : ev.event_seq,
     };
   }
   return hit;
+}
+
+async function waitForStopEffective({ readText, companionId, enqueueAtIso, expectedCommandId, timeoutMs = 15000, pollMs = 250, sleep, now }) {
+  const deadline = now() + timeoutMs;
+  let last = [];
+  for (;;) {
+    const lines = String(readText() || '').split(/\r?\n/);
+    last = lines;
+    const hit = scanOwnerStop(lines, companionId, enqueueAtIso, expectedCommandId);
+    if (hit) return { state: 'EFFECTIVE', ...hit };
+    if (now() >= deadline) break;
+    await sleep(pollMs);
+  }
+  return { state: 'TIMEOUT', effectiveAt: null, reason: expectedCommandId ? 'no-owner-stop-with-matching-command-id' : 'no-command-correlation' };
 }
 
 /** 数 enqueue→effective 之间的 llm_request 派发（只用于报告，不参与判定）。 */
@@ -62,18 +96,4 @@ function dispatchesBetween(lines, sinceIso, untilIso) {
   return out;
 }
 
-async function waitForStopEffective({ readText, companionId, enqueueAtIso, timeoutMs = 15000, pollMs = 250, sleep, now }) {
-  const deadline = now() + timeoutMs;
-  let last = [];
-  for (;;) {
-    last = String(readText() || '').split(/\r?\n/);
-    const hit = scanOwnerStop(last, companionId, enqueueAtIso);
-    if (hit) return { state: 'EFFECTIVE', ...hit };
-    if (now() >= deadline) {
-      return { state: 'TIMEOUT', waitedMs: timeoutMs, effectiveAt: null };
-    }
-    await sleep(pollMs);
-  }
-}
-
-module.exports = { scanOwnerStop, dispatchesBetween, waitForStopEffective };
+module.exports = { findStopCommand, scanOwnerStop, waitForStopEffective, dispatchesBetween };

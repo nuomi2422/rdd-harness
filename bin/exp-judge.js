@@ -138,22 +138,23 @@ function evaluate(runDir) {
   // ---------- S4 STOP ----------
   {
     const stop = env.stop || {};
-    // R-02 第 5 点：只有**已严格归属**的违规才 FAIL；raw/unbound>0 只有归属证据不足时判 UNKNOWN。
-    const post = stop.postStopRequests;            // 已归属违规数（bound-violation）
+    // R-03：violationBound（已归属违规）独立成立；cleanZeroVerified 才可 PASS；其余 UNKNOWN。
+    const post = stop.postStopRequests;
     const exited = stop.javaExited;
     const done = env.phase === 'done';
     const coverage = stop.postStopStatus;
-    const attribution = stop.postStopAttribution;  // bound-violation | bound-clean | unknown
     if (exited === false) add('S4', 'FAIL', 'java 未退出（实例仍在运行=污染生产状态）', []);
     else if (stop.attributedPostStopRequest === true) add('S4', 'FAIL', '已核验目标同伴停止后仍有新请求；完整性缺口不掩盖正证', ['evidence/context.jsonl']);
-    else if (attribution === 'bound-violation' && Number.isFinite(post) && post > 0) add('S4', 'FAIL',
-      '停止后仍有 ' + post + ' 条已归属的新 llm_request（世界/会话/同伴严格匹配）', ['evidence/context.jsonl']);
-    else if (attribution !== 'bound-clean') add('S4', 'NOT_COVERED',
-      '停后归属未核（attribution=' + (attribution || 'unknown') + '，raw=' + (stop.postStopRawCount == null ? '?' : stop.postStopRawCount) + '）：不能把别人的请求算到目标头上，也不能当完整零',
+    else if (stop.violationBound === true && Number.isFinite(post) && post > 0) add('S4', 'FAIL',
+      '停止后仍有 ' + post + ' 条已归属（本次命令关联 + 世界/会话/同伴匹配）的 llm_request'
+        + ((stop.coverageVerified === true && stop.scopeVerified === true) ? '' : '；其余覆盖/作用域证据另列未知'),
+      ['evidence/context.jsonl']);
+    else if (stop.cleanZeroVerified !== true) add('S4', 'NOT_COVERED',
+      '停后合法零未得证（violationBound=' + (stop.violationBound === true) + '，raw=' + (stop.postStopRawCount == null ? '?' : stop.postStopRawCount) + '，原因：' + (stop.postStopReasons || []).join(',') + '）',
       ['envelope.json']);
     else if (!stop.coverageVerified || !stop.scopeVerified || coverage !== 'PRESENT' || !stop.observation || stop.observation.complete !== true || !Number.isFinite(stop.observedGraceMs) || stop.observedGraceMs < 60000) add('S4', 'NOT_COVERED', '停止窗连续性、60秒观察或目标归属未核验：' + (stop.postStopReasons || []).join(','), ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (!done) add('S4', 'FAIL', 'runner 未走到 done（复位/归档可能缺）phase=' + env.phase, []);
-    else add('S4', 'PASS', '停后合法完整零（窗口可归属、0 条已归属违规），java 已退出，证据已归档，状态已复位', ['envelope.json', 'evidence/']);
+    else add('S4', 'PASS', '停后合法完整零（本次关联成立、0 条已归属违规），java 已退出，证据已归档，状态已复位', ['envelope.json', 'evidence/']);
   }
 
   // ---------- S5 A0 EVIDENCE ----------

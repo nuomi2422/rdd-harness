@@ -20,7 +20,8 @@ function createStopCounter(pull, stopAt, scope, correlation) {
   const scopeGiven = !!(s.worldId && s.serverSession && s.companionId);
   if (!scopeGiven) errors.push('scope-incomplete');
   // R-02 第 3 点：stopSeq 是自造协议，生产不发。只接受真实回执关联或时间基准。
-  const corrGiven = !!(c.commandCorrelationId || c.receiptAt);
+  // R-03 第 3 点：只有真实命令关联键才算本次 stop 关联；时间只能排序，不得单独签权威。
+  const corrGiven = !!c.commandCorrelationId;
   if (!corrGiven) errors.push('no-stop-correlation');
 
   let rawCount = 0;
@@ -104,19 +105,24 @@ function createStopCounter(pull, stopAt, scope, correlation) {
     collect,
     snapshot: () => {
       // 缺 status 的请求让"窗口可归属"不成立（不能把未知当干净零）。
-      const attributable = scopeGiven && corrGiven && !errors.length && unknowns.length === 0;
-      const status = violations.length ? 'PRESENT' : (attributable ? 'NONE' : 'UNKNOWN');
+      // R-03 契约三分：violationBound（已归属违规）/ cleanZeroVerifiable（可证合法零）/ 其余 unknown。
+      // 缺身份、缺 status、坏行、半行都使 cleanZeroVerifiable=false；但已归属违规仍独立成立。
+      const cleanZeroVerifiable = scopeGiven && corrGiven && unbound.length === 0 && errors.length === 0 && unknowns.length === 0;
+      const violationBound = scopeGiven && corrGiven && violations.length > 0;
+      const status = violationBound ? 'PRESENT' : (cleanZeroVerifiable ? 'NONE' : 'UNKNOWN');
       return {
         violationCount: violations.length,
         violations,
+        violationBound,
+        cleanZeroVerifiable,
         failed: failed.length,
         foreign: foreign.length,
         unbound: unbound.length,
         unknownStatus: unknowns.length,
         status,
-        attributable,
-        // 兼容字段：bound 只在"窗口可归属且确有违规"时为真；零请求用 attributable 表达。
-        bound: attributable && violations.length > 0,
+        attributable: cleanZeroVerifiable,
+        // 兼容字段：bound 只在"窗口可归属且确有违规"时为真；零请求用 cleanZeroVerifiable 表达。
+        bound: violationBound,
         correlationBound: corrGiven,
         errors: [...new Set(errors)],
         rawCount,

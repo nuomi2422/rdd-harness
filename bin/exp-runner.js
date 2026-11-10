@@ -1049,10 +1049,19 @@ async function cmdRun(opts) {
   // 2026-11-10（cov4 原证）：enqueue→生效约 1.5 秒，这段时间的派发不是"停后泄漏"。
   // 口径：等 owner_stop 生效回执，观测窗从**生效**时刻起算；入队→生效之间的派发单独计数并常驻报告，
   // 但不进 S4 通过条件（那条产品债仍记 D-044-STOPDISPATCH）。
+  // R-03：先找本次 /stop 的 command_dispatch 回执键；找不到就 UNKNOWN（不拿时间冒充）。
+  const stopCmd = (() => {
+    try {
+      const lines = fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8').split(/\r?\n/);
+      return require('./lib/stop-effective').findStopCommand(lines, (env.companionBinding && env.companionBinding.companionId) || null, stopAtIso);
+    } catch { return null; }
+  })();
+  if (!stopCmd) log(runDir, 'stop', '未找到本次 /stop 的 command_dispatch 回执 → 关联 UNKNOWN');
   const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
     // R-02 第 2 点：回执扫描必须用真实 UUID，不能用名字冒充。
     companionId: (env.companionBinding && env.companionBinding.companionId) || companionName,
+    expectedCommandId: stopCmd ? stopCmd.correlationId : null,
     enqueueAtIso: stopAtIso,
     timeoutMs: 15000,
     pollMs: 250,
@@ -1106,31 +1115,18 @@ async function cmdRun(opts) {
   // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
   // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
   const cutoffIso = stopEffectiveIso || stopAtIso;
-  // 2026-11-10 P1-B：本次 stop 的归属 scope（世界/会话/同伴），缺一即 bound=false → 消费者判 UNKNOWN。
-  // R-02 第 2 点：world/server 身份在**停止窗开始**时从事件流冻结一次（不是 A0 会话状态，
-  // 也不是最后一条其他同伴请求）。companion 用真实 UUID。
-  const frozenIdentity = (() => {
-    try {
-      const text = fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8');
-      const m = text.match(/"world_id"\s*:\s*"([^"]+)"[^}]*"server_session"\s*:\s*"([^"]+)"/);
-      if (m) return { worldId: m[1], serverSession: m[2] };
-    } catch { /* 读不到 → 留 null，判 UNKNOWN */ }
-    return { worldId: null, serverSession: null };
-  })();
+  // R-03 第 4 点：世界用本次启动实例的存档名（env.master.world，启动/复制时已知）；
+  // server_session 需宿主身份握手接口，尚未接 -> null（判 UNKNOWN，不用首条日志升权威）。
   const stopScope = {
-    worldId: frozenIdentity.worldId,
-    serverSession: frozenIdentity.serverSession,
+    worldId: (env.master && env.master.world) || null,
+    serverSession: null,
     companionId: (env.companionBinding && env.companionBinding.companionId) || null,
   };
-  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), source: 'context.jsonl:first-event' };
-  // 本次 stop 的回执关联键（同一 run 内递增；事件若不带同键就不归属本次）。
-  // 回执关联：以 owner_stop 生效回执时间（缺则入队时间）为本窗基准；生产事件无 stopSeq。
-  const stopReceiptAt = stopEffectiveIso || stopAtIso;
-  // 回执关联：优先真实命令关联键（owner_stop 的 command_correlation_id），缺则仅时间基准（会标 UNKNOWN 语义）。
+  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), source: 'env.master.world', serverSessionSource: 'missing-interface' };
+  // R-03：只接受命令关联键；没有就 UNKNOWN，不用 receiptAt 时间窗签权威。
+  const stopReceiptAt = stopEffectiveIso;
   const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, {
-    receiptAt: stopReceiptAt,
-    commandCorrelationId: (stopEffective && (stopEffective.commandCorrelationId || stopEffective.correlationId)) || null,
-  });
+    commandCorrelationId: (stopEffective && stopEffective.commandCorrelationId) || null,  });
   let postStopRequests = 0;
   const observation = await require('./lib/stop-observation').observeStopWindow({
     clock: monotonicMs, sleep, cutoffMono: stopEffectiveIso ? stopEffectiveMono : stopAtMono, durationMs: 60000, intervalMs: 5000,

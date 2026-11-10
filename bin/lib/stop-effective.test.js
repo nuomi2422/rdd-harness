@@ -5,20 +5,20 @@ const { scanOwnerStop, dispatchesBetween, waitForStopEffective } = require('./st
 
 const aiLine = (ts, drained, overflow = 0, cid = 'c1') => JSON.stringify({
   type: 'owner_stop', timestamp: ts,
-  data: { companion_id: cid, was_busy: true, drained, overflow_dropped: overflow },
+  data: { companion_id: cid, was_busy: true, drained, overflow_dropped: overflow, command_correlation_id: 'cmd-1' },
 });
 const reqLine = (ts, id) => JSON.stringify({ type: 'llm_request', timestamp: ts, data: { requestId: id, status: 'dispatched' } });
 
 test('找到同同伴的 owner_stop 回执（带 drained）', () => {
   const lines = [aiLine('2026-01-01T00:00:01Z', 1)];
-  const hit = scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z');
+  const hit = scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z', 'cmd-1');
   assert.strictEqual(hit.at, '2026-01-01T00:00:01Z');
   assert.strictEqual(hit.drained, 1);
 });
 
 test('别的同伴/更早的回执不算', () => {
   const lines = [aiLine('2026-01-01T00:00:01Z', 1, 0, 'other'), aiLine('2025-12-31T23:59:59Z', 1)];
-  assert.strictEqual(scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z'), null);
+  assert.strictEqual(scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
 });
 
 test('没有 drained/overflow 字段的行不算回执', () => {
@@ -39,7 +39,7 @@ test('等不到回执 → TIMEOUT，不是成功', async () => {
   let t = 0;
   const res = await waitForStopEffective({
     readText: () => aiLine('2026-01-01T00:00:01Z', 1).replace('owner_stop', 'other_type'),
-    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', timeoutMs: 1000, pollMs: 100,
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1', timeoutMs: 1000, pollMs: 100,
     sleep: async (ms) => { t += ms; }, now: () => t,
   });
   assert.strictEqual(res.state, 'TIMEOUT');
@@ -50,10 +50,17 @@ test('轮询到回执即返回 EFFECTIVE', async () => {
   let t = 0;
   const res = await waitForStopEffective({
     readText: () => aiLine('2026-01-01T00:00:01Z', 2, 1),
-    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', timeoutMs: 1000, pollMs: 100,
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1', timeoutMs: 1000, pollMs: 100,
     sleep: async (ms) => { t += ms; }, now: () => t,
   });
   assert.strictEqual(res.state, 'EFFECTIVE');
   assert.strictEqual(res.drained, 2);
   assert.strictEqual(res.overflowDropped, 1);
+});
+
+test('回执缺少/不匹配 command_correlation_id → 不算本次关联', () => {
+  const noKey = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:01Z', data: { companion_id: 'c1', drained: 1 } })];
+  assert.strictEqual(scanOwnerStop(noKey, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
+  const otherKey = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:01Z', data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-2' } })];
+  assert.strictEqual(scanOwnerStop(otherKey, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
 });
