@@ -63,3 +63,47 @@ test('seam 保留真实 saveConfirmed 与 ownerStop（不被 null 覆盖）', ()
   assert.strictEqual(stop.saveConfirmed, true);
   assert.deepStrictEqual(stop.ownerStop, ownerStop);
 });
+
+test('最终组装：scope=null 绝不 true、原回执/保存保留、S4 仍 NOT_COVERED', () => {
+  const fsx = require('fs');
+  const osx = require('os');
+  const pathx = require('path');
+  const crypto = require('crypto');
+  const { spawnSync } = require('child_process');
+  const ownerStop = { ok: true, status: 0, out: 'enqueued' };
+  const stop = buildStopEvidence({
+    counterSnapshot: { violationCount: 0, violationBound: false, cleanZeroVerifiable: false, errors: [] },
+    observation: { complete: true, observedMs: 60000 },
+    coverageVerified: true,
+    scopeVerified: null,
+    observedGraceMs: 60000,
+    javaExited: true,
+    stopAt: 'T0', stopEffectiveAt: null, stopScope: null,
+    postStopStatus: 'UNKNOWN', postStopReasons: ['scope-unverified-no-identity-interface'],
+    rawScanCount: 0, saveConfirmed: true, ownerStop,
+  });
+  assert.strictEqual(stop.scopeVerified, null);
+  assert.strictEqual(stop.saveConfirmed, true);
+  assert.deepStrictEqual(stop.ownerStop, ownerStop);
+
+  const dir = fsx.mkdtempSync(pathx.join(osx.tmpdir(), 'r05-final-'));
+  const contract = pathx.join(dir, 'contract.json');
+  const cbuf = Buffer.from(JSON.stringify({ revision: 'R05' }));
+  fsx.writeFileSync(contract, cbuf);
+  fsx.mkdirSync(pathx.join(dir, 'evidence'), { recursive: true });
+  fsx.writeFileSync(pathx.join(dir, 'evidence', 'boot.log'), 'boot');
+  const env = {
+    phase: 'done',
+    contract: { path: contract, sha256: crypto.createHash('sha256').update(cbuf).digest('hex'), revision: 'R05' },
+    jarsAtPrepare: [{ file: 'numen-a.jar' }], jarsAtLaunch: [{ file: 'numen-a.jar' }],
+    timings: { watchSeconds: 100 }, stop,
+    a0: { version: 'a0-v1' }, session: { status: 'CLEAN', first_request_message_count: 1 },
+    interventions: { status: 'NONE', count: 0 }, context_delivery: { status: 'PRESENT' },
+  };
+  fsx.writeFileSync(pathx.join(dir, 'envelope.json'), JSON.stringify(env));
+  spawnSync(process.execPath, [pathx.join(__dirname, '..', 'exp-judge.js'), dir], { encoding: 'utf8' });
+  const v = JSON.parse(fsx.readFileSync(pathx.join(dir, 'verdict.json'), 'utf8'));
+  const s4 = (v.assertions || []).find((a) => a.id === 'S4') || {};
+  assert.strictEqual(s4.verdict, 'NOT_COVERED');
+});
+

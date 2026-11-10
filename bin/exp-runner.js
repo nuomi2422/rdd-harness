@@ -1310,9 +1310,9 @@ async function cmdRun(opts) {
       ...env.stop,
       coverageVerified: issued && coverage.contentIntegrity === 'verified'
         && (windowLevel === 'verified' || windowLevel === 'verified-for-observed-window'),
-      scopeVerified: !!(env.stop && env.stop.observation && env.stop.observation.complete
-        && Array.isArray(env.stop.postStopReasons)
-        && !env.stop.postStopReasons.some((r0) => /gaps|half|clock|untrusted|unparsable/i.test(String(r0)))),
+      // R-05：身份/关联无真实绑定接口 → scope 不签（null）；「观察窗完整」只证明读了多久。
+      scopeVerified: null,
+      scopeVerifiedReason: 'no-authority-binding-interface: world/server identity and command correlation both unknown',
       // 游标计数才是权威：启发式扫描永远证明不了归属，所以状态以 stopCounter 为准。
       // 没有生效回执 → 时间基准不可信，一律 UNKNOWN（不能拿入队时刻冒充生效）。
       postStopStatus: (env.stop && env.stop.stopEffectiveAt && env.stop.postStopRequests === 0) ? 'PRESENT' : 'UNKNOWN',
@@ -1321,6 +1321,10 @@ async function cmdRun(opts) {
     // 状态与理由不能打架：PRESENT 时清掉旧理由，只留一句"由游标核验"。
     if (env.stop.postStopStatus === 'PRESENT') {
       env.stop.postStopReasons = ['verified-by-cursor'];
+    }
+    // scope 未签时始终把原因留在理由里，S4 才能判 NOT_COVERED。
+    if (env.stop.scopeVerified !== true) {
+      env.stop.postStopReasons = [...(env.stop.postStopReasons || []), 'scope-unverified-no-identity-interface'];
     }
   }
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
