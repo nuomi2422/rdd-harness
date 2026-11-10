@@ -94,7 +94,10 @@ function evaluate(runDir) {
   }
   // ---------- S3 ACT ----------
   {
-    const invAfterRaw = ev('inventory-after.json') ? ev('inventory-after.json').toString('utf8') : '';
+    // COV 类窗口（覆盖/停止链专项）本就不采木：S3 记 NOT_EXERCISED，不参与通过判定。
+  const contractRev = (env.contract && env.contract.revision) || 'SMOKE-r1';
+  const isCoverageWindow = /^COV-/i.test(contractRev);
+  const invAfterRaw = ev('inventory-after.json') ? ev('inventory-after.json').toString('utf8') : '';
     const beforeRaw = ev('inventory-before.json') ? ev('inventory-before.json').toString('utf8') : '';
     const before = beforeRaw ? oakLogCount(beforeRaw) : (env.inventory ? env.inventory.oakLogBefore : null);
     const after = oakLogCount(invAfterRaw);
@@ -115,7 +118,9 @@ function evaluate(runDir) {
     const wall = (env.timings && env.timings.watchSeconds) || null;
     const deadlineOk = turns.size <= 12 && wall !== null && wall <= 600;
 
-    if (before === null || after === null) {
+    if (isCoverageWindow) {
+      add('S3', 'NOT_EXERCISED', 'COV 类窗口不验世界事实（本窗不采木；契约 ' + contractRev + '）', []);
+    } else if (before === null || after === null) {
       add('S3', 'INCONCLUSIVE', '缺背包前后证据（before=' + before + ', after=' + after + '）', ['evidence/inventory-before.json', 'evidence/inventory-after.json']);
     } else {
       const delta = after - before;
