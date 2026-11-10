@@ -38,16 +38,23 @@ function createPull(opts) {
   const windowStartOffset = {};
   // 已消费的字节段：用于事后复核（我读到的内容现在是否还在磁盘上）
   const segments = {};
-  // 2026-11-10 P1-A（R-20261110-02 第 1 点）：生产重放检测。
-  // 身份域 = event_id 全局（同一事件在任意流里出现两次即重放）；只看窗口内已消费字节。
-  const seenEventIds = new Set();
+  // 2026-11-10 R-03 第 6 点：重放按**顶层信封**判定，键 = (session, category, event_seq)。
+  // 不扫嵌套字符串里的 event_id 引用；缺字段/坏行 → 重放域不完整（不得签 0）。
+  const seenEventKeys = new Set();
   let replays = 0;
-  const scanEventIds = (s) => {
-    const re = /"event_id"\s*:\s*"([^"]+)"/g;
-    let m;
-    while ((m = re.exec(s)) !== null) {
-      if (seenEventIds.has(m[1])) replays += 1;
-      else seenEventIds.add(m[1]);
+  let replayDomainComplete = true;
+  const scanEventEnvelope = (s) => {
+    for (const line of s.split(/\r?\n/)) {
+      if (!line.trim()) continue;
+      let e;
+      try { e = JSON.parse(line); } catch { replayDomainComplete = false; continue; }
+      const session = e && e.session;
+      const category = e && (e.category || e.stream);
+      const seq = e && (e.event_seq != null ? e.event_seq : null);
+      if (!session || !category || seq === null) { replayDomainComplete = false; continue; }
+      const key = session + '|' + category + '|' + seq;
+      if (seenEventKeys.has(key)) replays += 1;
+      else seenEventKeys.add(key);
     }
   };
   const ANCHOR_BYTES = 64;
@@ -123,7 +130,7 @@ function createPull(opts) {
         return '';
       }
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
-      scanEventIds(complete.toString('utf8'));
+      scanEventEnvelope(complete.toString('utf8'));
       if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
       pending[f] = complete.length < n ? { size } : null;
       const from = offsets[f] || 0;
@@ -143,9 +150,9 @@ function createPull(opts) {
 
   return {
     pull, gaps, offsets, fileId, pending, anchors, segments, windowStartOffset, verifySegments, verifyWindow,
-    // 生产重放计数（只增不减；消费方拿不到就读不到，不得默认 0）。
-    get replays() { return replays; },
-    get eventIds() { return seenEventIds.size; },
+    // 重放域完整时返回数字；不完整时返回 null（消费方不得当 0）。
+    get replays() { return replayDomainComplete ? replays : null; },
+    get replayDomain() { return { complete: replayDomainComplete, duplicates: replays, keys: seenEventKeys.size }; },
   };
 
   /**

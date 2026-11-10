@@ -23,7 +23,8 @@ function makeDir(empty, idPrefix = 'ev') {
     // 真实事件形状：带 event_id（重放检测的身份域）
     const body = empty && empty.includes(s)
       ? ''
-      : JSON.stringify({ event_id: idPrefix + '-' + s + '-1', type: 'x', s }) + '\n';
+      // 顶层信封（真实 schema）：session/category/event_seq 是重放域；event_id 不参与判重。
+      : JSON.stringify({ session: 'sess-1', category: s, event_seq: 1, event_id: idPrefix + '-' + s + '-1', type: 'x' }) + '\n';
     fs.writeFileSync(path.join(dir, s + '.jsonl'), body, 'utf8');
   }
   return dir;
@@ -84,7 +85,8 @@ test('P1-A-4 重放未核（replays 未知）→ 不得按 0 通过', () => {
 test('P1-A-6 生产重放检测：同一 event_id 出现两次 → reader.replays=1 → 拒签', () => {
   const dir = makeDir();
   const reader = readAll(dir);
-  fs.appendFileSync(path.join(dir, 'ai.jsonl'), JSON.stringify({ event_id: 'ev-tools-1', type: 'x', s: 'tools' }) + '\n');
+  // 同 (session, category, event_seq) 再来一次 = 真实重放
+  fs.appendFileSync(path.join(dir, 'ai.jsonl'), JSON.stringify({ session: 'sess-1', category: 'tools', event_seq: 1, event_id: 'dup', type: 'x' }) + '\n');
   reader.pull('ai.jsonl');
   assert.equal(reader.replays, 1, '真实重放必须被计数');
   const evidence = build(reader, reader.verifySegments());
