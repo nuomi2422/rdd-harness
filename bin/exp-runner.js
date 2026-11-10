@@ -914,6 +914,11 @@ async function cmdRun(opts) {
     }
     const chunkEv = pull('events.jsonl');
     raw.events += chunkEv;
+    // 覆盖要求七流都从窗口起点被消费过（缺流=不可证）。这里把剩余流也拉一次，
+    // 不解析内容，只为让 reader 记录它们的窗口起点/段/文件身份（同一套游标，不另写统计）。
+    for (const extra of ['ai.jsonl', 'rdd.jsonl', 'expmem.jsonl', 'instrumentation.jsonl']) {
+      if (!reader.windowStartOffset || reader.windowStartOffset[extra] === undefined) pull(extra);
+    }
     // 只在「按 callId 去重后的真实连续失败」达到阈值时记 blocker（累计失败另算，不混称）
     if (raw.tools) {
       const lg = AL.build(raw.tools, raw.events, { minStreak: 3 });
@@ -1203,7 +1208,11 @@ async function cmdRun(opts) {
     });
     coverage = require('./lib/coverage').makeVerifiedCoverage(evidence);
   } catch (e) {
-    coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null, reject: String(e.message).slice(0, 120) };
+    // 拒绝原因必须留痕：没有它就只能看到 "coverage-limited"，无法判是哪条判据没过。
+    const reason = (e && (e.code ? e.code + ': ' : '') + String(e.message || e)).slice(0, 200);
+    coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null, reject: reason };
+    log(runDir, 'coverage-reject', reason);
+    rec('coverage_reject', { reason });
   }
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
   // 2026-11-09（指挥官要求）：窗口范围要**无条件**落下来，不能只有 verified 覆盖时才带。
