@@ -1057,23 +1057,14 @@ async function cmdRun(opts) {
   // R-06 严格门：delivery 白名单（命令只认 SEEN）、UUID 相等、字段类型/epoch 合法，
   // 解析成功不等于业务成功；任一项不满足一律 UNKNOWN。
   const selectedUuid = (env.companionBinding && env.companionBinding.companionId) || null;
-  const receiptAuthority = (() => {
-    if (!stopReceipt || typeof stopReceipt !== 'object') return false;
-    const deliveryOk = stopReceipt.delivery === 'SEEN';
-    const keyOk = typeof stopReceipt.commandId === 'string' && stopReceipt.commandId.length > 0;
-    const uuidOk = typeof stopReceipt.companionUuid === 'string' && !!selectedUuid
-      && stopReceipt.companionUuid.toLowerCase() === String(selectedUuid).toLowerCase();
-    const identityOk = stopReceipt.identityStatus === 'OK';
-    const worldOk = typeof stopReceipt.worldId === 'string' && stopReceipt.worldId.length > 0;
-    const sessionOk = typeof stopReceipt.serverSession === 'string' && stopReceipt.serverSession.length > 0;
-    const epochOk = Number.isSafeInteger(stopReceipt.epoch) && stopReceipt.epoch >= 0;
-    return deliveryOk && keyOk && uuidOk && identityOk && worldOk && sessionOk && epochOk;
-  })();
+  // 共用门（runner 与测试同一实现）：delivery 白名单/目标 UUID/字段类型/epoch 全严格。
+  const receiptCheck = require('./lib/stop-receipt').validateReceipt(stopReceipt, selectedUuid);
+  const receiptAuthority = receiptCheck.ok === true;
   const expectedCommandId = receiptAuthority ? stopReceipt.commandId : null;
   const receiptScope = receiptAuthority
     ? { worldId: stopReceipt.worldId, serverSession: stopReceipt.serverSession, epoch: stopReceipt.epoch }
     : null;
-  if (!receiptAuthority) log(runDir, 'stop', '入队回执缺 commandId/身份 → 本次关联 UNKNOWN（不反查升权威）');
+  if (!receiptAuthority) log(runDir, 'stop', '入队回执未过门（' + receiptCheck.reason + '）→ 本次关联 UNKNOWN（不反查升权威）');
   log(runDir, 'stop', 'owner /stop enqueue: ok=' + os.ok + ' out=' + String(os.out || '').slice(0, 160));
   // 2026-11-10（cov4 原证）：enqueue→生效约 1.5 秒，这段时间的派发不是"停后泄漏"。
   // 口径：等 owner_stop 生效回执，观测窗从**生效**时刻起算；入队→生效之间的派发单独计数并常驻报告，

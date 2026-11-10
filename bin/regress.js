@@ -38,6 +38,7 @@ const STEPS = [
   ['停后计数归属(P1-B)', path.join(ROOT, 'lib', 'stop-counter.scope.test.js'), [], 'node-test'],
   ['停后归属消费链(P1-B)', path.join(ROOT, 'lib', 'stop-attribution.chain.test.js'), [], 'node-test'],
   ['R04 诊断与保留', path.join(ROOT, 'lib', 'stop-evidence.r04.test.js'), [], 'node-test'],
+  ['R06 回执门(MCP)', path.join(ROOT, 'lib', 'stop-receipt.test.js'), [], 'node-test'],
   ['停后计数', path.join(ROOT, 'lib', 'post-stop-count.test.js'), [], 'node-test'],
   ['预算观测', path.join(ROOT, 'lib', 'run-budget.test.js'), [], 'node-test'],
   ['保存回执', path.join(ROOT, 'lib', 'save-receipt.test.js'), [], 'node-test'],

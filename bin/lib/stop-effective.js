@@ -64,12 +64,16 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
     if (scope) {
       const w = ev.world_id || d.world_id || null;
       const s = ev.server_session || d.server_session || null;
-      const ep = ev.stamp_epoch != null ? ev.stamp_epoch : (d.stamp_epoch != null ? d.stamp_epoch : null);
+      const topEpoch = ev.world_epoch != null ? ev.world_epoch : (ev.stamp_epoch != null ? ev.stamp_epoch : null);
+      const dataEpoch = d.stamp_epoch != null ? d.stamp_epoch : null;
+      // top 与 data 同时存在必须一致；不一致 = 冲突，不接受。
+      if (topEpoch != null && dataEpoch != null && Number(topEpoch) !== Number(dataEpoch)) continue;
+      const ep = topEpoch != null ? topEpoch : dataEpoch;
       if (!w || !s || w !== scope.worldId || s !== scope.serverSession) continue;
-      // epoch 只是本地代次：scope 要求时必须存在且一致（缺/非法 = UNKNOWN，不猜）。
+      // epoch 只是本地代次：scope 要求时必须是安全非负整数且相等（缺/null/空串/布尔/字符串一律 UNKNOWN）。
       if (scope.epoch != null) {
-        if (!Number.isSafeInteger(Number(ep)) || Number(ep) < 0) continue;
-        if (Number(ep) !== Number(scope.epoch)) continue;
+        if (typeof ep !== 'number' || !Number.isSafeInteger(ep) || ep < 0) continue;
+        if (ep !== scope.epoch) continue;
       }
     }
     hit = {

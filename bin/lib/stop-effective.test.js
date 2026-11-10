@@ -58,6 +58,40 @@ test('轮询到回执即返回 EFFECTIVE', async () => {
   assert.strictEqual(res.overflowDropped, 1);
 });
 
+
+test('缺 stamp_epoch 且 scope.epoch=0 → 不匹配（不为 Number(null)=0 放行）', async () => {
+  let t = 0;
+  const line = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1',
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1' } });
+  const res = await waitForStopEffective({
+    readText: () => line, companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1', epoch: 0 }, timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+
+test('top world_epoch 与 data stamp_epoch 不一致 → 拒绝', async () => {
+  let t = 0;
+  const line = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1', world_epoch: 7,
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1', stamp_epoch: 9 } });
+  const res = await waitForStopEffective({
+    readText: () => line, companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1', epoch: 7 }, timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+
+test('epoch 为字符串 → 拒绝（不 Number 强转）', async () => {
+  let t = 0;
+  const line = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1', world_epoch: '7',
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1' } });
+  const res = await waitForStopEffective({
+    readText: () => line, companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1', epoch: 7 }, timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+
 test('回执缺少/不匹配 command_correlation_id → 不算本次关联', () => {
   const noKey = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:01Z', data: { companion_id: 'c1', drained: 1 } })];
   assert.strictEqual(scanOwnerStop(noKey, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
