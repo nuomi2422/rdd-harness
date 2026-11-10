@@ -1,0 +1,9 @@
+'use strict';
+const test=require('node:test'); const assert=require('node:assert/strict');
+const {observeStopWindow}=require('./stop-observation');
+test('complete empty stream requires full 60s and successful last pull',async()=>{let t=0,calls=0;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async n=>{t+=n},collect:()=>{calls++;return {ok:true}}});assert.equal(r.observedMs,60000);assert.equal(r.complete,true);assert.equal(calls,13);});
+test('15s elapsed alone cannot certify 60s if later pull fails',async()=>{let t=0;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async n=>{t+=n},collect:()=>({ok:t<=15000})});assert.equal(r.complete,false);assert.equal(r.observedMs,15000);assert.equal(r.gaps,true);});
+test('slow final pull is measured through completion',async()=>{let t=0;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async n=>{t+=n},collect:()=>{if(t>=55000)t+=7000;return {ok:true}}});assert.equal(r.observedMs,62000);assert.equal(r.complete,true);});
+test('cutoff-to-last-pull includes stop/save delay without asserting continuity',async()=>{let t=20000;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async n=>{t+=n},collect:()=>({ok:true})});assert.equal(r.observedMs,80000);assert.equal(r.pollingMs,60000);assert.equal(r.complete,true);});
+test('backward clock fails closed',async()=>{let t=0;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async()=>{t=-1},collect:()=>({ok:true})});assert.equal(r.complete,false);assert.equal(r.observedMs,null);assert.equal(r.invalidClock,true);});
+test('one gap or partial poll remains untrusted despite later success',async()=>{let t=0;const r=await observeStopWindow({cutoffMono:0,clock:()=>t,sleep:async n=>{t+=n},collect:()=>({ok:t!==10000})});assert.equal(r.observedMs,60000);assert.equal(r.complete,false);assert.equal(r.gaps,true);});

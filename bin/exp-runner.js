@@ -1021,7 +1021,9 @@ async function cmdRun(opts) {
   // 停机后 123 请求。先让 RDD 进入 owner-pause，能挡住随后的开工/催工推。
   // 2026-11-10：task_stop 只停身体任务，不 drain 事件队列；ownerStop(/stop) 才 abort+drain+闩。
   // 走 MCP enqueue→NumenGateway.dispatchIfCommand，不用键盘斜杠（避免被原生命令路由接走）。
+  // This is a stop-attempt timestamp, not a verified owner_stop business receipt.
   const stopAtIso = nowIso();
+  const stopAtMono = monotonicMs();
   const os = mcp('enqueue', companionName, JSON.stringify({ text: '/stop' }), 20000);
   env.stop = env.stop || {};
   env.stop.ownerStop = os;
@@ -1037,9 +1039,12 @@ async function cmdRun(opts) {
     // B7/B8 实测：learner_status(review_id) 在 runner 侧读不到 state（两次 UNKNOWN）；
     // 改成直接等 monitor/learner.jsonl 里的 reviewed/review_failed 事件 —— 这是结果本身，
     // 不是内存态；也避免 tool 参数歧义。
-    const rw = await waitForReviewEvent(reviewId, 180000);
+    // Optional review must not consume the reserved save + stop-observation time.
+    const reviewWait = await runBudget.runOptionalOperation(180000, 180000,
+      () => waitForReviewEvent(reviewId, 180000));
+    const rw = reviewWait.started ? reviewWait.value : { state: 'UNKNOWN', reason: 'SKIPPED_BUDGET', remainingMs: reviewWait.remaining };
     fs.writeFileSync(path.join(runDir, 'evidence', 'review-wait.json'), JSON.stringify(rw, null, 2));
-    log(runDir, 'stop', 'review wait: ' + reviewId + ' state=' + rw.state + ' ms=' + rw.ms);
+    log(runDir, 'stop', 'review wait: ' + reviewId + ' state=' + rw.state + ' reason=' + (rw.reason || '') + ' ms=' + rw.ms);
   }
   // 2026-10-31（V-20261031-08）：强杀前先落盘。此前收尾是 task_stop → 宽限 → Stop-Process -Force，
   // 没有优雅 stop；同伴背包只在 autosave 落盘，最后几分钟的物品会在下一轮丢失（B2 2 原木 → B3 0）。
@@ -1063,17 +1068,19 @@ async function cmdRun(opts) {
   // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
   const stopCounter = require('./lib/stop-counter').createStopCounter(pull, stopAtIso);
   let postStopRequests = 0;
-  const graceEnd = Date.now() + 60000;
-  while (Date.now() < graceEnd) {
-    postStopRequests = stopCounter.collect();
-    if (postStopRequests === 0 && Date.now() > graceEnd - 45000) break;
-    await sleep(5000);
-  }
-  postStopRequests = stopCounter.collect();
+  const observation = await require('./lib/stop-observation').observeStopWindow({
+    clock: monotonicMs, sleep, cutoffMono: stopAtMono, durationMs: 60000, intervalMs: 5000,
+    collect: () => {
+      postStopRequests = stopCounter.collect();
+      return { ok: !reader.gaps['context.jsonl'] && !reader.gaps['ai.jsonl']
+        && !reader.pending['context.jsonl'] && !reader.pending['ai.jsonl'] };
+    },
+  });
+  const observedGraceMs = observation.observedMs;
   const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
   env.stop = { ...env.stop, postStopRequests, independentPostStop: postCheck.count, postStopStatus: postCheck.status,
     postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
-    stopAt: stopAtIso, graceSeconds: 60 };
+    stopAt: stopAtIso, graceSeconds: 60, observedGraceMs, observation };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
     windowStartOffset: reader.windowStartOffset };

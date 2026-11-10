@@ -22,6 +22,12 @@ function createRunBudget({clock, runStart, totalLimitMs, stopReserveMs, watchLim
       const available = Math.max(0, Math.min(watchRemaining, totalRemaining - stopReserveMs));
       return { allow: available > nextOperationMaxMs, watchRemaining, totalRemaining, available, stopReserveMs };
     },
+    async runOptionalOperation(maxMs, keepMs, operation) {
+      if (!Number.isFinite(maxMs) || maxMs < 0 || !Number.isFinite(keepMs) || keepMs < 0 || typeof operation !== 'function') throw new TypeError('invalid optional operation');
+      const remaining = left();
+      if (remaining < maxMs + keepMs) return { started: false, remaining };
+      return { started: true, value: await operation(), remaining };
+    },
     async runWatchOperation(maxMs, operation) {
       if (typeof operation !== 'function') throw new TypeError('operation required');
       const decision = this.watchDecision(maxMs);
