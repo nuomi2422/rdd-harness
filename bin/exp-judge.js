@@ -139,6 +139,7 @@ function evaluate(runDir) {
     const coverage = stop.postStopStatus;
     const independent = stop.independentPostStop;
     if (post === undefined || exited === undefined) add('S4', 'INCONCLUSIVE', '缺停止期证据（run 未跑完？）', []);
+    else if (coverage === undefined) add('S4', 'NOT_COVERED', '旧 envelope 无停止窗 coverage，不能把历史 0 当完整', ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (coverage === 'UNKNOWN') add('S4', 'NOT_COVERED', '停止后窗口不完整/归属未知：' + (stop.postStopReasons || []).join(',') , ['evidence/context.jsonl']);
     else if (independent !== undefined && independent !== null && post !== undefined && independent !== post) add('S4', 'INCONCLUSIVE', '停后计数不一致：cursor=' + post + ' independent=' + independent, ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (post > 0) add('S4', 'FAIL', '停止后仍有 ' + post + ' 条新 llm_request', ['evidence/context.jsonl']);
@@ -252,7 +253,7 @@ function selftest() {
       inventory: { oakLogBefore: 0 },
       jarsAtPrepare: [{ file: 'numen-neoforge-1.21.1-0.1.3-dev.jar', sha256: 'aaa' }],
       jarsAtLaunch: [{ file: 'numen-neoforge-1.21.1-0.1.3-dev.jar', sha256: 'aaa' }],
-      stop: { postStopRequests: 0, javaExited: true },
+      stop: { postStopRequests: 0, independentPostStop: 0, postStopStatus: 'PRESENT', javaExited: true },
       master: { world: 'exp-x', worldPath: 'x' },
     };
     fs.writeFileSync(path.join(dir, 'envelope.json'), JSON.stringify(env, null, 2));
@@ -292,6 +293,34 @@ function selftest() {
   {
     const { dir } = makeRun('missing-evidence', (env, W, d) => { fs.rmSync(path.join(d, 'evidence', 'inventory-after.json')); });
     cases.push({ name: '缺证据（应 INCONCLUSIVE 不冒充）', dir, expect: 'INCONCLUSIVE', expectAssertion: ['S3', 'INCONCLUSIVE'] });
+  }
+  {
+    const { dir } = makeRun('missing-stop-coverage', (env, W, d) => {
+      delete env.stop.postStopStatus; delete env.stop.independentPostStop;
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '旧档无 stop coverage（重判 NOT_COVERED）', dir, expect: 'INCONCLUSIVE', expectAssertion: ['S4', 'NOT_COVERED'] });
+  }
+  {
+    const { dir } = makeRun('unknown-stop-coverage', (env, W, d) => {
+      env.stop.postStopStatus = 'UNKNOWN'; env.stop.postStopReasons = ['missing-tail'];
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '停后窗口 UNKNOWN（不冒充 0）', dir, expect: 'INCONCLUSIVE', expectAssertion: ['S4', 'NOT_COVERED'] });
+  }
+  {
+    const { dir } = makeRun('post-positive', (env, W, d) => {
+      env.stop.postStopRequests = 1; env.stop.independentPostStop = 1;
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '已证有后停请求（FAIL 优先）', dir, expect: 'FAIL', expectAssertion: ['S4', 'FAIL'] });
+  }
+  {
+    const { dir } = makeRun('counts-disagree', (env, W, d) => {
+      env.stop.postStopRequests = 0; env.stop.independentPostStop = 2;
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '两计数不一致（INCONCLUSIVE）', dir, expect: 'INCONCLUSIVE', expectAssertion: ['S4', 'INCONCLUSIVE'] });
   }
 
   let pass = 0;
