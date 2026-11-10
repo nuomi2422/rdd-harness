@@ -5,6 +5,8 @@
  *   node harness-gate.js postflight --since 2026-10-04   出游戏【之后】
  *   node harness-gate.js selftest                       只跑内置检查（不碰外部工具）
  *   node harness-gate.js registry                       打印注册表摘要
+ *   node harness-gate.js preflight --instance test --title-only
+ *     固定 test 根；无世界判据显式 SKIP，不改注册表/生产账本，不代表世界验证。
  *
  * 多角色（★ 2026-11-07 主人定：只做三个核心角色，汇报/辅助暂不单列）：
  *   node harness-gate.js preflight --role commander|worker|learner
@@ -31,6 +33,14 @@ const registryLib = require('./lib/registry.js');
 const cg = require('./lib/commander-gates.js');   // 指挥官监督轮判据（2026-11-07）
 const lg = require('./lib/learner-gates.js');     // 学习者复盘轮判据（2026-11-07）
 const { excludedForRuntime } = require('./lib/timelock-scope.js');
+const runtimeContext = require('./lib/runtime-context.js');
+let RUNTIME = null;
+function titleSkip(id) {
+  if (!RUNTIME || !RUNTIME.titleOnly) return false;
+  record(id, 'title-only: world-dependent check', WARN, 'artifact', SKIP,
+    'Explicit SKIP: title context has no world; live-default child/read not executed. Skipping is not PASS.');
+  return true;
+}
 
 const HARNESS = path.resolve(__dirname, '..');
 const REGISTRY = path.join(HARNESS, 'registry.json');
@@ -286,7 +296,7 @@ function preflight(ctx) {
   }
 
   // P0：上次 postflight BLOCK 未清 → 本次 preflight 直接 BLOCK（2026-11-05 物理联动）
-  {
+  if (!titleSkip('P0')) {
     let lastPost = null;
     try {
       const ledger = fs.readFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', 'utf8').trim().split(/\r?\n/);
@@ -297,7 +307,7 @@ function preflight(ctx) {
     }
   }
 
-  const LIVE_MODS = P(REG.roots.live) + path.sep + 'mods';
+  const LIVE_MODS = RUNTIME.mods;
 
   // P1 编译通道合规 —— phase-build.json 是 run-mutation 的产物，手写 gradle 不会产生它
   {
@@ -319,12 +329,11 @@ function preflight(ctx) {
 
   // P2 jar 不落后于源码
   {
-    const r = spawnSync(process.execPath, [path.join(SCRIPTS, 'verify-tools/check-runtime-deployment.js')],
+    const r = spawnSync(process.execPath, runtimeContext.deploymentArgs(path.join(SCRIPTS, 'verify-tools/check-runtime-deployment.js'), RUNTIME),
       { encoding: 'utf8', maxBuffer: 32 << 20 });
     const out = (r.stdout || '') + (r.stderr || '');
-    const stale = /VERDICT=STALE/.test(out);
     const ahead = out.split(/\r?\n/).filter((l) => /领先|STALE/.test(l) && !/VERDICT/.test(l)).slice(0, 4);
-    record('P2', 'jar 不落后于源码', BLOCK, 'artifact', (r.status === 2 || stale) ? BLOCK : PASS,
+    record('P2', 'jar 不落后于源码', BLOCK, 'artifact', runtimeContext.deploymentPassed(r, out) ? PASS : BLOCK,
       `exit=${r.status}` + (ahead.length ? ' | ' + ahead.join(' ; ') : ' | 无源码领先项'));
   }
 
@@ -641,7 +650,7 @@ function preflight(ctx) {
     }
   }
 
-  {
+  if (!titleSkip('P15')) {
     // ★ P15（2026-10-21 用户定）：进游戏前问一句「这次要不要先打存档快照」。
     //   为什么挂在大门上而不是 stage 里：用户原话「所有挂在的话，基本上就进游戏和退游戏
     //   那两个挂在大门，东西也更加确定性」—— stage 已经没人走了（tasks 目录空）。
@@ -705,7 +714,7 @@ function preflight(ctx) {
     );
   }
 
-  {
+  if (!titleSkip('P18')) {
     // ★★ P18（2026-10-29 主人指示）：**建链必须经过规划者**。
     //   主人原话：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用
     //   规划者的……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了」。
@@ -758,7 +767,7 @@ function preflight(ctx) {
 // ═══════════════════════════════════════════════════════════════════════════
 function postflight(ctx) {
   const { since, keyword, head } = ctx;
-  const LIVE = P(REG.roots.live);
+  const LIVE = RUNTIME.gameRoot;
 
   // Q1 有标记 —— ★ 2026-11-06：stage 四阶段流水线废弃，改查知识库本轮留痕
   {
@@ -841,7 +850,7 @@ function postflight(ctx) {
   }
 
   // Q10 游戏已关
-  {
+  if (!titleSkip('Q10')) {
     const n = spawnSync('powershell.exe',
       ['-NoProfile', '-Command', "@((Get-Process java -ErrorAction SilentlyContinue).Count + (Get-Process javaw -ErrorAction SilentlyContinue).Count)"],
       { encoding: 'utf8' }).stdout.trim();
@@ -914,11 +923,11 @@ function postflight(ctx) {
   //     warn（只是缺坐标）
   //       只写文件名没写行号 —— H3 要求补，但不至于拦
   //   级别定 WARN：与 Q13 同口径，避免「今天没验就过不了门」把门禁钉死。
-  {
+  if (!titleSkip('Q14')) {
     // 2026-11-04：新记录在 知识库\实验数据记录\；旧 实机验证 迁移期一起查。
     const dirs = [path.join(REG.roots.docs, '实机验证'), path.join(REG.roots.knowledge, '实验数据记录')];
     const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
-    const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
+    const monitor = RUNTIME.monitor;
     if (!fs.existsSync(checker)) {
       record('Q14', '证据坐标', WARN, 'trace', WARN,
         `检查器不存在（${checker}）—— H3 未落地，证据无法对账`);
@@ -1054,7 +1063,7 @@ function postflight(ctx) {
     }
   }
 
-  {
+  if (!titleSkip('Q18')) {
     // ★ Q18（2026-10-27 主人指示）：实验台「写新工具 + 写数据反思 + 数据进账本」提示。
     //   主人原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，
     //   并且写实验台实验数据的反思和提醒」。
@@ -1099,7 +1108,7 @@ function postflight(ctx) {
     }
   }
 
-  {
+  if (!titleSkip('Q19')) {
     // ★ Q19（2026-10-29 主人指示）：退游戏时复盘「这一轮的链是怎么建的」。
     //   与 P18 同一判据、同一份证据（bin/lib/planner-entry.js），但问法不同：
     //     P18 问「进场前你建对了吗」（BYPASSED 直接 BLOCK，逼你当场重发）；
@@ -1130,7 +1139,7 @@ function postflight(ctx) {
     }
   }
 
-  {
+  if (!titleSkip('Q20')) {
     // ★★ Q20（2026-10-30 用户要求：「退游戏记录规范，感觉现在还是做不到」）：
     //   **这一轮真进过游戏，就必须有一张回填过的卡 + 证据坐标 hard=0，否则 BLOCK。**
     //
@@ -1179,7 +1188,7 @@ function postflight(ctx) {
     let anchorOther = 0;
     try {
       const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
-      const monitor = path.join(REG.roots.mc || 'D:\\rdd\\mc', 'The Best of Twilight Forest', 'config', 'numen', 'monitor');
+      const monitor = RUNTIME.monitor;
       if (isFile(checker) && isDir(monitor)) {
         const hard = [];
         for (const d of [legacyDir, newDir]) {
@@ -1814,6 +1823,7 @@ function printHeader(phase) {
  *   只提醒、不判定：判据仍在 Q18（postflight）与 bench live。
  */
 function printBenchReminder() {
+  if (RUNTIME.titleOnly) { console.log('SKIP live bench reminder: title-only, no world'); return; }
   const liveDir = path.join(REG.roots.harness, 'experiments', 'live');
   const hasLive = isFile(path.join(liveDir, 'snapshot.md'));
   console.log('┌─ 实验台（先看这条，再看门禁）──────────────────────────────');
@@ -1839,6 +1849,7 @@ function printBenchReminder() {
  * 判据来源见 bin/lib/planner-entry.js 的头注释（代码路径 + 事件名都写了）。
  */
 function printPlannerBanner(ctx) {
+  if (RUNTIME.titleOnly) { console.log('SKIP planner banner: title-only, no world scan'); return; }
   let r = null;
   try {
     r = require('./lib/planner-entry.js').scan(ctx.since);
@@ -1926,6 +1937,8 @@ function printGroups() {
  *   现在写失败显式打 stderr 警告；门禁结论本身不受影响（记账不是业务判据）。
  */
 function appendGateUsage(entry) {
+  // Title diagnostics are not a production gate run; preserve the S5 audit ledger.
+  if (RUNTIME && RUNTIME.titleOnly) { console.log('title-only: production gate-usage ledger unchanged'); return; }
   try {
     const fs2 = require('fs');
     fs2.mkdirSync('D:\\rdd\\.harness\\audit', { recursive: true });
@@ -2258,8 +2271,16 @@ function printRoundBanner() {
 
 // ── main ─────────────────────────────────────────────────────────────────
 function main() {
-  loadRegistry();
+  // Validate before loading registry, running children, or touching usage ledgers.
+  const selected = runtimeContext.selection(process.argv.slice(3));
   const mode = process.argv[2] || 'help';
+  if (selected.titleOnly && !['preflight', 'postflight'].includes(mode)) {
+    console.error('title-only runtime context is supported only for preflight/postflight');
+    return 3;
+  }
+  loadRegistry();
+  RUNTIME = runtimeContext.resolveRuntime(selected, REG);
+  if (RUNTIME.titleOnly) console.log('RUNTIME instance=test title-only gameRoot=' + RUNTIME.gameRoot + ' (not world validation)');
   globalThis.__GATE_MODE = mode;
   if (mode === 'registry') { registrySummary(); return 0; }
   if (mode === 'help' || mode === '--help') {
