@@ -36,8 +36,9 @@
 ### S-BUILD-01 编译只有一条通道
 改代码 → 编译 → 部署，只能走 `run-mutation.ps1 -Requirement "<需求>" -Module <模块>`。
 **禁止手写 gradle、禁止手动拷 jar** —— opencode.json 的 permission 已 deny，绕不过去。
-全仓唯一的 gradle 调用点是 `build-jar.ps1:36`；gradle task 必须写 `":$($effectiveModule):jar"`
-（`:` 和 `-` 会被 PowerShell 当变量名/scope 吃掉）。
+全仓唯一的 gradle 调用点是 `build-jar.ps1`；默认打包 task 仍为 `":$($effectiveModule):jar"`（`:` 和 `-` 会被 PowerShell 当变量名/scope 吃掉）。
+
+**2026-11-10 有界测试模式**：`run-mutation.ps1 -Module plugins:rdd -TestOnly -SettleRegression`（或 `-Tests <精确白名单类名>`） 仅透传到该唯一调用点运行测试，结果 XML 必须在本 mutation 独立目录新生成且测试数>0、失败/错误=0；测试后直接退出，不部署或启动。原因：此前 jar 构建不运行测试，旧 XML 容易冒充新回归；案例：044 未展开最终目标修复的测试源码比旧 class 新，build-only 回执不能证明测试通过。其他模块或测试名须先按同样约束扩展白名单；回退时撤销该模式但保留默认 jar 行为。
 
 ### S-BUILD-02 改执行层必须显式指定模块
 改 `core/common` 的类必须 `-Module core:neoforge`，默认模块盖不到。
