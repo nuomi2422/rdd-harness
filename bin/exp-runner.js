@@ -996,6 +996,13 @@ async function cmdRun(opts) {
   // 2026-10-31（V-20261031-44 实测）：停机先 pause 链，再 task_stop。
   // B40 顺序是 task_stop → save → standby，结果 03:59:36 仍有「【开工】…做一把铁剑」推给 AI，
   // 停机后 123 请求。先让 RDD 进入 owner-pause，能挡住随后的开工/催工推。
+  // 2026-11-10：task_stop 只停身体任务，不 drain 事件队列；ownerStop(/stop) 才 abort+drain+闩。
+  // 走 MCP enqueue→NumenGateway.dispatchIfCommand，不用键盘斜杠（避免被原生命令路由接走）。
+  const os = mcp('enqueue', companionName, JSON.stringify({ text: '/stop' }), 20000);
+  env.stop = env.stop || {};
+  env.stop.ownerStop = os;
+  log(runDir, 'stop', 'owner /stop enqueue: ok=' + os.ok + ' out=' + String(os.out || '').slice(0, 160));
+  saveEnv();
   const sbEarly = mcp('rdd_standby', companionName, null, 20000);
   const ts = mcp('task_stop', companionName, null, 20000);
   // 2026-10-31（V-20261031-12）：若本轮发起过 learner_review，强杀前轮询它到非 RUNNING。
