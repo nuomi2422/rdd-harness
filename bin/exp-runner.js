@@ -108,22 +108,7 @@ const MCP_CALL = path.join(RDD, 'workspace', 'rdd-selfcompile', 'scripts', 'mcp-
 const OC_DIR = path.join(RDD, 'workspace', 'mc-openclaw-controller', 'scripts');
 
 const GIT = 'C:/Users/admin/AppData/Local/Programs/MinGit/cmd/git.exe';
-
-/** Independent post-stop count across rotated context streams; used to cross-check the incremental cursor. */
-function countContextRequestsSince(dir, iso) {
-  let n = 0;
-  const files = fs.existsSync(dir) ? fs.readdirSync(dir).filter(f => /^context.*\.jsonl$/.test(f)) : [];
-  for (const f of files) {
-    let text = '';
-    try { text = fs.readFileSync(path.join(dir, f), 'utf8'); } catch { continue; }
-    for (const line of text.split('\n')) {
-      if (!line.includes('"type":"llm_request"')) continue;
-      const m = /"timestamp":"([^"]+)"/.exec(line);
-      if (m && m[1] >= iso) n++;
-    }
-  }
-  return n;
-}
+const { countContextRequestsSince } = require('./lib/post-stop-count');
 
 // 受控复位的"存档外"状态（glob 展开后拷贝）
 // 2026-10-27：把 'acx' 从复位清单里摘了 —— ACX 版本库是**学习产物**（学习者写、人批准），
