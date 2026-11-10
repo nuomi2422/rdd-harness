@@ -868,6 +868,8 @@ async function cmdRun(opts) {
   // 旧实现每见到一条 "success":false 就 +1，而同一 call 会有服务端+客户端两条 result
   // => 失败次数被重复投递翻倍，「累计」还被写成「连续」。
   const raw = { tools: '', events: '' };
+  // 覆盖绑定键的来源：与生命周期证据同一条 context 流（窗口内最后一条 llm_request）。
+  let lastLlmRequestEvent = null;
   const blockersSeen = new Set();
   const rec = (kind, data) => fs.appendFileSync(path.join(runDir, 'evidence', 'records.jsonl'), JSON.stringify({ at: nowIso(), kind, data }) + '\n');
   // 2026-11-09：pull 抽到 lib/monitor-reader.js（可独立单测），行为不变。
@@ -905,7 +907,11 @@ async function cmdRun(opts) {
       }
     }
     const chunkCtx = pull('context.jsonl');
-    for (const line of chunkCtx.split('\n')) if (line.includes('"type":"llm_request"')) llmRequests++;
+    for (const line of chunkCtx.split('\n')) {
+      if (!line.includes('"type":"llm_request"')) continue;
+      llmRequests++;
+      try { lastLlmRequestEvent = JSON.parse(line); } catch (ignore) { /* 半行/坏行不计 */ }
+    }
     const chunkEv = pull('events.jsonl');
     raw.events += chunkEv;
     // 只在「按 callId 去重后的真实连续失败」达到阈值时记 blocker（累计失败另算，不混称）
@@ -1180,24 +1186,22 @@ async function cmdRun(opts) {
   // 因此 verified 的作用域写死为 content-immutable-since-read，不含来源背书。
   let coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null };
   try {
-    const verify = reader.verifySegments();
-    if (verify.ok && !Object.keys(gaps).length) {
-      coverage = require('./lib/coverage').makeVerifiedCoverage({
-        segments: verify.files,
-        source: 'monitor-reader/bounded-window',
-        // 窗口完整性：只声明"起点到当前每个字节都读过一次且连续"；做不到就 unproven。
-        window: (() => {
-          const w = reader.verifyWindow(['tools.jsonl', 'events.jsonl']);
-          return {
-            start: env.timings && env.timings.stimulusSentAt || null,
-            completeness: (w.ok && !Object.keys(gaps).length) ? 'verified-for-observed-window' : 'unproven',
-            streams: w.files,
-          };
-        })(),
-        gaps,
-        lifecycle: { closed: true },
-      });
-    }
+    // 单源：证据全部由 run 循环里那一个 reader 产出（不另开字节统计）。
+    const producer = require('./lib/coverage-producer');
+    const bindings = {
+      world_id: (lastLlmRequestEvent && lastLlmRequestEvent.world_id) || '',
+      server_session: (lastLlmRequestEvent && lastLlmRequestEvent.server_session) || '',
+      companionId: (lastLlmRequestEvent && lastLlmRequestEvent.data && lastLlmRequestEvent.data.companionId) || '',
+      requestId: (lastLlmRequestEvent && lastLlmRequestEvent.data && lastLlmRequestEvent.data.requestId) || '',
+    };
+    const evidence = producer.buildEvidence({
+      reader,
+      bindings,
+      stimulusSentAt: (env.timings && env.timings.stimulusSentAt) || null,
+      stopEnqueuedAt: nowIso(),
+      verify: reader.verifySegments(),
+    });
+    coverage = require('./lib/coverage').makeVerifiedCoverage(evidence);
   } catch (e) {
     coverage = { level: 'limited', windowStart: env.timings && env.timings.stimulusSentAt || null, reject: String(e.message).slice(0, 120) };
   }

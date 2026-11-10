@@ -43,6 +43,21 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
   assert.ok(ev.reasons.includes('identity-coverage-unknown-or-incomplete'), '理由应指向身份覆盖不足');
 }
 
+/** 新覆盖 ABI（2026-11-10）：七流齐全 + 绑定键齐全的可签发证据。 */
+function validCoverage(completeness) {
+  const streams = ['tools', 'context', 'events', 'ai', 'rdd', 'expmem', 'instrumentation'];
+  const segments = {}; const gaps = {}; const start = {}; const end = {}; const fileIds = {};
+  for (const s of streams) {
+    segments[s] = { segments: [{ from: 0, to: 10, fingerprintMatch: true }], broken: 0, halfLine: false };
+    gaps[s] = 0; start[s] = 0; end[s] = 10; fileIds[s] = { start: 'i-' + s, end: 'i-' + s };
+  }
+  return C.makeVerifiedCoverage({
+    bindings: { world_id: 'w', server_session: 'sess', companionId: 'c', requestId: 'q' },
+    window: { stimulusSentAt: 'T0', stopEnqueuedAt: 'T1', start, end, completeness },
+    segments, gaps, lifecycle: { closed: true, replays: 0, fileIds },
+  });
+}
+
 // 反例②：信封写旧世界 A、独立核验是 B（A 发起 / B 才 publish）→ 冲突 → UNKNOWN，不得产出 completed
 {
   const conflicted = envRow('tool_call', {}, { world_id: 'world-A', server_session: 'sess-A' }) + '\n'
@@ -71,10 +86,30 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
   const forged = actionEvidence(lg, text, null, { level: 'verified', windowStart: 'w', anchorBytes: 64 });
   assert.equal(forged.status, 'UNKNOWN', '伪造 verified 必须被拒');
   assert.ok(forged.reasons.includes('coverage-limited'));
-  assert.throws(() => C.makeVerifiedCoverage({}), /coverage-rejected/);
+  // 2026-11-10 覆盖 ABI 更新：空 evidence 先撞"绑定键缺失"→ COVERAGE_UNKNOWN（不是 rejected）
+  assert.throws(() => C.makeVerifiedCoverage({}), (e) => e && e.code === 'COVERAGE_UNKNOWN');
   assert.equal(C.isVerifiedCoverage({ level: 'verified' }), false);
-  // 内容完整性可以签发（verified），但窗口完整性永远 unproven → 结论仍 UNKNOWN
-  const issued = C.makeVerifiedCoverage({ segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } }, source: 's', window: { start: 'w' }, gaps: {}, lifecycle: { closed: true } });
+  // 内容完整性可以签发（verified），但窗口完整性未声明 → unproven → 结论仍 UNKNOWN
+  const streams = ['tools', 'context', 'events', 'ai', 'rdd', 'expmem', 'instrumentation'];
+  const okSegments = {};
+  const okGaps = {};
+  const okStart = {};
+  const okEnd = {};
+  const okFileIds = {};
+  for (const s of streams) {
+    okSegments[s] = { segments: [{ from: 0, to: 10, fingerprintMatch: true }], broken: 0, halfLine: false };
+    okGaps[s] = 0;
+    okStart[s] = 0;
+    okEnd[s] = 10;
+    okFileIds[s] = { start: 'i-' + s, end: 'i-' + s };
+  }
+  const issued = C.makeVerifiedCoverage({
+    bindings: { world_id: 'w', server_session: 's', companionId: 'c', requestId: 'q' },
+    window: { stimulusSentAt: 'T0', stopEnqueuedAt: 'T1', start: okStart, end: okEnd, completeness: 'partial' },
+    segments: okSegments,
+    gaps: okGaps,
+    lifecycle: { closed: true, replays: 0, fileIds: okFileIds },
+  });
   assert.equal(issued.contentIntegrity, 'verified');
   assert.equal(issued.windowCompleteness, 'unproven');
   const issuedEv = actionEvidence(lg, text, null, issued);
@@ -88,20 +123,12 @@ const envRow = (type, data, env) => JSON.stringify({ type, session: 'run-1', ...
 {
   const text = row('tool_call', {}) + '\n' + row('tool_result', { result: { success: true } });
   const lg = AL.build(text, '', { resolveIdentity });
-  const scoped = C.makeVerifiedCoverage({
-    segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } },
-    source: 's', window: { start: 'w', completeness: 'verified-for-observed-window' },
-    gaps: {}, lifecycle: { closed: true },
-  });
+  const scoped = validCoverage('verified-for-observed-window');
   const ev = actionEvidence(lg, text, null, scoped);
   assert.equal(ev.status, 'PRESENT', '两个维度都成立时应可 PRESENT');
   assert.ok(ev.caveats.includes('window-scope:observed-bytes-only'), '必须带窗口范围 caveat');
   // 反例：窗口未证 → 仍 UNKNOWN
-  const unproven = C.makeVerifiedCoverage({
-    segments: { 'tools.jsonl': { segments: 1, broken: 0, contiguous: true } },
-    source: 's', window: { start: 'w', completeness: 'unproven' },
-    gaps: {}, lifecycle: { closed: true },
-  });
+  const unproven = validCoverage('unproven');
   const ev2 = actionEvidence(lg, text, null, unproven);
   assert.equal(ev2.status, 'UNKNOWN');
   assert.ok(ev2.reasons.includes('window-completeness-unproven'));

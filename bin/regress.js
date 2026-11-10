@@ -32,6 +32,13 @@ const STEPS = [
   ['P22 时间边界', path.join(ROOT, 'lib', 'p22-digest.test.js'), [], 'node-test'],
   ['Q9 登记读取', path.join(ROOT, 'q9-isolated.test.js'), [], 'node-test'],
   ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
+  // 2026-11-10：lib 下这 6 个测试此前没登记（回归不跑=没测），本次补齐。
+  ['覆盖生产者(七流单源)', path.join(ROOT, 'lib', 'coverage-producer.test.js'), [], 'node-test'],
+  ['停后计数', path.join(ROOT, 'lib', 'post-stop-count.test.js'), [], 'node-test'],
+  ['预算观测', path.join(ROOT, 'lib', 'run-budget.test.js'), [], 'node-test'],
+  ['保存回执', path.join(ROOT, 'lib', 'save-receipt.test.js'), [], 'node-test'],
+  ['停后计数器', path.join(ROOT, 'lib', 'stop-counter.test.js'), [], 'node-test'],
+  ['停后观察窗', path.join(ROOT, 'lib', 'stop-observation.test.js'), [], 'node-test'],
   ['take 动态有效性', path.join(ROOT, 'verify-take.test.js'), [], 'node-test', 'wallclock'],
   // 2026-11-09：真实链路 reader→ledger→consumer 的身份断言（含 2 项 EXPECTED-FAIL 未支持项）。
   ['身份链路 reader→消费者', path.join(ROOT, 'ledger-chain.test.js'), [], 'node-test'],
