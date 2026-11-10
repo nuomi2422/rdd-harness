@@ -1214,6 +1214,26 @@ async function cmdRun(opts) {
     log(runDir, 'coverage-reject', reason);
     rec('coverage_reject', { reason });
   }
+  // 把停止窗两个"是否已核验"标记落到 env.stop：过去没人写它们，判据只能永远 UNKNOWN。
+  // 取值全部来自本窗已产出的证据，不手填、不为变绿放宽：
+  //   coverageVerified = 覆盖对象由 coverage.js 签发（内容维度验证通过）
+  //   scopeVerified    = 停后计数来自同一个字节游标（stopCounter）+ 观察窗完整 + 七流无缺口
+  {
+    const cov = require('./lib/coverage');
+    const issued = cov.isVerifiedCoverage(coverage);
+    const windowLevel = issued ? coverage.windowCompleteness : 'unproven';
+    env.stop = {
+      ...env.stop,
+      coverageVerified: issued && coverage.contentIntegrity === 'verified'
+        && (windowLevel === 'verified' || windowLevel === 'verified-for-observed-window'),
+      scopeVerified: !!(env.stop && env.stop.observation && env.stop.observation.complete
+        && Array.isArray(env.stop.postStopReasons)
+        && !env.stop.postStopReasons.some((r0) => /gaps|half|clock|untrusted|unparsable/i.test(String(r0)))),
+      // 游标计数才是权威：启发式扫描永远证明不了归属，所以状态以 stopCounter 为准。
+      postStopStatus: (env.stop && env.stop.postStopRequests === 0) ? 'PRESENT' : 'UNKNOWN',
+      postStopStatusSource: 'stop-counter/cursor',
+    };
+  }
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
   // 2026-11-09（指挥官要求）：窗口范围要**无条件**落下来，不能只有 verified 覆盖时才带。
   // 只声明"我读了哪些流的哪段字节"，与业务时间完整无关。
