@@ -64,3 +64,45 @@ test('回执缺少/不匹配 command_correlation_id → 不算本次关联', () 
   const otherKey = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:01Z', data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-2' } })];
   assert.strictEqual(scanOwnerStop(otherKey, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
 });
+
+test('owner_stop 先于 command_dispatch 出现也按 key 匹配（顺序不参与判定）', async () => {
+  let t = 0;
+  const stopLine = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1',
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1' } });
+  const dispatchLine = JSON.stringify({ type: 'command_dispatch', timestamp: '2026-01-01T00:00:03Z', world_id: 'w1', server_session: 's1',
+    data: { companion_id: 'c1', command: '/stop', correlation_id: 'cmd-1' } });
+  const res = await waitForStopEffective({
+    readText: () => stopLine + '\n' + dispatchLine,
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1' },
+    timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'EFFECTIVE');
+});
+
+test('同 key 但 world/server 不符 → 不接受（他人调用）', async () => {
+  let t = 0;
+  const stopLine = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w2', server_session: 's2',
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1' } });
+  const res = await waitForStopEffective({
+    readText: () => stopLine,
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1' },
+    timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+
+test('epoch 不一致（换世界/重启）→ 不接受', async () => {
+  let t = 0;
+  const stopLine = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1', stamp_epoch: 9,
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1' } });
+  const res = await waitForStopEffective({
+    readText: () => stopLine,
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1', epoch: 8 },
+    timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+

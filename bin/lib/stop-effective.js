@@ -57,9 +57,12 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
     if (!expectedCommandId || !key || key !== expectedCommandId) continue;
     // R-04：scope 提供时，事件的世界/服务器也必须严格匹配；缺失或不符 → 不接受（不猜）。
     if (scope) {
-      const w = ev.world_id || null;
-      const s = ev.server_session || null;
+      const w = ev.world_id || d.world_id || null;
+      const s = ev.server_session || d.server_session || null;
+      const ep = ev.stamp_epoch != null ? ev.stamp_epoch : (d.stamp_epoch != null ? d.stamp_epoch : null);
       if (!w || !s || w !== scope.worldId || s !== scope.serverSession) continue;
+      // epoch 只是本地代次：给了就必须一致（换世界/重启会变），不给不猜。
+      if (scope.epoch != null && ep != null && Number(ep) !== Number(scope.epoch)) continue;
     }
     hit = {
       at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped,
@@ -69,13 +72,13 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
   return hit;
 }
 
-async function waitForStopEffective({ readText, companionId, enqueueAtIso, expectedCommandId, timeoutMs = 15000, pollMs = 250, sleep, now }) {
+async function waitForStopEffective({ readText, companionId, enqueueAtIso, expectedCommandId, scope, timeoutMs = 15000, pollMs = 250, sleep, now }) {
   const deadline = now() + timeoutMs;
   let last = [];
   for (;;) {
     const lines = String(readText() || '').split(/\r?\n/);
     last = lines;
-    const hit = scanOwnerStop(lines, companionId, enqueueAtIso, expectedCommandId);
+    const hit = scanOwnerStop(lines, companionId, enqueueAtIso, expectedCommandId, scope);
     if (hit) return { state: 'EFFECTIVE', ...hit };
     if (now() >= deadline) break;
     await sleep(pollMs);

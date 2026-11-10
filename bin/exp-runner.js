@@ -1042,9 +1042,26 @@ async function cmdRun(opts) {
   // This is a stop-attempt timestamp, not a verified owner_stop business receipt.
   const stopAtIso = nowIso();
   const stopAtMono = monotonicMs();
-  const os = mcp('enqueue', companionName, JSON.stringify({ text: '/stop' }), 20000);
+  // R-06：/stop 走 enqueue_receipt，拿本次 commandId 与实例身份；旧 enqueue 保留给其他调用。
+  const stopCall = mcp('enqueue_receipt', companionName, JSON.stringify({ text: '/stop' }), 20000);
+  let stopReceipt = null;
+  try { stopReceipt = stopCall.ok ? JSON.parse(stopCall.out) : null; } catch { stopReceipt = null; }
+  const os = {
+    ok: !!(stopCall.ok && stopReceipt && stopReceipt.delivery && stopReceipt.delivery !== 'REJECTED'),
+    out: String(stopCall.out || ''),
+    receipt: stopReceipt,
+  };
   env.stop = env.stop || {};
   env.stop.ownerStop = os;
+  env.stop.enqueueReceipt = stopReceipt;
+  // 权威作用域：只有回执 identityStatus=OK 且 commandId 非空才可用；否则一律 UNKNOWN。
+  const receiptAuthority = !!(stopReceipt && stopReceipt.commandId && stopReceipt.identityStatus === 'OK'
+    && stopReceipt.worldId && stopReceipt.serverSession);
+  const expectedCommandId = receiptAuthority ? stopReceipt.commandId : null;
+  const receiptScope = receiptAuthority
+    ? { worldId: stopReceipt.worldId, serverSession: stopReceipt.serverSession, epoch: stopReceipt.epoch }
+    : null;
+  if (!receiptAuthority) log(runDir, 'stop', '入队回执缺 commandId/身份 → 本次关联 UNKNOWN（不反查升权威）');
   log(runDir, 'stop', 'owner /stop enqueue: ok=' + os.ok + ' out=' + String(os.out || '').slice(0, 160));
   // 2026-11-10（cov4 原证）：enqueue→生效约 1.5 秒，这段时间的派发不是"停后泄漏"。
   // 口径：等 owner_stop 生效回执，观测窗从**生效**时刻起算；入队→生效之间的派发单独计数并常驻报告，
@@ -1063,8 +1080,9 @@ async function cmdRun(opts) {
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
     // R-02 第 2 点：回执扫描必须用真实 UUID，不能用名字冒充。
     companionId: (env.companionBinding && env.companionBinding.companionId) || companionName,
-    // R-04：本批没有真实入队 commandId → 不传；stop-effective 只能 TIMEOUT/UNKNOWN。
-    expectedCommandId: null,
+    // R-06：只传回执里的真实 commandId；没有就 null（TIMEOUT/UNKNOWN）。
+    expectedCommandId,
+    scope: receiptScope,
     enqueueAtIso: stopAtIso,
     timeoutMs: 15000,
     pollMs: 250,
@@ -1120,13 +1138,18 @@ async function cmdRun(opts) {
   const cutoffIso = stopEffectiveIso || stopAtIso;
   // R-04 第 5 点：env.master.world 只是「准备阶段的存档名」，不是运行世界身份。
   // 生命周期握手未接 → authoritative worldId/serverSession 都留 null（UNKNOWN）。
+  // R-06：作用域只认入队回执带回的实例身份（单机 capture(server) 采样）；没有就 null/UNKNOWN。
   const stopScope = {
-    worldId: null,
-    serverSession: null,
+    worldId: receiptScope ? receiptScope.worldId : null,
+    serverSession: receiptScope ? receiptScope.serverSession : null,
     companionId: (env.companionBinding && env.companionBinding.companionId) || null,
   };
   env.stopPrepared = { preparedSaveName: (env.master && env.master.world) || null, note: 'prepared save name, not runtime authority' };
-  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), authority: 'unknown', serverSessionSource: 'missing-interface', worldIdSource: 'missing-interface' };
+  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(),
+    authority: receiptAuthority ? 'enqueue-receipt' : 'unknown',
+    epoch: receiptScope ? receiptScope.epoch : null,
+    worldIdSource: receiptAuthority ? 'enqueue_receipt.instance' : 'missing-interface',
+    serverSessionSource: receiptAuthority ? 'enqueue_receipt.instance' : 'missing-interface' };
   // R-03：只接受命令关联键；没有就 UNKNOWN，不用 receiptAt 时间窗签权威。
   const stopReceiptAt = stopEffectiveIso;
   const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, {
