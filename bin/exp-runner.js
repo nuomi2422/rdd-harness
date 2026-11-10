@@ -1039,6 +1039,24 @@ async function cmdRun(opts) {
   env.stop = env.stop || {};
   env.stop.ownerStop = os;
   log(runDir, 'stop', 'owner /stop enqueue: ok=' + os.ok + ' out=' + String(os.out || '').slice(0, 160));
+  // 2026-11-10（cov4 原证）：enqueue→生效约 1.5 秒，这段时间的派发不是"停后泄漏"。
+  // 口径：等 owner_stop 生效回执，观测窗从**生效**时刻起算；入队→生效之间的派发单独计数并常驻报告，
+  // 但不进 S4 通过条件（那条产品债仍记 D-044-STOPDISPATCH）。
+  const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
+    readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
+    enqueueAtIso: stopAtIso,
+    timeoutMs: 15000,
+    pollMs: 250,
+    sleep,
+    now: () => Date.now(),
+  });
+  const stopEffectiveIso = stopEffective.state === 'EFFECTIVE' ? stopEffective.at : null;
+  const stopEffectiveMono = monotonicMs();
+  if (stopEffectiveIso) {
+    log(runDir, 'stop', 'owner_stop effective at ' + stopEffectiveIso + ' drained=' + stopEffective.drained);
+  } else {
+    log(runDir, 'stop', 'owner_stop receipt NOT observed within timeout → stop window UNKNOWN (不入队时刻冒充生效)');
+  }
   saveEnv();
   const sbEarly = mcp('rdd_standby', companionName, null, 20000);
   const ts = mcp('task_stop', companionName, null, 20000);
@@ -1077,10 +1095,12 @@ async function cmdRun(opts) {
   fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ rdd_standby: sb, task_stop: ts, rdd_save: sv }, null, 2));
   log(runDir, 'stop', 'rdd_standby → ' + (sb.ok ? 'ok' : 'failed') + '；task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed'));
   // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
-  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, stopAtIso);
+  // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
+  const cutoffIso = stopEffectiveIso || stopAtIso;
+  const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso);
   let postStopRequests = 0;
   const observation = await require('./lib/stop-observation').observeStopWindow({
-    clock: monotonicMs, sleep, cutoffMono: stopAtMono, durationMs: 60000, intervalMs: 5000,
+    clock: monotonicMs, sleep, cutoffMono: stopEffectiveIso ? stopEffectiveMono : stopAtMono, durationMs: 60000, intervalMs: 5000,
     collect: () => {
       postStopRequests = stopCounter.collect();
       return { ok: !reader.gaps['context.jsonl'] && !reader.gaps['ai.jsonl']
@@ -1091,7 +1111,14 @@ async function cmdRun(opts) {
   const postCheck = inspectContextRequestsSince(MONITOR, stopAtIso);
   env.stop = { ...env.stop, postStopRequests, independentPostStop: postCheck.count, postStopStatus: postCheck.status,
     postStopReasons: [...postCheck.reasons, ...stopCounter.snapshot().errors], postStopRawCount: postCheck.rawCount,
-    stopAt: stopAtIso, graceSeconds: 60, observedGraceMs, observation };
+    stopAt: stopAtIso, stopEffectiveAt: stopEffectiveIso, stopEffectiveReceipt: stopEffective,
+    // 入队→生效之间的派发：单列常驻，供人工看，不参与 S4 通过条件。
+    enqueueToEffective: stopEffectiveIso
+      ? require('./lib/stop-effective').dispatchesBetween(
+        (() => { try { return fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8'); } catch { return ''; } })().split(/\r?\n/),
+        stopAtIso, stopEffectiveIso)
+      : { state: 'UNKNOWN', reason: 'no-effective-receipt' },
+    graceSeconds: 60, observedGraceMs, observation };
   // 采集窗口完整性：缺流/轮转/截断/半行必须落盘，读者不能把“没读到”当 0。
   env.monitor = { offsets: reader.offsets, gaps: reader.gaps, fileId: reader.fileId,
     windowStartOffset: reader.windowStartOffset };
@@ -1230,7 +1257,8 @@ async function cmdRun(opts) {
         && Array.isArray(env.stop.postStopReasons)
         && !env.stop.postStopReasons.some((r0) => /gaps|half|clock|untrusted|unparsable/i.test(String(r0)))),
       // 游标计数才是权威：启发式扫描永远证明不了归属，所以状态以 stopCounter 为准。
-      postStopStatus: (env.stop && env.stop.postStopRequests === 0) ? 'PRESENT' : 'UNKNOWN',
+      // 没有生效回执 → 时间基准不可信，一律 UNKNOWN（不能拿入队时刻冒充生效）。
+      postStopStatus: (env.stop && env.stop.stopEffectiveAt && env.stop.postStopRequests === 0) ? 'PRESENT' : 'UNKNOWN',
       postStopStatusSource: 'stop-counter/cursor',
     };
   }

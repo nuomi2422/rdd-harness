@@ -1,0 +1,59 @@
+'use strict';
+const test = require('node:test');
+const assert = require('node:assert');
+const { scanOwnerStop, dispatchesBetween, waitForStopEffective } = require('./stop-effective');
+
+const aiLine = (ts, drained, overflow = 0, cid = 'c1') => JSON.stringify({
+  type: 'owner_stop', timestamp: ts,
+  data: { companion_id: cid, was_busy: true, drained, overflow_dropped: overflow },
+});
+const reqLine = (ts, id) => JSON.stringify({ type: 'llm_request', timestamp: ts, data: { requestId: id, status: 'dispatched' } });
+
+test('找到同同伴的 owner_stop 回执（带 drained）', () => {
+  const lines = [aiLine('2026-01-01T00:00:01Z', 1)];
+  const hit = scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z');
+  assert.strictEqual(hit.at, '2026-01-01T00:00:01Z');
+  assert.strictEqual(hit.drained, 1);
+});
+
+test('别的同伴/更早的回执不算', () => {
+  const lines = [aiLine('2026-01-01T00:00:01Z', 1, 0, 'other'), aiLine('2025-12-31T23:59:59Z', 1)];
+  assert.strictEqual(scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z'), null);
+});
+
+test('没有 drained/overflow 字段的行不算回执', () => {
+  const lines = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', data: { companion_id: 'c1' } })];
+  assert.strictEqual(scanOwnerStop(lines, 'c1', '2026-01-01T00:00:00Z'), null);
+});
+
+test('enqueue→effective 之间的派发被单独数出来', () => {
+  const lines = [
+    reqLine('2026-01-01T00:00:00.5Z', 'r1'),
+    reqLine('2026-01-01T00:00:01.6Z', 'r2'),
+  ];
+  const out = dispatchesBetween(lines, '2026-01-01T00:00:00Z', '2026-01-01T00:00:01Z');
+  assert.deepStrictEqual(out.map((x) => x.requestId), ['r1']);
+});
+
+test('等不到回执 → TIMEOUT，不是成功', async () => {
+  let t = 0;
+  const res = await waitForStopEffective({
+    readText: () => aiLine('2026-01-01T00:00:01Z', 1).replace('owner_stop', 'other_type'),
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', timeoutMs: 1000, pollMs: 100,
+    sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+  assert.strictEqual(res.effectiveAt, null);
+});
+
+test('轮询到回执即返回 EFFECTIVE', async () => {
+  let t = 0;
+  const res = await waitForStopEffective({
+    readText: () => aiLine('2026-01-01T00:00:01Z', 2, 1),
+    companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', timeoutMs: 1000, pollMs: 100,
+    sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'EFFECTIVE');
+  assert.strictEqual(res.drained, 2);
+  assert.strictEqual(res.overflowDropped, 1);
+});

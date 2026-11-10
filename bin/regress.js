@@ -39,6 +39,7 @@ const STEPS = [
   ['保存回执', path.join(ROOT, 'lib', 'save-receipt.test.js'), [], 'node-test'],
   ['停后计数器', path.join(ROOT, 'lib', 'stop-counter.test.js'), [], 'node-test'],
   ['停后观察窗', path.join(ROOT, 'lib', 'stop-observation.test.js'), [], 'node-test'],
+  ['停止生效口径', path.join(ROOT, 'lib', 'stop-effective.test.js'), [], 'node-test'],
   ['take 动态有效性', path.join(ROOT, 'verify-take.test.js'), [], 'node-test', 'wallclock'],
   // 2026-11-09：真实链路 reader→ledger→consumer 的身份断言（含 2 项 EXPECTED-FAIL 未支持项）。
   ['身份链路 reader→消费者', path.join(ROOT, 'ledger-chain.test.js'), [], 'node-test'],
