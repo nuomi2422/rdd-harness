@@ -22,6 +22,12 @@ function createRunBudget({clock, runStart, totalLimitMs, stopReserveMs, watchLim
       const available = Math.max(0, Math.min(watchRemaining, totalRemaining - stopReserveMs));
       return { allow: available > nextOperationMaxMs, watchRemaining, totalRemaining, available, stopReserveMs };
     },
+    async runWatchOperation(maxMs, operation) {
+      if (typeof operation !== 'function') throw new TypeError('operation required');
+      const decision = this.watchDecision(maxMs);
+      if (!decision.allow) return { started: false, decision };
+      return { started: true, value: await operation(), decision };
+    },
     snapshot() { const now=clock(); return { totalElapsed: now-runStart, totalRemaining: left(), watchElapsed: stimulusStart === null ? null : now-stimulusStart, totalExceeded: now > totalDeadline }; },
   };
 }

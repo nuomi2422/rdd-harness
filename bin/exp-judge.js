@@ -189,6 +189,8 @@ function evaluate(runDir) {
   let overall;
   if (contractChanged) overall = 'INCONCLUSIVE';
   else if (env.phase !== 'done') overall = 'INCONCLUSIVE';
+  else if (env.timings && env.timings.budgetAtCompletion && env.timings.budgetAtCompletion.totalExceeded === true) overall = 'FAIL';
+  else if (env.timings && env.timings.budgetPolicy && !env.timings.budgetAtCompletion) overall = 'INCONCLUSIVE';
   else if (anyFail) overall = 'FAIL';
   else if (anyInc) overall = 'INCONCLUSIVE';
   else overall = get('S2').verdict === 'PASS' ? 'PASS' : 'PASS_WITH_GAPS';
@@ -274,6 +276,20 @@ function selftest() {
   {
     const { dir } = makeRun('good');
     cases.push({ name: 'good（事实+声明一致）', dir, expect: 'PASS' });
+  }
+  {
+    const { dir } = makeRun('missing-final-budget', (env, W, d) => {
+      env.timings.budgetPolicy = { clock: 'monotonic' };
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '新版本完成但缺最终预算（不得PASS）', dir, expect: 'INCONCLUSIVE' });
+  }
+  {
+    const { dir } = makeRun('total-budget-overrun', (env, W, d) => {
+      env.timings.budgetAtCompletion = { totalExceeded: true };
+      fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify(env, null, 2));
+    });
+    cases.push({ name: '全程预算超限不冒充PASS', dir, expect: 'FAIL' });
   }
   {
     const { dir } = makeRun('wrong-load', (env, W, d) => {

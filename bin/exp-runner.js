@@ -979,7 +979,8 @@ async function cmdRun(opts) {
         if (!opts.noDeltaStop && before !== null && after !== null && after - before >= 4) { stopReason.value = 'delta>=4'; break; }
       }
     }
-    await sleep(5000);
+    const watchSleep = await runBudget.runWatchOperation(5000, () => sleep(5000));
+    if (!watchSleep.started) { stopReason.value = 'budget-before-watch-sleep'; break; }
   }
   // 收尾：把最后一段日志也读进账本（watch 循环 5s 一拉，尾部可能还没读）
   raw.tools += pull('tools.jsonl');
@@ -1284,8 +1285,8 @@ async function cmdRun(opts) {
   fs.writeFileSync(path.join(runDir, 'cleanup.json'), JSON.stringify({
     at: nowIso(), world, worldPath, kept: true, reason: 'verdict pending（裁决后跑 cleanup 再决定删/留）',
   }, null, 2));
-  env.phase = 'done';
-  env.finishedAt = nowIso();
+  // Do not expose a completed run before postflight and the final budget snapshot.
+  env.phase = 'postflight';
   saveEnv();
 
   // ② 退游戏后（2026-10-30）：把 postflight 摆到眼前。
@@ -1310,6 +1311,14 @@ async function cmdRun(opts) {
     }
   }
 
+  env.timings.budgetAtCompletion = runBudget.snapshot();
+  env.finishedAt = nowIso();
+  env.phase = 'done';
+  saveEnv();
+  if (env.timings.budgetAtCompletion.totalExceeded) {
+    log(runDir, 'done', '总运行预算已超限；保留证据与副本，不将完整流程报告为成功');
+    process.exit(10);
+  }
   log(runDir, 'done', 'RUN COMPLETE. 下一步: node exp-judge.js "' + runDir + '"');
   process.exit(0);
 }
