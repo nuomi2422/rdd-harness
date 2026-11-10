@@ -38,23 +38,30 @@ function createPull(opts) {
   const windowStartOffset = {};
   // 已消费的字节段：用于事后复核（我读到的内容现在是否还在磁盘上）
   const segments = {};
-  // 2026-11-10 R-03 第 6 点：重放按**顶层信封**判定，键 = (session, category, event_seq)。
-  // 不扫嵌套字符串里的 event_id 引用；缺字段/坏行 → 重放域不完整（不得签 0）。
-  const seenEventKeys = new Set();
+  // 2026-11-10 R-04 第 3 点：生产唯一域是 (session, event_seq)（MonitoringJournal 全类别共用 EVENT_SEQ）。
+  // category 必须与实际流一致；同 session+seq 不同 category = 冲突（域不完整，不得签 0）；
+  // seq 必须正安全整数、session 必须非空字符串；嵌套 data.event_id 不参与。
+  const seenEventKeys = new Map();
   let replays = 0;
   let replayDomainComplete = true;
-  const scanEventEnvelope = (s) => {
+  const scanEventEnvelope = (s, stream) => {
+    const expectedCategory = String(stream || '').replace(/\.jsonl$/, '');
     for (const line of s.split(/\r?\n/)) {
       if (!line.trim()) continue;
-      let e;
-      try { e = JSON.parse(line); } catch { replayDomainComplete = false; continue; }
-      const session = e && e.session;
-      const category = e && (e.category || e.stream);
-      const seq = e && (e.event_seq != null ? e.event_seq : null);
-      if (!session || !category || seq === null) { replayDomainComplete = false; continue; }
-      const key = session + '|' + category + '|' + seq;
-      if (seenEventKeys.has(key)) replays += 1;
-      else seenEventKeys.add(key);
+      let e2;
+      try { e2 = JSON.parse(line); } catch { replayDomainComplete = false; continue; }
+      const session = e2 && e2.session;
+      const seq = e2 && e2.event_seq;
+      const category = e2 && e2.category;
+      if (typeof session !== 'string' || !session || !Number.isSafeInteger(seq) || seq <= 0) { replayDomainComplete = false; continue; }
+      if (category !== expectedCategory) { replayDomainComplete = false; continue; }
+      const key = session + '|' + seq;
+      if (seenEventKeys.has(key)) {
+        if (seenEventKeys.get(key) !== category) replayDomainComplete = false;
+        else replays += 1;
+      } else {
+        seenEventKeys.set(key, category);
+      }
     }
   };
   const ANCHOR_BYTES = 64;
@@ -130,7 +137,7 @@ function createPull(opts) {
         return '';
       }
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
-      scanEventEnvelope(complete.toString('utf8'));
+      scanEventEnvelope(complete.toString('utf8'), f);
       if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
       pending[f] = complete.length < n ? { size } : null;
       const from = offsets[f] || 0;
@@ -152,7 +159,7 @@ function createPull(opts) {
     pull, gaps, offsets, fileId, pending, anchors, segments, windowStartOffset, verifySegments, verifyWindow,
     // 重放域完整时返回数字；不完整时返回 null（消费方不得当 0）。
     get replays() { return replayDomainComplete ? replays : null; },
-    get replayDomain() { return { complete: replayDomainComplete, duplicates: replays, keys: seenEventKeys.size }; },
+    get replayDomain() { return { complete: replayDomainComplete, duplicates: replays, keys: seenEventKeys.size, domain: 'session|event_seq' }; },
   };
 
   /**

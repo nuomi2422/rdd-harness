@@ -1056,12 +1056,15 @@ async function cmdRun(opts) {
       return require('./lib/stop-effective').findStopCommand(lines, (env.companionBinding && env.companionBinding.companionId) || null, stopAtIso);
     } catch { return null; }
   })();
-  if (!stopCmd) log(runDir, 'stop', '未找到本次 /stop 的 command_dispatch 回执 → 关联 UNKNOWN');
+  // R-04 第 1 点：UUID+/stop+时间反查只是 diagnosticObservedStop，不能升 EFFECTIVE。
+  env.stopDiagnostic = { observedStopCommand: stopCmd || null, note: 'reverse-lookup is diagnostic only; no enqueue commandId interface' };
+  if (!stopCmd) log(runDir, 'stop', '未找到 /stop 的 provider-observed command_dispatch（仅诊断，不签生效）');
   const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
     // R-02 第 2 点：回执扫描必须用真实 UUID，不能用名字冒充。
     companionId: (env.companionBinding && env.companionBinding.companionId) || companionName,
-    expectedCommandId: stopCmd ? stopCmd.correlationId : null,
+    // R-04：本批没有真实入队 commandId → 不传；stop-effective 只能 TIMEOUT/UNKNOWN。
+    expectedCommandId: null,
     enqueueAtIso: stopAtIso,
     timeoutMs: 15000,
     pollMs: 250,
@@ -1115,14 +1118,15 @@ async function cmdRun(opts) {
   // 从同一增量 reader 读取至停后观察结束：每字节只消费一次，缺口由 reader 记录。
   // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
   const cutoffIso = stopEffectiveIso || stopAtIso;
-  // R-03 第 4 点：世界用本次启动实例的存档名（env.master.world，启动/复制时已知）；
-  // server_session 需宿主身份握手接口，尚未接 -> null（判 UNKNOWN，不用首条日志升权威）。
+  // R-04 第 5 点：env.master.world 只是「准备阶段的存档名」，不是运行世界身份。
+  // 生命周期握手未接 → authoritative worldId/serverSession 都留 null（UNKNOWN）。
   const stopScope = {
-    worldId: (env.master && env.master.world) || null,
+    worldId: null,
     serverSession: null,
     companionId: (env.companionBinding && env.companionBinding.companionId) || null,
   };
-  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), source: 'env.master.world', serverSessionSource: 'missing-interface' };
+  env.stopPrepared = { preparedSaveName: (env.master && env.master.world) || null, note: 'prepared save name, not runtime authority' };
+  env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(), authority: 'unknown', serverSessionSource: 'missing-interface', worldIdSource: 'missing-interface' };
   // R-03：只接受命令关联键；没有就 UNKNOWN，不用 receiptAt 时间窗签权威。
   const stopReceiptAt = stopEffectiveIso;
   const stopCounter = require('./lib/stop-counter').createStopCounter(pull, cutoffIso, stopScope, {
@@ -1154,6 +1158,8 @@ async function cmdRun(opts) {
       scopeVerified: env.stop.scopeVerified,
       observedGraceMs,
       javaExited: env.stop.javaExited,
+      saveConfirmed,
+      ownerStop: os,
       stopAt: stopAtIso,
       stopEffectiveAt: stopEffectiveIso,
       stopEffectiveReceipt: stopEffective,

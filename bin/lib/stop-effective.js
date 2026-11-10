@@ -34,13 +34,14 @@ function findStopCommand(lines, companionId, sinceIso) {
     const atMs = Date.parse(ev.timestamp);
     if (!Number.isFinite(atMs) || (Number.isFinite(sinceMs) && atMs < sinceMs)) continue;
     if (!d.correlation_id) continue;
-    hit = { at: ev.timestamp, correlationId: d.correlation_id, eventSeq: ev.event_seq == null ? null : ev.event_seq };
+    // R-04：这是"观测到的候选"，只作诊断；没有本次入队返回的键就不能升 EFFECTIVE。
+    hit = { diagnostic: true, at: ev.timestamp, correlationId: d.correlation_id, eventSeq: ev.event_seq == null ? null : ev.event_seq };
   }
   return hit;
 }
 
-/** 找与本次命令同键的 owner_stop 回执。 */
-function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId) {
+/** 找与本次命令同键的 owner_stop 回执（scope 提供时 world/server 也必须严格匹配）。 */
+function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
   const sinceMs = Date.parse(sinceIso);
   let hit = null;
   for (const ev of parseLines(lines)) {
@@ -54,6 +55,12 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId) {
     const key = d.command_correlation_id || d.commandCorrelationId || null;
     // R-03：必须与本次命令同键；只按时间/seq 不算本次关联。
     if (!expectedCommandId || !key || key !== expectedCommandId) continue;
+    // R-04：scope 提供时，事件的世界/服务器也必须严格匹配；缺失或不符 → 不接受（不猜）。
+    if (scope) {
+      const w = ev.world_id || null;
+      const s = ev.server_session || null;
+      if (!w || !s || w !== scope.worldId || s !== scope.serverSession) continue;
+    }
     hit = {
       at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped,
       commandCorrelationId: key, eventSeq: ev.event_seq == null ? null : ev.event_seq,

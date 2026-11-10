@@ -26,7 +26,7 @@ function writeStreams(events) {
   for (const s of STREAMS) {
     const lines = s === 'context'
       ? events
-      : [JSON.stringify({ session: 'sess-1', category: s, event_seq: 1, type: 'x' })];
+      : [JSON.stringify({ session: 'sess-1', category: s, event_seq: 100 + STREAMS.indexOf(s), type: 'x' })];
     fs.writeFileSync(path.join(dir, s + '.jsonl'), lines.join('\n') + '\n', 'utf8');
   }
   return dir;

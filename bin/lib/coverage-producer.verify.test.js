@@ -24,7 +24,7 @@ function makeDir(empty, idPrefix = 'ev') {
     const body = empty && empty.includes(s)
       ? ''
       // 顶层信封（真实 schema）：session/category/event_seq 是重放域；event_id 不参与判重。
-      : JSON.stringify({ session: 'sess-1', category: s, event_seq: 1, event_id: idPrefix + '-' + s + '-1', type: 'x' }) + '\n';
+      : JSON.stringify({ session: 'sess-1', category: s, event_seq: 100 + STREAMS.indexOf(s), event_id: idPrefix + '-' + s + '-1', type: 'x' }) + '\n';
     fs.writeFileSync(path.join(dir, s + '.jsonl'), body, 'utf8');
   }
   return dir;
@@ -82,17 +82,26 @@ test('P1-A-4 重放未核（replays 未知）→ 不得按 0 通过', () => {
 });
 
 
-test('P1-A-6 生产重放检测：同一 event_id 出现两次 → reader.replays=1 → 拒签', () => {
+test('P1-A-6 生产重放：同 session+seq 同类别重复 → reader.replays=1 → 拒签', () => {
   const dir = makeDir();
   const reader = readAll(dir);
-  // 同 (session, category, event_seq) 再来一次 = 真实重放
-  fs.appendFileSync(path.join(dir, 'ai.jsonl'), JSON.stringify({ session: 'sess-1', category: 'tools', event_seq: 1, event_id: 'dup', type: 'x' }) + '\n');
-  reader.pull('ai.jsonl');
+  fs.appendFileSync(path.join(dir, 'tools.jsonl'), JSON.stringify({ session: 'sess-1', category: 'tools', event_seq: 100, type: 'x' }) + '\n');
+  reader.pull('tools.jsonl');
   assert.equal(reader.replays, 1, '真实重放必须被计数');
   const evidence = build(reader, reader.verifySegments());
   assert.throws(() => coverage.makeVerifiedCoverage(evidence), /coverage-rejected/);
 });
 
+test('P1-A-7 同 session+seq 跨类别冲突 → 重放域不完整，不得签 0', () => {
+  const dir = makeDir();
+  const reader = readAll(dir);
+  // ai.jsonl 里放一条与 tools 相同的 session+seq，但 category=ai（生产不允许的冲突形状）
+  fs.appendFileSync(path.join(dir, 'ai.jsonl'), JSON.stringify({ session: 'sess-1', category: 'ai', event_seq: 100, type: 'x' }) + '\n');
+  reader.pull('ai.jsonl');
+  assert.equal(reader.replayDomain.complete, false);
+  const evidence = build(reader, reader.verifySegments());
+  assert.throws(() => coverage.makeVerifiedCoverage(evidence), /coverage-rejected/);
+});
 test('P1-A-5 合法零字节流：有起止与文件身份 → 允许（正例保留）', () => {
   const dir = makeDir(['instrumentation', 'expmem']);
   const reader = readAll(dir);
