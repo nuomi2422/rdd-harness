@@ -56,13 +56,19 @@ function checkSegments(segments, window) {
   for (const name of STREAMS) {
     const s = segments[name];
     if (!s || typeof s !== 'object') fail('流未消费：' + name);
-    if (!Array.isArray(s.segments) || !s.segments.length) fail('无字节段：' + name);
+    if (!Array.isArray(s.segments)) fail('段结构非法：' + name);
     if (s.halfLine === true) fail('存在半行未完成段：' + name);
     if (Number.isFinite(s.broken) && s.broken !== 0) fail('存在段比对失败：' + name + ' broken=' + s.broken);
     const start = window && window.start ? window.start[name] : undefined;
     const end = window && window.end ? window.end[name] : undefined;
     if (!Number.isFinite(start) || !Number.isFinite(end)) fail('窗口起止缺字节位：' + name);
     if (end < start) fail('窗口止点早于起点：' + name);
+    // 2026-11-10：合法的空流（窗口内 0 字节、start===end）允许零段；但 start/end 缺失已在上方拒掉，
+    // 所以"没段"≠"没读"，不会把未消费的流放进来。
+    if (!s.segments.length) {
+      if (start !== end) fail('无字节段：' + name);
+      continue;
+    }
     const segs = s.segments.slice().sort((a, b) => a.from - b.from);
     if (segs[0].from !== start) fail('首段未从窗口起点开始：' + name);
     if (segs[segs.length - 1].to !== end) fail('末段未覆盖到窗口止点：' + name);

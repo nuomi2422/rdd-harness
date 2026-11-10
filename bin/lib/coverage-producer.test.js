@@ -51,6 +51,25 @@ test('残留半行 → halfLine 且 gaps > 0', () => {
   assert.ok(e.gaps.ai > 0);
 });
 
+test('合法空流（start===end 且有 fileId）→ 零段但可判', () => {
+  const r = fill(base(), { from: 0, to: 40 });
+  r.windowStartOffset['instrumentation.jsonl'] = 589221;
+  r.offsets['instrumentation.jsonl'] = 589221;
+  r.segments['instrumentation.jsonl'] = [];
+  const e = buildEvidence({ reader: r, bindings: {}, stimulusSentAt: 'T0', stopEnqueuedAt: 'T1' });
+  assert.deepStrictEqual(e.segments.instrumentation.segments, []);
+  assert.strictEqual(e.gaps.instrumentation, 0);
+  assert.strictEqual(e.segments.instrumentation.broken, 0);
+});
+
+test('空流没记录（无 start/end）→ 仍算未消费，不得当空段', () => {
+  const r = fill(base(), { from: 0, to: 40 });
+  delete r.windowStartOffset['instrumentation.jsonl'];
+  const e = buildEvidence({ reader: r, bindings: {}, stimulusSentAt: 'T0', stopEnqueuedAt: 'T1' });
+  assert.ok(e.missing.includes('instrumentation'));
+  assert.strictEqual(e.gaps.instrumentation, undefined);
+});
+
 test('缺流不补 0：漏一条就 missing 且窗口不完整', () => {
   const r = fill(base(), { from: 0, to: 50 });
   delete r.windowStartOffset['expmem.jsonl'];

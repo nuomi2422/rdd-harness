@@ -34,9 +34,15 @@ function buildEvidence({ reader, bindings, stimulusSentAt, stopEnqueuedAt, strea
       .map((g) => ({ from: Math.max(g.from, from), to: g.to, fingerprintMatch: true }));
 
     // 连续性：首段必须从窗口起点开始、段段相接、末段到止点。
-    let contiguous = segs.length > 0 && segs[0].from === from;
-    for (let i = 1; contiguous && i < segs.length; i += 1) contiguous = segs[i].from === segs[i - 1].to;
-    if (contiguous) contiguous = segs[segs.length - 1].to === to;
+    // 合法空流（窗口内 0 字节）：from===to 且没有段，视为连续。
+    let contiguous;
+    if (from === to && segs.length === 0) {
+      contiguous = true;
+    } else {
+      contiguous = segs.length > 0 && segs[0].from === from;
+      for (let i = 1; contiguous && i < segs.length; i += 1) contiguous = segs[i].from === segs[i - 1].to;
+      if (contiguous) contiguous = segs[segs.length - 1].to === to;
+    }
 
     const pending = reader.pending && reader.pending[f];
     const halfLine = !!(pending && pending.length);

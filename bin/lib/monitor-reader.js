@@ -91,6 +91,8 @@ function createPull(opts) {
       const now = readAnchor(p, anchors[f].length);
       if (now && now.length === anchors[f].length && !now.equals(anchors[f])) noteGap(f, 'anchor-changed', { bytes: anchors[f].length });
     }
+    // 零字节流也要留下窗口起点：否则"合法空流"与"根本没消费"分不开。
+    if (windowStartOffset[f] === undefined) windowStartOffset[f] = offsets[f] || 0;
     if (size <= (offsets[f] || 0)) return '';
 
     let fd;
