@@ -92,6 +92,18 @@ test('epoch 为字符串 → 拒绝（不 Number 强转）', async () => {
   assert.strictEqual(res.state, 'TIMEOUT');
 });
 
+
+test('top epoch 合法但 data epoch 为字符串 → 拒绝（两侧各自严格）', async () => {
+  let t = 0;
+  const line = JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:02Z', world_id: 'w1', server_session: 's1', world_epoch: 7,
+    data: { companion_id: 'c1', drained: 1, command_correlation_id: 'cmd-1', stamp_epoch: '7' } });
+  const res = await waitForStopEffective({
+    readText: () => line, companionId: 'c1', enqueueAtIso: '2026-01-01T00:00:00Z', expectedCommandId: 'cmd-1',
+    scope: { worldId: 'w1', serverSession: 's1', epoch: 7 }, timeoutMs: 50, pollMs: 10, sleep: async (ms) => { t += ms; }, now: () => t,
+  });
+  assert.strictEqual(res.state, 'TIMEOUT');
+});
+
 test('回执缺少/不匹配 command_correlation_id → 不算本次关联', () => {
   const noKey = [JSON.stringify({ type: 'owner_stop', timestamp: '2026-01-01T00:00:01Z', data: { companion_id: 'c1', drained: 1 } })];
   assert.strictEqual(scanOwnerStop(noKey, 'c1', '2026-01-01T00:00:00Z', 'cmd-1'), null);
