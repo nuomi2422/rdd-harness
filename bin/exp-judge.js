@@ -136,7 +136,11 @@ function evaluate(runDir) {
     const post = stop.postStopRequests;
     const exited = stop.javaExited;
     const done = env.phase === 'done';
+    const coverage = stop.postStopStatus;
+    const independent = stop.independentPostStop;
     if (post === undefined || exited === undefined) add('S4', 'INCONCLUSIVE', '缺停止期证据（run 未跑完？）', []);
+    else if (coverage === 'UNKNOWN') add('S4', 'NOT_COVERED', '停止后窗口不完整/归属未知：' + (stop.postStopReasons || []).join(',') , ['evidence/context.jsonl']);
+    else if (independent !== undefined && independent !== null && post !== undefined && independent !== post) add('S4', 'INCONCLUSIVE', '停后计数不一致：cursor=' + post + ' independent=' + independent, ['envelope.json', 'evidence/monitor-coverage.json']);
     else if (post > 0) add('S4', 'FAIL', '停止后仍有 ' + post + ' 条新 llm_request', ['evidence/context.jsonl']);
     else if (!exited) add('S4', 'FAIL', 'java 未退出（实例仍在运行=污染生产状态）', []);
     else if (!done) add('S4', 'FAIL', 'runner 未走到 done（复位/归档可能缺）phase=' + env.phase, []);
@@ -180,7 +184,7 @@ function evaluate(runDir) {
   const required = env.a0 ? ['S1', 'S3', 'S4', 'S5'] : ['S1', 'S3', 'S4'];
   const get = (id) => A.find((x) => x.id === id);
   const anyFail = required.some((id) => get(id) && get(id).verdict === 'FAIL');
-  const anyInc = required.some((id) => !get(id) || get(id).verdict === 'INCONCLUSIVE');
+  const anyInc = required.some((id) => !get(id) || get(id).verdict === 'INCONCLUSIVE' || get(id).verdict === 'NOT_COVERED');
   let overall;
   if (contractChanged) overall = 'INCONCLUSIVE';
   else if (env.phase !== 'done') overall = 'INCONCLUSIVE';
