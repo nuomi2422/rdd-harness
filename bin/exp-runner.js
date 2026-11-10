@@ -464,6 +464,16 @@ async function cmdRun(opts) {
   }
   const contract = JSON.parse(fs.readFileSync(CONTRACT_PATH, 'utf8'));
   const contractHash = sha256File(CONTRACT_PATH);
+  // Total elapsed budget starts at run entry; monotonic clock is independent of wall-clock changes.
+  const monotonicMs = () => Number(process.hrtime.bigint() / 1000000n);
+  const runStartMono = monotonicMs();
+  const runBudget = require('./lib/run-budget').createRunBudget({
+    clock: monotonicMs, runStart: runStartMono,
+    totalLimitMs: contract.budget.maxWallClockMinutes * 60000,
+    watchLimitMs: (opts.minutes ? opts.minutes * 60 : contract.budget.stimulusWatchSeconds) * 1000,
+    // Explicit safety reserve for stop, save and shutdown; not a guarantee that they finish in time.
+    stopReserveMs: 180000,
+  });
   // --master 允许换母版（干净模板 saves/exp-clean：无基地无箱子）。默认仍用契约里的 saves/live。
   const masterPath = opts.master ? path.resolve(opts.master) : contract.masterWorld.path;
   const runId = 'exp-' + label + '-' + stamp();
@@ -824,7 +834,9 @@ async function cmdRun(opts) {
   const watchSec = opts.minutes ? opts.minutes * 60 : contract.budget.stimulusWatchSeconds;
   const stallSec = opts.minutes ? Math.max(300, Math.min(900, Math.floor(watchSec / 3))) : contract.budget.stallSeconds;
   const t0 = Date.now();
+  runBudget.startStimulus();
   env.timings.stimulusSentAt = nowIso();
+  env.timings.budgetPolicy = { totalLimitMs: contract.budget.maxWallClockMinutes * 60000, watchLimitMs: watchSec * 1000, stopReserveMs: 180000, clock: 'monotonic' };
   const enq = mcp('enqueue', companionName, '@' + stim, 25000);
   fs.writeFileSync(path.join(runDir, 'evidence', 'enqueue.json'), JSON.stringify(enq, null, 2));
   if (!enq.ok) fail(runDir, 'stimulus', 'enqueue 失败: ' + (enq.err || enq.out).slice(0, 300), 10);
@@ -863,8 +875,12 @@ async function cmdRun(opts) {
   const reader = require('./lib/monitor-reader').createPull({ dir: MONITOR, evidenceDir: path.join(runDir, 'evidence'), offsets, nowIso });
   const { pull, gaps } = reader;
   for (;;) {
-    const elapsed = Date.now() - t0;
+    // Reserve the maximum next polling delay before starting more watch work.
+    const budgetDecision = runBudget.watchDecision(5000);
+    if (!budgetDecision.allow) { stopReason.value = 'budget-watch-deadline-or-stop-reserve'; break; }
+    const elapsed = runBudget.snapshot().watchElapsed;
     if (triggerDeathAt && Date.now() >= triggerDeathAt) {
+      if (!runBudget.watchDecision(40000).allow) { stopReason.value = 'budget-before-trigger'; break; }
       triggerDeathAt = null;
       const kd = spawnSync('powershell.exe', ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', path.join(HARNESS, 'bin', 'send-mc-command.ps1'), '-Text', '/kill ' + companionName], { encoding: 'utf8', timeout: 40000, windowsHide: true });
       log(runDir, 'trigger-death', '/kill ' + companionName + ' exit=' + kd.status);
@@ -920,6 +936,7 @@ async function cmdRun(opts) {
     // --no-delta-stop 的语义就是「不提前停」，这里一并受它管辖。
     if (!opts.noDeltaStop && chunkEv && chunkEv.includes('"type":"task_finished"') && /oak_log|原木/.test(chunkEv)) {
       stopReason.value = 'task_finished(oak_log)';
+      if (!runBudget.watchDecision(25000).allow) { stopReason.value = 'task_finished-budget-before-inventory'; break; }
       const fin = mcp('rdd_get_inventory', companionName, null, 25000);
       if (fin.ok) {
         invAfterRaw = fin.out;
@@ -945,6 +962,8 @@ async function cmdRun(opts) {
 
     // 每 ~30s 采样一次背包
     if (Date.now() >= nextInventoryAt) {
+      // The MCP call can block for 25s; do not begin it inside the shutdown reserve.
+      if (!runBudget.watchDecision(25000).allow) { stopReason.value = 'budget-before-inventory'; break; }
       nextInventoryAt = Date.now() + 30000;
       const r = mcp('rdd_get_inventory', companionName, null, 25000);
       if (r.ok) {
@@ -966,7 +985,7 @@ async function cmdRun(opts) {
   raw.tools += pull('tools.jsonl');
   raw.events += pull('events.jsonl');
   env.timings.watchEnd = nowIso();
-  env.timings.watchSeconds = Math.round((Date.now() - t0) / 1000);
+  env.timings.watchSeconds = Math.round(runBudget.snapshot().watchElapsed / 1000);
   env.watch = { stopReason: stopReason.value, toolCalls, llmRequests, oakLogBefore: before, oakLogAfter: after, chain: chain ? {
     primaryStatus: chain.data && chain.data.taskChain ? chain.data.taskChain.primaryStatus : null,
     description: chain.data && chain.data.taskChain ? chain.data.taskChain.description : null,
@@ -1025,7 +1044,18 @@ async function cmdRun(opts) {
   // 没有优雅 stop；同伴背包只在 autosave 落盘，最后几分钟的物品会在下一轮丢失（B2 2 原木 → B3 0）。
   // rdd_save 只 flush 区块/玩家数据，不改世界，不记 admin_command_used。
   const sv = mcp('rdd_save', companionName, null, 60000);
-  fs.writeFileSync(path.join(runDir, 'evidence', 'save.json'), JSON.stringify({ rdd_save: sv }, null, 2));
+  const saveConfirmed = require('./lib/save-receipt').confirmedSave(sv);
+  fs.writeFileSync(path.join(runDir, 'evidence', 'save.json'), JSON.stringify({ rdd_save: sv, confirmed: saveConfirmed }, null, 2));
+  if (!saveConfirmed) {
+    env.phase = 'save-unconfirmed';
+    env.stop = { ...env.stop, saveConfirmed: false, budgetAtSaveFailure: runBudget.snapshot() };
+    saveEnv();
+    log(runDir, 'stop', '严重告警：保存未获业务确认；游戏与副本保留并占用驾驶，拒绝强杀或复位。不得启动第二实例；需在现有受管实例核查后重试保存。');
+    console.error('ALERT: save unconfirmed; game may still be running; do not launch another instance.');
+    process.exitCode = 3;
+    return;
+  }
+  env.stop.saveConfirmed = true;
   const sb = sbEarly;
   fs.writeFileSync(path.join(runDir, 'evidence', 'taskstop.json'), JSON.stringify({ rdd_standby: sb, task_stop: ts, rdd_save: sv }, null, 2));
   log(runDir, 'stop', 'rdd_standby → ' + (sb.ok ? 'ok' : 'failed') + '；task_stop → ' + (ts.ok ? 'ok' : 'failed') + '；rdd_save → ' + (sv.ok ? 'ok' : 'failed'));
@@ -1058,8 +1088,9 @@ async function cmdRun(opts) {
   let exited = false;
   for (let i = 0; i < 40; i++) { if (javaProcs().length === 0) { exited = true; break; } await sleep(1000); }
   env.timings.gameExited = nowIso();
+  env.timings.budgetAtGameExit = runBudget.snapshot();
   env.stop.javaExited = exited;
-  log(runDir, 'stop', 'java 退出=' + exited);
+  log(runDir, 'stop', 'java 退出=' + exited + '；总预算超限=' + env.timings.budgetAtGameExit.totalExceeded);
   saveEnv();
 
   // ---------- A0：会话边界 / 人工介入 / 投送四阶段 ----------
