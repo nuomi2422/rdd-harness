@@ -14,7 +14,14 @@ test('真实读取器：首拉有数据、再拉不重复、窗口可判', { ski
   const r = MR.createPull({ dir: DIR });
   const first = r.pull('tools.jsonl');
   assert.ok(typeof first === 'string' && first.length > 0, '首拉应有数据');
-  assert.equal(r.pull('tools.jsonl'), '', '同一偏移再拉不应重复给数据');
+  // 2026-11-11: live writers may append between pulls. Verify the exact new byte
+  // range instead of mistaking legitimate growth for a replay.
+  const firstEnd = r.offsets['tools.jsonl'];
+  const second = r.pull('tools.jsonl');
+  const secondEnd = r.offsets['tools.jsonl'];
+  const source = fs.readFileSync(path.join(DIR, 'tools.jsonl'));
+  assert.equal(secondEnd - firstEnd, Buffer.byteLength(second), '偏移只推进新增完整字节');
+  assert.equal(second, source.subarray(firstEnd, secondEnd).toString('utf8'), '再拉必须是原件新增字节，不重放前段');
   const w = r.verifyWindow(['tools.jsonl', 'events.jsonl']);
   assert.ok(w && typeof w.ok === 'boolean', '应能判窗口');
   assert.ok(w.files && Object.keys(w.files).length >= 1, '至少覆盖一个流');

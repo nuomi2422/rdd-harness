@@ -1216,6 +1216,13 @@ function main() {
   if (cmd === 'report') return reportCmd(argv);
   // 2026-11-09：证据卡（动作/最终请求/结算三源一张卡）。生产入口，缺数据一律 UNKNOWN。
   if (cmd === 'evidence') {
+    // A1: explicit event/query flags select the detailed read-only projection.
+    if (argv.includes('--event') || argv.includes('--list') || argv.includes('--expand')) {
+      const EP = require('./lib/evidence-pack.js');
+      const pack = EP.cli(argv);
+      console.log(argv.includes('--json') ? JSON.stringify(pack, null, 2) : EP.render(pack));
+      return;
+    }
     const EC = require('./evidence-card.js');
     const di = argv.indexOf('--dir');
     const dir = di >= 0 ? argv[di + 1] : path.join('D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor');

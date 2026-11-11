@@ -7,6 +7,7 @@
  */
 const { spawnSync } = require('child_process');
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
 
 const ROOT = path.resolve(__dirname);
@@ -52,6 +53,7 @@ const STEPS = [
   ['最终请求 why 字段', path.join(ROOT, 'lib', 'final-request-evidence.test.js'), [], 'node-test'],
   ['结算最终目标核验', path.join(ROOT, 'lib', 'settle-evidence.test.js'), [], 'node-test'],
   ['运行证据卡', path.join(ROOT, 'evidence-card.test.js'), [], 'node-test'],
+  ['单调用原证包与截止视图', path.join(ROOT, 'lib', 'evidence-pack.test.js'), [], 'node-test'],
   ['身份claim独立性验证', path.join(ROOT, 'lib', 'identity-claim-guard.test.js'), [], 'node-test'],
   ['身份真实入口负例', path.join(ROOT, 'lib', 'identity-real-entry.test.js'), [], 'node-test'],
   ['读取器真实文件', path.join(ROOT, 'lib', 'reader-real-entry.test.js'), [], 'node-test'],
@@ -63,6 +65,9 @@ const STEPS = [
   ['覆盖生产者样例', path.join(ROOT, 'lib', 'coverage-producer-sample.test.js'), [], 'node-test'],
   ['时间锁作用域', path.join(ROOT, 'lib', 'timelock-scope.test.js'), [], 'node-test'],
   ['测试登记约束', path.join(ROOT, 'lib', 'test-registry.test.js'), [], 'node-test'],
+  // Existing script needs a NEW explicit scratch directory, not node --test.
+  ['S5介入证据链', path.join(ROOT, 'lib', 's5-interventions.chain.test.js'),
+    [path.join(os.tmpdir(), 'rdd-s5-regress-' + process.pid + '-' + Date.now())]],
   ['跨流关联可判性', path.join(ROOT, 'lib', 'cross-stream.test.js'), [], 'node-test'],
   ['部署后黄金样本', path.join(ROOT, 'lib', 'golden-sample.test.js'), [], 'node-test'],
   ['部署后验收表', path.join(ROOT, 'lib', 'acceptance-table.test.js'), [], 'node-test'],

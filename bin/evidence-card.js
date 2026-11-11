@@ -11,6 +11,11 @@
  *
  * 用法：
  *   node bin/evidence-card.js --dir "D:\rdd\mc\...\monitor" [--json]
+ *   node bin/bench.js evidence --list --dir <monitor> --json
+ *   node bin/bench.js evidence --event tools.jsonl:1 --as-of <ISO> --content --json
+ *   --expand --event <file:line> --before 3 --after 3 lists source neighbours, not causality.
+ *   --limit/--max-bytes/--cursor paginate; --event-hash pins an original row.
+ *   Raw claims stay UNKNOWN; content expansion is opt-in and credentials are redacted.
  */
 const fs = require('fs');
 const path = require('path');
