@@ -1769,11 +1769,11 @@
         "rootCause": "PS 5.1 的 Start-Process -ArgumentList 数组按空白拆词、不给元素自动加引号。@(-File, 带空格的路径) 被拆开 → -File 拿到 E:\\restart 而不是脚本 → 子进程秒退；Start-Process -WindowStyle Hidden 又把报错吞掉 → 外部只看到「没反应」（无 java、launch-gpt.log 零增长）。",
         "impact": "2026-10-08 本轮照抄 进游戏前必读 第17行的后台启动，连续静默失败，被误判为「游戏卡了」，浪费多轮。同源坑此前已记（AGENTS 坑 + 记忆几条），但文档里的示例本身就是坏的 → 照抄即中。",
         "guard": "进游戏前必读 第17行 已改成实测可行写法：-ArgumentList 传【一个字符串】并在其中给路径写双引号；并写明数组写法为什么错。判据只看实际发生：起后复核 MC java 进程 CreationDate + MCP 8765 可连，不看退出码/回执。",
-        "verifiedBy": "2026-10-08 22:52 实测：单字符串+带引号路径 → LAUNCH_OK + java PID 47732(22:52:40) + 8765 LISTENING",
-        "reviewBy": "2026-11-11",
+        "verifiedBy": "2026-10-08 原测保留；2026-11-12只读复核11-11 17:02同轮原证：原live logs/title-process.json的PID14828/creationTime1794387754433绑定完整带空格gameDir及rdd-launch-1794387754419.log，title-launch-1b0796c68e7f42368c52deee739cff1e.stdout.txt同PID/日志；launch-mc.ps1:34/44-47在CIM核新进程及目录后落盘。专属日志GB18030第70行17:03:00为MCP8765实际启动后日志，未拼19:09窗口。仅证现行ASCII空格原实例路径启动与监听，不证明中文/任意畸形路径或AI业务效果。",
+        "reviewBy": "2026-11-19",
         "status": "open",
-        "renewedAt": "2026-11-10",
-        "renewedReason": "2026-11-10 受管启动器复核：mc-launch.mjs --dry 对完整带空格实例 exit 0，生成参数中 --gameDir 保持完整；真实存在的截断路径 D:/rdd/mc/The 因无 mods jar 明确 exit 1。干跑只证明参数与拒绝守卫，不证明新窗口 Java 进程及 MCP 就绪；锁保持 open，短期续至 2026-11-11，下一受管副本窗口需记录 Java 创建和 MCP 就绪原证后再复核。"
+        "renewedAt": "2026-11-12",
+        "renewedReason": "已有同轮Java身份与MCP监听实证，避免为更新复核日期另起游戏；保持历史guard和open，下一正常原live窗口继续核调用链，中文与任意畸形路径仍未覆盖。11-10 dry仅证明参数/拒绝的限制仍成立；后续不复制世界、不新建测试实例，不把复核扩为所有Start-Process写法已修。"
       },
       {
         "id": "TL-2026-10-19-01",
