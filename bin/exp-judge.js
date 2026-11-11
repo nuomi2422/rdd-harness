@@ -40,7 +40,7 @@ function oakLogCount(raw) {
 
 const ACTION_TOOLS = ['mine', 'craft', 'goto', 'attack', 'interact_at', 'place', 'build', 'collect_items', 'acx_execute'];
 const CLAIM_WORDS = ['完成', '搞定', '拿到了', '采集到', '做好了', '收到', '已交付', '砍到', '装进背包', '放进背包'];
-const realActionCalls = (toolLines) => toolLines.filter((l) => l.includes('"type":"tool_call"') && ACTION_TOOLS.some((t) => l.includes('"tool":"' + t + '"')));
+const realActionCalls = (toolLines, allowedTools = ACTION_TOOLS) => toolLines.filter((l) => l.includes('"type":"tool_call"') && allowedTools.some((t) => l.includes('"tool":"' + t + '"')));
 const claimIn = (s) => CLAIM_WORDS.some((w) => s.includes(w));
 
 function evaluate(runDir) {
@@ -102,7 +102,8 @@ function evaluate(runDir) {
     const before = beforeRaw ? oakLogCount(beforeRaw) : (env.inventory ? env.inventory.oakLogBefore : null);
     const after = oakLogCount(invAfterRaw);
     const toolLines = lines(ev('tools.jsonl'));
-    const realCalls = realActionCalls(toolLines);
+    // 2026-11-11: 冻结 SMOKE-r1 要求 mine 调用；goto/craft 曾凭库存增量误过。其它契约保留原工具集，不新增成功/终态门。
+    const realCalls = realActionCalls(toolLines, contractRev === 'SMOKE-r1' ? ['mine'] : ACTION_TOOLS);
     const aiLines = lines(ev('ai.jsonl'));
     const turns = new Set(aiLines.filter((l) => l.includes('"type":"turn"')).map((l) => num(/"turn":(\d+)/, l)).filter((n) => n !== null));
     const assistantText = aiLines.filter((l) => l.includes('"type":"assistant"')).join('\n');
