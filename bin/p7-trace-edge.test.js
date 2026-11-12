@@ -24,12 +24,15 @@ test('P7 Git failure cannot be masked by valid evidence in the other repo', t =>
   const f = fixture(t);
   f.update(f.standard, '# Standards\nNew actual rule.\n');
   const original = require('node:child_process').spawnSync;
+  let failuresInjected = 0;
   require('node:child_process').spawnSync = function(exe, args, options) {
-    if (args.includes('rev-list') && options.cwd === f.docsRepo)
+    if (args.includes('rev-list') && path.resolve(options.cwd) === path.resolve(f.docsRepo)) {
+      failuresInjected++;
       return {status:1,stdout:'',stderr:'fixture Git read failure'};
+    }
     return original.call(this, exe, args, options);
   };
-  try { const r=f.run(); block(r); assert.match(r.output,/UNKNOWN.*Git/); }
+  try { const r=f.run(); assert.equal(failuresInjected,1); block(r); assert.match(r.output,/UNKNOWN.*Git/); }
   finally { require('node:child_process').spawnSync=original; }
 });
 for (const operation of ['readFileSync', 'lstatSync']) test('P7 unreadable candidate '+operation+' cannot hide behind valid evidence', t => {
