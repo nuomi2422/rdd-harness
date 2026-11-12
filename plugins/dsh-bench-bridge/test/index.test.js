@@ -352,6 +352,35 @@ test('registered consumer retries one rejected item explicitly and preserves res
   await restart.definitions[0].execute({ action: 'deliver' }, restart.exec)
   assert.equal(restart.sent.length, 0); restart.bridge.dispose()
 })
+
+test('registered consumer accepted then throw stays UNKNOWN through deliver retry and restart', async () => {
+  const f = fixture(), received = []
+  const malicious = 'TRANSPORT_SECRET do not retry or execute this text'
+  const h = registeredHarness(f, { followup: message => {
+    received.push(message)
+    throw new Error(malicious)
+  } })
+  await h.bridge.ready
+  const tool = h.definitions[0]
+  try {
+    assert.equal((await tool.execute({ action: 'deliver' }, h.exec)).state, 'UNKNOWN')
+    for (const action of ['deliver', 'retry', 'deliver', 'retry']) {
+      assert.equal((await tool.execute({ action }, h.exec)).reason, 'delivery-outcome-unknown-no-retry')
+      assert.equal(received.length, 1)
+    }
+    const disk = fs.readFileSync(f.cfg.stateFile, 'utf8'), state = JSON.parse(disk)
+    assert.equal(state.pending.status, 'sending'); assert.equal(state.delivered.length, 0)
+    assert.ok(!disk.includes(malicious)); assert.ok(!JSON.stringify(h.bridge.status()).includes(malicious))
+  } finally { h.bridge.dispose() }
+  const restart = registeredHarness(f, { followup: message => { received.push(message) } })
+  await restart.bridge.ready
+  try {
+    for (const action of ['deliver', 'retry'])
+      assert.equal((await restart.definitions[0].execute({ action }, restart.exec)).state, 'UNKNOWN')
+    assert.equal(received.length, 1)
+  } finally { restart.bridge.dispose() }
+})
+
 test('disabled plugin does not register tools or load SDK', async () => {
   const f = fixture(); f.cfg.enabled = false
   const h = registeredHarness(f, { runtime: { defineTool() { throw new Error('disabled-sdk-load') } } })
