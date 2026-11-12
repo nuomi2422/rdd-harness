@@ -41,7 +41,13 @@ A sending intent is persisted before enqueue; only normal queue acceptance plus 
 successful delivered-marker write reports DELIVERED. Sending/unknown after restart
 is UNKNOWN and cannot auto-retry. Explicit queue rejection stays one PENDING item:
 the returned controller.retryPending() retries once on explicit host request.
-The controller.tick()/status()/dispose() are also available to the host integration.
+The official registered tool bench_bridge_delivery accepts only action=status|deliver|retry.
+Only the configured targetSession may call it (subagents/foreign sessions denied). Paths,
+target, scope and payload are host config only. status performs no file reads; deliver and
+retry reuse the existing tick/state machine. Tool registration uses official dsh-tools,
+its failure reports UNKNOWN and prevents the timer starting; unload removes tool/timer.
+Disabled mode does not import the SDK or register anything. The controller.ready promise
+settles registration; tick()/status()/dispose() remain available to isolated host integrations.
 Acceptance is queue admission, not evidence that the model adopted the summary.
 There is no claim of exactly-once delivery across crash, disk loss or restored state.
 

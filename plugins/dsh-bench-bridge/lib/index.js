@@ -9,14 +9,14 @@ import path from 'node:path'
 import { SOURCE, sha256, readBounded, validateBinding, deliveryKey, bindingKey, loadPackage, renderSummary } from './core.js'
 
 export const name = 'dsh-bench-bridge'
-export const inject = ['agents']
+export const inject = ['agents', 'tools']
 
 export function apply(ctx, config = {}, runtime = {}) {
   const enabled = config.enabled === true
   const io = runtime.fs || fs
   const now = runtime.now || Date.now
   const stateFile = config.stateFile || path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'bench-bridge-delivery.json')
-  let state, loaded = false, busy = false, disposed = false, timer = null
+  let state, loaded = false, busy = false, disposed = false, timer = null, unregister = null
   let status = { state: enabled ? 'WAITING' : 'DISABLED' }
   const report = (state, reason) => {
     status = { state, ...(reason ? { reason } : {}) }
@@ -103,15 +103,47 @@ export function apply(ctx, config = {}, runtime = {}) {
     } catch (e) { return report('UNKNOWN', String(e.message).slice(0, 200)) }
     finally { busy = false }
   }
+  async function registerTool() {
+    const defineTool = await (runtime.defineTool || import('@deepseek-ai/dsh-tools').then(module => module.defineTool))
+    if (disposed) return
+    unregister = ctx.tools.register(defineTool({
+      name: 'bench_bridge_delivery',
+      description: '读取既有摘要桥状态，或向宿主固定父会话投递/显式重试固定窗口；不接收路径、目标或正文。DELIVERED 仅代表队列接受且本地留记，不代表父已读或采用。',
+      parameters: { action: { type: 'string', required: true, enum: ['status', 'deliver', 'retry'], description: 'status 不读文件；deliver 消费配置绑定；retry 仅重试明确拒绝的待发项' } },
+      output: {
+        schema: { type: 'object', additionalProperties: false, properties: { state: { type: 'string' }, reason: { type: 'string' } } },
+        render: (_args, value) => [{ type: 'text', text: JSON.stringify(value) }],
+      },
+      isConcurrencySafe: args => args.action === 'status',
+      async execute(args, exec) {
+        if (!config.targetSession || exec.agent?.id !== config.targetSession
+            || exec.agent?.session?.header?.origin === 'subagent') throw new Error('fixed-parent-caller-required')
+        // Reject extra fields even when called outside defineTool validation.
+        if (!args || Object.keys(args).some(k => k !== 'action')
+            || !['status', 'deliver', 'retry'].includes(args.action)) throw new Error('invalid-delivery-action')
+        if (disposed) return { state: 'DISPOSED' }
+        return args.action === 'status' ? { ...status } : tick(args.action === 'retry')
+      },
+    }))
+  }
   function dispose() {
     disposed = true
     if (timer !== null) clearInterval(timer)
     timer = null
+    if (typeof unregister === 'function') unregister()
+    unregister = null
   }
-  if (enabled) {
+  function startTimer() {
+    if (disposed) return
     timer = setInterval(() => tick(), Math.min(60000, Math.max(1000, config.pollMs || 15000)))
     timer.unref?.()
-    ctx.effect(() => dispose)
   }
-  return { tick, retryPending: () => tick(true), dispose, status: () => ({ ...status }) }
+  let ready = Promise.resolve()
+  if (enabled) {
+    ctx.effect(() => dispose)
+    // Real host injects tools; legacy isolated tick consumers retain their controller.
+    if (ctx.tools) ready = registerTool().then(startTimer, e => report('UNKNOWN', 'tool-registration-failed:' + String(e.message).slice(0, 120)))
+    else startTimer()
+  }
+  return { ready, tick, retryPending: () => tick(true), dispose, status: () => ({ ...status }) }
 }

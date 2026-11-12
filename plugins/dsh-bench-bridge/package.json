@@ -1,6 +1,6 @@
 {
   "name": "dsh-bench-bridge",
-  "version": "0.2.0",
+  "version": "0.2.1",
   "private": true,
   "type": "module",
   "description": "既有实验台摘要桥接；唯一维护源RDD harness/plugins/dsh-bench-bridge；明确宿主窗口和编码会话，默认关闭",
@@ -31,6 +31,7 @@
     "test": "node --test test/index.test.js"
   },
   "peerDependencies": {
-    "@deepseek-ai/dsh-llm": "0.2.1-rc.2"
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2",
+    "@deepseek-ai/dsh-tools": "0.2.1-rc.2"
   }
 }

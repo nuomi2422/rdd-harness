@@ -61,6 +61,7 @@ function harness(f, options = {}) {
       } },
       list: () => { throw new Error('must not enumerate sessions') },
     },
+    ...(options.tools ? { tools: options.tools } : {}),
     logger: { info() {}, warn() {} },
     effect: callback => { ctx.cleanup = callback() },
   }
@@ -298,6 +299,78 @@ test('non-file package never queues a fictitious complete package reference', as
   assert.equal((await h.bridge.tick()).state, 'UNKNOWN')
   assert.equal(h.sent.length, 0); h.bridge.dispose()
 })
+
+// Production registered consumer -> actual tick/reader; queue and SDK definition remain explicit test boundaries.
+function registeredHarness(f, options = {}) {
+  const definitions = [], active = new Set()
+  const h = harness(f, { ...options, tools: { register(def) {
+    definitions.push(def); active.add(def)
+    return () => active.delete(def)
+  } }, runtime: { defineTool: x => x, ...options.runtime } })
+  return { ...h, definitions, active, exec: { agent: { id: f.cfg.targetSession, session: { header: { origin: 'primary' } } } } }
+}
+test('registered consumer status is read-free; deliver uses fixed file/target and deduplicates retry', async () => {
+  const f = fixture(); f.cfg.bindingFile = path.join(f.dir, 'binding.json')
+  fs.writeFileSync(f.cfg.bindingFile, JSON.stringify(f.cfg.binding)); delete f.cfg.binding
+  const h = registeredHarness(f)
+  await h.bridge.ready
+  assert.equal(h.definitions.length, 1)
+  const tool = h.definitions[0]
+  assert.equal(tool.name, 'bench_bridge_delivery')
+  assert.deepEqual(Object.keys(tool.parameters), ['action'])
+  assert.equal((await tool.execute({ action: 'status' }, h.exec)).state, 'WAITING')
+  assert.equal(fs.existsSync(f.cfg.stateFile), false); assert.equal(h.calls.length, 0)
+  assert.equal((await tool.execute({ action: 'deliver' }, h.exec)).state, 'DELIVERED')
+  assert.equal((await tool.execute({ action: 'retry' }, h.exec)).reason, 'already-recorded')
+  assert.equal(h.sent.length, 1); assert.deepEqual(h.calls, [f.cfg.targetSession])
+  assert.equal(h.sent[0].source.kind, 'plugin:dsh-bench-bridge')
+  h.bridge.dispose(); assert.equal(h.active.size, 0)
+  assert.equal((await tool.execute({ action: 'deliver' }, h.exec)).state, 'DISPOSED')
+})
+test('registered consumer rejects foreign/subagent callers and model-supplied paths/targets without IO', async () => {
+  const f = fixture(), h = registeredHarness(f)
+  await h.bridge.ready
+  const tool = h.definitions[0]
+  for (const agent of [{ id: 'foreign' }, {}, { id: f.cfg.targetSession, session: { header: { origin: 'subagent' } } }])
+    await assert.rejects(tool.execute({ action: 'deliver' }, { agent }), /fixed-parent/)
+  for (const args of [{ action: 'deliver', targetSession: 'other' }, { action: 'retry', bindingFile: '/other' }, { action: 'unknown' }])
+    await assert.rejects(tool.execute(args, h.exec), /invalid-delivery-action/)
+  assert.equal(fs.existsSync(f.cfg.stateFile), false); assert.equal(h.calls.length, 0)
+  h.bridge.dispose()
+})
+test('registered consumer retries one rejected item explicitly and preserves restart marker', async () => {
+  const f = fixture(); let attempts = 0
+  const h = registeredHarness(f, { followup: () => { attempts++; return { accepted: false } } })
+  await h.bridge.ready
+  const tool = h.definitions[0]
+  assert.equal((await tool.execute({ action: 'deliver' }, h.exec)).state, 'PENDING')
+  await tool.execute({ action: 'deliver' }, h.exec); assert.equal(attempts, 1)
+  h.setQueue(message => { attempts++; h.sent.push(message); return { accepted: true } })
+  assert.equal((await tool.execute({ action: 'retry' }, h.exec)).state, 'DELIVERED')
+  assert.equal(attempts, 2); h.bridge.dispose()
+  const restart = registeredHarness(f); await restart.bridge.ready
+  await restart.definitions[0].execute({ action: 'deliver' }, restart.exec)
+  assert.equal(restart.sent.length, 0); restart.bridge.dispose()
+})
+test('disabled plugin does not register tools or load SDK', async () => {
+  const f = fixture(); f.cfg.enabled = false
+  const h = registeredHarness(f, { runtime: { defineTool() { throw new Error('disabled-sdk-load') } } })
+  await h.bridge.ready; assert.equal(h.definitions.length, 0); assert.equal(h.ctx.cleanup, undefined)
+})
+test('SDK registration failure is visible and does not start background delivery', async () => {
+  const f = fixture(), h = registeredHarness(f, { runtime: { defineTool() { throw new Error('sdk-unavailable') } } })
+  await h.bridge.ready
+  assert.equal(h.bridge.status().state, 'UNKNOWN')
+  assert.match(h.bridge.status().reason, /tool-registration-failed:sdk-unavailable/)
+  assert.equal(h.sent.length, 0); assert.equal(fs.existsSync(f.cfg.stateFile), false)
+  h.bridge.dispose()
+})
+test('unload while official SDK import is pending leaves no tool or timer', async () => {
+  const f = fixture(), h = registeredHarness(f)
+  h.bridge.dispose(); await h.bridge.ready
+  assert.equal(h.definitions.length, 0); assert.equal((await h.bridge.tick()).state, 'DISPOSED')
+})
+
 test('missing package stays UNKNOWN without queueing', async () => {
   const f = fixture()
   fs.unlinkSync(f.cfg.binding.packageFile)
