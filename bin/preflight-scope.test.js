@@ -134,3 +134,12 @@ for(const role of ['commander','learner'])test('P22 '+role+' SKIP before IO/chil
  const f=fixture({role}),r=f.run('P22');assert.equal(r.result.state,'SKIP');
  assert.ok(!f.io.some(p=>/bench-digest/.test(p)));assert.equal(f.children.filter(c=>c.argv[0]===f.script).length,0);
 });
+
+for(const xy of ['  ','!?'])test('P14 malformed XY '+JSON.stringify(xy)+' cannot hide behind usage whitelist',()=>{
+ const r=p14({1:xy+' experiments/usage.jsonl\0'});
+ assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);assert.match(r.output,/UNKNOWN/);
+});
+for(const xy of [' M','M ','MM',' A','A ','D ',' T','T ','AM','AD','MD','TM','TD','DD','AU','UD','UA','DU','AA','UU','??','!!'])
+ test('P14 legal porcelain XY '+JSON.stringify(xy)+' preserves existing usage exemption',()=>{
+  assert.equal(p14({1:xy+' experiments/usage.jsonl\0'}).result.state,'PASS');
+ });
