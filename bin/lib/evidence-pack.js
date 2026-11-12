@@ -65,7 +65,8 @@ function project(linesByFile, opts = {}) {
   const cutoff = opts.asOf ? time(opts.asOf) : Infinity;
   if ((opts.view === 'decision' && !opts.asOf) || (opts.asOf && !Number.isFinite(cutoff)))
     return { error: 'invalid-or-missing-cutoff', rows: [], gaps, sources };
-  for (const file of FILES) {
+  for (const file of opts.sourceFiles || FILES) {
+    if (opts.sourceMetadata && linesByFile[file] === undefined) continue;
     if (linesByFile[file] === undefined || linesByFile[file] === null) {
       gaps.push({ file, reason: 'missing-stream' }); continue;
     }
