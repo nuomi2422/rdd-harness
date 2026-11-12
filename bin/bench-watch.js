@@ -308,5 +308,8 @@ function main() {
   return undefined;   // 常驻：绝不能 exit，否则定时器立刻被杀
 }
 
-const rc = main();
-if (typeof rc === 'number') process.exit(rc);
+if (require.main === module) {
+  const rc = main();
+  if (typeof rc === 'number') process.exit(rc);
+}
+module.exports = { collectOnce, statusOf };

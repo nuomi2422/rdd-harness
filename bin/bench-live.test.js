@@ -172,3 +172,39 @@ test('late-arriving rows are counted as a gap, and rotation resets the baseline'
   st = JSON.parse(fs.readFileSync(path.join(out, 'status.json'), 'utf8'));
   assert.equal(st.files['ai.jsonl'].late, 0, '轮转后基线必须重置');
 });
+
+// 047: production collectOnce -> existing evidence-pack -> plugin official boundary.
+function windowFixture(t) {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'bench-end-'));
+  t.after(() => fs.rmSync(dir, { recursive: true, force: true }));
+  const monitor = path.join(dir, 'monitor'), out = path.join(dir, 'live');
+  fs.mkdirSync(monitor); fs.mkdirSync(out);
+  for (const stream of ['tools', 'events', 'context', 'rdd']) fs.writeFileSync(path.join(monitor, stream + '.jsonl'), stream === 'tools' ? JSON.stringify({timestamp:'2026-11-12T00:00:30Z',session:'run047',category:stream,event_seq:1,world_id:'world047',server_session:'server047',type:'tool_call',data:{companion_id:'companion047',tool_call_id:'call047',tool:'mine'}})+'\n' : '');
+  const logFile = path.join(dir, 'latest.log'); fs.writeFileSync(logFile, '');
+  const st = fs.statSync(logFile);
+  const binding = {windowKey:'window047',worldId:'world047',serverSession:'server047',companion:'companion047',run:'run047',targetSession:'session-047',since:'2026-11-12T00:00:00Z',logFile,encoding:'utf-8',timezone:'+00:00',source:{offset:0,size:0,identity:st.dev+':'+st.ino,anchorStart:0,anchor:''}};
+  const state = L.newState({monitor});
+  const tick = () => require('./bench-watch').collectOnce(state,{monitor,out,views:['snapshot'],now:Date.parse('2026-11-12T00:02:00Z'),bridgeWindow:binding});
+  const stop = '[1211月2026 00:00:59.000] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!\r\n';
+  const save = '[1211月2026 00:01:00.000] [Server thread/INFO] [net.minecraft.server.MinecraftServer/]: All dimensions are saved\r\n';
+  return {dir,monitor,out,logFile,binding,state,tick,stop,save,notice:path.join(out,'bench-bridge-binding.json')};
+}
+test('normal end writer connects actual collectOnce package and plugin once', async t => {
+  const f = windowFixture(t); fs.appendFileSync(f.logFile, f.stop + f.save);
+  f.tick();
+  assert.ok(fs.existsSync(f.notice), 'actual collectOnce must export normal-end binding');
+  const b = JSON.parse(fs.readFileSync(f.notice,'utf8'));
+  const bytes = fs.readFileSync(b.packageFile), pack=JSON.parse(bytes);
+  const hash = require('crypto').createHash('sha256').update(bytes).digest('hex');
+  assert.equal(hash,b.packageSha256); assert.equal(pack.rows[0].ref,'tools.jsonl:1');
+  assert.equal(pack.rows[0].identityStatus,'UNKNOWN'); assert.equal(b.end.kind,'normal-end');
+  assert.equal(b.logProof.saved.byteOffset,Buffer.byteLength(f.stop));
+  const {apply} = await import('../plugins/dsh-bench-bridge/lib/index.js'); const sent=[];
+  const ctx={agents:{get:id=>({id,session:{header:{origin:'primary'}},followup:m=>sent.push(m)})},effect:cb=>cb(),logger:{info(){}}};
+  const bridge=apply(ctx,{enabled:true,targetSession:f.binding.targetSession,bindingFile:f.notice,stateFile:path.join(f.dir,'delivery.json')},{createUserMessage:x=>x,now:()=>Date.parse('2026-11-12T00:02:00Z')});
+  t.after(()=>bridge.dispose());
+  assert.equal((await bridge.tick()).state,'DELIVERED'); f.tick();
+  assert.equal((await bridge.tick()).state,'DELIVERED'); assert.equal(sent.length,1);
+  assert.equal(sent[0].source.kind,'plugin:dsh-bench-bridge'); assert.ok(sent[0].content[0].text.length<=1200);
+  console.log('writer fixture scope and notice',JSON.stringify({binding:f.binding,notice:b,pack}));
+});
