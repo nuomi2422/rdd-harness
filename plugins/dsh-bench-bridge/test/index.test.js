@@ -113,7 +113,7 @@ test('accepted message is plugin source and contains physical refs and original 
 })
 test('queue rejection creates one pending item and requires explicit retry', async () => {
   const f = fixture(); let attempts = 0
-  const h = harness(f, { followup: () => { attempts++; throw new Error('rejected') } })
+  const h = harness(f, { followup: () => { attempts++; return false } })
   assert.equal((await h.bridge.tick()).state, 'PENDING')
   await h.bridge.tick(); await h.bridge.tick()
   assert.equal(attempts, 1)

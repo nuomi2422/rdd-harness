@@ -1,6 +1,6 @@
 {
   "name": "dsh-bench-bridge",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "private": true,
   "type": "module",
   "description": "既有实验台摘要桥接；唯一维护源RDD harness/plugins/dsh-bench-bridge；明确宿主窗口和编码会话，默认关闭",

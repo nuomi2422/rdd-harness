@@ -39,7 +39,13 @@ window is refused, including after restart. Only 32 delivered markers
 and one pending item are kept; retired older cutoffs are refused conservatively.
 A sending intent is persisted before enqueue; only normal queue acceptance plus a
 successful delivered-marker write reports DELIVERED. Sending/unknown after restart
-is UNKNOWN and cannot auto-retry. Explicit queue rejection stays one PENDING item:
+is UNKNOWN and cannot retry. Any followup exception retains the durable sending intent,
+returns UNKNOWN without exception text, and prevents resend through deliver/retry/restart.
+Official dsh-agent-loop 0.2.1-rc.2 followup calls send(next-turn,true), which
+splices the inbox before waking the driver and normally returns void. Normal void
+completion follows that specific official contract; it is not a generic undefined
+acceptance rule or proof of receipt/adoption. An exception can occur after splice.
+Only explicit false or {accepted:false} is a retryable queue rejection (PENDING):
 the returned controller.retryPending() retries once on explicit host request.
 The official registered tool bench_bridge_delivery accepts only action=status|deliver|retry.
 Only the configured targetSession may call it (subagents/foreign sessions denied). Paths,

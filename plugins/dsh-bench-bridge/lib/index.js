@@ -84,11 +84,18 @@ export function apply(ctx, config = {}, runtime = {}) {
       if (disposed) return report('DISPOSED')
       // Intent is not a delivered marker. A restart with an in-flight intent reports UNKNOWN.
       persist({ ...state, pending: { key, binding, status: 'sending', target: targetId, packageSha256: b.packageSha256 } })
+      // Official dsh-agent-loop 0.2.1-rc.2 followup/send queues then wakes and returns void.
+      // Normal void completion is that API contract, never a receipt/adoption claim.
+      let accepted
       try {
-        const accepted = await target.followup(message)
-        if (accepted === false || accepted?.accepted === false) throw new Error('queue-rejected')
-      } catch (e) {
-        persist({ ...state, pending: { key, binding, status: 'rejected', target: targetId, reason: String(e.message).slice(0, 160) } })
+        accepted = await target.followup(message)
+      } catch {
+        // Admission may precede a transport failure. Retain durable sending intent,
+        // never persist untrusted exception text or permit an ambiguous retry.
+        return report('UNKNOWN', 'delivery-outcome-unknown-no-retry')
+      }
+      if (accepted === false || accepted?.accepted === false) {
+        persist({ ...state, pending: { key, binding, status: 'rejected', target: targetId, reason: 'queue-rejected' } })
         return report('PENDING', 'queue-rejected')
       }
       const delivered = state.delivered.concat({ key, binding, target: targetId, cutoff: b.cutoff, packageSha256: b.packageSha256 })
