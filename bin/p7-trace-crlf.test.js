@@ -17,7 +17,7 @@ function checkout(t) {
   f.git(f.docsRepo, ['checkout-index', '--force', '--', name]);
   const current = fs.readFileSync(f.memory, 'utf8');
   assert.equal(current, crlf(old)); assert.notEqual(current, old);
-  assert.match(f.git(f.docsRepo, ['ls-files', '--eol', '--', name]), /i/lf\s+w/crlf/);
+  assert.match(f.git(f.docsRepo, ['ls-files', '--eol', '--', name]), /i[/]lf\s+w[/]crlf/);
   assert.equal(f.git(f.docsRepo, ['config', '--get', 'core.autocrlf']).trim(), 'true');
   return { ...f, name, old, current };
 }
