@@ -116,7 +116,7 @@ for (const failure of ['render', 'write']) {
       'const L=require(lib),render=L.render,write=L.writeAtomic;' +
       'L.render=function(v,...args){if(mode==="render"&&v==="chat"&&fs.existsSync(marker))throw Error("injected render failure");return render.call(this,v,...args)};' +
       'L.writeAtomic=function(file,text){if(mode==="write"&&file===path.join(out,"chat.md")&&fs.existsSync(marker)&&!String(text).startsWith("# chat\\n\\nUNKNOWN"))throw Error("injected write failure");return write.call(this,file,text)};' +
-      'process.argv=[process.execPath,watch,"--monitor",monitor,"--out",out];require(watch);';
+      'process.argv=[process.execPath,watch,"--monitor",monitor,"--out",out];require(watch).main();';
     const child = spawn(process.execPath, ['-e', script, path.join(__dirname,'lib','bench-live.js'), path.join(__dirname,'bench-watch.js'), dir, out, marker, failure], {stdio:'ignore'});
     t.after(() => { if (child.exitCode === null && child.signalCode === null) child.kill(); });
     const until = async predicate => {
@@ -190,7 +190,7 @@ function windowFixture(t) {
   return {dir,monitor,out,logFile,binding,state,tick,stop,save,notice:path.join(out,'bench-bridge-binding.json')};
 }
 test('normal end writer connects actual collectOnce package and plugin once', async t => {
-  const f = windowFixture(t); fs.appendFileSync(f.logFile, f.stop + f.save);
+  const f = windowFixture(t); Object.assign(f.binding,L.bindWindow(f.out,f.binding,Date.parse(f.binding.since))); fs.appendFileSync(f.logFile, f.stop + f.save);
   f.tick();
   assert.ok(fs.existsSync(f.notice), 'actual collectOnce must export normal-end binding');
   const b = JSON.parse(fs.readFileSync(f.notice,'utf8'));
@@ -206,7 +206,7 @@ test('normal end writer connects actual collectOnce package and plugin once', as
   assert.equal((await bridge.tick()).state,'DELIVERED'); f.tick();
   assert.equal((await bridge.tick()).state,'DELIVERED'); assert.equal(sent.length,1);
   assert.equal(sent[0].source.kind,'plugin:dsh-bench-bridge'); assert.ok(sent[0].content[0].text.length<=1200);
-  console.log('writer fixture scope and notice',JSON.stringify({binding:f.binding,notice:b,pack}));
+  console.log('writer fixture scope and notice',JSON.stringify({binding:f.binding,notice:b,pack,logBase64:fs.readFileSync(f.logFile).toString('base64'),toolsBase64:fs.readFileSync(path.join(f.monitor,'tools.jsonl')).toString('base64'),packageBase64:bytes.toString('base64'),sent}));
 });
 
 for (const [name,edit,reason] of [
@@ -277,4 +277,11 @@ test('normal end writer explicit gb18030 source decodes real localized date mark
   // These markers are ASCII except 月, encoded D4 C2 in GB18030.
   const encode=s=>Buffer.concat(s.split('月').flatMap((part,i)=>i?[Buffer.from([0xd4,0xc2]),Buffer.from(part)]:[Buffer.from(part)]));
   fs.appendFileSync(f.logFile,encode(f.stop+f.save));f.tick();assert.equal(f.state.bridge.status,'NOTIFIED');
+});
+
+test('normal end writer actual watch --once loads persisted host binding',t=>{
+  const f=windowFixture(t);L.saveControl(f.out,{bridgeWindow:f.binding},'test');fs.appendFileSync(f.logFile,f.stop+f.save);
+  const run=spawnSync(process.execPath,[path.join(__dirname,'bench-watch.js'),'--once','--monitor',f.monitor,'--out',f.out],{encoding:'utf8',timeout:10000});
+  assert.equal(run.status,0,run.stdout+run.stderr);assert.equal(JSON.parse(fs.readFileSync(path.join(f.out,'status.json'))).bridge.status,'NOTIFIED');
+  assert.equal(JSON.parse(fs.readFileSync(f.notice)).targetSession,f.binding.targetSession);
 });

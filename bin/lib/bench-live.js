@@ -655,7 +655,7 @@ function renderAll(state, meta, views) {
 module.exports = {
   VIEWS, DEFAULT_MONITOR, MAX_TEXT, RING,
   newState, readTail, normalize, apply, render, renderAll, renderStrand, chainView,
-  loadControl, saveControl, writeAtomic, ts, ago, clip, bindWindow, observeNormalEnd,
+  loadControl, saveControl, writeAtomic, ts, ago, clip, bindWindow, observeNormalEnd, readBindingFile,
 };
 
 // ── 控制面（开关文件） ────────────────────────────────────────────────────
@@ -707,6 +707,17 @@ function validateWindow(b) {
       || !['utf-8','gb18030'].includes(b.encoding) || !/^[+-](?:0\d|1[0-3]):[0-5]\d$|^[+-]14:00$/.test(b.timezone || '')) throw new Error('window-source-or-time-unknown');
 }
 function windowHash(b) { return hashBytes(JSON.stringify([...windowFields.map(k => b[k]),b.source])); }
+function readBindingFile(file) {
+  if (!path.isAbsolute(file)) throw new Error('absolute-binding-file-required');
+  const before=fs.lstatSync(file);
+  if (!before.isFile() || before.size > 16384) throw new Error('binding-file-budget-or-kind');
+  const fd=fs.openSync(file,'r');
+  try {
+    const bytes=Buffer.alloc(16385), n=fs.readSync(fd,bytes,0,bytes.length,0), after=fs.fstatSync(fd);
+    if (n !== before.size || n > 16384 || after.size !== before.size || after.ino !== before.ino || after.dev !== before.dev || after.mtimeMs !== before.mtimeMs) throw new Error('binding-file-changed');
+    return JSON.parse(new TextDecoder('utf-8',{fatal:true}).decode(bytes.subarray(0,n)));
+  } finally {fs.closeSync(fd);}
+}
 function bindWindow(out, input, now = Date.now()) {
   validateWindow(input);
   if (zonedTime(input.since) > now) throw new Error('window-start-in-future');
@@ -755,9 +766,7 @@ function observeNormalEnd(state, opt) {
     if (progress.failed || progress.status === 'NOTIFIED') return progress;
     const noticeFile = path.join(opt.out,'bench-bridge-binding.json');
     if (fs.existsSync(noticeFile)) {
-      const st = fs.lstatSync(noticeFile);
-      if (!st.isFile() || st.size > 16384) throw new Error('notice-unreadable');
-      const old = JSON.parse(fs.readFileSync(noticeFile,'utf8'));
+      const old = readBindingFile(path.resolve(noticeFile));
       if (old.windowKey === b.windowKey) {
         if (old.hostBindingHash !== key) throw new Error('window-binding-conflict');
         progress.status = 'NOTIFIED'; return progress;

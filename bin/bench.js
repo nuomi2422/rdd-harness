@@ -949,10 +949,8 @@ function liveMain(argv) {
   if (sub === 'bind-window') {
     const file = argv[2];
     if (!file || !path.isAbsolute(file)) die(2, 'usage: bench live bind-window <absolute host binding JSON>');
-    const st = fs.lstatSync(file);
-    if (!st.isFile() || st.size > 16384) die(2, 'binding must be a regular JSON file <=16KiB');
     const bindingOut = path.resolve(arg(argv, '--out') || LIVE_DIR);
-    const bound = LB.bindWindow(bindingOut, JSON.parse(fs.readFileSync(file, 'utf8')));
+    const bound = LB.bindWindow(bindingOut, LB.readBindingFile(file));
     console.log(JSON.stringify({windowKey:bound.windowKey,targetSession:bound.targetSession,source:bound.source,notice:path.join(bindingOut,'bench-bridge-binding.json'),identityStatus:'UNKNOWN'}));
     return 0;
   }

@@ -314,4 +314,4 @@ if (require.main === module) {
   const rc = main();
   if (typeof rc === 'number') process.exit(rc);
 }
-module.exports = { collectOnce, statusOf };
+module.exports = { collectOnce, statusOf, main };
