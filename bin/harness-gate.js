@@ -1466,13 +1466,20 @@ function builtinChecks(ctx, phase) {
           const child = spawnSync(process.execPath, [script],
             { encoding: 'utf8', timeout: 30000, maxBuffer: 64 << 10 });
           const output = typeof child.stdout === 'string' ? child.stdout.trim() : '';
+          const omission = '\n…（已截断，用 --full 看全）';
+          const omitted = output.endsWith(omission);
+          // 只认既有 digest 的 slice(0,1200)+省略尾，不能把传输残片当正常省略。
+          const bounded = omitted ? output.length === 1200 + omission.length : output.length <= 1200;
+          const header = /^# 实验台摘要 · 最近 \d+ 分钟\r?\n/.test(output) &&
+            /^世界身份：UNKNOWN(?:；|[\r\n]|$)/m.test(output) && /^覆盖：[^\r\n]+/m.test(output);
           const complete = !child.error && !child.signal && child.status === 0 &&
-            output.length > 0 && output.length <= 1200 && !output.includes('…（已截断，用 --full 看全）');
-          state = complete ? PASS : BLOCK;
+            bounded && header && (!output.includes(omission) || omitted);
+          state = complete ? (omitted ? WARN : PASS) : BLOCK;
           detail = complete
-            ? '本次摘要已执行并输出交付；不代表人已读或日志新鲜。世界身份、陈旧/缺失覆盖及当前世界事实仍 UNKNOWN。'
-            : 'UNKNOWN：摘要执行失败，或输出为空/截断/超界；未完成输出交付。';
-          if (output) detail += '\n' + output.slice(0, 1200);
+            ? (omitted ? '摘要有界省略，未见部分 UNKNOWN；本次有界摘要已执行并输出交付。' : '本次摘要已执行并输出交付；') +
+              '不代表人已读或日志新鲜。世界身份、陈旧/缺失覆盖及当前世界事实仍 UNKNOWN。'
+            : 'UNKNOWN：摘要执行失败、缺标题/覆盖结构，或输出为空/无法确认完整；未完成输出交付。';
+          if (output) detail += '\n' + output.slice(0, 1200 + omission.length);
         }
       } catch { detail = 'UNKNOWN：摘要子进程执行异常；未完成输出交付。'; }
       record('P22', '★ 进游戏前实验台摘要交付', BLOCK, 'artifact', state, detail);

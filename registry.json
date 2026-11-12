@@ -1046,8 +1046,8 @@
           "kind": "artifact",
           "level": "block",
           "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。★主人 2026-11-08 更正：**进游戏前**就要过一遍，不是退游戏后——进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。 ★2026-11-12：旧日志重跑也能满足30分钟留痕，清障超时却被强制另跑；改为本次 preflight 直接交付已有有界摘要。PASS 只代表执行和输出交付，不证明人已读或日志新鲜；世界身份、陈旧/缺失覆盖及当前事实仍 UNKNOWN。",
-          "verify": "在 P22 直接运行现有 node bin/bench-digest.js 默认有界输出（120分钟/1200字符），摘要附在本次门禁输出；缺脚本/子进程错误/非零/空或截断输出 BLOCK。title-only 在 IO/child 前 SKIP，非 preflight 不调用，保持仅 worker 适用。",
-          "guard": "不再凭 bench-digest.jsonl 的时间给入场签已读/新鲜事实；既有 digest 自带审计留痕保留，gate 不额外伪造已读留痕。30秒子进程超时、64KiB缓冲及默认1200字符完整输出边界。",
+          "verify": "在 P22 直接运行现有 node bin/bench-digest.js 默认有界输出（120分钟/1200字符），摘要附在本次门禁输出；缺脚本/子进程错误/非零/空/缺标题覆盖结构/无法确认完整输出 BLOCK；正常1200正文+原省略尾且标题覆盖齐全为 WARN，未见部分 UNKNOWN。title-only 在 IO/child 前 SKIP，非 preflight 不调用，保持仅 worker 适用。",
+          "guard": "不再凭 bench-digest.jsonl 的时间给入场签已读/新鲜事实；既有 digest 自带审计留痕保留，gate 不额外伪造已读留痕。30秒子进程超时、64KiB缓冲及默认1200字符正文及原显式省略尾边界；正常有界省略为可见 WARN，不当作传输错误。",
           "reviewBy": "2026-11-22",
           "note": "与 P13（进游戏前过一遍游戏内能力清单）同一层：进游戏前那一关要过的东西，不是退游戏后补的。A 方案（自动投递）由 dsh-bench-bridge 提供，默认关闭。"
         },
