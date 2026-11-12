@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-01T08:08:09.784Z",
+  "updated_at": "2026-11-12T10:40:26.391Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -896,6 +896,13 @@
       "run": "exp-b52-fortress-direct-20261031-20261031-162817",
       "by": "unknown",
       "at": "2026-10-31T08:52:33.170Z"
+    },
+    {
+      "exp_id": "transport-live-V-20261112-06",
+      "note": "原live d7893c86：内脑原call→wire→t10 done且role:tool保原ID，外部同步只读mcp2→mcp-wire→server→MCP实回；非外部后台owner证明。确定失败是规划要求石镐挖钻石，两次harvest拒绝后自然COUNTER改先采铁。准确core/正常保存见V06；不签稳定恢复/skills效果。",
+      "run": "",
+      "by": "session-461cfc23-e18e-4580-bb41-c561ac2cea64",
+      "at": "2026-11-12T10:40:26.390Z"
     }
   ],
   "verdicts": [
