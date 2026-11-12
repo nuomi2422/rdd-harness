@@ -91,10 +91,11 @@ for (const phase of ['preflight','postflight']) test(phase + ' isolated body: no
     assert.equal(h.api.results.find(r => r.id === 'P2').state, 'BLOCK');
   }
 });
-test('P22 default preflight keeps digest evaluation; title pre/post never read it', () => {
+test('P22 default preflight checks digest script; title pre/post never read it', () => {
   const ctx = {since:new Date('2026-11-11T00:00:00'), keyword:'fixture', head:'', stageTxt:''};
   const normal = harness([]); normal.api.setup(); normal.api.builtinChecks(ctx, 'preflight');
-  assert.ok(normal.io.some(p => /bench-digest\.jsonl/.test(p)));
+  assert.ok(normal.io.some(p => /bench-digest\.js$/.test(p)));
+  assert.ok(!normal.io.some(p => /bench-digest\.jsonl/.test(p)));
   assert.notEqual(normal.api.results.find(r => r.id === 'P22').state, 'SKIP');
   for (const phase of ['preflight','postflight']) {
     const isolated = harness(titleArgs); isolated.api.setup(); isolated.api[phase](ctx);

@@ -1042,12 +1042,12 @@
           "appliesTo": [
             "worker"
           ],
-          "name": "★ 进游戏前过一遍实验台（digest 留痕）",
+          "name": "★ 进游戏前实验台摘要交付",
           "kind": "artifact",
           "level": "block",
-          "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。★主人 2026-11-08 更正：**进游戏前**就要过一遍，不是退游戏后——进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。",
-          "verify": "运行 node bin/bench-digest.js 后 .harness/audit/bench-digest.jsonl 最后一条在 30 分钟内；没有记录直接 BLOCK",
-          "guard": "digest 每次运行都写 .harness/audit/bench-digest.jsonl（时间/条数/是否截断），判据只认这条痕迹，不认自述。",
+          "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。★主人 2026-11-08 更正：**进游戏前**就要过一遍，不是退游戏后——进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。 ★2026-11-12：旧日志重跑也能满足30分钟留痕，清障超时却被强制另跑；改为本次 preflight 直接交付已有有界摘要。PASS 只代表执行和输出交付，不证明人已读或日志新鲜；世界身份、陈旧/缺失覆盖及当前事实仍 UNKNOWN。",
+          "verify": "在 P22 直接运行现有 node bin/bench-digest.js 默认有界输出（120分钟/1200字符），摘要附在本次门禁输出；缺脚本/子进程错误/非零/空/缺标题覆盖结构/无法确认完整输出 BLOCK；正常1200正文+原省略尾且标题覆盖齐全为 WARN，未见部分 UNKNOWN。title-only 在 IO/child 前 SKIP，非 preflight 不调用，保持仅 worker 适用。",
+          "guard": "不再凭 bench-digest.jsonl 的时间给入场签已读/新鲜事实；既有 digest 自带审计留痕保留，gate 不额外伪造已读留痕。30秒子进程超时、64KiB缓冲及默认1200字符正文及原显式省略尾边界；正常有界省略为可见 WARN，不当作传输错误。",
           "reviewBy": "2026-11-22",
           "note": "与 P13（进游戏前过一遍游戏内能力清单）同一层：进游戏前那一关要过的东西，不是退游戏后补的。A 方案（自动投递）由 dsh-bench-bridge 提供，默认关闭。"
         },
@@ -1060,8 +1060,8 @@
           "name": "工作区干净（含 untracked）",
           "kind": "artifact",
           "level": "block",
-          "rule": "★ 2026-10-21 用户定：脏工作区不许开新批次。「干净」= git status --porcelain 为空或显式白名单（运行产物 report/ 临时件、runs/、mutations/、.tmp/、*.log）；untracked 一律算脏。★ 为什么：各会话只看 diff，不看「磁盘上有但 git 不知道」的文件 —— 26 项文档资产 + 44 个 harness 文件就是这么攒出来的。干净没有强制点，334 处脏项能攒几周没人发现。",
-          "verify": "内置检查（三仓 git status --porcelain；忽略项按上述白名单正则过滤，untracked 不过滤）。★ 2026-10-30 白名单加 `experiments/usage.jsonl`（bench 每次调用追加一行，是**被跟踪**的 append-only 账本；不排除就变成「跑过 bench 就永远进不了游戏」）。资产普查另立 P14b。"
+          "rule": "★ 2026-10-21 用户定：脏工作区不许开新批次。「干净」= git status --porcelain 为空或显式白名单（运行产物 report/ 临时件、runs/、mutations/、.tmp/、*.log）；untracked 一律算脏。★ 为什么：各会话只看 diff，不看「磁盘上有但 git 不知道」的文件 —— 26 项文档资产 + 44 个 harness 文件就是这么攒出来的。干净没有强制点，334 处脏项能攒几周没人发现。 ★2026-11-12：003 入场前冻结判据即改原记录，现仅真实 docs Git 根下知识库/实验数据记录、知识库/记录直属的 NN/NNN-*.md 已跟踪纯 M（ M/M /MM）记可见 WARN；源码/治理/其他文档、untracked/新增/删除/改名/typechange/混改仍 BLOCK，保留原运行产物白名单。",
+          "verify": "三仓 git status --porcelain=v1 -z；先确认 docs 实际 Git 根及知识库范围，NUL 成对解析改名。缺仓、Git 错误/不完整状态为 UNKNOWN/BLOCK，不当 clean。保留 2026-10-30 experiments/usage.jsonl 等原运行产物白名单；P14b 资产普查独立不变。"
         },
         {
           "id": "P14b",

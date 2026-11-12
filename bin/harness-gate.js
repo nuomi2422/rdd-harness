@@ -559,39 +559,72 @@ function preflight(ctx) {
     //     harness 仓就永远是脏的，P14 于是变成「跑过 bench 就永远进不了游戏」。
     //     门禁一旦对正常操作常态化报红，人就会开始无视它（同 S-DOC-03 的道理）。
     //     注意：`experiments/live/` 与 `runs/` 已由 .gitignore 排掉，这里不必重复列。
+    // 2026-11-12：003 先冻结实机判据也会修改记录；纯记录 M 可见 WARN，
+    // 源码/治理/新增/删除/改名仍 BLOCK。Git 失败不等于 clean。
     const repos = [
       { name: 'docs', dir: REG.roots.docs },
       { name: 'harness', dir: REG.roots.harness },
       { name: 'numen', dir: path.join(REG.roots.workspace, 'minecraft-numen') },
     ];
-    const IGNORE = P14_DIRTY_WHITELIST;
-    const dirtyAll = [];
+    const git = 'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe';
+    const dirty = [], records = [];
+    const gitRun = (r, args) => {
+      const g = spawnSync(git, ['-C', r.dir, '-c', 'core.quotepath=false', ...args],
+        { encoding: 'utf8', timeout: 30000, maxBuffer: 8 << 20 });
+      if (g.error || g.signal || g.status !== 0 || typeof g.stdout !== 'string') throw new Error('Git unavailable');
+      return g.stdout;
+    };
     for (const r of repos) {
-      if (!fs.existsSync(r.dir)) continue;
-      const g = require('child_process').spawnSync(
-        'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe',
-        ['-C', r.dir, '-c', 'core.quotepath=false', 'status', '--porcelain'],
-        { encoding: 'utf8', timeout: 30000 }
-      );
-      if (g.status !== 0) continue;
-      const lines = (g.stdout || '').split(/\r?\n/).filter(Boolean).filter((l) => !IGNORE.test(l.slice(3)));
-      if (lines.length) dirtyAll.push({ name: r.name, lines });
+      try {
+        if (!fs.existsSync(r.dir)) throw new Error('Repository missing');
+        let recordDirs = [];
+        if (r.name === 'docs') {
+          // roots.docs 是 rdd架构子目录；porcelain 路径却从 Git 根起算。
+          const top = gitRun(r, ['rev-parse', '--show-toplevel']).replace(/\r?\n$/, '');
+          if (!path.isAbsolute(top) || /[\r\n]/.test(top)) throw new Error('Invalid Git root');
+          const docRel = path.relative(top, r.dir);
+          const knowledgeRel = path.relative(top, REG.roots.knowledge).split(path.sep).join('/');
+          if (path.isAbsolute(docRel) || docRel === '..' || docRel.startsWith('..' + path.sep) ||
+              knowledgeRel !== '知识库') throw new Error('Unexpected docs scope');
+          recordDirs = [knowledgeRel + '/实验数据记录/', knowledgeRel + '/记录/'];
+        }
+        const output = gitRun(r, ['status', '--porcelain=v1', '-z']);
+        if (output && !output.endsWith('\0')) throw new Error('Incomplete porcelain');
+        const tokens = output ? output.slice(0, -1).split('\0') : [];
+        for (let i = 0; i < tokens.length; i++) {
+          const row = tokens[i];
+          if (!/^[ MADRCUT?!]{2} .+$/s.test(row)) throw new Error('Invalid porcelain');
+          const xy = row.slice(0, 2), file = row.slice(3);
+          // 2026-11-12：空 XY / !? 坏行曾借 usage 白名单变 PASS；先验 v1 状态组合。
+          // 正常二维状态、七种冲突、??/!!；合法运行产物仍按原白名单处理。
+          if (!/^(?:\?\?|!!|DD|AU|UD|UA|DU|AA|UU| [MTADRC]|[MTARC][ MTDRC]|D[ RC])$/.test(xy)) {
+            throw new Error('Invalid porcelain XY');
+          }
+          // -z 的 rename/copy 后还有一个原路径；成对读取，绝不拿它当第二条记录。
+          const moved = /[RC]/.test(xy);
+          if (moved && !tokens[++i]) throw new Error('Incomplete rename');
+          if (file.includes('\\') || file.includes(':') || file.startsWith('/') ||
+              file.split('/').some(s => s === '.' || s === '..' || s === '')) {
+            dirty.push(r.name + ': invalid path'); continue;
+          }
+          if (!moved && P14_DIRTY_WHITELIST.test(file)) continue;
+          const trackedM = xy === ' M' || xy === 'M ' || xy === 'MM';
+          // 只纳入目录直属的原编号 Markdown 记录；README/目录规范/嵌套治理不放行。
+          const isRecord = trackedM && recordDirs.some(dir =>
+            file.startsWith(dir) && /^\d{2,3}-[^/]+\.md$/.test(file.slice(dir.length)));
+          const item = r.name + ' ' + xy + ' ' + JSON.stringify(file);
+          (isRecord ? records : dirty).push(item);
+        }
+      } catch {
+        dirty.push(r.name + ': UNKNOWN（仓库缺失、Git 失败或状态无法可靠解析）');
+      }
     }
-    if (dirtyAll.length === 0) {
-      record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', PASS,
-        '三仓 git status --porcelain 均为空 —— 可以开新批次 / 打审计 tag');
-    } else {
-      const total = dirtyAll.reduce((a, x) => a + x.lines.length, 0);
-      const brief = dirtyAll.map((d) => `${d.name} ${d.lines.length}`).join(' / ');
-      const sample = dirtyAll[0].lines.slice(0, 3).map((l) => l.slice(0, 70)).join('\n       ');
-      record('P14', '工作区干净（含 untracked）', 'artifact', 'BLOCK', BLOCK,
-        `★ 脏工作区不许开新批次（${brief}，共 ${total} 处）。\n` +
-        `       ★ 「干净」= git status --porcelain 为空；**untracked 也算脏**\n` +
-        `         （26 项文档资产 + 44 个 harness 文件就是这样攒出来的：\n` +
-        `          各会话只看 diff，不看「磁盘上有但 git 不知道」的文件）。\n` +
-        `       先收口再开批次。示例：\n       ${sample}\n` +
-        `       ★ 为什么：334 能攒出来 = 干净没有强制点。不收口，下轮 334 变 600，tag 门永远差一步。`);
-    }
+    const detail = (dirty.length ? '需收口的改动/环境错误 ' + dirty.length + '：\n' + dirty.slice(0, 3).join('\n') :
+      '三仓状态检查完成；源码/治理无未收口改动（保留原运行产物白名单）') +
+      (records.length ? '\n记录修改 WARN ' + records.length + '（已跟踪编号 Markdown 纯 M；不拦本窗记实）：\n' +
+        records.slice(0, 3).join('\n') : '');
+    record('P14', '工作区干净（含 untracked）', BLOCK, 'artifact',
+      dirty.length ? BLOCK : records.length ? WARN : PASS, detail);
 
     // ★★ 2026-10-22：P14 追加「资产普查」子判据。
     //   为什么追加在 P14 里而不是另立一项（AGENTS.md §0.5「不许再加工具/新检查项」）：
@@ -1421,21 +1454,41 @@ function builtinChecks(ctx, phase) {
     }
   }
 
-  // P22（2026-11-08 主人更正）：**进游戏前**要过一遍实验台，不是退游戏后。
-  //   主人的原话意思：进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。
-  //   判据：bench-digest 的留痕在 30 分钟内 —— 只在进游戏前执行。
+  // 2026-11-12：30min 的旧运行留痕既不能交付本次摘要，也不能把 6h 旧日志变新。
+  // 在原 P22 位置执行既有默认有界摘要；PASS 只代表执行/输出交付，事实覆盖仍 UNKNOWN。
   if (phase === 'preflight' && !titleSkip('P22')) {
-    const root22 = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
-    let p22state = BLOCK, p22detail = '没跑过 bench-digest（.harness/audit/bench-digest.jsonl 不存在）→ node bin/bench-digest.js --since 6h';
-    try {
-      const ledger = path.join(root22, '.harness', 'audit', 'bench-digest.jsonl');
-      const { evaluateDigestLedger } = require('./lib/p22-digest.js');
-      const result = evaluateDigestLedger(fs.readFileSync(ledger, 'utf8'), now.getTime());
-      const age = result.ageMs === null ? '没有可用的非未来记录' : result.ageMs + ' 毫秒前';
-      if (result.pass) { p22state = PASS; p22detail = '进游戏前已过一遍实验台（' + age + '跑的 digest）'; }
-      else { p22state = BLOCK; p22detail = '进游戏前没看过实验台：上次 digest ' + age + ' → node bin/bench-digest.js --since 6h'; }
-    } catch { /* 保持 BLOCK */ }
-    record('P22', '★ 进游戏前过一遍实验台（digest 留痕）', BLOCK, 'artifact', p22state, p22detail);
+    const role = loadRole().role;
+    const check = REG.gates.preflight.checks.find(c => c.id === 'P22');
+    const applies = check && check.appliesTo;
+    if (role && Array.isArray(applies) && applies.length && !applies.includes(role)) {
+      record('P22', '★ 进游戏前实验台摘要交付', BLOCK, 'artifact', SKIP,
+        '本角色不适用；未执行摘要。跳过不是通过。');
+    } else {
+      const script = path.join(REG.roots.harness, 'bin', 'bench-digest.js');
+      let state = BLOCK, detail = 'UNKNOWN：缺少 bench-digest.js，摘要未交付';
+      try {
+        if (isFile(script)) {
+          const child = spawnSync(process.execPath, [script],
+            { encoding: 'utf8', timeout: 30000, maxBuffer: 64 << 10 });
+          const output = typeof child.stdout === 'string' ? child.stdout.trim() : '';
+          const omission = '\n…（已截断，用 --full 看全）';
+          const omitted = output.endsWith(omission);
+          // 只认既有 digest 的 slice(0,1200)+省略尾，不能把传输残片当正常省略。
+          const bounded = omitted ? output.length === 1200 + omission.length : output.length <= 1200;
+          const header = /^# 实验台摘要 · 最近 \d+ 分钟\r?\n/.test(output) &&
+            /^世界身份：UNKNOWN(?:；|[\r\n]|$)/m.test(output) && /^覆盖：[^\r\n]+/m.test(output);
+          const complete = !child.error && !child.signal && child.status === 0 &&
+            bounded && header && (!output.includes(omission) || omitted);
+          state = complete ? (omitted ? WARN : PASS) : BLOCK;
+          detail = complete
+            ? (omitted ? '摘要有界省略，未见部分 UNKNOWN；本次有界摘要已执行并输出交付。' : '本次摘要已执行并输出交付；') +
+              '不代表人已读或日志新鲜。世界身份、陈旧/缺失覆盖及当前世界事实仍 UNKNOWN。'
+            : 'UNKNOWN：摘要执行失败、缺标题/覆盖结构，或输出为空/无法确认完整；未完成输出交付。';
+          if (output) detail += '\n' + output.slice(0, 1200 + omission.length);
+        }
+      } catch { detail = 'UNKNOWN：摘要子进程执行异常；未完成输出交付。'; }
+      record('P22', '★ 进游戏前实验台摘要交付', BLOCK, 'artifact', state, detail);
+    }
   }
 }
 
