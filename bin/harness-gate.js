@@ -504,7 +504,7 @@ function preflight(ctx) {
             try { valid = validAppend(old,current); } catch { /* malformed JSON is not evidence */ }
             if (valid) evidence.push(name+'（memory有效追加，基线前缀未改）');
             else rejected.push(name+'（非有效新增/追加）');
-          } else if (prose(current)) {
+          } else if (prose(current) && prose(current) !== prose(old)) {
             evidence.push(name+'（正文与Git基线不同）');
           }
         }
