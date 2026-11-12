@@ -85,7 +85,7 @@ for(const o of [{gitFail:0},{gitFail:1},{gitFail:2},{rootFail:true}])test('P14 G
 });
 test('P14 missing repo BLOCK',()=>{const f=fixture();const r=fixture({missingRepo:f.repos[0]}).run('P14');assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);});
 test('P14 docs root and NUL porcelain are used',()=>{
- const f=fixture({status:{0:' M 知识库/记录/001.md\0'}});assert.equal(f.run('P14').result.state,'WARN');
+ const f=fixture({status:{0:' M 知识库/记录/001-窗口.md\0'}});assert.equal(f.run('P14').result.state,'WARN');
  assert.ok(f.children.some(c=>c.argv.includes('rev-parse')));assert.ok(f.children.filter(c=>c.argv.includes('status')).every(c=>c.argv.includes('-z')));
 });
 for(const ledger of ['', '{"at":"2000-01-01T00:00:00Z"}\n','{"at":"2999-01-01T00:00:00Z"}\n'])test('P22 direct bounded delivery independent of ledger '+ledger,()=>{
