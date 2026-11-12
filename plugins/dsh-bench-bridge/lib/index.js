@@ -1,98 +1,112 @@
 /**
- * dsh-bench-bridge —— 关窗后把实验台摘要投给编码 AI（A 方案，2026-11-08）
- *
- * 背景：bench live 每 15 秒产 strand/chat/context，但没有任何通道送到编码 AI 上下文；
- *   B 方案（bench-digest + Q21）已落，靠人/门禁强制去跑。A 方案是自动投递：
- *   检测到「All dimensions are saved」→ 跑 bench-digest → 把摘要作为系统提醒投给指定会话。
- *
- * 默认 enabled:false。打开方式：profile 的 cordis.patch.yml 里把 bench-bridge 的 enabled 改 true，
- *   或改 ~/.dsh/bench-bridge.json 的 { enabled: true, targetSession: 'session-xxx' }。
- *
- * 为什么默认关：这会往 AI 上下文里塞东西，属于行为改变；主人点头再开。
+ * Existing dsh-bench-bridge, maintained only in the RDD harness (2026-11-12).
+ * Explicit host binding -> existing evidence package -> official plugin-source followup.
+ * Disabled by default; no session enumeration, monitor scanner, child process or human source.
  */
 import fs from 'node:fs'
-import path from 'node:path'
 import os from 'node:os'
-import { execFileSync } from 'node:child_process'
-
-const RDD = process.env.RDD_ROOT || 'D:/rdd'
-const HARNESS = path.join(RDD, 'harness', 'rdd-harness')
-const LOG = path.join(RDD, 'mc', 'The Best of Twilight Forest', 'logs', 'latest.log')
-const AUDIT = path.join(RDD, '.harness', 'audit', 'bench-digest-inject.jsonl')
-const STATE_FILE = path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'bench-bridge.json')
-
-const DEFAULTS = { enabled: false, targetSession: '', sinceMin: 360, pollMs: 15000, maxChars: 1500 }
+import path from 'node:path'
+import { SOURCE, sha256, readBounded, validateBinding, deliveryKey, loadPackage, renderSummary } from './core.js'
 
 export const name = 'dsh-bench-bridge'
-export const inject = ['sessionController']
+export const inject = ['agents']
 
-function readJson(f, d) { try { return JSON.parse(fs.readFileSync(f, 'utf8')) } catch { return d } }
-function audit(o) { try { fs.mkdirSync(path.dirname(AUDIT), { recursive: true }); fs.appendFileSync(AUDIT, JSON.stringify(o) + '\n', 'utf8') } catch {} }
-
-export function apply(ctx, config = {}) {
-  const cfg = { ...DEFAULTS, ...config }
-  const state = readJson(STATE_FILE, {})
-  const merged = { ...cfg, ...(state || {}) }
-  let lastSeen = 0
-  let timer = null
-
-  function log(m) { try { ctx.logger?.info?.('[bench-bridge] ' + m) } catch {} }
-
-  function pickTarget() {
-    if (merged.targetSession) return merged.targetSession
-    try {
-      const list = ctx.agents?.list?.() ?? []
-      const top = list.filter((a) => a?.session?.header?.origin !== 'subagent')
-      return top[0]?.id || ''
-    } catch { return '' }
+export function apply(ctx, config = {}, runtime = {}) {
+  const enabled = config.enabled === true
+  const io = runtime.fs || fs
+  const now = runtime.now || Date.now
+  const stateFile = config.stateFile || path.join(process.env.DSH_HOME || path.join(os.homedir(), '.dsh'), 'bench-bridge-delivery.json')
+  let state, loaded = false, busy = false, disposed = false, timer = null
+  let status = { state: enabled ? 'WAITING' : 'DISABLED' }
+  const report = (state, reason) => {
+    status = { state, ...(reason ? { reason } : {}) }
+    try { ctx.logger?.info?.('[bench-bridge] ' + JSON.stringify(status)) } catch {}
+    return status
   }
-
-  function latestLaunchMs() {
+  function persist(next) {
+    const file = stateFile + '.tmp-' + process.pid + '-' + sha256(String(now()) + Math.random()).slice(0, 12)
     try {
-      const st = fs.statSync(LOG)
-      const fd = fs.openSync(LOG, 'r')
-      const start = Math.max(0, st.size - 512 * 1024)
-      const buf = Buffer.alloc(st.size - start)
-      fs.readSync(fd, buf, 0, buf.length, start)
-      fs.closeSync(fd)
-      const txt = buf.toString('utf8')
-      // ★ 主人 2026-11-08：观测要「进游戏时」送，不是关窗后 —— 进游戏时 AI 会一直尝试更新，正好盯着实验台找 bug。
-      const idx = txt.lastIndexOf('ModLauncher running')
-      if (idx < 0) return 0
-      const line = txt.slice(txt.lastIndexOf('\n', idx) + 1, idx)
-      const m = line.match(/(\d{2})月(\d{4}) (\d{2}:\d{2}:\d{2})/)
-      if (!m) return 0
-      return new Date(`${m[2].slice(0, 4)}-${m[2].slice(4, 6)}-${m[1]}T${m[3]}`).valueOf()
-    } catch { return 0 }
-  }
-
-  function digest() {
-    const out = execFileSync(process.execPath, [path.join(HARNESS, 'bin', 'bench-digest.js'), '--since', merged.sinceMin + 'm'], { encoding: 'utf8', timeout: 30000 })
-    return out.length > merged.maxChars ? out.slice(0, merged.maxChars) + '\n…（已截断）' : out
-  }
-
-  async function tick() {
-    if (!merged.enabled) return
-    const saveAt = latestSaveMs()
-    if (!saveAt || saveAt <= lastSeen) return
-    lastSeen = saveAt
-    const target = pickTarget()
-    if (!target) return log('没有可投递的会话')
-    let text = ''
-    try { text = digest() } catch (e) { audit({ at: new Date().toISOString(), ok: false, error: String(e?.message ?? e) }); return log('digest 失败: ' + e?.message) }
-    const body = ['<system-reminder>', '这是 dsh-bench-bridge 自动投递（不是用户输入）：检测到游戏正在启动，下面是实验台摘要（进游戏前先看一眼异常段）。', '按 Q21 要求：先看「异常」段——重复失败 / 连续只读 / 高频同工具 / 死亡，再决定下一轮改哪个变量。', '', text, '</system-reminder>'].join('\n')
-    try {
-      await ctx.sessionController.prompt({ requestId: 'bench-bridge-' + target + '-' + saveAt, sessionId: target, mode: 'queue', content: [{ type: 'text', text: body }] })
-      audit({ at: new Date().toISOString(), ok: true, target, saveAt, chars: text.length })
-      log('已投递摘要给 ' + target + '（' + text.length + ' 字）')
+      io.mkdirSync(path.dirname(stateFile), { recursive: true })
+      io.writeFileSync(file, JSON.stringify(next), { encoding: 'utf8', flag: 'wx' })
+      io.renameSync(file, stateFile)
+      state = next
     } catch (e) {
-      audit({ at: new Date().toISOString(), ok: false, target, error: String(e?.message ?? e) })
-      log('投递失败: ' + e?.message)
+      try { io.unlinkSync(file) } catch {}
+      throw new Error('state-write-failed:' + e.message)
     }
   }
-
-  timer = setInterval(() => { void tick() }, merged.pollMs)
-  timer.unref?.()
-  ctx.effect(() => () => { clearInterval(timer) })
-  log('armed（enabled=' + merged.enabled + '，target=' + (merged.targetSession || 'auto') + '）')
+  function loadState() {
+    if (loaded) return
+    try {
+      const parsed = JSON.parse(readBounded(stateFile, 32768, io))
+      if (parsed.version !== 1 || !Array.isArray(parsed.delivered) || parsed.delivered.length > 32
+          || !Number.isFinite(parsed.retiredBefore)) throw new Error('state-invalid')
+      state = parsed
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e
+      state = { version: 1, delivered: [], pending: null, retiredBefore: 0 }
+    }
+    loaded = true
+  }
+  async function tick(retry = false) {
+    if (!enabled || disposed) return report(disposed ? 'DISPOSED' : 'DISABLED')
+    if (busy) return { state: 'BUSY' }
+    busy = true
+    try {
+      if (typeof config.targetSession !== 'string' || !config.targetSession.trim()) return report('UNKNOWN', 'explicit-target-required')
+      const targetId = config.targetSession
+      const raw = config.bindingFile ? JSON.parse(readBounded(config.bindingFile, 16384, io)) : config.binding
+      const b = validateBinding(raw, now())
+      const key = deliveryKey(targetId, b)
+      loadState()
+      if (state.delivered.some(entry => entry.key === key)) return report('DELIVERED', 'already-recorded')
+      if (Date.parse(b.cutoff) <= state.retiredBefore) return report('UNKNOWN', 'outside-retained-markers')
+      if (state.pending) {
+        if (state.pending.key !== key) return report('UNKNOWN', 'one-pending-window')
+        if (state.pending.status !== 'rejected') return report('UNKNOWN', 'delivery-outcome-unknown-no-retry')
+        if (!retry) return report('PENDING', 'explicit-retry-required')
+      }
+      const pack = loadPackage(b, io, Math.min(2 * 1024 * 1024, Math.max(1024, config.maxPackageBytes || 1024 * 1024)))
+      const summary = renderSummary(b, pack, config.maxChars)
+      const target = ctx.agents.get(targetId)
+      if (!target || target.id !== targetId || target.session?.header?.origin === 'subagent'
+          || typeof target.followup !== 'function' || (config.targetWorkspace && target.session?.header?.cwd !== config.targetWorkspace)) {
+        persist({ ...state, pending: { key, status: 'rejected', target: targetId, reason: 'target-unavailable' } })
+        return report('PENDING', 'target-unavailable')
+      }
+      const createUserMessage = runtime.createUserMessage || (await import('@deepseek-ai/dsh-llm')).createUserMessage
+      const message = createUserMessage({ content: [{ type: 'text', text: summary.text }], source: SOURCE })
+      if (disposed) return report('DISPOSED')
+      // Intent is not a delivered marker. A restart with an in-flight intent reports UNKNOWN.
+      persist({ ...state, pending: { key, status: 'sending', target: targetId, packageSha256: b.packageSha256 } })
+      try {
+        const accepted = await target.followup(message)
+        if (accepted === false || accepted?.accepted === false) throw new Error('queue-rejected')
+      } catch (e) {
+        persist({ ...state, pending: { key, status: 'rejected', target: targetId, reason: String(e.message).slice(0, 160) } })
+        return report('PENDING', 'queue-rejected')
+      }
+      const delivered = state.delivered.concat({ key, target: targetId, cutoff: b.cutoff, packageSha256: b.packageSha256 })
+      let retiredBefore = state.retiredBefore
+      while (delivered.length > 32) retiredBefore = Math.max(retiredBefore, Date.parse(delivered.shift().cutoff))
+      try { persist({ ...state, delivered, retiredBefore, pending: null }) }
+      catch (e) {
+        state = { ...state, pending: { key, status: 'unknown', target: targetId } }
+        return report('UNKNOWN', 'accepted-but-state-unrecorded')
+      }
+      return report('DELIVERED', 'queue-accepted-and-recorded')
+    } catch (e) { return report('UNKNOWN', String(e.message).slice(0, 200)) }
+    finally { busy = false }
+  }
+  function dispose() {
+    disposed = true
+    if (timer !== null) clearInterval(timer)
+    timer = null
+  }
+  if (enabled) {
+    timer = setInterval(() => tick(), Math.min(60000, Math.max(1000, config.pollMs || 15000)))
+    timer.unref?.()
+    ctx.effect(() => dispose)
+  }
+  return { tick, retryPending: () => tick(true), dispose, status: () => ({ ...status }) }
 }

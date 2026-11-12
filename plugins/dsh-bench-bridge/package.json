@@ -1,9 +1,9 @@
 {
   "name": "dsh-bench-bridge",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
-  "description": "关窗后把实验台摘要自动投给编码 AI（默认关闭，需 enabled:true）",
+  "description": "既有实验台摘要桥接；唯一维护源RDD harness/plugins/dsh-bench-bridge；明确宿主窗口和编码会话，默认关闭",
   "main": "lib/index.js",
   "exports": {
     ".": "./lib/index.js",
@@ -11,7 +11,9 @@
   },
   "files": [
     "lib",
-    "cordis.patch.yml"
+    "cordis.patch.yml",
+    "README.md",
+    "provenance.json"
   ],
   "license": "MIT",
   "keywords": [
@@ -24,5 +26,11 @@
     "bundle": {
       "patch": "./cordis.patch.yml"
     }
+  },
+  "scripts": {
+    "test": "node --test test/index.test.js"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/dsh-llm": "0.2.1-rc.2"
   }
 }

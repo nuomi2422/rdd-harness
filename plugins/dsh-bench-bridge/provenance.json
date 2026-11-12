@@ -1,0 +1,12 @@
+{
+  "source": "C:/Users/admin/Documents/deepseek-harness/default-workspace/dsh-bench-bridge",
+  "version": "0.1.0",
+  "files": {
+    "package.json": "a3b0163c825ceaacda75351469a39aa916ea73c3aac0474bb605e93643343c7a",
+    "cordis.patch.yml": "ec67356628b0c44b92b7e728e037c9073515d6181284428d9bcf1c9d8954338f",
+    "lib/index.js": "60c4bcce7308e393700acbf342e83ea04b6c79b011e0ae0c0c7fd008aa4a1833"
+  },
+  "maintainer": "RDD harness/plugins/dsh-bench-bridge",
+  "originalPolicy": "C original unchanged; no installation/profile changes",
+  "maintainedSince": "2026-11-12"
+}
