@@ -595,6 +595,11 @@ function preflight(ctx) {
           const row = tokens[i];
           if (!/^[ MADRCUT?!]{2} .+$/s.test(row)) throw new Error('Invalid porcelain');
           const xy = row.slice(0, 2), file = row.slice(3);
+          // 2026-11-12：空 XY / !? 坏行曾借 usage 白名单变 PASS；先验 v1 状态组合。
+          // 正常二维状态、七种冲突、??/!!；合法运行产物仍按原白名单处理。
+          if (!/^(?:\?\?|!!|DD|AU|UD|UA|DU|AA|UU| [MTADRC]|[MTARC][ MTDRC]|D[ RC])$/.test(xy)) {
+            throw new Error('Invalid porcelain XY');
+          }
           // -z 的 rename/copy 后还有一个原路径；成对读取，绝不拿它当第二条记录。
           const moved = /[RC]/.test(xy);
           if (moved && !tokens[++i]) throw new Error('Incomplete rename');
