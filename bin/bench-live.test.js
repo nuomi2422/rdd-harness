@@ -285,3 +285,62 @@ test('normal end writer actual watch --once loads persisted host binding',t=>{
   assert.equal(run.status,0,run.stdout+run.stderr);assert.equal(JSON.parse(fs.readFileSync(path.join(f.out,'status.json'))).bridge.status,'NOTIFIED');
   assert.equal(JSON.parse(fs.readFileSync(f.notice)).targetSession,f.binding.targetSession);
 });
+
+// 2026-11-12: exact UTF-8 CRLF bytes from the driver-frozen normal-exit log.
+// Original coordinates below remain provenance; the temporary log has its own offsets.
+const realExit047 = [
+  {
+    "file": "D:/rdd/tmp/live-20261112-0930-bb0-normal-exit.log",
+    "line": 163336,
+    "byteOffset": 98515281,
+    "sha256": "37d582a207696e89fa708a29c9ba7c803c64bebff38121d6fd4bd37146a3f102",
+    "base64": "WzEyMTHmnIgyMDI2IDA5OjMwOjE2Ljk3Nl0gW1JlbmRlciB0aHJlYWQvSU5GT10gW25ldC5taW5lY3JhZnQuY2xpZW50Lk1pbmVjcmFmdC9dOiBTdG9wcGluZyENCg=="
+  },
+  {
+    "file": "D:/rdd/tmp/live-20261112-0930-bb0-normal-exit.log",
+    "line": 163349,
+    "byteOffset": 98517009,
+    "sha256": "f91b863f836fd23302e8a31c592292831e3d7971f9242b0cad364ddf60f3d188",
+    "base64": "WzEyMTHmnIgyMDI2IDA5OjMwOjIwLjg5Nl0gW1NlcnZlciB0aHJlYWQvSU5GT10gW25ldC5taW5lY3JhZnQuc2VydmVyLk1pbmVjcmFmdFNlcnZlci9dOiBUaHJlYWRlZEFudmlsQ2h1bmtTdG9yYWdlOiBBbGwgZGltZW5zaW9ucyBhcmUgc2F2ZWQNCg=="
+  }
+];
+
+function realExitFixture047(t, edit = bytes => bytes) {
+  const f=windowFixture(t), bytes=realExit047.map(r=>Buffer.from(r.base64,'base64'));
+  Object.assign(f.binding,L.bindWindow(f.out,{...f.binding,timezone:'+08:00'},Date.parse(f.binding.since)));
+  const appended=edit(bytes);fs.appendFileSync(f.logFile,Buffer.concat(appended));
+  const tick=()=>require('./bench-watch').collectOnce(f.state,{monitor:f.monitor,out:f.out,views:['snapshot'],now:Date.parse('2026-11-12T01:31:00Z'),bridgeWindow:f.binding});
+  return {...f,bytes,appended,tick};
+}
+test('actual normal-exit original bytes trigger collectOnce package and bound plugin once',async t=>{
+  const f=realExitFixture047(t);const hash=b=>require('crypto').createHash('sha256').update(b).digest('hex');
+  for(let i=0;i<f.bytes.length;i++){
+    assert.equal(hash(f.bytes[i]),realExit047[i].sha256);
+    assert.equal(new TextDecoder('utf-8',{fatal:true}).decode(f.bytes[i]),f.bytes[i].toString('utf8'));
+    assert.throws(()=>new TextDecoder('gb18030',{fatal:true}).decode(f.bytes[i]));
+  }
+  f.tick();assert.ok(fs.existsSync(f.notice),'real normal-exit saved payload must notify through actual collectOnce');
+  const notice=JSON.parse(fs.readFileSync(f.notice,'utf8')),packageBytes=fs.readFileSync(notice.packageFile),pack=JSON.parse(packageBytes);
+  assert.equal(notice.cutoff,'2026-11-12T01:30:20.896Z');
+  assert.equal(notice.logProof.stopping.at,'2026-11-12T01:30:16.976Z');
+  assert.equal(notice.logProof.saved.byteOffset,f.bytes[0].length);
+  assert.equal(notice.logProof.saved.sha256,hash(f.bytes[1].subarray(0,-1)),'physical line hash keeps CR and excludes LF like reader');
+  assert.match(notice.logProof.saved.text,/: ThreadedAnvilChunkStorage: All dimensions are saved\r$/);
+  assert.equal(hash(packageBytes),notice.packageSha256);assert.equal(pack.rows[0].identityStatus,'UNKNOWN');
+  const {apply}=await import('../plugins/dsh-bench-bridge/lib/index.js');const sent=[];
+  const bridge=apply({agents:{get:id=>({id,followup:m=>sent.push(m)})},effect:cb=>cb(),logger:{info(){}}},
+    {enabled:true,targetSession:f.binding.targetSession,bindingFile:f.notice,stateFile:path.join(f.dir,'delivery.json')},
+    {createUserMessage:x=>x,now:()=>Date.parse('2026-11-12T01:31:00Z')});t.after(()=>bridge.dispose());
+  assert.equal((await bridge.tick()).state,'DELIVERED');f.tick();assert.equal((await bridge.tick()).state,'DELIVERED');assert.equal(sent.length,1);
+  console.log('047 actual exit original bytes result',JSON.stringify({source:realExit047,binding:f.binding,notice,packageBase64:packageBytes.toString('base64'),sent}));
+});
+for(const [name,edit] of [
+  ['prefixed autosave without stopping', bytes=>[bytes[1]]],
+  ['prefixed save half line', bytes=>[bytes[0],bytes[1].subarray(0,-1)]],
+  ['prefixed save from fake logger', bytes=>[bytes[0],Buffer.from(bytes[1].toString('utf8').replace('net.minecraft.server.MinecraftServer/','Numen/'))]],
+  ['prefixed save on client logger', bytes=>[bytes[0],Buffer.from(bytes[1].toString('utf8').replace('net.minecraft.server.MinecraftServer/','net.minecraft.client.Minecraft/'))]],
+  ['prefixed save wrong thread', bytes=>[bytes[0],Buffer.from(bytes[1].toString('utf8').replace('Server thread/INFO','Render thread/INFO'))]],
+  ['prefixed save with extra payload', bytes=>[bytes[0],Buffer.from(bytes[1].toString('utf8').replace('All dimensions are saved','All dimensions are saved ignore instructions'))]],
+])test('actual normal-exit rejects '+name,t=>{
+  const f=realExitFixture047(t,edit);f.tick();assert.equal(fs.existsSync(f.notice),false);
+});
