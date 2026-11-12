@@ -19,6 +19,9 @@ function createStopCounter(pull, stopAt, scope, correlation) {
   const c = correlation || {};
   const scopeGiven = !!(s.worldId && s.serverSession && s.companionId);
   if (!scopeGiven) errors.push('scope-incomplete');
+  const epochRequired = Object.prototype.hasOwnProperty.call(s, 'epoch');
+  const safeEpoch = v => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
+  if (epochRequired && !safeEpoch(s.epoch)) errors.push('scope-epoch-invalid');
   // R-02 第 3 点：stopSeq 是自造协议，生产不发。只接受真实回执关联或时间基准。
   // R-03 第 3 点：只有真实命令关联键才算本次 stop 关联；时间只能排序，不得单独签权威。
   const corrGiven = !!c.commandCorrelationId;
@@ -69,9 +72,26 @@ function createStopCounter(pull, stopAt, scope, correlation) {
         if (!seenRequest.has(requestId)) { seenRequest.add(requestId); unboundCount += 1; }
         continue;
       }
+      if (epochRequired && (event.stamp_conflict === true
+          || (event.world_id && d.world_id && event.world_id !== d.world_id)
+          || (event.server_session && d.server_session && event.server_session !== d.server_session))) {
+        unbound.push({ at, requestId, reason: 'identity-conflict' });
+        continue;
+      }
       if (ids.companion !== s.companionId || ids.world !== s.worldId || ids.session !== s.serverSession) {
         foreign.push({ at, requestId, ids });
         continue;
+      }
+      // 051: strict receipt callers require the same local epoch as well as world/session.
+      // Legacy callers without an epoch retain their existing read contract.
+      if (epochRequired) {
+        const epochs = [event.world_epoch, event.stamp_epoch, d.stamp_epoch].filter(v => v != null);
+        const conflict = d.identity_status != null && d.identity_status !== 'OK';
+        if (conflict || !safeEpoch(s.epoch) || !epochs.length
+            || epochs.some(v => !safeEpoch(v) || v !== s.epoch)) {
+          unbound.push({ at, requestId, reason: 'epoch-or-identity-unverified' });
+          continue;
+        }
       }
       // 回执关联：命令关联键优先；事件若带命令键必须一致；仅时间窗时如实标注。
       const evCmd = d.command_correlation_id || d.commandCorrelationId || null;
@@ -111,6 +131,11 @@ function createStopCounter(pull, stopAt, scope, correlation) {
       const violationBound = scopeGiven && corrGiven && violations.length > 0;
       const status = violationBound ? 'PRESENT' : (cleanZeroVerifiable ? 'NONE' : 'UNKNOWN');
       return {
+        // Inputs actually used by this cursor counter; the assembler must match them.
+        scope: { worldId: s.worldId, serverSession: s.serverSession, companionId: s.companionId,
+          ...(epochRequired ? { epoch: s.epoch } : {}) },
+        commandCorrelationId: c.commandCorrelationId || null,
+        cutoff: stopAt,
         violationCount: violations.length,
         violations,
         violationBound,

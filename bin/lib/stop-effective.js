@@ -5,9 +5,9 @@
  * 真实链路（已核源码）：
  *   NumenGateway 命令路径生成 commandId 并发布 ai/command_dispatch{companion_id, command, correlation_id}
  *   → EntityAgentLoop 发布 ai/owner_stop{companion_id, command_correlation_id, drained, overflow_dropped}
- * 因此本次 stop 的关联 = **两条事件同键**，而不是时间窗。时间只用于排序。
+ * 因此本次 stop 的关联来自入队回执键与 owner_stop 同键；dispatch 反查只作诊断。
  *
- * 缺 dispatch 或 owner_stop、或键不一致 → 返回 UNKNOWN（调用方不得用入队时刻冒充生效）。
+ * 缺本次回执键或 owner_stop、或键不一致 → 返回 UNKNOWN（调用方不得用入队时刻冒充生效）。
  */
 const OWNER_STOP = '"type":"owner_stop"';
 const COMMAND_DISPATCH = '"type":"command_dispatch"';
@@ -66,6 +66,7 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
       const s = ev.server_session || d.server_session || null;
       const topEpoch = ev.world_epoch != null ? ev.world_epoch : (ev.stamp_epoch != null ? ev.stamp_epoch : null);
       const dataEpoch = d.stamp_epoch != null ? d.stamp_epoch : null;
+      if (ev.world_epoch != null && ev.stamp_epoch != null && ev.world_epoch !== ev.stamp_epoch) continue;
       // 两侧各自严格：出现就必须是安全非负整数，不能用字符串/布尔强转。
       const isSafeEpoch = (v) => typeof v === 'number' && Number.isSafeInteger(v) && v >= 0;
       if (topEpoch != null && !isSafeEpoch(topEpoch)) continue;
@@ -83,6 +84,8 @@ function scanOwnerStop(lines, companionId, sinceIso, expectedCommandId, scope) {
     hit = {
       at: ev.timestamp, drained: d.drained, overflowDropped: d.overflow_dropped,
       commandCorrelationId: key, eventSeq: ev.event_seq == null ? null : ev.event_seq,
+      // 051: retain the accepted source event for the final assembler to recheck scope/epoch.
+      ownerStopEvent: ev,
     };
   }
   return hit;

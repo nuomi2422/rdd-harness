@@ -232,3 +232,18 @@ test('051 bound violation still FAIL with missing stream', async () => {
   assert.strictEqual(stop.violationBound, true);
   assert.strictEqual(s4, 'FAIL');
 });
+
+for (const [name, fixture] of [
+  ['receipt uuid mismatch', { receipt: { companionUuid: 'other-uuid' } }],
+  ['receipt NO_IDENTITY', { receipt: { identityStatus: 'NO_IDENTITY' } }],
+  ['receipt string epoch', { receipt: { epoch: '0' } }],
+  ['missing owner identity', { ownerData: { identity_status: undefined } }],
+  ['owner top epoch alias conflict', { ownerTop: { stamp_epoch: 1 } }],
+  ['request epoch mismatch', { requests: [{ top: { world_epoch: 1 }, data: { stamp_epoch: 1 } }] }],
+  ['request string epoch', { requests: [{ top: { world_epoch: '0' }, data: { stamp_epoch: '0' } }] }],
+  ['request world conflict', { requests: [{ top: { world_id: 'foreign' }, data: { world_id: 'world-051' } }] }],
+]) test('051 additional ' + name + ' remains NOT_COVERED', async () => {
+  const { stop, s4 } = await chain051(fixture);
+  assert.notStrictEqual(stop.scopeVerified, true);
+  assert.strictEqual(s4, 'NOT_COVERED');
+});

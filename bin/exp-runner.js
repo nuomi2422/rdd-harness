@@ -1069,7 +1069,7 @@ async function cmdRun(opts) {
   // 2026-11-10（cov4 原证）：enqueue→生效约 1.5 秒，这段时间的派发不是"停后泄漏"。
   // 口径：等 owner_stop 生效回执，观测窗从**生效**时刻起算；入队→生效之间的派发单独计数并常驻报告，
   // 但不进 S4 通过条件（那条产品债仍记 D-044-STOPDISPATCH）。
-  // R-03：先找本次 /stop 的 command_dispatch 回执键；找不到就 UNKNOWN（不拿时间冒充）。
+  // 本次键来自严格 enqueue_receipt；反查 command_dispatch 仅作诊断。
   const stopCmd = (() => {
     try {
       const lines = fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8').split(/\r?\n/);
@@ -1077,7 +1077,7 @@ async function cmdRun(opts) {
     } catch { return null; }
   })();
   // R-04 第 1 点：UUID+/stop+时间反查只是 diagnosticObservedStop，不能升 EFFECTIVE。
-  env.stopDiagnostic = { observedStopCommand: stopCmd || null, note: 'reverse-lookup is diagnostic only; no enqueue commandId interface' };
+  env.stopDiagnostic = { observedStopCommand: stopCmd || null, note: 'reverse-lookup is diagnostic only; authority comes from this enqueue_receipt' };
   if (!stopCmd) log(runDir, 'stop', '未找到 /stop 的 provider-observed command_dispatch（仅诊断，不签生效）');
   const stopEffective = await require('./lib/stop-effective').waitForStopEffective({
     readText: () => { try { return fs.readFileSync(path.join(MONITOR, 'ai.jsonl'), 'utf8'); } catch { return ''; } },
@@ -1140,12 +1140,12 @@ async function cmdRun(opts) {
   // 有生效回执就用它当截止（更准确）；没有就退回入队时刻，并把状态记成 UNKNOWN。
   const cutoffIso = stopEffectiveIso || stopAtIso;
   // R-04 第 5 点：env.master.world 只是「准备阶段的存档名」，不是运行世界身份。
-  // 生命周期握手未接 → authoritative worldId/serverSession 都留 null（UNKNOWN）。
   // R-06：作用域只认入队回执带回的实例身份（单机 capture(server) 采样）；没有就 null/UNKNOWN。
   const stopScope = {
     worldId: receiptScope ? receiptScope.worldId : null,
     serverSession: receiptScope ? receiptScope.serverSession : null,
     companionId: (env.companionBinding && env.companionBinding.companionId) || null,
+    epoch: receiptScope ? receiptScope.epoch : null,
   };
   env.stopPrepared = { preparedSaveName: (env.master && env.master.world) || null, note: 'prepared save name, not runtime authority' };
   env.stopScopeFrozen = { ...stopScope, frozenAt: nowIso(),
@@ -1175,30 +1175,32 @@ async function cmdRun(opts) {
   // independentPostStop 只放**游标计数**（权威）；启发式 count 不再混进这个字段。
   const stopSnap = stopCounter.snapshot();
   // R-02 第 6 点：runner 与测试共用这一个组装缝；不再在 runner 里手写形状。
+  const stopEvidenceInput = {
+    enqueueReceipt: stopReceipt,
+    selectedUuid,
+    counterSnapshot: stopSnap,
+    observation,
+    coverage: null,
+    observedGraceMs,
+    javaExited: env.stop.javaExited,
+    saveConfirmed,
+    ownerStop: os,
+    stopAt: stopAtIso,
+    stopEffectiveAt: stopEffectiveIso,
+    stopEffectiveReceipt: stopEffective,
+    stopScope,
+    postStopStatus: postCheck.status,
+    postStopReasons: [...postCheck.reasons, ...stopSnap.errors],
+    rawScanCount: postCheck.rawCount,
+    enqueueToEffective: stopEffectiveIso
+      ? require('./lib/stop-effective').dispatchesBetween(
+        (() => { try { return fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8'); } catch { return ''; } })().split(/\r?\n/),
+        stopAtIso, stopEffectiveIso)
+      : { state: 'UNKNOWN', reason: 'no-effective-receipt' },
+  };
   env.stop = {
     ...env.stop,
-    ...require('./lib/stop-evidence').buildStopEvidence({
-      counterSnapshot: stopSnap,
-      observation,
-      coverageVerified: env.stop.coverageVerified,
-      scopeVerified: env.stop.scopeVerified,
-      observedGraceMs,
-      javaExited: env.stop.javaExited,
-      saveConfirmed,
-      ownerStop: os,
-      stopAt: stopAtIso,
-      stopEffectiveAt: stopEffectiveIso,
-      stopEffectiveReceipt: stopEffective,
-      stopScope,
-      postStopStatus: postCheck.status,
-      postStopReasons: [...postCheck.reasons, ...stopSnap.errors],
-      rawScanCount: postCheck.rawCount,
-      enqueueToEffective: stopEffectiveIso
-        ? require('./lib/stop-effective').dispatchesBetween(
-          (() => { try { return fs.readFileSync(path.join(MONITOR, 'context.jsonl'), 'utf8'); } catch { return ''; } })().split(/\r?\n/),
-          stopAtIso, stopEffectiveIso)
-        : { state: 'UNKNOWN', reason: 'no-effective-receipt' },
-    }),
+    ...require('./lib/stop-evidence').buildStopEvidence(stopEvidenceInput),
     diagnosticRawScanCount: postCheck.rawCount,
     graceSeconds: 60,
   };
@@ -1324,35 +1326,16 @@ async function cmdRun(opts) {
     log(runDir, 'coverage-reject', reason);
     rec('coverage_reject', { reason });
   }
-  // 把停止窗两个"是否已核验"标记落到 env.stop：过去没人写它们，判据只能永远 UNKNOWN。
-  // 取值全部来自本窗已产出的证据，不手填、不为变绿放宽：
-  //   coverageVerified = 覆盖对象由 coverage.js 签发（内容维度验证通过）
-  //   scopeVerified    = 停后计数来自同一个字节游标（stopCounter）+ 观察窗完整 + 七流无缺口
-  {
-    const cov = require('./lib/coverage');
-    const issued = cov.isVerifiedCoverage(coverage);
-    const windowLevel = issued ? coverage.windowCompleteness : 'unproven';
-    env.stop = {
-      ...env.stop,
-      coverageVerified: issued && coverage.contentIntegrity === 'verified'
-        && (windowLevel === 'verified' || windowLevel === 'verified-for-observed-window'),
-      // R-05：身份/关联无真实绑定接口 → scope 不签（null）；「观察窗完整」只证明读了多久。
-      scopeVerified: null,
-      scopeVerifiedReason: 'no-authority-binding-interface: world/server identity and command correlation both unknown',
-      // 游标计数才是权威：启发式扫描永远证明不了归属，所以状态以 stopCounter 为准。
-      // 没有生效回执 → 时间基准不可信，一律 UNKNOWN（不能拿入队时刻冒充生效）。
-      postStopStatus: (env.stop && env.stop.stopEffectiveAt && env.stop.postStopRequests === 0) ? 'PRESENT' : 'UNKNOWN',
-      postStopStatusSource: 'stop-counter/cursor',
-    };
-    // 状态与理由不能打架：PRESENT 时清掉旧理由，只留一句"由游标核验"。
-    if (env.stop.postStopStatus === 'PRESENT') {
-      env.stop.postStopReasons = ['verified-by-cursor'];
-    }
-    // scope 未签时始终把原因留在理由里，S4 才能判 NOT_COVERED。
-    if (env.stop.scopeVerified !== true) {
-      env.stop.postStopReasons = [...(env.stop.postStopReasons || []), 'scope-unverified-no-identity-interface'];
-    }
-  }
+  // 051: finalize with this invocation's receipt and the same cursor/window inputs.
+  // The assembler verifies receipt -> owner_stop -> counter -> issued coverage, never a caller boolean.
+  env.stop = {
+    ...env.stop,
+    ...require('./lib/stop-evidence').buildStopEvidence({
+      ...stopEvidenceInput, coverage,
+      javaExited: env.stop.javaExited,
+    }),
+    postStopStatusSource: 'stop-counter/cursor',
+  };
   env.actions = actionEvidence(lg, raw.tools, gaps, coverage);
   // 2026-11-09（指挥官要求）：窗口范围要**无条件**落下来，不能只有 verified 覆盖时才带。
   // 只声明"我读了哪些流的哪段字节"，与业务时间完整无关。
