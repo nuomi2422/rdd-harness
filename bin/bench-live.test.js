@@ -182,7 +182,7 @@ function windowFixture(t) {
   for (const stream of ['tools', 'events', 'context', 'rdd']) fs.writeFileSync(path.join(monitor, stream + '.jsonl'), stream === 'tools' ? JSON.stringify({timestamp:'2026-11-12T00:00:30Z',session:'run047',category:stream,event_seq:1,world_id:'world047',server_session:'server047',type:'tool_call',data:{companion_id:'companion047',tool_call_id:'call047',tool:'mine'}})+'\n' : '');
   const logFile = path.join(dir, 'latest.log'); fs.writeFileSync(logFile, '');
   const st = fs.statSync(logFile);
-  const binding = {windowKey:'window047',worldId:'world047',serverSession:'server047',companion:'companion047',run:'run047',targetSession:'session-047',since:'2026-11-12T00:00:00Z',logFile,encoding:'utf-8',timezone:'+00:00',source:{offset:0,size:0,identity:st.dev+':'+st.ino,anchorStart:0,anchor:''}};
+  const binding = {windowKey:'window047',worldId:'world047',serverSession:'server047',companion:'companion047',run:'run047',targetSession:'session-047',since:'2026-11-12T00:00:00Z',logFile,encoding:'utf-8',timezone:'+00:00',source:{offset:0,size:0,identity:st.dev+':'+st.ino,anchorStart:0,anchor:'',boundAt:'2026-11-12T00:00:00Z'}};
   const state = L.newState({monitor});
   const tick = () => require('./bench-watch').collectOnce(state,{monitor,out,views:['snapshot'],now:Date.parse('2026-11-12T00:02:00Z'),bridgeWindow:binding});
   const stop = '[1211月2026 00:00:59.000] [Render thread/INFO] [net.minecraft.client.Minecraft/]: Stopping!\r\n';
@@ -207,4 +207,74 @@ test('normal end writer connects actual collectOnce package and plugin once', as
   assert.equal((await bridge.tick()).state,'DELIVERED'); assert.equal(sent.length,1);
   assert.equal(sent[0].source.kind,'plugin:dsh-bench-bridge'); assert.ok(sent[0].content[0].text.length<=1200);
   console.log('writer fixture scope and notice',JSON.stringify({binding:f.binding,notice:b,pack}));
+});
+
+for (const [name,edit,reason] of [
+  ['autosave only', f=>fs.appendFileSync(f.logFile,f.save)],
+  ['save before stopping', f=>fs.appendFileSync(f.logFile,f.save+f.stop)],
+  ['half saved line', f=>fs.appendFileSync(f.logFile,f.stop+f.save.trimEnd()),'partial-log-line'],
+  ['missing scope', f=>{delete f.binding.companion;fs.appendFileSync(f.logFile,f.stop+f.save)},'window-scope-incomplete'],
+  ['old marker timestamps', f=>{f.binding.since='2026-11-12T00:01:30Z';f.binding.source.boundAt=f.binding.since;fs.appendFileSync(f.logFile,f.stop+f.save)},'log-time-outside-window'],
+  ['reversed timestamps', f=>fs.appendFileSync(f.logFile,f.stop.replace('00:00:59','00:01:01')+f.save),'log-time-reversed'],
+  ['future timestamp', f=>fs.appendFileSync(f.logFile,f.stop+f.save.replace('00:01:00','00:03:00')),'log-time-outside-window'],
+  ['invalid calendar', f=>fs.appendFileSync(f.logFile,f.stop.replace('1211月','3211月')+f.save),'log-time-invalid'],
+  ['invalid utf8', f=>fs.appendFileSync(f.logFile,Buffer.concat([Buffer.from(f.stop),Buffer.from([255,10]),Buffer.from(f.save)])),'invalid-log-encoding'],
+  ['lookalike chat payload', f=>fs.appendFileSync(f.logFile,f.stop.replace('net.minecraft.client.Minecraft/','Numen/')+f.save)],
+  ['skipped log budget', f=>fs.appendFileSync(f.logFile,'x'.repeat(2*1024*1024)+f.stop+f.save),'log-read-gap'],
+]) test('normal end writer rejects '+name,t=>{
+  const f=windowFixture(t);edit(f);f.tick();assert.equal(fs.existsSync(f.notice),false);
+  if(reason) {assert.equal(f.state.bridge.status,'UNKNOWN');assert.equal(f.state.bridge.reason,reason);}
+});
+test('normal end writer waits for LF then consumes exact CRLF byte hashes',t=>{
+  const f=windowFixture(t);fs.appendFileSync(f.logFile,f.stop+f.save.slice(0,-1));f.tick();assert.equal(fs.existsSync(f.notice),false);
+  fs.appendFileSync(f.logFile,'\n');f.tick();const b=JSON.parse(fs.readFileSync(f.notice));
+  assert.equal(b.logProof.saved.sha256,require('crypto').createHash('sha256').update(Buffer.from(f.save.slice(0,-1))).digest('hex'));
+});
+test('normal end writer replacement and truncation fail closed after bound prefix',t=>{
+  for(const replace of [false,true]){
+    const f=windowFixture(t);fs.writeFileSync(f.logFile,'bound-prefix\n');
+    f.binding=L.bindWindow(f.out,f.binding,Date.parse(f.binding.since));
+    if(replace){fs.renameSync(f.logFile,f.logFile+'.old');fs.writeFileSync(f.logFile,f.stop+f.save);}else fs.writeFileSync(f.logFile,f.stop+f.save);
+    // fixture tick closes over the original binding; invoke production with the captured binding explicitly.
+    require('./bench-watch').collectOnce(f.state,{monitor:f.monitor,out:f.out,views:['snapshot'],now:Date.parse('2026-11-12T00:02:00Z'),bridgeWindow:f.binding});
+    assert.equal(f.state.bridge.status,'UNKNOWN');assert.equal(fs.existsSync(f.notice),false);
+  }
+});
+test('normal end writer detects same-window mutation and restart avoids rewriting package',t=>{
+  const f=windowFixture(t);fs.appendFileSync(f.logFile,f.stop+f.save);f.tick();const before=fs.readFileSync(f.notice,'utf8');
+  const fresh=L.newState({monitor:f.monitor});require('./bench-watch').collectOnce(fresh,{monitor:f.monitor,out:f.out,views:['snapshot'],bridgeWindow:f.binding});
+  assert.equal(fresh.bridge.status,'NOTIFIED');assert.equal(fs.readFileSync(f.notice,'utf8'),before);
+  f.binding.targetSession='another-session';f.tick();assert.equal(f.state.bridge.status,'UNKNOWN');assert.equal(f.state.bridge.reason,'window-binding-conflict');
+  assert.equal(fs.readFileSync(f.notice,'utf8'),before);
+});
+test('normal end writer generated notice binds plugin target and queue rejection remains pending',async t=>{
+  const f=windowFixture(t);fs.appendFileSync(f.logFile,f.stop+f.save);f.tick();const {apply}=await import('../plugins/dsh-bench-bridge/lib/index.js');let attempts=0;
+  const ctx={agents:{get:id=>({id,followup:()=>{attempts++;throw new Error('queue rejected')}})},effect:cb=>cb(),logger:{info(){}}};
+  const cfg={enabled:true,targetSession:f.binding.targetSession,bindingFile:f.notice,stateFile:path.join(f.dir,'delivery.json')};
+  const runtime={createUserMessage:x=>x,now:()=>Date.parse('2026-11-12T00:02:00Z')};
+  const p=apply(ctx,cfg,runtime);t.after(()=>p.dispose());assert.equal((await p.tick()).state,'PENDING');f.tick();assert.equal((await p.tick()).state,'PENDING');assert.equal(attempts,1);
+  const wrong=apply(ctx,{...cfg,targetSession:'other'},runtime);t.after(()=>wrong.dispose());assert.equal((await wrong.tick()).reason,'host-target-conflict');assert.equal(attempts,1);
+});
+test('unconfigured production collectOnce has no bridge state or artifacts',t=>{
+  const f=windowFixture(t);require('./bench-watch').collectOnce(f.state,{monitor:f.monitor,out:f.out,views:['snapshot']});
+  assert.equal(f.state.bridge,undefined);assert.deepEqual(fs.readdirSync(f.out),['snapshot.md']);
+});
+test('bind-window snapshots EOF through existing reader, keeps binding on ordinary control edits and rejects same-window changes',t=>{
+  const f=windowFixture(t);fs.appendFileSync(f.logFile,f.stop+f.save);const b=L.bindWindow(f.out,f.binding,Date.parse('2026-11-12T00:01:30Z'));
+  assert.equal(b.source.offset,Buffer.byteLength(f.stop+f.save));L.saveControl(f.out,{interval_s:10},'test');assert.deepEqual(L.loadControl(f.out).bridgeWindow,b);
+  assert.deepEqual(L.bindWindow(f.out,f.binding),b);assert.throws(()=>L.bindWindow(f.out,{...f.binding,targetSession:'another'}),/window-binding-conflict/);
+  const state=L.newState({monitor:f.monitor});require('./bench-watch').collectOnce(state,{monitor:f.monitor,out:f.out,views:['snapshot'],bridgeWindow:b});
+  assert.equal(fs.existsSync(f.notice),false,'old complete stop/save before EOF never replayed');
+});
+test('bind-window public CLI uses the same production binder with explicit temporary out',t=>{
+  const f=windowFixture(t), input=path.join(f.dir,'host.json');
+  const b={...f.binding,since:new Date(Date.now()-1000).toISOString()};delete b.source;fs.writeFileSync(input,JSON.stringify(b));
+  const run=spawnSync(process.execPath,[path.join(__dirname,'bench.js'),'live','bind-window',input,'--out',f.out],{encoding:'utf8',timeout:10000});
+  assert.equal(run.status,0,run.stdout+run.stderr);assert.equal(JSON.parse(run.stdout).windowKey,b.windowKey);assert.equal(L.loadControl(f.out).bridgeWindow.source.offset,0);
+});
+test('normal end writer explicit gb18030 source decodes real localized date markers',t=>{
+  const f=windowFixture(t);f.binding.encoding='gb18030';
+  // These markers are ASCII except 月, encoded D4 C2 in GB18030.
+  const encode=s=>Buffer.concat(s.split('月').flatMap((part,i)=>i?[Buffer.from([0xd4,0xc2]),Buffer.from(part)]:[Buffer.from(part)]));
+  fs.appendFileSync(f.logFile,encode(f.stop+f.save));f.tick();assert.equal(f.state.bridge.status,'NOTIFIED');
 });

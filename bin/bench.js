@@ -946,6 +946,17 @@ function liveMain(argv) {
   // 表现为"脚本窗闪一下抢焦点"。live start/stop 才走这条，故不是周期闪窗的根因，但属于同类问题。
   const block = (ms) => spawnSync(process.execPath, ['-e', 'setTimeout(()=>{},' + ms + ')'], { stdio: 'ignore', windowsHide: true });
 
+  if (sub === 'bind-window') {
+    const file = argv[2];
+    if (!file || !path.isAbsolute(file)) die(2, 'usage: bench live bind-window <absolute host binding JSON>');
+    const st = fs.lstatSync(file);
+    if (!st.isFile() || st.size > 16384) die(2, 'binding must be a regular JSON file <=16KiB');
+    const bindingOut = path.resolve(arg(argv, '--out') || LIVE_DIR);
+    const bound = LB.bindWindow(bindingOut, JSON.parse(fs.readFileSync(file, 'utf8')));
+    console.log(JSON.stringify({windowKey:bound.windowKey,targetSession:bound.targetSession,source:bound.source,notice:path.join(bindingOut,'bench-bridge-binding.json'),identityStatus:'UNKNOWN'}));
+    return 0;
+  }
+
   if (sub === 'status') {
     const st = liveStatusOf();
     const alive = !!(st && pidAlive(st.pid));

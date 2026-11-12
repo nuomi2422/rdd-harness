@@ -56,6 +56,7 @@ export function apply(ctx, config = {}, runtime = {}) {
       if (typeof config.targetSession !== 'string' || !config.targetSession.trim()) return report('UNKNOWN', 'explicit-target-required')
       const targetId = config.targetSession
       const raw = config.bindingFile ? JSON.parse(readBounded(config.bindingFile, 16384, io)) : config.binding
+      if (raw?.targetSession !== undefined && raw.targetSession !== targetId) return report('UNKNOWN', 'host-target-conflict')
       const b = validateBinding(raw, now())
       const key = deliveryKey(targetId, b)
       const binding = bindingKey(targetId, b)

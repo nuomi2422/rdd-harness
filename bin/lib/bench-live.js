@@ -32,6 +32,7 @@
  */
 const fs = require('fs');
 const path = require('path');
+const crypto = require('crypto');
 
 const VIEWS = ['snapshot', 'chain', 'chat', 'context', 'strand'];
 const DEFAULT_MONITOR = 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen\\monitor';
@@ -69,7 +70,7 @@ function writeAtomic(file, text) {
 
 // ── 增量读尾 ──────────────────────────────────────────────────────────────
 /** 偏移只推进到换行；调用方可传内存状态检测可观测的替换。不持久化。 */
-function readTail(file, offset, windowBytes, cursor) {
+function readTail(file, offset, windowBytes, cursor, options = {}) {
   const limit = windowBytes || 1024 * 1024;
   let fd;
   try { fd = fs.openSync(file, 'r'); } catch (e) { return { lines: [], offset: offset || 0, size: 0, reset: false, missing: true, error: String(e.code || e.message || e), continuity: 'UNKNOWN' }; }
@@ -99,14 +100,29 @@ function readTail(file, offset, windowBytes, cursor) {
       else begin = end + 1;
     }
     const last = buf.lastIndexOf(10);
-    const lines = last >= begin ? buf.subarray(begin, last + 1).toString('utf8').split('\n').slice(0, -1) : [];
+    const records = [];
+    let lines = [], decodeError = null;
+    if (last >= begin) {
+      try {
+        const decoder = options.encoding ? new TextDecoder(options.encoding, { fatal: true }) : null;
+        if (options.records) {
+          for (let pos = begin; pos <= last;) {
+            const end = buf.indexOf(10, pos), raw = buf.subarray(pos, end);
+            const text = decoder ? decoder.decode(raw) : raw.toString('utf8');
+            records.push({ text, byteOffset: start + pos, sha256: crypto.createHash('sha256').update(raw).digest('hex') });
+            pos = end + 1;
+          }
+          lines = records.map(r => r.text);
+        } else lines = buf.subarray(begin, last + 1).toString('utf8').split('\n').slice(0, -1);
+      } catch { decodeError = 'invalid-log-encoding'; lines = []; records.length = 0; }
+    }
     // 窗口内没有完整行时，丢弃残段，下一拍仍须找首个换行。
     const nextOffset = discard && last < begin ? start + begin : (last >= begin ? start + last + 1 : start);
     const dropping = discard && last < 0;
     const actualSize = start + buf.length;
     const anchorStart = Math.max(0, actualSize - 256);
     if (cursor) Object.assign(cursor, { seen: true, size: actualSize, identity, anchorStart, anchor: read(anchorStart, actualSize - anchorStart), dropping });
-    return { lines, offset: nextOffset, size: actualSize, reset, reason, skipped, continuity: 'UNKNOWN', dropping };
+    return { lines, records, decodeError, partial: nextOffset < actualSize, offset: nextOffset, size: actualSize, reset, reason, skipped, continuity: 'UNKNOWN', dropping };
   } finally { fs.closeSync(fd); }
 }
 
@@ -639,7 +655,7 @@ function renderAll(state, meta, views) {
 module.exports = {
   VIEWS, DEFAULT_MONITOR, MAX_TEXT, RING,
   newState, readTail, normalize, apply, render, renderAll, renderStrand, chainView,
-  loadControl, saveControl, writeAtomic, ts, ago, clip,
+  loadControl, saveControl, writeAtomic, ts, ago, clip, bindWindow, observeNormalEnd,
 };
 
 // ── 控制面（开关文件） ────────────────────────────────────────────────────
@@ -663,6 +679,7 @@ function loadControl(outDir) {
       updated_at: o.updated_at || null,
       by: o.by || 'unknown',
       note: o.note || '',
+      ...(o.bridgeWindow !== undefined ? { bridgeWindow: o.bridgeWindow } : {}),
     };
   } catch { return dflt; }
 }
@@ -677,4 +694,113 @@ function saveControl(outDir, patch, by) {
   next.enabled = next.enabled !== false;
   writeAtomic(controlPath(outDir), JSON.stringify(next, null, 2) + '\n');
   return next;
+}
+
+
+// 047 (2026-11-12): external host binds raw scope once; no world/identity authority.
+const windowFields = ['windowKey','worldId','serverSession','companion','run','targetSession','since','logFile','encoding','timezone'];
+const hashBytes = bytes => crypto.createHash('sha256').update(bytes).digest('hex');
+const zonedTime = s => typeof s === 'string' && /(?:Z|[+-]\d\d:\d\d)$/.test(s) ? Date.parse(s) : NaN;
+function validateWindow(b) {
+  if (!b || !windowFields.slice(0,6).every(k => typeof b[k] === 'string' && /^[A-Za-z0-9_.:-]{1,128}$/.test(b[k]))) throw new Error('window-scope-incomplete');
+  if (!Number.isFinite(zonedTime(b.since)) || !path.isAbsolute(b.logFile || '') || b.logFile.length > 512 || /[\x00-\x1f]/.test(b.logFile)
+      || !['utf-8','gb18030'].includes(b.encoding) || !/^[+-](?:0\d|1[0-3]):[0-5]\d$|^[+-]14:00$/.test(b.timezone || '')) throw new Error('window-source-or-time-unknown');
+}
+function windowHash(b) { return hashBytes(JSON.stringify([...windowFields.map(k => b[k]),b.source])); }
+function bindWindow(out, input, now = Date.now()) {
+  validateWindow(input);
+  if (zonedTime(input.since) > now) throw new Error('window-start-in-future');
+  const prior = loadControl(out).bridgeWindow;
+  if (prior?.windowKey === input.windowKey) {
+    if (windowFields.some(k => prior[k] !== input[k])) throw new Error('window-binding-conflict');
+    return prior; // Same explicit command never moves the bound EOF forward.
+  }
+  const st = fs.lstatSync(input.logFile);
+  if (!st.isFile()) throw new Error('log-not-regular-file');
+  const cursor = {}, tail = readTail(input.logFile, st.size, 2*1024*1024, cursor);
+  if (tail.missing || tail.reset || tail.skipped || tail.partial || !cursor.identity || (tail.size && cursor.anchor[cursor.anchor.length-1] !== 10)) throw new Error('log-start-boundary-unknown');
+  const b = Object.fromEntries(windowFields.map(k => [k,input[k]]));
+  b.source = {offset:tail.offset,size:cursor.size,identity:cursor.identity,anchorStart:cursor.anchorStart,anchor:cursor.anchor.toString('base64'),boundAt:new Date(now).toISOString()};
+  saveControl(out,{bridgeWindow:b},'bench live bind-window');
+  return b;
+}
+function logMarker(record, timezone) {
+  const text = record.text.replace(/\r$/, '');
+  const m = /^\[(\d{1,2})(\d{2})月(\d{4}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})\] \[(Render|Server) thread\/INFO\] \[(net\.minecraft\.(?:client\.Minecraft|server\.MinecraftServer)\/|minecraft\/(?:Minecraft|MinecraftServer))\]: (Stopping!|All dimensions are saved)$/.exec(text);
+  if (!m) return null;
+  const [,day,month,year,hour,min,sec,ms,thread,logger,message] = m;
+  if ((message === 'Stopping!' && (thread !== 'Render' || !['net.minecraft.client.Minecraft/','minecraft/Minecraft'].includes(logger)))
+      || (message !== 'Stopping!' && (thread !== 'Server' || !['net.minecraft.server.MinecraftServer/','minecraft/MinecraftServer'].includes(logger)))) return null;
+  const local = year+'-'+month+'-'+day.padStart(2,'0')+'T'+hour+':'+min+':'+sec+'.'+ms;
+  const date = new Date(local+'Z');
+  if (!Number.isFinite(date.valueOf()) || date.toISOString().slice(0,23) !== local) throw new Error('log-time-invalid');
+  const time = Date.parse(local+timezone);
+  return {...record,kind:message === 'Stopping!' ? 'stopping' : 'saved',at:new Date(time).toISOString()};
+}
+function observeNormalEnd(state, opt) {
+  const b = opt.bridgeWindow;
+  if (b === undefined) return undefined; // No bridge files, log reads or state when unconfigured.
+  let progress;
+  try {
+    validateWindow(b);
+    const src = b.source;
+    if (!src || !Number.isFinite(zonedTime(src.boundAt)) || zonedTime(src.boundAt) < zonedTime(b.since) || !Number.isSafeInteger(src.offset) || src.offset < 0 || src.size !== src.offset || typeof src.identity !== 'string' || !src.identity
+        || !Number.isSafeInteger(src.anchorStart) || src.anchorStart !== Math.max(0,src.size-256) || typeof src.anchor !== 'string'
+        || !/^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?$/.test(src.anchor)
+        || Buffer.from(src.anchor,'base64').length !== src.size-src.anchorStart) throw new Error('log-source-binding-incomplete');
+    const key = windowHash(b);
+    if (state.bridge && state.bridge.key !== key && state.bridge.windowKey === b.windowKey) throw new Error('window-binding-conflict');
+    progress = state.bridge;
+    if (!progress || progress.key !== key) progress = state.bridge = {key,windowKey:b.windowKey,offset:src.offset,cursor:{seen:true,size:src.size,identity:src.identity,anchorStart:src.anchorStart,anchor:Buffer.from(src.anchor,'base64')},status:'WAITING'};
+    if (progress.failed || progress.status === 'NOTIFIED') return progress;
+    const noticeFile = path.join(opt.out,'bench-bridge-binding.json');
+    if (fs.existsSync(noticeFile)) {
+      const st = fs.lstatSync(noticeFile);
+      if (!st.isFile() || st.size > 16384) throw new Error('notice-unreadable');
+      const old = JSON.parse(fs.readFileSync(noticeFile,'utf8'));
+      if (old.windowKey === b.windowKey) {
+        if (old.hostBindingHash !== key) throw new Error('window-binding-conflict');
+        progress.status = 'NOTIFIED'; return progress;
+      }
+    }
+    const cursor = {...progress.cursor};
+    const r = readTail(b.logFile,progress.offset,2*1024*1024,cursor,{encoding:b.encoding,records:true});
+    if (r.missing || r.reset || r.skipped || r.decodeError || r.dropping) throw new Error(r.decodeError || r.reason || 'log-read-gap');
+    if (r.partial) { progress.status='UNKNOWN'; progress.reason='partial-log-line'; return progress; }
+    const now = opt.now || Date.now();
+    for (const record of r.records) {
+      const marker = logMarker(record,b.timezone);
+      if (!marker) continue;
+      const time = zonedTime(marker.at);
+      if (time < Math.max(zonedTime(b.since),zonedTime(src.boundAt) || 0) || time > now) throw new Error('log-time-outside-window');
+      if (marker.kind === 'stopping') {
+        if (progress.stopping) throw new Error('multiple-stop-markers');
+        progress.stopping=marker;
+      } else if (progress.stopping) {
+        if (time < zonedTime(progress.stopping.at)) throw new Error('log-time-reversed');
+        if (progress.saved) throw new Error('multiple-save-markers');
+        progress.saved=marker;
+      }
+    }
+    progress.offset=r.offset; progress.cursor=cursor;
+    if (!progress.saved) { progress.status='WAITING'; delete progress.reason; return progress; }
+    const cutoff=progress.saved.at;
+    const pack=require('./evidence-pack').fromDir(opt.monitor,{mode:'list',asOf:cutoff,worldId:b.worldId,serverSession:b.serverSession,companion:b.companion,run:b.run,
+      maxSourceFiles:12,maxSourceBytes:4*1024*1024,limit:24,maxBytes:64000});
+    if (pack.schemaVersion !== 1 || !Array.isArray(pack.rows) || !pack.asOf) throw new Error('evidence-package-unavailable');
+    pack.notification={kind:'normal-end-log-only',identityStatus:'UNKNOWN',worldEffects:'UNKNOWN',windowKey:b.windowKey,since:b.since,cutoff};
+    const bytes=JSON.stringify(pack), packageFile=path.join(path.resolve(opt.out),'bench-bridge-'+hashBytes(b.windowKey).slice(0,24)+'.json');
+    if (Buffer.byteLength(bytes) > 1024*1024) throw new Error('evidence-package-budget');
+    writeAtomic(packageFile,bytes);
+    const notice={...Object.fromEntries(windowFields.slice(0,7).map(k=>[k,b[k]])),cutoff,packageFile,packageSha256:hashBytes(bytes),hostBindingHash:key,
+      logProof:{file:b.logFile,encoding:b.encoding,timezone:b.timezone,stopping:progress.stopping,saved:progress.saved,identityStatus:'UNKNOWN'},
+      end:{kind:'normal-end',at:cutoff,windowKey:b.windowKey,worldId:b.worldId,serverSession:b.serverSession,companion:b.companion,run:b.run,cutoff}};
+    writeAtomic(noticeFile,JSON.stringify(notice));
+    progress.status='NOTIFIED'; delete progress.reason;
+  } catch(e) {
+    progress = progress || state.bridge || {};
+    Object.assign(progress,{status:'UNKNOWN',failed:true,reason:String(e.message).slice(0,200)});
+    state.bridge=progress;
+  }
+  return progress;
 }

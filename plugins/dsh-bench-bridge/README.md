@@ -49,3 +49,16 @@ Node regression: node --test plugins/dsh-bench-bridge/test/index.test.js
 Tests exercise actual apply/tick with synthetic official queue/message boundaries
 and real evidence-pack fixtures in os.tmpdir; they do not prove host enablement.
 Rollback: keep enabled false/remove this plugin binding, preserving bench and evidence.
+
+
+外层生产通知（2026-11-12）：现有 bench-watch 在明确绑定后读同一 latest.log；无需另建 runner。外部 driver 将已核原始 scope 写入一个 <=16KiB JSON，执行：
+
+~~~text
+node bin/bench.js live bind-window <absolute-host-binding.json>
+~~~
+
+输入字段为 windowKey、worldId、serverSession、companion、run、targetSession、since（带时区 ISO）、logFile（绝对路径）、encoding（utf-8 或 gb18030）、timezone（明确偏移，如 +08:00）。命令捕获当时 EOF、文件身份、末尾锚点与绑定时间；旧保存不回放，同窗重跑不移动起点，改同窗绑定拒绝。新窗口须明确绑定。此命令只写 observer 控制面，不停止游戏。测试的 --out 仅指定隔离 live 目录。
+
+现 observer 下一拍读取 watch.json 的 bridgeWindow，仅完整匹配受支持的 Minecraft logger 的 Stopping! 后 All dimensions are saved，才有界调用现 evidence-pack.fromDir（12 文件、4MiB 主读预算、24 行页、64KB 行预算）。UTF-8/GB18030 解码错误、半行、替换、跳读、时序不明保持 UNKNOWN；status.json.bridge 显示原因。当前支持实见中文日期 ddMM月yyyy 加毫秒，其他格式不猜。包保留源覆盖、缺口、分页和 raw UNKNOWN；保存标记只证明日志通知，未证明世界效果。
+
+产物为 live/bench-bridge-<windowhash>.json 及原子更新 live/bench-bridge-binding.json。插件配置使用该 bindingFile 和同一明确 targetSession；未绑定不扫描日志。此接线的 Node 测试使用 fake 官方 followup 边界，不能等同宿主启用成功；本批没有安装、启用插件、改 C 原件、改当前 watch.json 或重启 DSH/MC。

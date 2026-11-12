@@ -110,7 +110,8 @@ function collectOnce(state, opt) {
       try { L.writeAtomic(path.join(opt.out, v + '.md'), '# ' + v + '\n\nUNKNOWN：本拍视图生成失败；内容不可用。\n'); } catch (writeError) { state.errors.push('view ' + v + ' fallback: ' + String(writeError.message || writeError).slice(0, 200)); }
     }
   }
-  return { writes, collected, paused: false };
+  const bridge = L.observeNormalEnd(state, opt);
+  return { writes, collected, paused: false, ...(bridge ? { bridge } : {}) };
 }
 
 function statusOf(state, extra) {
@@ -128,6 +129,7 @@ function statusOf(state, extra) {
     counters: state.counters,
     files,
     errors: state.errors.slice(-5),
+    ...(state.bridge ? { bridge: { status: state.bridge.status, reason: state.bridge.reason || null, windowKey: state.bridge.windowKey } } : {}),
   }, extra || {});
 }
 
@@ -163,7 +165,7 @@ function loop(opt) {
     }
     let r;
     try {
-      r = collectOnce(state, { monitor: opt.monitor, out: opt.out, views: ctl.views, interval_s: ctl.interval_s });
+      r = collectOnce(state, { monitor: opt.monitor, out: opt.out, views: ctl.views, interval_s: ctl.interval_s, bridgeWindow: ctl.bridgeWindow });
     } catch (e) {
       state.errors.push(String((e && e.message) || e).slice(0, 300));
       r = { writes: [], collected: 0 };
@@ -299,7 +301,7 @@ function main() {
     const ctl = L.loadControl(out);
     const views = (arg('views', '') || '').split(',').map((s) => s.trim()).filter((v) => L.VIEWS.includes(v));
     const state = L.newState({ monitor, started_at: Date.now() });
-    const r = collectOnce(state, { monitor, out, views: views.length ? views : ctl.views, interval_s: ctl.interval_s });
+    const r = collectOnce(state, { monitor, out, views: views.length ? views : ctl.views, interval_s: ctl.interval_s, bridgeWindow: ctl.bridgeWindow });
     writeStatus(out, statusOf(state, { running: false, once: true, views: views.length ? views : ctl.views, last_collected: r.collected, last_writes: r.writes }));
     console.log(JSON.stringify({ once: true, collected: r.collected, writes: r.writes, chain: state.last.chain && state.last.chain.chain ? state.last.chain.chain.primaryStatus : null }, null, 2));
     return 0;
