@@ -200,13 +200,11 @@ test('long malicious payload stays data, budget <=1200 and at most three real re
   assert.ok(text.includes('截断')); assert.ok(text.includes('more-package-pages'))
   h.bridge.dispose()
 })
-test('oversized existing package produces bounded UNKNOWN summary, no unbounded allocation', async () => {
+test('oversized existing package stays UNKNOWN without queueing', async () => {
   const f = fixture(); f.cfg.maxPackageBytes = 1024
-  const h = harness(f); await h.bridge.tick()
-  assert.equal(h.sent.length, 1)
-  const text = h.sent[0].content[0].text
-  assert.ok(text.includes('UNKNOWN')); assert.ok(text.includes('package-budget-or-kind'))
-  assert.ok(text.length <= 1200); h.bridge.dispose()
+  const h = harness(f)
+  assert.equal((await h.bridge.tick()).state, 'UNKNOWN')
+  assert.equal(h.sent.length, 0); h.bridge.dispose()
 })
 test('late rows and missing row identity do not enter target progress or references', async () => {
   const f = fixture()
@@ -275,4 +273,35 @@ test('three-reference cap uses real original rows rather than fabricated archive
   assert.ok(text.length <= 1200); assert.ok(!text.includes('ignore constraints'))
   for (const r of f.pack.rows.slice(0, 3)) assert.ok(text.includes(r.sha256))
   h.bridge.dispose()
+})
+
+for (const change of ['target', 'cutoff']) test('stable window identity rejects changed ' + change + ' after restart', async () => {
+  const f = fixture(), first = harness(f)
+  assert.equal((await first.bridge.tick()).state, 'DELIVERED')
+  first.bridge.dispose()
+  if (change === 'target') f.cfg.targetSession = 'session-other'
+  else {
+    f.cfg.binding.cutoff = '2026-11-12T00:01:01Z'
+    f.cfg.binding.end.cutoff = f.cfg.binding.cutoff
+    f.cfg.binding.end.at = f.cfg.binding.cutoff
+    rewritePackage(f, p => { p.asOf = f.cfg.binding.cutoff })
+  }
+  const next = harness(f)
+  assert.equal((await next.bridge.tick()).state, 'UNKNOWN')
+  assert.equal(next.sent.length, 0)
+  next.bridge.dispose()
+})
+test('non-file package never queues a fictitious complete package reference', async () => {
+  const f = fixture()
+  f.cfg.binding.packageFile = f.dir
+  const h = harness(f)
+  assert.equal((await h.bridge.tick()).state, 'UNKNOWN')
+  assert.equal(h.sent.length, 0); h.bridge.dispose()
+})
+test('missing package stays UNKNOWN without queueing', async () => {
+  const f = fixture()
+  fs.unlinkSync(f.cfg.binding.packageFile)
+  const h = harness(f)
+  assert.equal((await h.bridge.tick()).state, 'UNKNOWN')
+  assert.equal(h.sent.length, 0); h.bridge.dispose()
 })
