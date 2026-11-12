@@ -737,7 +737,7 @@ function bindWindow(out, input, now = Date.now()) {
 }
 function logMarker(record, timezone) {
   const text = record.text.replace(/\r$/, '');
-  const m = /^\[(\d{1,2})(\d{2})月(\d{4}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})\] \[(Render|Server) thread\/INFO\] \[(net\.minecraft\.(?:client\.Minecraft|server\.MinecraftServer)\/|minecraft\/(?:Minecraft|MinecraftServer))\]: (Stopping!|All dimensions are saved)$/.exec(text);
+  const m = /^\[(\d{1,2})(\d{2})月(\d{4}) (\d{2}):(\d{2}):(\d{2})\.(\d{3})\] \[(Render|Server) thread\/INFO\] \[(net\.minecraft\.(?:client\.Minecraft|server\.MinecraftServer)\/|minecraft\/(?:Minecraft|MinecraftServer))\]: (Stopping!|(?:ThreadedAnvilChunkStorage: )?All dimensions are saved)$/.exec(text);
   if (!m) return null;
   const [,day,month,year,hour,min,sec,ms,thread,logger,message] = m;
   if ((message === 'Stopping!' && (thread !== 'Render' || !['net.minecraft.client.Minecraft/','minecraft/Minecraft'].includes(logger)))
