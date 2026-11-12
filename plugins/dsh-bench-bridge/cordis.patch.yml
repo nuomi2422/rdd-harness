@@ -1,0 +1,6 @@
+# 默认关闭：把 enabled 改成 true 才会投递
+- insert:
+    - id: bench-bridge
+      name: 'dsh-bench-bridge'
+      config:
+        enabled: false

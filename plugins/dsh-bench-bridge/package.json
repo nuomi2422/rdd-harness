@@ -1,0 +1,28 @@
+{
+  "name": "dsh-bench-bridge",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "关窗后把实验台摘要自动投给编码 AI（默认关闭，需 enabled:true）",
+  "main": "lib/index.js",
+  "exports": {
+    ".": "./lib/index.js",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "cordis.patch.yml"
+  ],
+  "license": "MIT",
+  "keywords": [
+    "dsh",
+    "dsh-plugin",
+    "bench",
+    "digest"
+  ],
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  }
+}
