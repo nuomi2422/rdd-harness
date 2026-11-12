@@ -7,6 +7,11 @@ const crypto = require('crypto');
 const AL = require('./action-ledger');
 const { createPull } = require('./monitor-reader');
 const FILES = ['tools.jsonl', 'events.jsonl', 'context.jsonl', 'rdd.jsonl'];
+// MonitoringJournal rotates to <stream>-<epoch millis>.jsonl in the same directory.
+const physicalStream = file => {
+  const m = /^(tools|events|context|rdd)(?:-[1-9]\d{12})?\.jsonl$/.exec(file);
+  return m ? m[1] + '.jsonl' : null;
+};
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 const str = v => typeof v === 'string' && v.trim() === v && v.length ? v : null;
 const time = v => typeof v === 'string' && /(?:Z|[+-]\d\d:\d\d)$/i.test(v) && Number.isFinite(Date.parse(v)) ? Date.parse(v) : NaN;
@@ -56,7 +61,7 @@ function publicRow(r, content) {
   return out;
 }
 function project(linesByFile, opts = {}) {
-  const rows = [], gaps = [...(opts.gaps || [])], sources = {};
+  const rows = [], gaps = [...(opts.gaps || [])], sources = { ...(opts.sourceMetadata || {}) };
   const cutoff = opts.asOf ? time(opts.asOf) : Infinity;
   if ((opts.view === 'decision' && !opts.asOf) || (opts.asOf && !Number.isFinite(cutoff)))
     return { error: 'invalid-or-missing-cutoff', rows: [], gaps, sources };
@@ -65,7 +70,7 @@ function project(linesByFile, opts = {}) {
       gaps.push({ file, reason: 'missing-stream' }); continue;
     }
     const text = String(linesByFile[file]), lines = text.split('\n');
-    sources[file] = { file: opts.dir ? path.resolve(opts.dir, file) : file, sha256: hash(text), bytes: Buffer.byteLength(text) };
+    sources[file] = { ...sources[file], file: opts.dir ? path.resolve(opts.dir, file) : file, sha256: hash(text), bytes: Buffer.byteLength(text) };
     let offset = 0;
     for (let i = 0; i < lines.length; i++) {
       const raw = lines[i], byteOffset = offset;
@@ -85,7 +90,7 @@ function project(linesByFile, opts = {}) {
         gaps.push({ ref, reason: 'cutoff-time-unknown' }); continue;
       }
       if (opts.asOf && (ts[0] > cutoff || (ingested !== null && ingested > cutoff))) continue;
-      const row = { event, file, ref, line: i + 1, byteOffset, sha256: hash(raw),
+      const row = { event, file: physicalStream(file) || file, physicalFile: file, ref, line: i + 1, byteOffset, sha256: hash(raw),
         sourceFile: sources[file].file, claimed: claims(event),
         eventId: str(event.event_id), sourceSequence: Number.isSafeInteger(event.event_seq) ? event.event_seq : null };
       row.scope = identity(row, opts.resolveIdentity);
@@ -131,7 +136,10 @@ function page(rows, queryKey, opts) {
 function build(linesByFile, opts = {}) {
   const p = project(linesByFile, opts);
   const base = { schemaVersion: 1, view: opts.view || 'retrospective', asOf: opts.asOf || null,
-    visibility: 'journal-time-only; not proof of model-visible delivery', sources: p.sources, gaps: p.gaps };
+    visibility: 'journal-time-only; not proof of model-visible delivery', sources: p.sources, gaps: p.gaps,
+    ...(opts.sourceCoverage ? { sourceCoverage: { ...opts.sourceCoverage,
+      status: p.gaps.length ? 'PARTIAL' : 'OBSERVED_FILES_ONLY',
+      scope: 'named physical files and observed byte ranges only; not session completeness or verified identity' } } : {}) };
   if (p.error) return { ...base, status: 'UNKNOWN', reason: p.error, rows: [] };
   let selected = p.rows.filter(r => matches(r, opts));
   const mode = opts.mode || 'episode';
@@ -143,7 +151,7 @@ function build(linesByFile, opts = {}) {
     if (mode === 'expand') {
       const before = Number.isSafeInteger(opts.before) ? Math.max(0, Math.min(opts.before, 100)) : 3;
       const after = Number.isSafeInteger(opts.after) ? Math.max(0, Math.min(opts.after, 100)) : 3;
-      selected = selected.filter(r => r.file === anchor.file && r.line >= anchor.line - before && r.line <= anchor.line + after);
+      selected = selected.filter(r => r.physicalFile === anchor.physicalFile && r.line >= anchor.line - before && r.line <= anchor.line + after);
       base.relation = 'source-neighbours-only; no causal association';
     } else {
       const key = anchor.scope && scopeKey(anchor.scope);
@@ -196,27 +204,103 @@ function build(linesByFile, opts = {}) {
     // Bind adapter result too: a cursor cannot switch identity/authorization adapters.
     records: selected.map(r => [r.ref, r.sha256, r.scope]) }));
   const result = page(selected, queryKey, opts);
-  return { ...base, ...result, status: result.status === 'PRESENT' && mode === 'episode' ? 'PARTIAL' : result.status,
+  return { ...base, ...result, status: result.status === 'PRESENT' && (mode === 'episode' || (opts.sourceCoverage && p.gaps.length)) ? 'PARTIAL' : result.status,
     ...(stages ? { stages, unknowns, completeness: 'PARTIAL; tool completion is not world-effect proof' } : {}) };
 }
+/**
+ * Discover only explicit production stream names in one directory; every file is
+ * consumed and reverified by monitor-reader. No concatenated archive line numbers,
+ * recursive history walk, or identity binding is introduced here.
+ */
 function fromDir(dir, opts = {}) {
-  const reader = createPull({ dir }), texts = {};
-  for (const file of FILES) {
-    texts[file] = reader.pull(file);
-    if (!fs.existsSync(path.join(dir, file))) texts[file] = null;
+  const unknown = reason => ({ schemaVersion: 1, status: 'UNKNOWN', reason, rows: [], sources: {},
+    gaps: [{ reason }], sourceCoverage: { status: 'PARTIAL', scope: 'named physical files only; not session completeness' } });
+  const streams = opts.streams === undefined ? FILES : Array.isArray(opts.streams)
+    ? [...new Set(opts.streams.map(x => typeof x === 'string' && !x.endsWith('.jsonl') ? x + '.jsonl' : x))] : [];
+  if (!streams.length || streams.some(x => !FILES.includes(x))) return unknown('invalid-stream-selection');
+  const explicit = opts.sources;
+  if (explicit !== undefined && (!Array.isArray(explicit) || !explicit.length ||
+      explicit.some(f => typeof f !== 'string' || !physicalStream(f) || !streams.includes(physicalStream(f)))))
+    return unknown('invalid-source-selection');
+  const maxFiles = opts.maxSourceFiles === undefined ? 12 : Number(opts.maxSourceFiles);
+  const maxBytes = opts.maxSourceBytes === undefined ? 64 * 1024 * 1024 : Number(opts.maxSourceBytes);
+  if (!Number.isSafeInteger(maxFiles) || maxFiles < 1 || maxFiles > 64 ||
+      !Number.isSafeInteger(maxBytes) || maxBytes < 1 || maxBytes > 256 * 1024 * 1024)
+    return unknown('invalid-source-budget');
+  const snapshot = () => {
+    const entries = fs.readdirSync(dir, { withFileTypes: true });
+    const names = explicit ? [...new Set(explicit)] : [...new Set(streams.concat(entries
+      .filter(e => e.isFile() && physicalStream(e.name) && streams.includes(physicalStream(e.name))).map(e => e.name)))];
+    return Object.fromEntries(names.sort().map(file => {
+      let meta;
+      try {
+        const st = fs.lstatSync(path.join(dir, file), { bigint: true });
+        meta = { size: Number(st.size), ino: String(st.ino), dev: String(st.dev),
+          mtimeNs: String(st.mtimeNs), ctimeNs: String(st.ctimeNs), regular: st.isFile() };
+      } catch (e) { meta = { error: e.code || 'stat-failed' }; }
+      return [file, meta];
+    }));
+  };
+  let manifest;
+  try { manifest = snapshot(); } catch { return unknown('source-directory-unreadable'); }
+  const reader = createPull({ dir }), texts = {}, gaps = [], metadata = {};
+  const files = Object.keys(manifest).sort((a, b) => {
+    const liveA = FILES.includes(a), liveB = FILES.includes(b);
+    if (liveA !== liveB) return liveA ? -1 : 1;
+    return liveA ? FILES.indexOf(a) - FILES.indexOf(b)
+      : Number(b.slice(b.lastIndexOf('-') + 1, -6)) - Number(a.slice(a.lastIndexOf('-') + 1, -6)) || a.localeCompare(b);
+  });
+  let allocated = 0, attempted = 0;
+  for (const file of files) {
+    const m = manifest[file];
+    const source = metadata[file] = { file: path.resolve(dir, file), stream: physicalStream(file),
+      manifest: m, bytes: 0, sha256: null, readStatus: 'NOT_READ', observedFrom: 0, observedTo: 0 };
+    if (m.error || !m.regular) {
+      gaps.push({ file, reason: m.error === 'ENOENT' ? 'missing-stream' : 'source-unavailable', detail: m.error || 'not-a-file' });
+      continue;
+    }
+    if (attempted >= maxFiles) { gaps.push({ file, reason: 'source-file-budget', unreadBytes: m.size }); continue; }
+    if (allocated >= maxBytes && m.size > 0) { gaps.push({ file, reason: 'source-byte-budget', unreadBytes: m.size }); continue; }
+    attempted++;
+    const allowance = Math.min(m.size, maxBytes - allocated);
+    allocated += allowance;
+    texts[file] = reader.pull(file, allowance);
+    source.observedTo = reader.offsets[file] || 0;
+    source.readStatus = source.observedTo === m.size ? (m.size ? 'OBSERVED' : 'EMPTY') : 'PARTIAL';
+    if (allowance < m.size) gaps.push({ file, reason: 'source-byte-budget',
+      from: source.observedTo, unreadBytes: m.size - source.observedTo });
   }
-  const gaps = Object.entries(reader.gaps).map(([file,g]) => ({ file, ...g }));
+  for (const [file, g] of Object.entries(reader.gaps)) gaps.push({ file, ...g });
   for (const [file, pending] of Object.entries(reader.pending)) if (pending)
     gaps.push({ file, reason: 'partial-tail-not-consumed', from: reader.offsets[file] || 0 });
   const verification = reader.verifySegments();
-  if (!verification.ok && Object.values(verification.files).some(f => f.broken))
-    gaps.push({ reason: 'source-changed-during-read' });
-  return build(texts, { ...opts, dir, gaps });
+  let after;
+  try { after = snapshot(); } catch { after = {}; gaps.push({ reason: 'source-directory-unreadable-after-read' }); }
+  if (JSON.stringify(manifest) !== JSON.stringify(after)) gaps.push({ reason: 'source-manifest-changed' });
+  for (const file of files) {
+    const source = metadata[file], verified = verification.files[file];
+    source.segmentVerification = verified || null;
+    if (JSON.stringify(manifest[file]) !== JSON.stringify(after[file]) || (verified && verified.broken)) {
+      gaps.push({ file, reason: 'source-changed-during-read' });
+      delete texts[file]; source.readStatus = 'CHANGED';
+    }
+  }
+  return build(texts, { ...opts, dir, gaps, sourceFiles: files, sourceMetadata: metadata,
+    sourceCoverage: { streams, namedSources: files.length,
+      physicalSources: Object.values(manifest).filter(m => m.regular).length, attemptedSources: attempted,
+      maxSourceFiles: maxFiles, maxSourceBytes: maxBytes, allocatedReadBytes: allocated,
+      byteBudgetScope: 'primary reads; segment verification re-reads consumed bytes, anchors at most 64 bytes/file',
+      manifestAfter: after } });
 }
 function cli(argv) {
   const get = flag => { const i = argv.indexOf(flag); return i < 0 ? undefined : argv[i + 1]; };
+  const many = flag => argv.flatMap((x, i) => x === flag && argv[i + 1] !== undefined ? argv[i + 1].split(',') : []);
+  const streams = many('--streams').concat(many('--stream')), sources = many('--source');
   const dir = get('--dir') || 'D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor';
   return fromDir(dir, { mode: argv.includes('--list') ? 'list' : argv.includes('--expand') ? 'expand' : 'episode',
+    ...(streams.length ? { streams } : {}), ...(sources.length ? { sources } : {}),
+    ...(get('--max-source-files') !== undefined ? { maxSourceFiles: Number(get('--max-source-files')) } : {}),
+    ...(get('--max-source-bytes') !== undefined ? { maxSourceBytes: Number(get('--max-source-bytes')) } : {}),
     eventRef: get('--event'), eventHash: get('--event-hash'), asOf: get('--as-of'), view: get('--view'),
     companion: get('--companion'), run: get('--run'), worldId: get('--world'), serverSession: get('--server-session'),
     callId: get('--call'), cursor: get('--cursor'), limit: Number(get('--limit')),
@@ -229,6 +313,9 @@ function render(r) {
   if (r.asOf) out.push('截止=' + r.asOf + '（日志时刻，不等于模型已见）');
   for (const row of r.rows || []) out.push(row.ref + ' ' + row.type + ' ' + (row.tool || '') + ' ' + row.identityStatus);
   if (r.unknowns) out.push('缺环节=' + r.unknowns.join(', '));
+  if (r.sourceCoverage) out.push('物理源覆盖=' + r.sourceCoverage.status
+    + ' sources=' + r.sourceCoverage.physicalSources + ' read=' + r.sourceCoverage.attemptedSources
+    + ' — ' + r.sourceCoverage.scope);
   out.push('读取缺口=' + JSON.stringify(r.gaps || []));
   if (r.nextCursor) out.push('下一页 --cursor ' + r.nextCursor);
   if (r.relation) out.push(r.relation);

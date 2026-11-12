@@ -82,7 +82,7 @@ function createPull(opts) {
     if (!gaps[f]) gaps[f] = { at: nowIso(), reason, ...(extra || {}) };
   };
 
-  function pull(f) {
+  function pull(f, maxReadBytes) {
     const p = path.join(dir, f);
     if (!fs.existsSync(p)) {
       // A missing required stream is never evidence of a complete empty window,
@@ -125,7 +125,12 @@ function createPull(opts) {
     try { fd = fs.openSync(p, 'r'); }
     catch (e) { noteGap(f, 'read-failed', { error: String((e && e.message) || e).slice(0, 120) }); return ''; }
     try {
-      const len = size - (offsets[f] || 0);
+      // Optional bounded consumer read; omitted preserves all existing incremental callers.
+      // 2026-11-12 A1: directory adapters must not allocate an entire growing archive past their budget.
+      const remaining = size - (offsets[f] || 0);
+      const len = Number.isSafeInteger(maxReadBytes) && maxReadBytes >= 0
+        ? Math.min(remaining, maxReadBytes) : remaining;
+      if (!len) return '';
       const buf = Buffer.alloc(len);
       const n = fs.readSync(fd, buf, 0, len, offsets[f] || 0);
       if (n !== len) noteGap(f, 'short-read', { want: len, got: n });
