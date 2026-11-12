@@ -955,7 +955,7 @@
           "level": "block",
           "rule": "★ 本轮新发现的坑/规则必须落进 standards.md 或 docsUnified 的文档或记忆图谱。",
           "bad": "只写在 AGENTS.md 里 —— 明令禁止（AGENTS.md 只放指针，不放收集到的坑）",
-          "verify": "本轮 git diff 或新文件里出现 standards.md / docsUnified / 记忆图谱写入痕迹之一"
+          "verify": "保留现 --since 日期窗口；比较 Git 窗口前基线与 standards.md/现知识库证据根内 Markdown 真实内容差异，或 roots.docs/_memory/memory.jsonl 有效新行追加且旧前缀未改；目录/文件 touch 与记忆工具词不算写入，Git/读取失败保持 UNKNOWN/BLOCK。只证落盘痕迹，不证记录质量或世界效果。"
         },
         {
           "id": "P8",

@@ -432,22 +432,88 @@ function preflight(ctx) {
 
   // P7 规范/索引已补
   {
-    const touched = [];
-    const probe = [
-      P(REG.roots.harness) + path.sep + 'standards.md',
-      P(REG.roots.docsUnified),
-      ...DOC_EVIDENCE_ROOTS(),
+    // 2026-11-13: compare real content with Git; directory times / MCP names are not writes.
+    const evidence = [], unknown = [], rejected = [];
+    const localSince = since.getFullYear() + '-' + String(since.getMonth()+1).padStart(2,'0') +
+      '-' + String(since.getDate()).padStart(2,'0') + ' ' +
+      String(since.getHours()).padStart(2,'0') + ':' + String(since.getMinutes()).padStart(2,'0');
+    const window = '本轮起点 local=' + localSince + ' / ISO=' + since.toISOString();
+    const inside = (root, file) => {
+      const rel = path.relative(path.resolve(root), path.resolve(file));
+      return rel === '' || (!path.isAbsolute(rel) && rel !== '..' && !rel.startsWith('..'+path.sep));
+    };
+    const text = s => String(s).replace(/\r\n/g,'\n').trim();
+    const prose = s => text(s).replace(/memory_(?:create_entities|add_observations|search_nodes)/g,'')
+      .replace(/[\s#*_\x60~:;.,()[\]{}<>/\\-]/g,'');
+    const memory = path.join(REG.roots.docs, '_memory', 'memory.jsonl');
+    const groups = [
+      {anchor:REG.roots.harness, roots:[path.join(REG.roots.harness,'standards.md')]},
+      {anchor:REG.roots.docs, roots:[...DOC_EVIDENCE_ROOTS(), memory]},
     ];
-    // 记忆图谱写入留痕：memory MCP 不落盘，只能靠文档里写了实体名
-    const procTxt = DOC_EVIDENCE_ROOTS().flatMap(d => walk(d, 4, (n) => /\.md$/.test(n)))
-      .filter((f) => freshEnough(f, since))
-      .map((f) => readText(f)).join('\n');
-    const mem = /memory_create_entities|memory_add_observations|memory_search_nodes/.test(procTxt);
-    for (const p of probe) if (isDir(p) || isFile(p)) { if (freshEnough(p, since)) touched.push(path.basename(p)); }
-    const ok = touched.length > 0 || mem;
+    const query = (repo, args) => {
+      const r = git(repo, ['-c','core.quotepath=false',...args]);
+      if (r.code !== 0) throw new Error('Git不可读/失败: ' + args[0]);
+      return r.out;
+    };
+    const nul = value => value.split('\0').filter(Boolean);
+    function validAppend(old, current) {
+      if (!current.startsWith(old) || current.length === old.length || (old && !old.endsWith('\n')) ||
+          !current.endsWith('\n')) return false;
+      const suffix = current.slice(old.length).split(/\r?\n/).filter(l=>l.trim());
+      const existing = new Set(old.split(/\r?\n/).filter(l=>l.trim()).map(l=>JSON.stringify(JSON.parse(l))));
+      if (!suffix.length) return false;
+      let novel = false;
+      const nonempty = v => typeof v === 'string' && !!v.trim();
+      for (const line of suffix) {
+        const row = JSON.parse(line);
+        const valid = row && (
+          (row.type === 'entity' && nonempty(row.name) && nonempty(row.entityType) &&
+            Array.isArray(row.observations) && row.observations.length > 0 && row.observations.every(nonempty)) ||
+          (row.type === 'relation' && nonempty(row.from) && nonempty(row.to) && nonempty(row.relationType)));
+        if (!valid) return false;
+        if (!existing.has(JSON.stringify(row))) novel = true;
+      }
+      return novel;
+    }
+    for (const group of groups) {
+      try {
+        const repo = query(group.anchor, ['rev-parse','--show-toplevel']).trim();
+        if (!repo || !path.isAbsolute(repo)) throw new Error('Git根目录UNKNOWN');
+        const baseline = query(repo, ['rev-list','-1','--before='+since.toISOString(),'HEAD']).trim();
+        if (!/^[0-9a-f]{40,64}$/.test(baseline)) throw new Error('本轮起点之前无Git基线');
+        const roots = [...new Set(group.roots.map(p=>path.resolve(p)))];
+        if (roots.some(p=>!inside(repo,p))) throw new Error('证据根越出Git仓');
+        const specs = roots.map(p=>':(literal)'+path.relative(repo,p).replace(/\\/g,'/'));
+        const trackedBefore = new Set(nul(query(repo,['ls-tree','-r','--name-only','-z',baseline,'--',...specs])));
+        const committed = new Set(nul(query(repo,['diff','--name-only','-z',baseline,'HEAD','--',...specs])));
+        const candidates = [...new Set(nul(query(repo,['ls-files','-z','--cached','--others','--exclude-standard','--',...specs])))];
+        for (const name of candidates) {
+          const file = path.resolve(repo,name);
+          if (!roots.some(p=>inside(p,file)) || (file !== memory && !/\.md$/i.test(file))) continue;
+          let stat;
+          try { stat = fs.lstatSync(file); }
+          catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+          if (!stat.isFile() || stat.isSymbolicLink()) continue;
+          if (stat.mtime < since && !committed.has(name)) continue;
+          if (!inside(fs.realpathSync(repo),fs.realpathSync(file))) throw new Error('证据路径越界');
+          const current = fs.readFileSync(file,'utf8');
+          const old = trackedBefore.has(name) ? query(repo,['show',baseline+':'+name]) : '';
+          if (current === old || text(current) === text(old)) continue;
+          if (file === memory) {
+            let valid = false;
+            try { valid = validAppend(old,current); } catch { /* malformed JSON is not evidence */ }
+            if (valid) evidence.push(name+'（memory有效追加，基线前缀未改）');
+            else rejected.push(name+'（非有效新增/追加）');
+          } else if (prose(current)) {
+            evidence.push(name+'（正文与Git基线不同）');
+          }
+        }
+      } catch (e) { unknown.push('UNKNOWN '+path.basename(group.anchor)+': '+e.message); }
+    }
+    const ok = evidence.length > 0 && unknown.length === 0;
     record('P7', '规范/索引已补', BLOCK, 'trace', ok ? PASS : BLOCK,
-      ok ? `本轮动过：${touched.join(', ') || '(无目录级改动)'}${mem ? ' + 文档里有记忆图谱调用留痕' : ''}`
-         : '★ 本轮既没动 standards.md / docsUnified，也没在文档里留记忆图谱写入痕迹。坑不许只写在 AGENTS.md 里。');
+      window + '；' + (ok ? '真实落盘痕迹: '+evidence.join(' | ')+'；只证内容变更，不证质量或世界效果'
+        : [...unknown,...rejected,'未找到本轮可核的规范/文档正文变更或记忆有效追加；目录时间/工具词不作写入证据'].join('；')));
   }
 
   // P8 不回退清单对照过
