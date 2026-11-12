@@ -36,15 +36,12 @@ export function validateBinding(binding, now) {
   return b
 }
 
-export const deliveryKey = (target, b) => sha256(JSON.stringify([target, ...keys.map(k => b[k])]))
+export const deliveryKey = (_target, b) => sha256(b.windowKey)
+export const bindingKey = (target, b) => sha256(JSON.stringify([target, ...keys.map(k => b[k]),
+  b.since, b.packageFile, b.packageSha256, b.end.kind, b.end.at]))
 
 export function loadPackage(b, io, maxBytes) {
-  let bytes
-  try { bytes = readBounded(b.packageFile, maxBytes, io) }
-  catch (e) {
-    if (e.message !== 'file-budget-or-kind') throw e
-    return { rows: [], gaps: [{ reason: 'package-budget-or-kind' }], status: 'UNKNOWN' }
-  }
+  const bytes = readBounded(b.packageFile, maxBytes, io)
   if (sha256(bytes) !== b.packageSha256) throw new Error('package-hash-mismatch')
   const pack = JSON.parse(bytes.toString('utf8'))
   if (pack.schemaVersion !== 1 || stamp(pack.asOf) !== stamp(b.cutoff) || !Array.isArray(pack.rows)) throw new Error('package-cutoff-or-schema')

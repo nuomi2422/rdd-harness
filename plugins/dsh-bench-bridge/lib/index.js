@@ -6,7 +6,7 @@
 import fs from 'node:fs'
 import os from 'node:os'
 import path from 'node:path'
-import { SOURCE, sha256, readBounded, validateBinding, deliveryKey, loadPackage, renderSummary } from './core.js'
+import { SOURCE, sha256, readBounded, validateBinding, deliveryKey, bindingKey, loadPackage, renderSummary } from './core.js'
 
 export const name = 'dsh-bench-bridge'
 export const inject = ['agents']
@@ -39,12 +39,12 @@ export function apply(ctx, config = {}, runtime = {}) {
     if (loaded) return
     try {
       const parsed = JSON.parse(readBounded(stateFile, 32768, io))
-      if (parsed.version !== 1 || !Array.isArray(parsed.delivered) || parsed.delivered.length > 32
+      if (parsed.version !== 2 || !Array.isArray(parsed.delivered) || parsed.delivered.length > 32
           || !Number.isFinite(parsed.retiredBefore)) throw new Error('state-invalid')
       state = parsed
     } catch (e) {
       if (e.code !== 'ENOENT') throw e
-      state = { version: 1, delivered: [], pending: null, retiredBefore: 0 }
+      state = { version: 2, delivered: [], pending: null, retiredBefore: 0 }
     }
     loaded = true
   }
@@ -58,11 +58,15 @@ export function apply(ctx, config = {}, runtime = {}) {
       const raw = config.bindingFile ? JSON.parse(readBounded(config.bindingFile, 16384, io)) : config.binding
       const b = validateBinding(raw, now())
       const key = deliveryKey(targetId, b)
+      const binding = bindingKey(targetId, b)
       loadState()
-      if (state.delivered.some(entry => entry.key === key)) return report('DELIVERED', 'already-recorded')
+      const previous = state.delivered.find(entry => entry.key === key)
+      if (previous) return previous.binding === binding ? report('DELIVERED', 'already-recorded')
+        : report('UNKNOWN', 'window-binding-conflict')
       if (Date.parse(b.cutoff) <= state.retiredBefore) return report('UNKNOWN', 'outside-retained-markers')
       if (state.pending) {
         if (state.pending.key !== key) return report('UNKNOWN', 'one-pending-window')
+        if (state.pending.binding !== binding) return report('UNKNOWN', 'window-binding-conflict')
         if (state.pending.status !== 'rejected') return report('UNKNOWN', 'delivery-outcome-unknown-no-retry')
         if (!retry) return report('PENDING', 'explicit-retry-required')
       }
@@ -71,27 +75,27 @@ export function apply(ctx, config = {}, runtime = {}) {
       const target = ctx.agents.get(targetId)
       if (!target || target.id !== targetId || target.session?.header?.origin === 'subagent'
           || typeof target.followup !== 'function' || (config.targetWorkspace && target.session?.header?.cwd !== config.targetWorkspace)) {
-        persist({ ...state, pending: { key, status: 'rejected', target: targetId, reason: 'target-unavailable' } })
+        persist({ ...state, pending: { key, binding, status: 'rejected', target: targetId, reason: 'target-unavailable' } })
         return report('PENDING', 'target-unavailable')
       }
       const createUserMessage = runtime.createUserMessage || (await import('@deepseek-ai/dsh-llm')).createUserMessage
       const message = createUserMessage({ content: [{ type: 'text', text: summary.text }], source: SOURCE })
       if (disposed) return report('DISPOSED')
       // Intent is not a delivered marker. A restart with an in-flight intent reports UNKNOWN.
-      persist({ ...state, pending: { key, status: 'sending', target: targetId, packageSha256: b.packageSha256 } })
+      persist({ ...state, pending: { key, binding, status: 'sending', target: targetId, packageSha256: b.packageSha256 } })
       try {
         const accepted = await target.followup(message)
         if (accepted === false || accepted?.accepted === false) throw new Error('queue-rejected')
       } catch (e) {
-        persist({ ...state, pending: { key, status: 'rejected', target: targetId, reason: String(e.message).slice(0, 160) } })
+        persist({ ...state, pending: { key, binding, status: 'rejected', target: targetId, reason: String(e.message).slice(0, 160) } })
         return report('PENDING', 'queue-rejected')
       }
-      const delivered = state.delivered.concat({ key, target: targetId, cutoff: b.cutoff, packageSha256: b.packageSha256 })
+      const delivered = state.delivered.concat({ key, binding, target: targetId, cutoff: b.cutoff, packageSha256: b.packageSha256 })
       let retiredBefore = state.retiredBefore
       while (delivered.length > 32) retiredBefore = Math.max(retiredBefore, Date.parse(delivered.shift().cutoff))
       try { persist({ ...state, delivered, retiredBefore, pending: null }) }
       catch (e) {
-        state = { ...state, pending: { key, status: 'unknown', target: targetId } }
+        state = { ...state, pending: { key, binding, status: 'unknown', target: targetId } }
         return report('UNKNOWN', 'accepted-but-state-unrecorded')
       }
       return report('DELIVERED', 'queue-accepted-and-recorded')
