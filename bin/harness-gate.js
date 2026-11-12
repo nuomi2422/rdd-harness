@@ -457,6 +457,9 @@ function preflight(ctx) {
     };
     const nul = value => value.split('\0').filter(Boolean);
     function validAppend(old, current) {
+      // Git stores LF while autocrlf checkouts use CRLF; compare line endings only, never rewrite evidence.
+      old = old.replace(/\r\n/g,'\n');
+      current = current.replace(/\r\n/g,'\n');
       if (!current.startsWith(old) || current.length === old.length || (old && !old.endsWith('\n')) ||
           !current.endsWith('\n')) return false;
       const suffix = current.slice(old.length).split(/\r?\n/).filter(l=>l.trim());
