@@ -794,7 +794,7 @@ function observeNormalEnd(state, opt) {
     progress.offset=r.offset; progress.cursor=cursor;
     if (!progress.saved) { progress.status='WAITING'; delete progress.reason; return progress; }
     const cutoff=progress.saved.at;
-    const pack=require('./evidence-pack').fromDir(opt.monitor,{mode:'list',asOf:cutoff,worldId:b.worldId,serverSession:b.serverSession,companion:b.companion,run:b.run,
+    const pack=require('./evidence-pack').fromDir(opt.monitor,{mode:'list',sourceWindow:'latest',order:'latest-per-stream',since:b.since,asOf:cutoff,worldId:b.worldId,serverSession:b.serverSession,companion:b.companion,run:b.run,
       maxSourceFiles:12,maxSourceBytes:4*1024*1024,limit:24,maxBytes:64000});
     if (pack.schemaVersion !== 1 || !Array.isArray(pack.rows) || !pack.asOf) throw new Error('evidence-package-unavailable');
     pack.notification={kind:'normal-end-log-only',identityStatus:'UNKNOWN',worldEffects:'UNKNOWN',windowKey:b.windowKey,since:b.since,cutoff};

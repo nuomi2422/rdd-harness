@@ -62,8 +62,9 @@ function publicRow(r, content) {
 }
 function project(linesByFile, opts = {}) {
   const rows = [], gaps = [...(opts.gaps || [])], sources = { ...(opts.sourceMetadata || {}) };
-  const cutoff = opts.asOf ? time(opts.asOf) : Infinity;
-  if ((opts.view === 'decision' && !opts.asOf) || (opts.asOf && !Number.isFinite(cutoff)))
+  const cutoff = opts.asOf ? time(opts.asOf) : Infinity, since = opts.since ? time(opts.since) : -Infinity;
+  if ((opts.view === 'decision' && !opts.asOf) || (opts.asOf && !Number.isFinite(cutoff)) ||
+      (opts.since && !Number.isFinite(since)) || since > cutoff)
     return { error: 'invalid-or-missing-cutoff', rows: [], gaps, sources };
   for (const file of opts.sourceFiles || FILES) {
     if (opts.sourceMetadata && linesByFile[file] === undefined) continue;
@@ -72,12 +73,13 @@ function project(linesByFile, opts = {}) {
     }
     const text = String(linesByFile[file]), lines = text.split('\n');
     sources[file] = { ...sources[file], file: opts.dir ? path.resolve(opts.dir, file) : file, sha256: hash(text), bytes: Buffer.byteLength(text) };
-    let offset = 0;
+    const start = opts.sourceMetadata?.[file]?.observedFrom || 0;
+    let offset = start;
     for (let i = 0; i < lines.length; i++) {
       const raw = lines[i], byteOffset = offset;
       offset += Buffer.byteLength(raw) + (i < lines.length - 1 ? 1 : 0);
       if (!raw.trim()) continue;
-      const ref = file + ':' + (i + 1);
+      const ref = start ? file + '@' + byteOffset : file + ':' + (i + 1);
       let event;
       try { event = JSON.parse(raw); } catch { gaps.push({ ref, reason: 'malformed-line' }); continue; }
       if (!event || typeof event !== 'object' || Array.isArray(event)) { gaps.push({ ref, reason: 'invalid-event' }); continue; }
@@ -86,12 +88,12 @@ function project(linesByFile, opts = {}) {
       const ingestedRaw = event.ingestedAt ?? event.ingested_at;
       const ingested = ingestedRaw === undefined ? null : time(ingestedRaw);
       // Exclude ambiguous times from bounded views; never retain them "for completeness".
-      if (opts.asOf && (!ts.length || ts.some(t => !Number.isFinite(t)) || new Set(ts).size > 1 ||
+      if ((opts.asOf || opts.since) && (!ts.length || ts.some(t => !Number.isFinite(t)) || new Set(ts).size > 1 ||
           (ingestedRaw !== undefined && !Number.isFinite(ingested)))) {
         gaps.push({ ref, reason: 'cutoff-time-unknown' }); continue;
       }
-      if (opts.asOf && (ts[0] > cutoff || (ingested !== null && ingested > cutoff))) continue;
-      const row = { event, file: physicalStream(file) || file, physicalFile: file, ref, line: i + 1, byteOffset, sha256: hash(raw),
+      if ((opts.asOf || opts.since) && (ts[0] < since || ts[0] > cutoff || (ingested !== null && ingested > cutoff))) continue;
+      const row = { event, file: physicalStream(file) || file, physicalFile: file, ref, line: start ? null : i + 1, windowLine: i + 1, byteOffset, sha256: hash(raw),
         sourceFile: sources[file].file, claimed: claims(event),
         eventId: str(event.event_id), sourceSequence: Number.isSafeInteger(event.event_seq) ? event.event_seq : null };
       row.scope = identity(row, opts.resolveIdentity);
@@ -137,7 +139,7 @@ function page(rows, queryKey, opts) {
 function build(linesByFile, opts = {}) {
   const p = project(linesByFile, opts);
   const base = { schemaVersion: 1, view: opts.view || 'retrospective', asOf: opts.asOf || null,
-    visibility: 'journal-time-only; not proof of model-visible delivery', sources: p.sources, gaps: p.gaps,
+    since: opts.since || null, visibility: 'journal-time-only; not proof of model-visible delivery', sources: p.sources, gaps: p.gaps,
     ...(opts.sourceCoverage ? { sourceCoverage: { ...opts.sourceCoverage,
       status: p.gaps.length ? 'PARTIAL' : 'OBSERVED_FILES_ONLY',
       scope: 'named physical files and observed byte ranges only; not session completeness or verified identity' } } : {}) };
@@ -152,7 +154,7 @@ function build(linesByFile, opts = {}) {
     if (mode === 'expand') {
       const before = Number.isSafeInteger(opts.before) ? Math.max(0, Math.min(opts.before, 100)) : 3;
       const after = Number.isSafeInteger(opts.after) ? Math.max(0, Math.min(opts.after, 100)) : 3;
-      selected = selected.filter(r => r.physicalFile === anchor.physicalFile && r.line >= anchor.line - before && r.line <= anchor.line + after);
+      selected = selected.filter(r => r.physicalFile === anchor.physicalFile && r.windowLine >= anchor.windowLine - before && r.windowLine <= anchor.windowLine + after);
       base.relation = 'source-neighbours-only; no causal association';
     } else {
       const key = anchor.scope && scopeKey(anchor.scope);
@@ -200,10 +202,16 @@ function build(linesByFile, opts = {}) {
     }
   }
   const queryKey = hash(JSON.stringify({ sources: p.sources, mode, eventRef: opts.eventRef, eventHash: opts.eventHash,
-    asOf: opts.asOf, view: base.view, filters: [opts.companion,opts.run,opts.worldId,opts.serverSession,opts.callId,opts.types],
+    asOf: opts.asOf, since: opts.since, order: opts.order, view: base.view, filters: [opts.companion,opts.run,opts.worldId,opts.serverSession,opts.callId,opts.types],
     before: opts.before, after: opts.after, content: !!opts.content,
     // Bind adapter result too: a cursor cannot switch identity/authorization adapters.
     records: selected.map(r => [r.ref, r.sha256, r.scope]) }));
+  if (opts.order === 'latest-per-stream' && mode === 'list') {
+    const groups = FILES.map(file => selected.filter(r => r.file === file)
+      .sort((a,b) => time(b.event.timestamp || b.event.at) - time(a.event.timestamp || a.event.at) || b.byteOffset-a.byteOffset));
+    selected = [];
+    for (let i=0; groups.some(g => i<g.length); i++) for (const g of groups) if (g[i]) selected.push(g[i]);
+  }
   const result = page(selected, queryKey, opts);
   return { ...base, ...result, status: result.status === 'PRESENT' && (mode === 'episode' || (opts.sourceCoverage && p.gaps.length)) ? 'PARTIAL' : result.status,
     ...(stages ? { stages, unknowns, completeness: 'PARTIAL; tool completion is not world-effect proof' } : {}) };
@@ -244,13 +252,34 @@ function fromDir(dir, opts = {}) {
   };
   let manifest;
   try { manifest = snapshot(); } catch { return unknown('source-directory-unreadable'); }
-  const reader = createPull({ dir }), texts = {}, gaps = [], metadata = {};
+  const offsets = {}, discardHead = [], texts = {}, gaps = [], metadata = {};
   const files = Object.keys(manifest).sort((a, b) => {
     const liveA = FILES.includes(a), liveB = FILES.includes(b);
     if (liveA !== liveB) return liveA ? -1 : 1;
     return liveA ? FILES.indexOf(a) - FILES.indexOf(b)
       : Number(b.slice(b.lastIndexOf('-') + 1, -6)) - Number(a.slice(a.lastIndexOf('-') + 1, -6)) || a.localeCompare(b);
   });
+  // Opt-in writer policy: reserve one budget per logical stream, then current half + archives half.
+  // Defaults retain historical prefix pagination. Never scan unread prefixes to invent line numbers.
+  if (opts.sourceWindow !== undefined && opts.sourceWindow !== 'latest') return unknown('invalid-source-window');
+  const latest = opts.sourceWindow === 'latest', allowances = {};
+  if (latest) {
+    const chosen = files.filter(f => manifest[f].regular).slice(0,maxFiles);
+    const groups = streams.map(s => chosen.filter(f => physicalStream(f) === s)).filter(g => g.length);
+    const quota = Math.floor(maxBytes / Math.max(1,groups.length));
+    for (const group of groups) {
+      const current = group.find(f => FILES.includes(f)), archives = group.filter(f => f !== current);
+      const currentShare = current ? (archives.length ? Math.floor(quota/2) : quota) : 0;
+      if (current) allowances[current] = Math.min(manifest[current].size,currentShare);
+      const share = Math.floor((quota-currentShare)/Math.max(1,archives.length));
+      for (const f of archives) allowances[f] = Math.min(manifest[f].size,share);
+    }
+    for (const [f,n] of Object.entries(allowances)) {
+      offsets[f] = Math.max(0,manifest[f].size-n);
+      if (offsets[f]) discardHead.push(f);
+    }
+  }
+  const reader = createPull({ dir, offsets, discardHead });
   let allocated = 0, attempted = 0;
   for (const file of files) {
     const m = manifest[file];
@@ -263,12 +292,14 @@ function fromDir(dir, opts = {}) {
     if (attempted >= maxFiles) { gaps.push({ file, reason: 'source-file-budget', unreadBytes: m.size }); continue; }
     if (allocated >= maxBytes && m.size > 0) { gaps.push({ file, reason: 'source-byte-budget', unreadBytes: m.size }); continue; }
     attempted++;
-    const allowance = Math.min(m.size, maxBytes - allocated);
+    const allowance = latest ? (allowances[file] || 0) : Math.min(m.size, maxBytes - allocated);
     allocated += allowance;
     texts[file] = reader.pull(file, allowance);
+    source.observedFrom = reader.windowStartOffset[file] ?? offsets[file] ?? 0;
     source.observedTo = reader.offsets[file] || 0;
-    source.readStatus = source.observedTo === m.size ? (m.size ? 'OBSERVED' : 'EMPTY') : 'PARTIAL';
-    if (allowance < m.size) gaps.push({ file, reason: 'source-byte-budget',
+    source.readStatus = !source.observedFrom && source.observedTo === m.size ? (m.size ? 'OBSERVED' : 'EMPTY') : 'PARTIAL';
+    if (latest && source.observedFrom) gaps.push({ file, reason: 'source-prefix-excluded', from:0, to:source.observedFrom });
+    if (!latest && allowance < m.size) gaps.push({ file, reason: 'source-byte-budget',
       from: source.observedTo, unreadBytes: m.size - source.observedTo });
   }
   for (const [file, g] of Object.entries(reader.gaps)) gaps.push({ file, ...g });
@@ -289,7 +320,7 @@ function fromDir(dir, opts = {}) {
   return build(texts, { ...opts, dir, gaps, sourceFiles: files, sourceMetadata: metadata,
     sourceCoverage: { streams, namedSources: files.length,
       physicalSources: Object.values(manifest).filter(m => m.regular).length, attemptedSources: attempted,
-      maxSourceFiles: maxFiles, maxSourceBytes: maxBytes, allocatedReadBytes: allocated,
+      sourceWindow: latest ? 'latest' : 'prefix', maxSourceFiles: maxFiles, maxSourceBytes: maxBytes, allocatedReadBytes: allocated,
       byteBudgetScope: 'primary reads; segment verification re-reads consumed bytes, anchors at most 64 bytes/file',
       manifestAfter: after } });
 }
@@ -302,7 +333,8 @@ function cli(argv) {
     ...(streams.length ? { streams } : {}), ...(sources.length ? { sources } : {}),
     ...(get('--max-source-files') !== undefined ? { maxSourceFiles: Number(get('--max-source-files')) } : {}),
     ...(get('--max-source-bytes') !== undefined ? { maxSourceBytes: Number(get('--max-source-bytes')) } : {}),
-    eventRef: get('--event'), eventHash: get('--event-hash'), asOf: get('--as-of'), view: get('--view'),
+    eventRef: get('--event'), eventHash: get('--event-hash'), asOf: get('--as-of'), since: get('--since'), view: get('--view'),
+    sourceWindow: get('--source-window'), order: get('--order'),
     companion: get('--companion'), run: get('--run'), worldId: get('--world'), serverSession: get('--server-session'),
     callId: get('--call'), cursor: get('--cursor'), limit: Number(get('--limit')),
     maxBytes: Number(get('--max-bytes')), before: Number(get('--before')), after: Number(get('--after')),

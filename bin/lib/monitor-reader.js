@@ -134,7 +134,16 @@ function createPull(opts) {
       const buf = Buffer.alloc(len);
       const n = fs.readSync(fd, buf, 0, len, offsets[f] || 0);
       if (n !== len) noteGap(f, 'short-read', { want: len, got: n });
-      const text = buf.subarray(0, n).toString('utf8');
+      // Latest-window adapters skip the unknown leading fragment using the same byte reader.
+      // No prefix scan: physical line number stays unknown when the start offset is nonzero.
+      let begin = 0;
+      if (opts.discardHead && opts.discardHead.includes(f) && (offsets[f] || 0) === opts.offsets[f]) {
+        const first = buf.subarray(0, n).indexOf(10);
+        if (first < 0) { pending[f] = { size }; return ''; }
+        begin = first + 1;
+        offsets[f] += begin; windowStartOffset[f] = offsets[f];
+      }
+      const text = buf.subarray(begin, n).toString('utf8');
       const cut = text.lastIndexOf('\n');
       if (cut < 0) {
         if (pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
@@ -143,8 +152,8 @@ function createPull(opts) {
       }
       const complete = Buffer.from(text.slice(0, cut + 1), 'utf8');
       scanEventEnvelope(complete.toString('utf8'), f);
-      if (complete.length < n && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
-      pending[f] = complete.length < n ? { size } : null;
+      if (complete.length < n - begin && pending[f] && pending[f].size === size) noteGap(f, 'stalled-partial', { size });
+      pending[f] = complete.length < n - begin ? { size } : null;
       const from = offsets[f] || 0;
       if (windowStartOffset[f] === undefined) windowStartOffset[f] = from;
       (segments[f] || (segments[f] = [])).push({

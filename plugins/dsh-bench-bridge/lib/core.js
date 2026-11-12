@@ -76,10 +76,11 @@ export function renderSummary(b, pack, maxChars = 1200) {
   ]
   // References come from the existing evidence-pack. Never rebuild line numbers or carry payload text.
   const references = rows.filter(r => typeof r.ref === 'string'
-    && /^(tools|events|context|rdd)(?:-[1-9]\d{12})?\.jsonl:[1-9]\d*$/.test(r.ref)
+    && /^(tools|events|context|rdd)(?:-[1-9]\d{12})?\.jsonl(?::[1-9]\d*|@\d+)$/.test(r.ref)
     && /^[a-f0-9]{64}$/.test(r.sha256 || '') && Number.isSafeInteger(r.byteOffset) && r.byteOffset >= 0
-    && r.line === Number(r.ref.slice(r.ref.lastIndexOf(':') + 1))
-    && r.sourceFile && pack.sources?.[r.ref.slice(0, r.ref.lastIndexOf(':'))]?.file === r.sourceFile)
+    && (r.ref.includes('@') ? r.line === null && r.byteOffset === Number(r.ref.split('@')[1])
+      : r.line === Number(r.ref.slice(r.ref.lastIndexOf(':') + 1)))
+    && r.sourceFile && pack.sources?.[r.ref.split(/[:@]/)[0]]?.file === r.sourceFile)
     .sort((a, b) => Number(/fail|death|error/.test(b.type || '')) - Number(/fail|death|error/.test(a.type || '')))
   let used = 0
   const seen = new Set()
