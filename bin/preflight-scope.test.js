@@ -97,8 +97,32 @@ for(const ledger of ['', '{"at":"2000-01-01T00:00:00Z"}\n','{"at":"2999-01-01T00
 for(const [label,o]of Object.entries({
  missing:{noScript:true},throw:{throwChild:true},error:{child:{status:0,error:new Error('spawn'),stdout:digestText}},
  nonzero:{child:{status:1,stdout:digestText}},empty:{child:{status:0,stdout:'  '}},signal:{child:{status:null,signal:'SIGTERM',stdout:digestText}},
- truncated:{child:{status:0,stdout:digestText+'\n…（已截断，用 --full 看全）'}},oversized:{child:{status:0,stdout:'a'.repeat(2000)}}
+ oversized:{child:{status:0,stdout:'a'.repeat(2000)}}
 }))test('P22 '+label+' cannot PASS',()=>{const r=fixture(o).run('P22');assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);});
+const omission = '\n…（已截断，用 --full 看全）';
+// Match the existing bench-digest default contract: slice(0,1200), then append its explicit marker.
+const boundedDigest = (digestText + '\n' + '最近调用线索，尚未核验。'.repeat(200)).slice(0,1200) + omission;
+test('P22 intentional bounded summary is WARN with unseen coverage UNKNOWN and exit 0',()=>{
+ const f=fixture({child:{status:0,stdout:boundedDigest+'\n',stderr:''}}),r=f.run('P22');
+ assert.equal(r.result.state,'WARN');assert.equal(r.exit,0);
+ assert.match(r.output,/摘要有界省略/);assert.match(r.output,/未见部分.*UNKNOWN/);
+ assert.match(r.output,/不代表.*已读/);assert.match(r.output,/世界.*UNKNOWN/);
+ assert.ok(r.output.includes(boundedDigest));
+ const c=f.children.filter(c=>c.argv[0]===f.script);assert.equal(c.length,1);
+ assert.deepEqual(Array.from(c[0].argv),[f.script]);
+});
+for(const [label,child]of Object.entries({
+ maxBuffer:{status:0,error:Object.assign(new Error('output buffer exceeded'),{code:'ENOBUFS'}),stdout:boundedDigest},
+ boundedNonzero:{status:1,stdout:boundedDigest},
+ missingTitle:{status:0,stdout:'世界身份：UNKNOWN\n覆盖：ai=UNKNOWN；tools=UNKNOWN'},
+ missingCoverage:{status:0,stdout:'# 实验台摘要 · 最近 120 分钟\n世界身份：UNKNOWN\n统计：无数据'},
+ missingIdentity:{status:0,stdout:'# 实验台摘要 · 最近 120 分钟\n覆盖：ai=UNKNOWN'},
+ unstructured:{status:0,stdout:'任务完成'},
+ unconfirmedOmission:{status:0,stdout:digestText+omission}
+}))test('P22 '+label+' remains BLOCK and exit 1',()=>{
+ const r=fixture({child}).run('P22');assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);
+});
+
 test('P22 title-only SKIP before script/ledger IO and child',()=>{
  const f=fixture({title:true}),r=f.run('P22');assert.equal(r.result.state,'SKIP');assert.equal(r.exit,0);
  assert.ok(!f.io.some(p=>/bench-digest/.test(p)));assert.equal(f.children.filter(c=>c.argv[0]===f.script).length,0);
