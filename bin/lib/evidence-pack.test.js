@@ -133,3 +133,121 @@ test('bench evidence episode CLI is wired; old summary still available', t => {
   assert.equal(r.status,0,r.stderr); assert.equal(JSON.parse(r.stdout).action.identityStatus,'UNKNOWN');
   const old=run(['--json']); assert.equal(old.status,0,old.stderr); assert.ok(JSON.parse(old.stdout).actions);
 });
+
+const digest = s => require('crypto').createHash('sha256').update(s).digest('hex');
+function rotationDir(t) {
+  const dir=fs.mkdtempSync(path.join(os.tmpdir(),'evidence-rotation-'));
+  t.after(()=>fs.rmSync(dir,{recursive:true,force:true}));
+  return dir;
+}
+test('fromDir discovers selected stream rotations with physical CRLF/hash/UTF8 pointers, no identity upgrade', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl', b='context-1794438585430.jsonl';
+  const first=JSON.stringify(row('llm_request',0,{body:'村庄'}))+'\r\n';
+  const second=JSON.stringify(row('llm_response',1,{body:'床'}))+'\r\n';
+  fs.writeFileSync(path.join(dir,a),first+second);
+  fs.writeFileSync(path.join(dir,b),JSON.stringify(row('llm_request',2))+'\n');
+  fs.writeFileSync(path.join(dir,'context.jsonl'),JSON.stringify(row('llm_response',3))+'\n');
+  fs.writeFileSync(path.join(dir,'context-backup.jsonl'),first);
+  fs.mkdirSync(path.join(dir,'sub'));
+  fs.writeFileSync(path.join(dir,'sub','context-1794438585431.jsonl'),first);
+  const r=P.fromDir(dir,{mode:'list',streams:['context'],content:true});
+  assert.equal(r.rows.length,4,'both archived sources must be read alongside the current stream');
+  assert.deepEqual(Object.keys(r.sources).sort(),[a,b,'context.jsonl'].sort());
+  const found=r.rows.find(r=>r.ref===a+':2');
+  assert.equal(found.sourceFile,path.join(dir,a));
+  assert.equal(found.line,2);
+  assert.equal(found.byteOffset,Buffer.byteLength(first));
+  assert.equal(found.sha256,digest(second.slice(0,-1)),'CR belongs to original line hash');
+  assert.equal(r.sources[a].sha256,digest(first+second));
+  assert.equal(found.identityStatus,'UNKNOWN');
+  assert.equal(found.payload.value.body,'床');
+  assert.equal(r.sourceCoverage.status,'OBSERVED_FILES_ONLY');
+  assert.match(r.sourceCoverage.scope,/not session completeness/);
+  assert.deepEqual(r.gaps,[]);
+});
+test('archived expand stays within one physical file and ledger sees logical streams only with independent adapter', t => {
+  const dir=rotationDir(t), tf='tools-1794438028809.jsonl', ef='events-1794438028809.jsonl', cf='context-1794438028809.jsonl';
+  fs.writeFileSync(path.join(dir,tf),[call(),receipt()].map(JSON.stringify).join('\n')+'\n');
+  fs.writeFileSync(path.join(dir,ef),JSON.stringify(terminal())+'\n');
+  fs.writeFileSync(path.join(dir,cf),JSON.stringify(row('final_request',0,{body:'input'}))+'\n');
+  const sources=[tf,ef,cf], opts={sources,eventRef:tf+':1'};
+  const expanded=P.fromDir(dir,{...opts,mode:'expand',after:5});
+  assert.deepEqual(expanded.rows.map(r=>r.ref),[tf+':1',tf+':2']);
+  assert.match(expanded.relation,/no causal/);
+  const unknown=P.fromDir(dir,opts);
+  assert.equal(unknown.action.identityStatus,'UNKNOWN'); assert.equal(unknown.rows.length,1);
+  const known=P.fromDir(dir,{...opts,resolveIdentity:fixtureIdentity});
+  assert.equal(known.action.state,'completed');
+  assert.deepEqual(known.stages.finalRequest,[cf+':1']);
+  assert.deepEqual(known.stages.terminal,[ef+':1']);
+});
+test('file and byte budgets explicitly retain unread coverage; partial records never become rows', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl';
+  const first=JSON.stringify(row('llm_request',0))+'\n', next=JSON.stringify(row('llm_response',1))+'\n';
+  fs.writeFileSync(path.join(dir,'context.jsonl'),first+next);
+  fs.writeFileSync(path.join(dir,a),first);
+  const limited=P.fromDir(dir,{mode:'list',streams:['context'],maxSourceFiles:1});
+  assert.equal(limited.rows.length,2);
+  assert.ok(limited.gaps.some(g=>g.file===a&&g.reason==='source-file-budget'));
+  assert.equal(limited.sourceCoverage.status,'PARTIAL');
+  const bytes=P.fromDir(dir,{mode:'list',streams:['context'],maxSourceBytes:Buffer.byteLength(first)+7});
+  assert.equal(bytes.rows.length,1);
+  assert.ok(bytes.gaps.some(g=>g.reason==='source-byte-budget'));
+  assert.equal(bytes.sources['context.jsonl'].readStatus,'PARTIAL');
+  assert.equal(bytes.sources['context.jsonl'].bytes,Buffer.byteLength(first));
+  assert.equal(bytes.sourceCoverage.status,'PARTIAL');
+});
+test('physical manifest additions and replaced archives reset cursors; expansion binds original line hash', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl';
+  const original=JSON.stringify(row('llm_request',0))+'\n';
+  fs.writeFileSync(path.join(dir,a),original);
+  fs.writeFileSync(path.join(dir,'context.jsonl'),JSON.stringify(row('llm_response',1))+'\n');
+  const opts={mode:'list',streams:['context'],limit:1};
+  const first=P.fromDir(dir,opts);
+  assert.ok(first.nextCursor);
+  fs.writeFileSync(path.join(dir,'context-1794438585430.jsonl'),original);
+  assert.equal(P.fromDir(dir,{...opts,cursor:first.nextCursor}).status,'RESET');
+  const cursor=P.fromDir(dir,opts).nextCursor;
+  fs.writeFileSync(path.join(dir,a),JSON.stringify(row('llm_request',2))+'\n');
+  assert.equal(P.fromDir(dir,{...opts,cursor}).status,'RESET');
+  assert.equal(P.fromDir(dir,{mode:'expand',streams:['context'],eventRef:a+':1',eventHash:digest(original.slice(0,-1))}).status,'UNKNOWN');
+});
+test('archive malformed line and unfinished tail remain explicit source gaps', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl';
+  fs.writeFileSync(path.join(dir,a),'{broken}\r\n'+JSON.stringify(row('llm_request',0))+'\r\n{"unfinished":');
+  const r=P.fromDir(dir,{mode:'list',streams:['context'],sources:[a]});
+  assert.equal(r.rows.length,1);
+  assert.equal(r.rows[0].ref,a+':2');
+  assert.equal(r.rows[0].byteOffset,Buffer.byteLength('{broken}\r\n'));
+  assert.ok(r.gaps.some(g=>g.ref===a+':1'&&g.reason==='malformed-line'));
+  assert.ok(r.gaps.some(g=>g.file===a&&g.reason==='partial-tail-not-consumed'));
+  assert.equal(r.sourceCoverage.status,'PARTIAL');
+});
+test('source replacement during bounded read is diagnosed and changed bytes cannot produce references', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl', file=path.join(dir,a);
+  const original=JSON.stringify(row('llm_request',0))+'\n';
+  fs.writeFileSync(file,original);
+  const ino=fs.statSync(file).ino, saved=fs.readSync; let changed=false;
+  fs.readSync=function(fd,buffer,offset,length,position) {
+    const n=saved.call(fs,fd,buffer,offset,length,position);
+    if(!changed&&length>64&&fs.fstatSync(fd).ino===ino) {
+      changed=true; fs.writeFileSync(file,original.replace('llm_request','llm_changed'));
+    }
+    return n;
+  };
+  t.after(()=>{fs.readSync=saved;});
+  const r=P.fromDir(dir,{mode:'list',streams:['context'],sources:[a]});
+  assert.ok(changed);
+  assert.equal(r.rows.length,0);
+  assert.ok(r.gaps.some(g=>g.reason==='source-changed-during-read'));
+  assert.equal(r.sourceCoverage.status,'PARTIAL');
+});
+test('CLI selects physical sources and rejects invalid names instead of reading paths or unrelated streams', t => {
+  const dir=rotationDir(t), a='context-1794438028809.jsonl';
+  fs.writeFileSync(path.join(dir,a),JSON.stringify(row('llm_request',0))+'\n');
+  const r=P.cli(['--list','--streams','context','--source',a,'--dir',dir]);
+  assert.equal(r.rows[0].ref,a+':1');
+  assert.equal(P.fromDir(dir,{mode:'list',streams:['context'],sources:['../tools.jsonl']}).status,'UNKNOWN');
+  assert.equal(P.fromDir(dir,{mode:'list',streams:['learner']}).status,'UNKNOWN');
+  assert.equal(P.fromDir(dir,{mode:'list',streams:['context'],sources:['tools.jsonl']}).status,'UNKNOWN');
+});
