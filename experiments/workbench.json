@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-12T18:20:31.536Z",
+  "updated_at": "2026-11-13T08:47:27.548Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -910,6 +910,13 @@
       "run": "V-20261113-01",
       "by": "unknown",
       "at": "2026-11-12T18:20:31.533Z"
+    },
+    {
+      "exp_id": "b2-live-V-20261113-05",
+      "note": "V05 original live B2 loaded: food remains 0/min3, hunger6 to5 and hp20 to6, no eating/food-step completion (FAIL). Old food side timed out and resumed mainline at08:25:16Z; one late SEEK_FOOD_FIRST at08:25:54Z; final REPLANNING rev31/state286 with daily1538. Preempt and close overlap, no >60s same-intent follow-up; duplicate/lifecycle effectiveness NOT_COVERED. Exit function UNKNOWN, independent all-dimensions-saved and official STOPPED/java0 limited PASS. Canonical V-20261113-05; fees UNKNOWN.",
+      "run": "V-20261113-05",
+      "by": "session-a5220f27-9a50-4a92-8be4-d499f5fa633b",
+      "at": "2026-11-13T08:47:27.547Z"
     }
   ],
   "verdicts": [
