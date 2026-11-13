@@ -627,6 +627,24 @@ function liveIdentityOf(st, ctlBridge) {
   const nowMs = Date.now();
   const src = st && st.identity;
   const out = { status: 'UNKNOWN', reason: '', source: null, binding: null, age_s: null };
+  // ★ 2026-11-13 A1 补：顶层 identity 只是「最新一条事件」，不能代表整份现场。
+  //   同一拍里两条新鲜源各说各的世界/会话时必须 UNKNOWN，不许被顶层摘要洗成单 scope。
+  //   只比对「新鲜」的源（旧代不算当前 scope）；只有 session 的部分流也参与已知部分比对，
+  //   低频流没有身份字段不算冲突，也不从邻近时间补。
+  const fresh = [];
+  for (const [name, f] of Object.entries((st && st.files) || {})) {
+    const pid = f && f.identity;
+    if (!pid || !pid.at) continue;
+    const pt = Date.parse(pid.at);
+    if (!Number.isFinite(pt)) continue;
+    const age = Math.max(0, (nowMs - pt) / 1000);
+    if (age > LIVE_STALE_AGE_S) continue;
+    fresh.push({ name, session: pid.session, server_session: pid.server_session, world_id: pid.world_id, world_epoch: pid.world_epoch, age_s: age });
+  }
+  const sessions = [...new Set(fresh.filter((x) => x.session).map((x) => x.session))];
+  if (sessions.length > 1) { out.reason = '多条新鲜源给出不同 session：' + sessions.join(' / '); return out; }
+  const pairs = [...new Set(fresh.filter((x) => x.world_id && x.server_session).map((x) => x.world_id + '/' + x.server_session))];
+  if (pairs.length > 1) { out.reason = '多条新鲜源给出不同 world/server：' + pairs.join(' / '); return out; }
   if (!src) { out.reason = '源事件里没有 session/server_session/world_id（status.json 无 identity）'; return out; }
   const fields = ['session', 'server_session', 'world_id'];
   const bad = fields.filter((k) => typeof src[k] !== 'string' || !src[k]);

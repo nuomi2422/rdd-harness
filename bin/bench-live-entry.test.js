@@ -29,7 +29,7 @@ function sandbox() {
   return { dir, live, wb };
 }
 
-function run(sb, args) {
+function run(sb, args, liveDir) {
   const r = spawnSync(process.execPath, [BENCH].concat(args), {
     encoding: 'utf8',
     windowsHide: true,
@@ -38,15 +38,15 @@ function run(sb, args) {
       BENCH_USAGE_FILE: path.join(sb.dir, 'usage.jsonl'),
       BENCH_VERIFICATION_HISTORY: path.join(sb.dir, 'verification-history.jsonl'),
       RDD_CHECKPOINT: path.join(sb.dir, 'CHECKPOINT.md'),
-      BENCH_LIVE_DIR: sb.live,
+      BENCH_LIVE_DIR: liveDir || sb.live,
       DSH_SESSION_ID: '',
     }),
   });
   return { code: r.status, out: (r.stdout || '') + (r.stderr || '') };
 }
 
-function briefJson(sb) {
-  const r = run(sb, ['brief', '--json', '--session', 't']);
+function briefJson(sb, liveDir) {
+  const r = run(sb, ['brief', '--json', '--session', 't'], liveDir);
   const i = r.out.indexOf('{');
   assert.ok(i >= 0, 'brief --json 没有 JSON：' + r.out.slice(0, 300));
   return { r, json: JSON.parse(r.out.slice(i)) };
@@ -292,4 +292,51 @@ test('生产端轮转：旧代 identity 必须随文件代际失效，不能把�
   const st3 = publish();
   assert.equal(st3.identity.world_id, 'live-C');
   assert.equal(st3.identity.session, 'sess-C');
+});
+
+// ── 2026-11-13 A1 补：多流身份冲突（顶层「最新一条」不能洗干净混 scope） ──────
+function mixedScope(sb, ctxIdentity) {
+  const W = require('./bench-watch');
+  const L = require('./lib/bench-live');
+  const mon = path.join(sb.dir, 'monitorMix');
+  const out = path.join(sb.dir, 'liveMix');
+  fs.mkdirSync(mon, { recursive: true });
+  fs.mkdirSync(out, { recursive: true });
+  const at = (s) => new Date(Date.now() - s * SEC).toISOString();
+  const w = (f, rows) => fs.writeFileSync(path.join(mon, f), rows.map((r) => JSON.stringify(r)).join('\n') + '\n');
+  // rdd 只带 session（部分身份）：已知部分也要参与核对，但不要求它有全封套
+  w('rdd.jsonl', [{ timestamp: at(2), type: 'situation_event', session: 'sess-A', event_id: 'e-r1', data: {} }]);
+  // tools：完整身份 A，且是最新的一条 → 顶层 status.identity 会取它
+  w('tools.jsonl', [{ timestamp: at(5), type: 'tool_result', session: 'sess-A', server_session: 'srv-A', world_id: 'live-A', world_epoch: 1, event_id: 'e-t1', data: {} }]);
+  // context：另一条 source，也新鲜
+  w('context.jsonl', [{ timestamp: at(10), type: 'llm_usage', session: 'sess-A', server_session: ctxIdentity.server, world_id: ctxIdentity.world, world_epoch: 1, event_id: 'e-c1', data: {} }]);
+  const state = L.newState({ monitor: mon, started_at: Date.now() });
+  W.collectOnce(state, { monitor: mon, out, views: ['snapshot'], interval_s: 15, now: Date.now() });
+  const st = W.statusOf(state, { running: true, pid: process.pid, enabled: true, last_tick_at: new Date().toISOString(), ticks: 1 });
+  fs.writeFileSync(path.join(out, 'status.json'), JSON.stringify(st, null, 2));
+  fs.writeFileSync(path.join(out, 'watch.json'), JSON.stringify({ schema: 1, enabled: true, views: ['snapshot'], interval_s: 15, bridgeWindow: binding('live-A', 'srv-A', 'w-A') }, null, 2));
+  fs.writeFileSync(path.join(out, 'snapshot.md'), '# 实验台 live · snapshot\n\n## 当前任务链\ngoal_id=goal-1  status=ACTIVE\n');
+  return out;
+}
+
+test('混合 scope：两条新鲜流分别带 world/server A、B（顶层最新=A 且 bind=A）也不许 LIVE', () => {
+  const sb = sandbox();
+  const out = mixedScope(sb, { server: 'srv-B', world: 'live-B' });
+  const { json } = briefJson(sb, out);
+  const live = json.entry.live;
+  assert.notEqual(live.state, 'LIVE', '两条新鲜流的 world/server 冲突，不能被顶层最新摘要洗成 LIVE：' + JSON.stringify(live.state_reason));
+  assert.equal(live.state, 'UNKNOWN');
+  assert.match(live.state_reason, /多个|不同|不一致|冲突/);
+  const t = run(sb, ['brief'], out);
+  assert.ok(!/现场状态: LIVE/.test(t.out), '真 CLI 不许印 LIVE');
+  assert.match(t.out, /现场状态: UNKNOWN/);
+});
+
+test('对照：同样多流但身份一致（含只有 session 的部分流），仍应 LIVE', () => {
+  const sb = sandbox();
+  const out = mixedScope(sb, { server: 'srv-A', world: 'live-A' });
+  const { json } = briefJson(sb, out);
+  const live = json.entry.live;
+  assert.equal(live.state, 'LIVE', live.state_reason);
+  assert.equal(live.identity.status, 'BOUND');
 });
