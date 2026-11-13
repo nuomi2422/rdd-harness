@@ -213,7 +213,18 @@ function build(linesByFile, opts = {}) {
     for (let i=0; groups.some(g => i<g.length); i++) for (const g of groups) if (g[i]) selected.push(g[i]);
   }
   const result = page(selected, queryKey, opts);
-  return { ...base, ...result, status: result.status === 'PRESENT' && (mode === 'episode' || (opts.sourceCoverage && p.gaps.length)) ? 'PARTIAL' : result.status,
+  // 2026-11-13 A1：筛选后 0 行不是「有证据」。原来一律返回 PRESENT，读的人会把
+  // 「这个 world/companion/session 没命中」当成证据存在。空集显式 EMPTY + reason，不当 PASS。
+  const anyFilter = !!(opts.companion || opts.run || opts.worldId || opts.serverSession || opts.callId || opts.since || opts.asOf || (opts.types && opts.types.length));
+  let status = result.status;
+  let reason = result.reason;
+  if (status === 'PRESENT' && result.total === 0) {
+    status = 'EMPTY';
+    reason = anyFilter ? 'filter-matches-no-rows' : 'no-rows-in-named-sources';
+  } else if (status === 'PRESENT' && (mode === 'episode' || (opts.sourceCoverage && p.gaps.length))) {
+    status = 'PARTIAL';
+  }
+  return { ...base, ...result, status, ...(reason ? { reason } : {}),
     ...(stages ? { stages, unknowns, completeness: 'PARTIAL; tool completion is not world-effect proof' } : {}) };
 }
 /**

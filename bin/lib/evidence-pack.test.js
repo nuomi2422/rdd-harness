@@ -251,3 +251,22 @@ test('CLI selects physical sources and rejects invalid names instead of reading 
   assert.equal(P.fromDir(dir,{mode:'list',streams:['learner']}).status,'UNKNOWN');
   assert.equal(P.fromDir(dir,{mode:'list',streams:['context'],sources:['tools.jsonl']}).status,'UNKNOWN');
 });
+
+test('筛选 0 行 = EMPTY，不许冒充 PRESENT（2026-11-13 A1）', () => {
+  const t = texts([call(), receipt()], [terminal()]);
+  const none = P.build(t, { mode: 'list', resolveIdentity: fixtureIdentity, companion: 'no-such-companion' });
+  assert.equal(none.status, 'EMPTY');
+  assert.equal(none.total, 0);
+  assert.equal(none.reason, 'filter-matches-no-rows');
+  const world = P.build(t, { mode: 'list', resolveIdentity: fixtureIdentity, worldId: 'no-such-world' });
+  assert.equal(world.status, 'EMPTY');
+  assert.equal(world.reason, 'filter-matches-no-rows');
+  const empty = P.build(texts([], []), { mode: 'list' });
+  assert.equal(empty.status, 'EMPTY');
+  assert.equal(empty.reason, 'no-rows-in-named-sources');
+  const hit = P.build(t, { mode: 'list', resolveIdentity: fixtureIdentity, companion: 'c' });
+  assert.ok(['PRESENT', 'PARTIAL'].includes(hit.status), '命中的过滤仍按原样：' + hit.status);
+  // episode 模式找不到 anchor 仍是 UNKNOWN（不许被 EMPTY 吞掉）
+  const noAnchor = P.build(t, { ...opt(), companion: 'no-such-companion' });
+  assert.equal(noAnchor.status, 'UNKNOWN');
+});
