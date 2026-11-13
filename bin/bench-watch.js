@@ -71,7 +71,9 @@ function collectOnce(state, opt) {
     // 2026-11-08（044 §0.6）：晚到检测。业务时间戳比本文件已见最大值早 1s 以上，
     // 说明这条记录是"事后才写进来的"。它不改变已发生的判断，只作为缺口线索暴露，
     // 绝不据此回填或改写先前的结论。轮转时清空基线，否则新文件会被整篇误判为晚到。
-    if (r.reset) st.maxTs = 0;
+    // ★ 轮转 = 换了一代文件：旧代的复合身份必须一起失效，否则新代里缺身份/时间更早的事件
+    // 会让上一 scope 的 identity 继续占位，被 statusOf 当成本代身份（2026-11-13 A1 反例）。
+    if (r.reset) { st.maxTs = 0; st.identity = null; }
     const items = [];
     for (const line of r.lines) {
       if (!line.trim()) continue;
@@ -85,6 +87,15 @@ function collectOnce(state, opt) {
             st.lastLateBizAt = new Date(bt).toISOString();
           }
           if (!st.maxTs || bt > st.maxTs) st.maxTs = bt;
+        }
+        // 2026-11-13 A1：复合身份只从源事件本身取（session/server_session/world_id），
+        // 供 bench brief/live 判断「这份流是不是同一世界/同一会话的证据」；缺字段就不记，不从邻近时间猜。
+        const idSession = ev.session, idServer = ev.server_session, idWorld = ev.world_id;
+        if (typeof idSession === 'string' && idSession && typeof idServer === 'string' && idServer && typeof idWorld === 'string' && idWorld) {
+          const at = Number.isFinite(bt) ? bt : 0;
+          if (!st.identity || at >= st.identity.t) {
+            st.identity = { t: at, at: Number.isFinite(bt) ? new Date(bt).toISOString() : null, session: idSession, server_session: idServer, world_id: idWorld, world_epoch: ev.world_epoch == null ? null : ev.world_epoch, event_id: ev.event_id || null };
+          }
         }
         const n = L.normalize(f, ev);
         if (n) { n.rec.id = ev.event_id || null; items.push(n); }
@@ -117,8 +128,15 @@ function collectOnce(state, opt) {
 function statusOf(state, extra) {
   const files = {};
   for (const [k, v] of Object.entries(state.files)) {
-    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0, late: v.late || 0, lastLateBizAt: v.lastLateBizAt || null };
+    files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0, late: v.late || 0, lastLateBizAt: v.lastLateBizAt || null, identity: v.identity ? { at: v.identity.at, session: v.identity.session, server_session: v.identity.server_session, world_id: v.identity.world_id, world_epoch: v.identity.world_epoch, event_id: v.identity.event_id } : null };
   }
+  // 复合身份：取「业务时间最新」的一条带全三字段的源事件；没有就 null（UNKNOWN，不猜）。
+  const ids = Object.entries(state.files)
+    .filter(([, v]) => v.identity && v.identity.t)
+    .map(([name, v]) => ({ file: name, ...v.identity }))
+    .sort((a, b) => b.t - a.t);
+  const best = ids[0];
+  const identity = best ? { file: best.file, at: best.at, session: best.session, server_session: best.server_session, world_id: best.world_id, world_epoch: best.world_epoch == null ? null : best.world_epoch, event_id: best.event_id, age_ms: Math.max(0, Date.now() - best.t) } : null;
   return Object.assign({
     schema: 1,
     pid: process.pid,
@@ -126,6 +144,7 @@ function statusOf(state, extra) {
     last_tick_at: new Date().toISOString(),
     ticks: state.ticks,
     monitor: state.monitor,
+    identity,
     counters: state.counters,
     files,
     errors: state.errors.slice(-5),

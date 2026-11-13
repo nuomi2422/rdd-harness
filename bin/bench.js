@@ -551,6 +551,14 @@ function fmtAgeSec(s) {
   return (s / 3600).toFixed(1) + 'h';
 }
 
+/** 源流一行话：fresh/STALE + 最新事件时间 + 是哪条流；读不到就说 UNKNOWN，不填 0。 */
+function fmtStreamLine(stream) {
+  if (!stream) return 'UNKNOWN（没有 status.json 的流记录）';
+  if (stream.age_s == null) return 'UNKNOWN（没有可读的源流最后事件' + (stream.future ? '；有时间在未来的记录已丢弃' : '') + '）';
+  const verdict = stream.age_s <= LIVE_STALE_AGE_S ? 'LIVE' : 'STALE';
+  return verdict + ' 最新事件 ' + fmtAgeSec(stream.age_s) + ' 前（' + (stream.newest ? stream.newest.name : '?') + ' ' + (stream.last_event_at || '') + '）';
+}
+
 function readCheckpoint() {
   if (!fs.existsSync(CHECKPOINT_MD)) return null;
   const text = fs.readFileSync(CHECKPOINT_MD, 'utf8');
@@ -563,14 +571,101 @@ function readCheckpoint() {
   return { file: CHECKPOINT_MD, writtenAt: at ? at.trim() : null, fields };
 }
 
+/**
+ * ★ 2026-11-13 A1：live/status.json 的 pid 是 bench-watch 常驻进程，不是 MC；它能一直 tick，
+ * 而游戏可能早已 STOPPED。旧版只看 pid 存活就印「状态: LIVE」，把常驻视图当成现场活着
+ * （V03：02:27:28Z 官方 STOPPED/PID7144 消失，02:30 brief 仍报 LIVE pid=3476）。
+ * 这里把三件事分开投影：监视进程、源流新鲜度、作用域身份；源流旧→STALE，身份没绑→UNKNOWN，
+ * 两者都新才 LIVE。只读 status.json，不新增账本、不写身份算法。
+ */
+const LIVE_STALE_AGE_S = 120;
+
+function liveDirPath() {
+  // BENCH_LIVE_DIR 只给离线测试注入假 live/（与 BENCH_FILE 同套路）；生产默认 experiments/live。
+  return process.env.BENCH_LIVE_DIR ? path.resolve(process.env.BENCH_LIVE_DIR) : path.join(HARNESS, 'experiments', 'live');
+}
+
+// 只认源的 business timestamp（files[*].lastEventAt）：status.json 的 mtime、watcher 的新 tick
+// 都不许刷新它。时间跳到未来（容忍 60s 时钟差）按「格式坏」处理，不能算新。
+const LIVE_FUTURE_TOLERANCE_MS = 60 * 1000;
+// 判「同一现场」至少要有这三条：链/工具/上下文。缺一条就是源缺失，不能靠其余新流补。
+const LIVE_CORE_STREAMS = ['rdd.jsonl', 'tools.jsonl', 'context.jsonl'];
+
+/** 源流最后事件：把 status.json 的 files[*].lastEventAt 折成「最新一条 + 各流年龄」；缺的流不补 0。 */
+function streamFreshnessOf(st) {
+  const nowMs = Date.now();
+  const streams = [];
+  let invalid = 0, future = 0;
+  for (const [name, f] of Object.entries((st && st.files) || {})) {
+    const t = typeof f.lastEventAt === 'number' ? f.lastEventAt : Date.parse(f.lastEventAt || '');
+    const missing = !!(f && f.missing);
+    if (!Number.isFinite(t)) { streams.push({ name, age_s: null, last_event_at: null, missing, invalid: missing ? 'missing' : 'unparsable' }); if (!missing) invalid++; continue; }
+    if (t > nowMs + LIVE_FUTURE_TOLERANCE_MS) { streams.push({ name, age_s: null, last_event_at: new Date(t).toISOString(), missing, invalid: 'in-future' }); invalid++; future++; continue; }
+    streams.push({ name, age_s: Math.max(0, (nowMs - t) / 1000), last_event_at: new Date(t).toISOString(), missing });
+  }
+  const seen = streams.filter((s) => s.age_s != null && !s.missing).sort((a, b) => a.age_s - b.age_s);
+  const newest = seen[0] || null;
+  const missingCore = LIVE_CORE_STREAMS.filter((n) => {
+    const s = streams.find((x) => x.name === n);
+    return !s || s.missing || s.age_s == null;
+  });
+  return {
+    streams, newest,
+    age_s: newest ? newest.age_s : null,
+    last_event_at: newest ? newest.last_event_at : null,
+    fresh: !!newest && newest.age_s <= LIVE_STALE_AGE_S,
+    invalid, future, missingCore,
+  };
+}
+
+/**
+ * 身份取自 status.json.identity（bench-watch 从源事件抄的复合身份），并核对 bind-window。
+ * ★ 2026-11-13 A1：bind-window 或残留 scope 存在，不等于当前源属于它 —— 必须 world/server 都对上
+ * 才认 BOUND；对不上就 UNKNOWN，不把窗口身份借给这份源，也不从邻近时间猜。
+ */
+function liveIdentityOf(st, ctlBridge) {
+  const nowMs = Date.now();
+  const src = st && st.identity;
+  const out = { status: 'UNKNOWN', reason: '', source: null, binding: null, age_s: null };
+  if (!src) { out.reason = '源事件里没有 session/server_session/world_id（status.json 无 identity）'; return out; }
+  const fields = ['session', 'server_session', 'world_id'];
+  const bad = fields.filter((k) => typeof src[k] !== 'string' || !src[k]);
+  if (bad.length) { out.reason = '复合身份缺字段：' + bad.join(','); return out; }
+  const t = Date.parse(src.at || '');
+  if (!Number.isFinite(t)) { out.reason = '身份事件时间读不了'; return out; }
+  if (t > nowMs + LIVE_FUTURE_TOLERANCE_MS) { out.reason = '身份事件时间在未来（' + src.at + '）'; return out; }
+  out.source = { file: src.file || null, at: src.at, session: src.session, server_session: src.server_session, world_id: src.world_id, world_epoch: src.world_epoch == null ? null : src.world_epoch, event_id: src.event_id || null };
+  out.age_s = Math.max(0, (nowMs - t) / 1000);
+  if (out.age_s > LIVE_STALE_AGE_S) { out.reason = '身份样本 ' + fmtAgeSec(out.age_s) + ' 前（旧），不能证明当前源属于同世界/同会话'; return out; }
+  if (!ctlBridge || typeof ctlBridge !== 'object') {
+    out.status = 'SOURCE';
+    out.reason = '身份来自源事件本身；没有 bind-window，未与窗口比对';
+    return out;
+  }
+  if (ctlBridge.worldId !== src.world_id || ctlBridge.serverSession !== src.server_session) {
+    out.reason = 'bind-window 的 world/server 与源事件身份不一致（不能把该窗口当当前源）';
+    return out;
+  }
+  out.status = 'BOUND';
+  out.binding = ctlBridge.windowKey || null;
+  out.reason = 'windowKey=' + (ctlBridge.windowKey || '?') + ' 与源事件 world/server 一致';
+  return out;
+}
+
 /** 只看 live/ 的落盘事实与 pid 存活；不信任 status.json 的 running 字段。 */
 function liveEntryState() {
-  const dir = path.join(HARNESS, 'experiments', 'live');
+  const dir = liveDirPath();
   const sp = path.join(dir, 'status.json');
-  const out = { known: false, alive: false, enabled: null, pid: null, last_tick_at: null, age_s: null, ticks: null, views: [], observer_age_s: null, problems: [] };
-  if (!fs.existsSync(sp)) { out.problems.push('没跑过 bench live（没有 status.json）'); return out; }
+  const out = {
+    known: false, alive: false, enabled: null, pid: null, last_tick_at: null, age_s: null, ticks: null, views: [], observer_age_s: null, problems: [],
+    watcher: { pid: null, alive: false, last_tick_at: null, age_s: null },
+    stream: { fresh: false, age_s: null, last_event_at: null, newest: null, streams: [] },
+    scope: { monitor: null, window_key: null, identity: 'UNKNOWN', identity_status: 'UNKNOWN' },
+    state: 'UNKNOWN', state_reason: '',
+  };
+  if (!fs.existsSync(sp)) { out.problems.push('没跑过 bench live（没有 status.json）'); out.state_reason = '没有 status.json'; return out; }
   let st;
-  try { st = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { out.problems.push('status.json 读不了：' + e.message); return out; }
+  try { st = JSON.parse(fs.readFileSync(sp, 'utf8')); } catch (e) { out.problems.push('status.json 读不了：' + e.message); out.state_reason = 'status.json 读不了'; return out; }
   out.known = true;
   out.pid = st.pid;
   out.alive = pidAlive(st.pid);
@@ -586,15 +681,36 @@ function liveEntryState() {
   }
   const ob = st.files && st.files['observer.jsonl'];
   if (ob && ob.lastEventAt) out.observer_age_s = Math.max(0, (Date.now() - ob.lastEventAt) / 1000);
+  out.watcher = { pid: out.pid, alive: out.alive, last_tick_at: out.last_tick_at, age_s: out.age_s };
+  out.stream = streamFreshnessOf(st);
+  out.scope.monitor = st.monitor || null;
+  let ctlBridge = null;
+  try { ctlBridge = require('./lib/bench-live.js').loadControl(dir).bridgeWindow || null; } catch { ctlBridge = null; }
+  out.identity = liveIdentityOf(st, ctlBridge);
+  out.scope.window_key = out.identity.binding;
+  out.scope.identity_status = out.identity.status;
+  out.scope.identity = out.identity.status === 'BOUND' ? 'window-bound' : (out.identity.status === 'SOURCE' ? 'source-event' : 'UNKNOWN');
+  // 现场状态：先看监视进程，再看源流，再看源缺失、身份，最后才 LIVE。
+  // ★ LIVE 只表示「现场证据流新鲜」，不表示 MC 进程 RUNNING —— 后者要有官方实例证据，本视图不提供。
+  if (!out.alive) { out.state = 'STALE'; out.state_reason = '监视进程已退出（pid=' + out.pid + '）'; }
+  else if (out.age_s == null || out.age_s > LIVE_STALE_AGE_S) { out.state = 'STALE'; out.state_reason = '监视进程最后 tick ' + fmtAgeSec(out.age_s) + ' 前，没在采'; }
+  else if (out.stream.age_s == null) { out.state = 'UNKNOWN'; out.state_reason = out.stream.future ? '源流最后事件时间在未来，不能当新证据' : '监视进程在跑，但 status.json 里没有可读的源流最后事件'; }
+  else if (out.stream.age_s > LIVE_STALE_AGE_S) { out.state = 'STALE'; out.state_reason = '源流最新事件 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）——游戏/世界是否在跑 UNKNOWN'; }
+  else if (out.stream.future) { out.state = 'UNKNOWN'; out.state_reason = '源流里有时间在未来的最后事件（' + out.stream.future + ' 条），当坏样本处理，不算新证据'; }
+  else if (out.stream.invalid) { out.state = 'UNKNOWN'; out.state_reason = '源流最后事件不可解析（' + out.stream.invalid + ' 条），不能靠其余流补'; }
+  else if (out.stream.missingCore.length) { out.state = 'UNKNOWN'; out.state_reason = '源缺失：' + out.stream.missingCore.join(',') + '（其余流新也不能补）'; }
+  else if (out.identity.status === 'UNKNOWN') { out.state = 'UNKNOWN'; out.state_reason = '源流 ' + fmtAgeSec(out.stream.age_s) + ' 前是新的，但身份不成立：' + out.identity.reason; }
+  else { out.state = 'LIVE'; out.state_reason = '现场证据流 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）；身份 ' + out.identity.reason + '（不是 MC 进程 RUNNING 的证据）'; }
   if (out.known && !out.alive) out.problems.push('status.json 说 running=' + st.running + '，但 pid=' + st.pid + ' 已退出');
-  if (out.age_s != null && out.age_s > 120) out.problems.push('最后 tick 在 ' + fmtAgeSec(out.age_s) + ' 前');
+  if (out.age_s != null && out.age_s > LIVE_STALE_AGE_S) out.problems.push('最后 tick 在 ' + fmtAgeSec(out.age_s) + ' 前');
+  if (out.stream.age_s != null && out.stream.age_s > LIVE_STALE_AGE_S) out.problems.push('源流最新事件 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）——现场是 stale 快照，不是实时');
   if (out.observer_age_s != null && out.observer_age_s > 600) out.problems.push('Observer 样本 ' + fmtAgeSec(out.observer_age_s) + ' 前（stale，不能当健康观察源）');
   return out;
 }
 
 /** 从 live/snapshot.md 抠「当前任务链」几行；没有就返回 null，不编。 */
 function liveChainLines() {
-  const p = path.join(HARNESS, 'experiments', 'live', 'snapshot.md');
+  const p = path.join(liveDirPath(), 'snapshot.md');
   if (!fs.existsSync(p)) return null;
   const lines = fs.readFileSync(p, 'utf8').split(/\r?\n/);
   const i = lines.findIndex((l) => /^## 当前任务链/.test(l));
@@ -623,8 +739,9 @@ function entryPackage(argv) {
     'mf-kit / mf-observer 只连原版协议服，不能证明 NeoForge live 行为；Observer 是独立只读眼，不是外部 AI 身体',
   ];
   if (!live.known) limits.push('live 没有任何样本 → unknown（不是 0）；先 bench live status，别把「没观测到」写成「没发生」');
-  else if (!live.alive) limits.push('live 进程已退出（最后 tick ' + fmtAgeSec(live.age_s) + ' 前）→ 现场是 stale 快照，不是实时');
-  else if (live.age_s != null && live.age_s > 120) limits.push('live 最后 tick ' + fmtAgeSec(live.age_s) + ' 前 → 数据已 stale');
+  else if (!live.alive) limits.push('live 监视进程已退出（最后 tick ' + fmtAgeSec(live.age_s) + ' 前）→ 现场是 stale 快照，不是实时');
+  else if (live.state !== 'LIVE') limits.push('live 现场状态=' + live.state + '（' + live.state_reason + '）→ 不能当本局实时证据');
+  if (live.stream && live.stream.missingCore && live.stream.missingCore.length) limits.push('源缺失：' + live.stream.missingCore.join(',') + ' —— 其余流新不能补这条缺口');
   if (live.observer_age_s != null && live.observer_age_s > 600) limits.push('Observer 样本 ' + fmtAgeSec(live.observer_age_s) + ' 前且身体字段可能为 ?（stale）');
   return { goal, goalSource, boundary, next, core: view.coreOverlay, live, limits, layerCounts: view.counts };
 }
@@ -677,15 +794,21 @@ function brief(argv) {
   console.log('\n## 0.2 · 现场（live）');
   const L = ep.live;
   if (!L.known) {
-    console.log('状态: unknown —— ' + L.problems.join('；'));
+    console.log('现场状态: UNKNOWN —— ' + L.problems.join('；'));
   } else {
-    const state = !L.alive ? 'STALE（进程已退出）' : (L.age_s != null && L.age_s > 120 ? 'STALE（' + fmtAgeSec(L.age_s) + ' 没更新）' : 'LIVE');
-    console.log('状态: ' + state + '  pid=' + L.pid + '  enabled=' + L.enabled + '  ticks=' + L.ticks + '  最后 tick=' + L.last_tick_at + '（' + fmtAgeSec(L.age_s) + ' 前）');
-    console.log('视图: ' + L.views.map((v) => v.name + '=' + (v.missing ? 'missing' : fmtAgeSec(v.age_s) + '前')).join('  '));
+    // ★ 2026-11-13 A1：pid 是 bench-watch，不是游戏。三行必须分开写，否则读的人会把常驻进程当现场。
+    console.log('现场状态: ' + L.state + ' —— ' + L.state_reason);
+    console.log('监视进程: ' + (L.alive ? '运行中' : '已退出') + ' pid=' + L.pid + '  最后 tick=' + L.last_tick_at + '（' + fmtAgeSec(L.age_s) + ' 前）  ticks=' + L.ticks + '  enabled=' + (L.enabled == null ? '?' : L.enabled) + '  （进程活着≠游戏在跑）');
+    console.log('源流: ' + fmtStreamLine(L.stream) + '  （各流：' + (L.stream.streams.length ? L.stream.streams.map((s) => s.name + '=' + (s.age_s == null ? 'missing' : fmtAgeSec(s.age_s) + '前')).join(' ') : '没有 files 记录') + '）');
+    const id = L.identity;
+    console.log('身份: ' + (id && id.source
+      ? '[' + id.status + '] ' + id.reason + ' ｜ source=' + (id.source.file || '?') + ' session=' + id.source.session + ' server=' + id.source.server_session + ' world=' + id.source.world_id + (id.source.world_epoch != null ? ' epoch=' + id.source.world_epoch : '') + (id.source.at ? ' @' + id.source.at : '')
+      : 'UNKNOWN —— ' + ((id && id.reason) || '没有源身份') + '；monitor=' + (L.scope.monitor || '?')));
+    console.log('视图(本拍重写时间，不代表源新鲜): ' + L.views.map((v) => v.name + '=' + (v.missing ? 'missing' : fmtAgeSec(v.age_s) + '前')).join('  '));
     console.log('Observer: ' + (L.observer_age_s == null ? 'unknown' : fmtAgeSec(L.observer_age_s) + ' 前' + (L.observer_age_s > 600 ? '（STALE）' : '')));
-    if (L.chain) console.log('任务链（live/snapshot.md，新鲜度见上）:\n  ' + L.chain.join('\n  '));
+    if (L.chain) console.log('任务链（live/snapshot.md 快照' + (L.state === 'LIVE' ? '' : '，非实时，别当当前局') + '）:\n  ' + L.chain.join('\n  '));
     for (const p of L.problems) console.log('⚠ ' + p);
-    if (!L.alive || (L.age_s != null && L.age_s > 120)) {
+    if (!L.alive || (L.age_s != null && L.age_s > LIVE_STALE_AGE_S)) {
       console.log('→ 修复: node bin/bench.js live start（15s 后重读；常驻视图死了不等于游戏没数据）');
     }
   }
@@ -928,7 +1051,7 @@ function layers(argv) {
  * 引擎是 bin/bench-watch.js（独立进程，只读 monitor、只写 experiments/live/）；
  * 这里只做开关与查看，不自己跑循环 —— 开关写进 live/watch.json，引擎每拍重读。
  */
-const LIVE_DIR = path.join(HARNESS, 'experiments', 'live');
+const LIVE_DIR = liveDirPath();
 function liveStatusOf() {
   try { return JSON.parse(fs.readFileSync(path.join(LIVE_DIR, 'status.json'), 'utf8')); } catch { return null; }
 }
@@ -961,9 +1084,16 @@ function liveMain(argv) {
     console.log('# 实验台常驻视图 · status');
     console.log('开关文件: ' + path.join(LIVE_DIR, 'watch.json'));
     console.log('enabled=' + ctl.enabled + '  views=' + ctl.views.join(',') + '  interval=' + ctl.interval_s + 's  by=' + ctl.by + (ctl.updated_at ? ' @ ' + ctl.updated_at : ''));
-    if (!st) console.log('进程: 没跑过 —— node bin/bench.js live start');
+    if (!st) console.log('监视进程: 没跑过 —— node bin/bench.js live start');
     else {
-      console.log('进程: pid=' + st.pid + ' ' + (alive ? '运行中' : '已退出') + '  started=' + st.started_at + '  last_tick=' + st.last_tick_at + '  ticks=' + st.ticks + (st.paused ? '  (paused)' : ''));
+      // ★ 2026-11-13 A1：这一行只是 watcher；现场是否活着看下一行「源流」。
+      console.log('监视进程: pid=' + st.pid + ' ' + (alive ? '运行中' : '已退出') + '  started=' + st.started_at + '  last_tick=' + st.last_tick_at + '  ticks=' + st.ticks + (st.paused ? '  (paused)' : '') + '  （活着≠游戏在跑）');
+      const entry = liveEntryState();
+      console.log('源流: ' + fmtStreamLine(entry.stream) + (entry.state === 'LIVE' ? '' : '  → 现场状态=' + entry.state + '（' + entry.state_reason + '）'));
+      const id = entry.identity;
+      console.log('身份: ' + (id.source
+        ? '[' + id.status + '] ' + id.reason + '  ｜ source=' + (id.source.file || '?') + ' session=' + id.source.session + ' server=' + id.source.server_session + ' world=' + id.source.world_id
+        : 'UNKNOWN —— ' + id.reason + '；monitor=' + (st.monitor || '?')));
       if (st.counters) {
         const pick = ['taskchain_snapshot', 'numen_context', 'supervisor_output', 'llm_request', 'tool_call', 'tool_result', 'assistant', 'death'];
         console.log('计数: ' + (pick.map((k) => k + '=' + (st.counters[k] || 0)).join(' ')));
