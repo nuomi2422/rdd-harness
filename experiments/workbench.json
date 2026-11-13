@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-12T10:40:26.391Z",
+  "updated_at": "2026-11-12T18:20:31.536Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -903,6 +903,13 @@
       "run": "",
       "by": "session-461cfc23-e18e-4580-bb41-c561ac2cea64",
       "at": "2026-11-12T10:40:26.390Z"
+    },
+    {
+      "exp_id": "combined-live-V-20261113-01",
+      "note": "Original live 78c/789EF/894F unchanged; new session 9645b6ac. Natural iron mine gathered0/no path; bed build then sleeping and daybreak observed. Skill bodies @v1 delivered but no explicit adopt/report closure. GracefulOnly returned UNKNOWN on identity-query error; same-session all-dimensions saved and independent official STOPPED observed. Not a global verdict.",
+      "run": "V-20261113-01",
+      "by": "unknown",
+      "at": "2026-11-12T18:20:31.533Z"
     }
   ],
   "verdicts": [
