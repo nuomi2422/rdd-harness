@@ -68,6 +68,7 @@ function writeLive(sb, over) {
       'tools.jsonl': { size: 10, lastEventAt: NOW - 6 * SEC, missing: false },
       'context.jsonl': { size: 10, lastEventAt: NOW - 7 * SEC, missing: false },
       'ai.jsonl': { size: 10, lastEventAt: NOW - 8 * SEC, missing: false },
+      'events.jsonl': { size: 10, lastEventAt: NOW - 4 * SEC, missing: false },
       'observer.jsonl': { size: 10, lastEventAt: NOW - 999 * SEC, missing: false },
     },
     identity: IDENTITY(new Date(NOW - 6 * SEC).toISOString()),
@@ -311,6 +312,8 @@ function mixedScope(sb, opts) {
   w('tools.jsonl', [{ timestamp: at(5), type: 'tool_result', session: 'sess-A', server_session: 'srv-A', world_id: 'live-A', world_epoch: 1, event_id: 'e-t1', data: {} }]);
   // context：另一条 source，也新鲜
   w('context.jsonl', [{ timestamp: at(10), type: 'llm_usage', session: o.ctxSession, server_session: o.ctxServer, world_id: o.ctxWorld, world_epoch: 1, event_id: 'e-c1', data: {} }]);
+  // 终态流：真实 watcher 也要读（否则消费端因 events 缺而判 PARTIAL）
+  w('events.jsonl', [{ timestamp: at(8), type: 'task_finished', session: 'sess-A', server_session: 'srv-A', world_id: 'live-A', world_epoch: 1, event_id: 'e-ev1', data: { id: 't1', message: 'done' } }]);
   const state = L.newState({ monitor: mon, started_at: Date.now() });
   W.collectOnce(state, { monitor: mon, out, views: ['snapshot'], interval_s: 15, now: Date.now() });
   const st = W.statusOf(state, { running: true, pid: process.pid, enabled: true, last_tick_at: new Date().toISOString(), ticks: 1 });

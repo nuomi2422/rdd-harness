@@ -32,7 +32,9 @@ const L = require(path.join(__dirname, 'lib', 'bench-live.js'));
 const HARNESS = path.resolve(__dirname, '..');
 const DEFAULT_OUT = path.join(HARNESS, 'experiments', 'live');
 const WINDOW = 2 * 1024 * 1024;
-const FILES = ['rdd.jsonl', 'ai.jsonl', 'context.jsonl', 'tools.jsonl', 'instrumentation.jsonl', 'observer.jsonl'];
+// 2026-11-13 A1：events.jsonl 带 task_finished（终态），必须进现场视图；但它是稀疏终态流，
+// 旧/缺只能说明终态不可见，不单独证明游戏停了（消费端逐流判，见 bench.js）。
+const FILES = ['rdd.jsonl', 'ai.jsonl', 'context.jsonl', 'tools.jsonl', 'events.jsonl', 'instrumentation.jsonl', 'observer.jsonl'];
 
 function arg(name, dflt) {
   const i = process.argv.indexOf('--' + name);

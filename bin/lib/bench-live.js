@@ -270,6 +270,15 @@ function normalize(file, ev) {
     return null;
   }
 
+  if (file === 'events.jsonl') {
+    // 2026-11-13 A1：终态流。至少要产出记录，否则状态里的 lastEventAt 不会更新、快照永远"未观测到"。
+    // 只做最小可读投影，未知类型也不丢（保留 t/type），不冒充因果或完成。
+    if (type === 'task_finished') return { kind: 'event', rec: { t, type, taskId: d.id || null,
+      brief: 'task=' + (d.id || '?') + ' ' + clip(d.message || '', 160) } };
+    if (type === 'death' || type === 'starvation_death') return { kind: 'death', rec: { t, type, text: clip(d.deathCauseMsg || d.reason || JSON.stringify(d), 160) } };
+    return { kind: 'event', rec: { t, type, brief: clip(JSON.stringify(d), 140) } };
+  }
+
   if (file === 'instrumentation.jsonl') {
     if (type === 'death' || type === 'starvation_death') {
       return { kind: 'death', rec: { t, type, text: (d.deathCauseMsg || d.deathCauseId || 'death') + ' kind=' + (d.deathKind || '?') + (d.reason ? ' reason=' + d.reason : '') } };
@@ -399,7 +408,7 @@ function renderSnapshot(state, meta) {
   }
   L.push('');
   L.push('## 流');
-  const order = ['rdd.jsonl', 'ai.jsonl', 'context.jsonl', 'tools.jsonl', 'instrumentation.jsonl', 'observer.jsonl'];
+  const order = ['rdd.jsonl', 'ai.jsonl', 'context.jsonl', 'tools.jsonl', 'events.jsonl', 'instrumentation.jsonl', 'observer.jsonl'];
   for (const f of order) {
     const s = state.files[f];
     if (!s) { L.push('- ' + f + '  —— 本轮还没读到（文件不存在或本轮无新行）'); continue; }

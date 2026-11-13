@@ -588,8 +588,8 @@ function liveDirPath() {
 // 只认源的 business timestamp（files[*].lastEventAt）：status.json 的 mtime、watcher 的新 tick
 // 都不许刷新它。时间跳到未来（容忍 60s 时钟差）按「格式坏」处理，不能算新。
 const LIVE_FUTURE_TOLERANCE_MS = 60 * 1000;
-// 判「同一现场」至少要有这三条：链/工具/上下文。缺一条就是源缺失，不能靠其余新流补。
-const LIVE_CORE_STREAMS = ['rdd.jsonl', 'tools.jsonl', 'context.jsonl'];
+// 活跃源：链/工具/上下文（a200 口径）。events 是稀疏终态流，单独判，不进活跃源。
+const LIVE_SOURCES = ['rdd.jsonl', 'tools.jsonl', 'context.jsonl'];
 
 /** 源流最后事件：把 status.json 的 files[*].lastEventAt 折成「最新一条 + 各流年龄」；缺的流不补 0。 */
 function streamFreshnessOf(st) {
@@ -605,12 +605,17 @@ function streamFreshnessOf(st) {
   }
   const seen = streams.filter((s) => s.age_s != null && !s.missing).sort((a, b) => a.age_s - b.age_s);
   const newest = seen[0] || null;
-  const missingCore = LIVE_CORE_STREAMS.filter((n) => {
-    const s = streams.find((x) => x.name === n);
-    return !s || s.missing || s.age_s == null;
-  });
+  const byName = (n) => streams.find((x) => x.name === n) || null;
+  // 活跃源（rdd/tools/context）与终态源（events）分开判：events 稀疏，旧/缺只能说终态不可见，
+  // 不能反推游戏在跑或停了；也不能让 events 新鲜去掩盖活跃源旧。
+  const missingCore = LIVE_SOURCES.filter((n) => { const s = byName(n); return !s || s.missing || s.age_s == null; });
+  const freshCore = LIVE_SOURCES.filter((n) => { const s = byName(n); return s && !s.missing && s.age_s != null && s.age_s <= LIVE_STALE_AGE_S; });
+  const staleCore = LIVE_SOURCES.filter((n) => { const s = byName(n); return s && !s.missing && s.age_s != null && s.age_s > LIVE_STALE_AGE_S; });
+  const ev = byName('events.jsonl');
+  const eventsMissing = !ev || ev.missing || ev.age_s == null;
+  const oldestCore = LIVE_SOURCES.map(byName).filter((s) => s && !s.missing && s.age_s != null).sort((a, b) => b.age_s - a.age_s)[0] || null;
   return {
-    streams, newest,
+    streams, newest, oldestCore, freshCore, staleCore, missingCore, eventsMissing,
     age_s: newest ? newest.age_s : null,
     last_event_at: newest ? newest.last_event_at : null,
     fresh: !!newest && newest.age_s <= LIVE_STALE_AGE_S,
@@ -713,12 +718,24 @@ function liveEntryState() {
   if (!out.alive) { out.state = 'STALE'; out.state_reason = '监视进程已退出（pid=' + out.pid + '）'; }
   else if (out.age_s == null || out.age_s > LIVE_STALE_AGE_S) { out.state = 'STALE'; out.state_reason = '监视进程最后 tick ' + fmtAgeSec(out.age_s) + ' 前，没在采'; }
   else if (out.stream.age_s == null) { out.state = 'UNKNOWN'; out.state_reason = out.stream.future ? '源流最后事件时间在未来，不能当新证据' : '监视进程在跑，但 status.json 里没有可读的源流最后事件'; }
-  else if (out.stream.age_s > LIVE_STALE_AGE_S) { out.state = 'STALE'; out.state_reason = '源流最新事件 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）——游戏/世界是否在跑 UNKNOWN'; }
   else if (out.stream.future) { out.state = 'UNKNOWN'; out.state_reason = '源流里有时间在未来的最后事件（' + out.stream.future + ' 条），当坏样本处理，不算新证据'; }
   else if (out.stream.invalid) { out.state = 'UNKNOWN'; out.state_reason = '源流最后事件不可解析（' + out.stream.invalid + ' 条），不能靠其余流补'; }
   else if (out.stream.missingCore.length) { out.state = 'UNKNOWN'; out.state_reason = '源缺失：' + out.stream.missingCore.join(',') + '（其余流新也不能补）'; }
+  else if (out.stream.staleCore.length === LIVE_SOURCES.length) {
+    // 活跃源全旧：STALE。events 即使新鲜也只是终态流有更新，不证明游戏在跑。
+    const oc = out.stream.oldestCore;
+    out.state = 'STALE';
+    out.state_reason = '源流最新事件 ' + fmtAgeSec(oc ? oc.age_s : null) + ' 前（' + (oc ? oc.name : '?') + ' 为最旧活跃源）——活跃源全部旧，游戏/世界是否在跑 UNKNOWN' + (out.stream.eventsMissing ? '；events 也不可读' : '');
+  } else if (out.stream.staleCore.length) {
+    // 活跃源新旧不一：不能 LIVE（旧源不能靠新源补），也不能断言全停 → PARTIAL。
+    out.state = 'PARTIAL';
+    out.state_reason = '活跃源新旧不一：' + out.stream.staleCore.join(',') + ' 旧；' + out.stream.freshCore.join(',') + ' 新——混合状态不能当 LIVE，也不断言游戏停了';
+  } else if (out.stream.eventsMissing) {
+    out.state = 'PARTIAL';
+    out.state_reason = '活跃源是新的，但 events.jsonl 缺失/未读——终态不可见，不能当完整现场';
+  }
   else if (out.identity.status === 'UNKNOWN') { out.state = 'UNKNOWN'; out.state_reason = '源流 ' + fmtAgeSec(out.stream.age_s) + ' 前是新的，但身份不成立：' + out.identity.reason; }
-  else { out.state = 'LIVE'; out.state_reason = '现场证据流 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）；身份 ' + out.identity.reason + '（不是 MC 进程 RUNNING 的证据）'; }
+  else { out.state = 'LIVE'; out.state_reason = '现场证据流 ' + fmtAgeSec(out.stream.age_s) + ' 前（活跃源全 fresh，' + (out.stream.newest ? out.stream.newest.name : '?') + ' 最新）；身份 ' + out.identity.reason + '（不是 MC 进程 RUNNING 的证据）'; }
   if (out.known && !out.alive) out.problems.push('status.json 说 running=' + st.running + '，但 pid=' + st.pid + ' 已退出');
   if (out.age_s != null && out.age_s > LIVE_STALE_AGE_S) out.problems.push('最后 tick 在 ' + fmtAgeSec(out.age_s) + ' 前');
   if (out.stream.age_s != null && out.stream.age_s > LIVE_STALE_AGE_S) out.problems.push('源流最新事件 ' + fmtAgeSec(out.stream.age_s) + ' 前（' + (out.stream.newest ? out.stream.newest.name : '?') + '）——现场是 stale 快照，不是实时');
