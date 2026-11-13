@@ -290,3 +290,21 @@ test('--model-call 用绑定行的 model_call_id 串起同 scope 的 call/result
   const r2 = P.build(t2, { mode: 'list', modelCallId: 'mc-1' });
   assert.deepEqual(r2.rows.map((x) => x.ref), ['tools.jsonl:1']);
 });
+
+test('cursor+--model-call+--as-of 不变量：翻页不重复、换过滤/as-of 必须 RESET、as-of 前无未来行', () => {
+  const bind = (sec) => row('tool_transport_binding', sec, { model_call_id: 'mc-1', wire_call_id: 'call', tool: 'goto' });
+  const t = texts([bind(2), call(3), receipt(4)], [terminal(8)]);
+  const p1 = P.build(t, { mode: 'list', modelCallId: 'mc-1', limit: 1 });
+  assert.equal(p1.rows.length, 1); assert.equal(p1.rows[0].ref, 'tools.jsonl:1'); assert.ok(p1.nextCursor);
+  const p2 = P.build(t, { mode: 'list', modelCallId: 'mc-1', limit: 1, cursor: p1.nextCursor });
+  assert.equal(p2.rows[0].ref, 'tools.jsonl:2');
+  const p3 = P.build(t, { mode: 'list', modelCallId: 'mc-1', limit: 1, cursor: p2.nextCursor });
+  assert.equal(p3.rows[0].ref, 'tools.jsonl:3'); assert.equal(p3.nextCursor, null);
+  const reset = P.build(t, { mode: 'list', modelCallId: 'mc-1', limit: 1, cursor: p1.nextCursor, asOf: T(4) });
+  assert.equal(reset.status, 'RESET');
+  const early = P.build(t, { mode: 'list', modelCallId: 'mc-1', asOf: T(1) });
+  assert.equal(early.status, 'EMPTY');
+  assert.equal((early.rows || []).length, 0);
+  const late = P.build(t, { mode: 'list', modelCallId: 'mc-1', asOf: T(9) });
+  assert.deepEqual(late.rows.map((x) => x.ref), ['tools.jsonl:1', 'tools.jsonl:2', 'tools.jsonl:3']);
+});
