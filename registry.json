@@ -1745,10 +1745,10 @@
         "impact": "气泡工具行、brain 提示、快捷对话等全部显示 numen.xxx 原始键；用户要的「汉字」全程不出现，且无任何报错。",
         "guard": "check-jar-lang.js（verify-tools）直接扫 jar 字节流里有没有 assets/numen_api/lang/{en_us,zh_cn}.json，exit 1 = 缺；生成目录在盘上持久存在时后续构建自带 lang；CI publish.yml 本来就跑 datagenAll。",
         "verifiedBy": "node rdd-selfcompile\\scripts\\verify-tools\\check-jar-lang.js → exit 0（live jar 含 en_us 16182B + zh_cn 16265B，309 键）",
-        "reviewBy": "2026-11-13",
+        "reviewBy": "2026-11-20",
         "status": "open",
-        "renewedAt": "2026-11-06",
-        "renewedReason": "2026-11-06 监督复核：guard 现在是红的——check-jar-lang.js 对部署的 numen_api jar 报缺 assets/numen_api/lang/{en_us,zh_cn}.json（exit 1），且 api/neoforge/src/generated/resources 下没有 lang 产物。未修，按锁规则显式续期一周到 2026-11-13；修法：跑 :api:neoforge:runData 后重建并部署 api jar，再复跑 check-jar-lang.js 应为 exit 0。"
+        "renewedAt": "2026-11-13",
+        "renewedReason": "2026-11-13只读复核：现装core注册的唯一内嵌API缺assets/numen_api/lang/{en_us,zh_cn}.json，现行套娃感知guard exit1/MISSING_LANG，未修。沿既有一周复核窗明确续至2026-11-20，当前B2同档供食验证先继续；资源补齐在后续完整API/core组合构建中处理，须原入口重建实际发行组合、受管部署后guard exit0；不得添加重复独立API，不声称中文实显已验。原证：.tmp/codex1-p9-three-lock-review-20261113.md。"
       },
       {
         "id": "TL-2026-10-07-01",
@@ -1863,17 +1863,21 @@
         "guard": "引用 Q9/P10c 绿灯前先自己数：用 registry 的 pattern 逐文件 test，确认 100+ 号在不在视野里；新建编号文档的「三处登记」必须人工核 README §二目录 / 09-更新日志 / 50-按主题导航 各有一行，不看 Q9。修法（pattern 放宽为 `^(\\\\d{2,3})-` 并同步台账、nextDocNo、docno-alloc.js 的取号上限）另立一轮，不夹在文档轮里改。★ 2026-10-30 已修主项：pattern 放宽 + harness-gate 两处硬编码正则同步 + docno-alloc 默认值同步；docno-alloc 的 `check` 还顺带修了一个自建起就抛 `ReferenceError: spawnSync is not defined` 的缺陷（该判据从未执行过）。实测 docno-alloc status 从「98 个号/最大 99」变成「150 个号/最大 151」，check = 新撞号 0 / 绕过 0。Q9 随即第一次看见 100+ 号文档并当场判出 149/150 未登记（已补三处登记）。**同日补**：`check-doc-freshness.js` 也放宽到三位号，并补登记 72 份此前不可见的文档（93→165），未登记数归 0；它现在只剩 8 条 OVERDUE + 1 条 STALE_EDIT（那是「到日子没复核」的真债，不是编号问题）。",
         "verifiedBy": "2026-10-30 14:4x–14:5x 实测：`node bin/docno-alloc.js status` → 目录实占号数 150、最大 151、下一号 152；`check` → 新撞号 0、取号后绕过 0、旧撞号 8；`harness-gate postflight` 的 Q9 从「看不见 149/150」变成点名判红，补齐三处登记后转为只看新文档（此刻 152 号由并行会话新建、尚未登记，Q9 因此仍红——那是它的债）。",
         "reviewBy": "2026-11-13",
-        "status": "open"
+        "status": "closed",
+        "closedAt": "2026-11-13",
+        "closureReason": "2026-11-13逐项复核：registry及gate/Q12/P10b/alloc/freshness均覆盖2–3位号；现场73份三位号进入扫描，最大172；alloc check exit0，新撞号0、取号绕过0，8组已登记旧撞号留债。关闭仅指两位编号扫描盲区，不宣称全部文档三处登记或freshness均绿；1000+号未覆盖。原证：.tmp/codex1-p9-three-lock-review-20261113.md。"
       },
       {
         "id": "TL-2026-10-30-02",
         "title": "MCP 现召的同伴没有 binding.json → 内脑一次 LLM 请求都不发（且不报错）",
         "symptom": "`exp-zero-r1/r2`（全新存档 + `create_companion` 现召 RDD，事后补写 binding.json）`watch.llmRequests = 0`，15 次 tool_call 全是 exp-runner 自己的背包轮询；日志里有 `user prompt (64 chars)` 说明目标已送达。对照：同一配置下旧世界旧同伴 `exp-h21obs-g1` llm=9；把 binding.json 提前放好、让 loop 重新构造后 `exp-zero-r3` llm=50。",
         "impact": "看起来像「模型不干活/任务不聪明」，实际是新同伴没有 provider 绑定；更隐蔽的是**不报错**——endpointProblem 只在开轮时判定，loop 构造期读到 null 就一直不开口，整轮没有任何告警。任何「从零开始」的实验都会白跑。",
-        "guard": "起跑后先看 `envelope.watch.llmRequests` 与 `envelope.companionBinding`：llmRequests==0 且 companionBinding.ok==false/缺失 ⇒ 本轮不算开工，别写行为结论。binding 必须在 loop 构造前存在（已改为 EntityAgentLoop.tryStartTurn 每轮重读，2026-10-30 `298B2E83` 起生效）；provider 取 `--companion-provider` 或已有同伴 binding 的多数票，全空要显式警告。",
+        "guard": "起跑后核同UUID envelope.watch.llmRequests与companionBinding：llmRequests==0且binding缺失/无效不算已开工。现装EntityAgentLoop.tryStartTurn每轮重读binding，允许构造后补写由下一轮读取，但仍必须有效provider；exp-runner显式provider或已有绑定多数票，全空明确告警。旧构造前预置限制已由每轮重读取代，不以现同伴通过代表新召唤已验。",
         "verifiedBy": "2026-10-30 14:00–14:15：r1/r2 llm=0 → 补写 binding 无效（构造期缓存）→ r3 预置 binding 后 llm=50 → api 包重建 298B2E83 改为每轮重读。",
-        "reviewBy": "2026-11-13",
-        "status": "open"
+        "reviewBy": "2026-11-20",
+        "status": "open",
+        "renewedAt": "2026-11-13",
+        "renewedReason": "2026-11-13现装API字节码已含每轮binding重读；runner补写及无provider告警源码在，但旧zero-r4原封套当前缺失，当前构建新召唤、绑定、实际LLM请求完整链未复验，保持open并沿既有一周窗续至2026-11-20。待未来已授权且需要新同伴的窗口收companionCreated、同UUID companionBinding与llmRequests>0；不为本窗新建同伴、不以现同伴pass替代、不把provider全空视为可运行。原证：.tmp/codex1-p9-three-lock-review-20261113.md。"
       }
     ]
   },
