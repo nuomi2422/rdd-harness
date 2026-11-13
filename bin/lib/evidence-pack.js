@@ -54,6 +54,9 @@ function publicRow(r, content) {
     ingestedAt: r.event.ingestedAt || r.event.ingested_at || null, type: r.event.type || null,
     claimedIdentity: r.claimed, identityStatus: r.scope ? 'VERIFIED_BY_ADAPTER' : 'UNKNOWN',
     requestId: r.claimed.requestId, callId: d.tool_call_id || null, taskId: d.task_id || d.id || null,
+    // 2026-11-13 A1：源里 tool_transport_binding 带 model_call_id，context 的 llm_response 也带同一个 id；
+    // 只做投影，不做认证（identityStatus 仍是 UNKNOWN）。
+    modelCallId: str(d.model_call_id),
     tool: d.tool || d.task || null, intervention: r.event.intervention ?? d.intervention ?? 'UNKNOWN',
     payload: { status: content ? 'INCLUDED_REDACTED' : 'NOT_EXPANDED', ref: r.ref },
   };
@@ -145,6 +148,18 @@ function build(linesByFile, opts = {}) {
       scope: 'named physical files and observed byte ranges only; not session completeness or verified identity' } } : {}) };
   if (p.error) return { ...base, status: 'UNKNOWN', reason: p.error, rows: [] };
   let selected = p.rows.filter(r => matches(r, opts));
+  // --model-call：绑定行带 model_call_id + wire_call_id；只把「同 scope（world/server/companion/run 全等）」
+  // 且 wire id 对得上的 call/result 一起选出。不跨 scope、不按时间邻近猜。
+  if (opts.modelCallId) {
+    const bindings = p.rows.filter(r => str(data(r.event).model_call_id) === opts.modelCallId);
+    const wires = new Set(bindings.map(b => str(data(b.event).wire_call_id)).filter(Boolean));
+    const scopes = new Set(bindings.map(b => scopeKey(b.claimed)).filter(Boolean));
+    selected = selected.filter(r => {
+      const d = data(r.event);
+      if (str(d.model_call_id) === opts.modelCallId) return true;
+      return wires.has(str(d.tool_call_id)) && scopes.has(scopeKey(r.claimed));
+    });
+  }
   const mode = opts.mode || 'episode';
   const anchor = opts.eventRef ? selected.find(r => r.ref === opts.eventRef &&
     (!opts.eventHash || r.sha256 === opts.eventHash)) : null;
@@ -203,7 +218,7 @@ function build(linesByFile, opts = {}) {
   }
   const queryKey = hash(JSON.stringify({ sources: p.sources, mode, eventRef: opts.eventRef, eventHash: opts.eventHash,
     asOf: opts.asOf, since: opts.since, order: opts.order, view: base.view, filters: [opts.companion,opts.run,opts.worldId,opts.serverSession,opts.callId,opts.types],
-    before: opts.before, after: opts.after, content: !!opts.content,
+    modelCallId: opts.modelCallId, before: opts.before, after: opts.after, content: !!opts.content,
     // Bind adapter result too: a cursor cannot switch identity/authorization adapters.
     records: selected.map(r => [r.ref, r.sha256, r.scope]) }));
   if (opts.order === 'latest-per-stream' && mode === 'list') {
@@ -215,7 +230,7 @@ function build(linesByFile, opts = {}) {
   const result = page(selected, queryKey, opts);
   // 2026-11-13 A1：筛选后 0 行不是「有证据」。原来一律返回 PRESENT，读的人会把
   // 「这个 world/companion/session 没命中」当成证据存在。空集显式 EMPTY + reason，不当 PASS。
-  const anyFilter = !!(opts.companion || opts.run || opts.worldId || opts.serverSession || opts.callId || opts.since || opts.asOf || (opts.types && opts.types.length));
+  const anyFilter = !!(opts.companion || opts.run || opts.worldId || opts.serverSession || opts.callId || opts.modelCallId || opts.since || opts.asOf || (opts.types && opts.types.length));
   let status = result.status;
   let reason = result.reason;
   if (status === 'PRESENT' && result.total === 0) {
@@ -347,7 +362,7 @@ function cli(argv) {
     eventRef: get('--event'), eventHash: get('--event-hash'), asOf: get('--as-of'), since: get('--since'), view: get('--view'),
     sourceWindow: get('--source-window'), order: get('--order'),
     companion: get('--companion'), run: get('--run'), worldId: get('--world'), serverSession: get('--server-session'),
-    callId: get('--call'), cursor: get('--cursor'), limit: Number(get('--limit')),
+    callId: get('--call'), modelCallId: get('--model-call'), cursor: get('--cursor'), limit: Number(get('--limit')),
     maxBytes: Number(get('--max-bytes')), before: Number(get('--before')), after: Number(get('--after')),
     content: argv.includes('--content') });
 }

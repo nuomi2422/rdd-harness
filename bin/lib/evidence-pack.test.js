@@ -270,3 +270,23 @@ test('筛选 0 行 = EMPTY，不许冒充 PRESENT（2026-11-13 A1）', () => {
   const noAnchor = P.build(t, { ...opt(), companion: 'no-such-companion' });
   assert.equal(noAnchor.status, 'UNKNOWN');
 });
+
+test('--model-call 用绑定行的 model_call_id 串起同 scope 的 call/result；错 id 空集', () => {
+  const bind = (sec = 1, over = {}, env = {}) => row('tool_transport_binding', sec, { model_call_id: 'mc-1', wire_call_id: 'call', tool: 'goto', ...over }, env);
+  const t = texts([bind(), call(), receipt()], [terminal()]);
+  const r = P.build(t, { mode: 'list', modelCallId: 'mc-1' });
+  assert.equal(r.status, 'PRESENT');
+  assert.deepEqual(r.rows.map((x) => x.ref), ['tools.jsonl:1', 'tools.jsonl:2', 'tools.jsonl:3']);
+  assert.equal(r.rows[0].modelCallId, 'mc-1');
+  assert.equal(r.rows[1].modelCallId, null);
+  // 只做投影，不认证
+  assert.equal(r.rows[0].identityStatus, 'UNKNOWN');
+  const none = P.build(t, { mode: 'list', modelCallId: 'mc-nope' });
+  assert.equal(none.status, 'EMPTY');
+  assert.equal(none.reason, 'filter-matches-no-rows');
+  // 同 wire id、不同 scope 的行不许被拉进来
+  const other = call(2, { world_id: 'world-other' });
+  const t2 = texts([bind(), other], [terminal()]);
+  const r2 = P.build(t2, { mode: 'list', modelCallId: 'mc-1' });
+  assert.deepEqual(r2.rows.map((x) => x.ref), ['tools.jsonl:1']);
+});
