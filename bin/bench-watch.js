@@ -88,13 +88,22 @@ function collectOnce(state, opt) {
           }
           if (!st.maxTs || bt > st.maxTs) st.maxTs = bt;
         }
-        // 2026-11-13 A1：复合身份只从源事件本身取（session/server_session/world_id），
-        // 供 bench brief/live 判断「这份流是不是同一世界/同一会话的证据」；缺字段就不记，不从邻近时间猜。
-        const idSession = ev.session, idServer = ev.server_session, idWorld = ev.world_id;
-        if (typeof idSession === 'string' && idSession && typeof idServer === 'string' && idServer && typeof idWorld === 'string' && idWorld) {
+        // 2026-11-13 A1：身份只从源事件本身取，**部分字段也记**（rdd.jsonl 通常只有 session）。
+        // 每条流各自保留「它自己说过什么」，供消费端按已知部分比对；不从邻近时间补缺字段。
+        // 顶层 status.identity 只从「session+server_session+world_id 齐全」的条目里选最新（见 statusOf）。
+        const idSession = typeof ev.session === 'string' && ev.session ? ev.session : null;
+        if (idSession) {
           const at = Number.isFinite(bt) ? bt : 0;
           if (!st.identity || at >= st.identity.t) {
-            st.identity = { t: at, at: Number.isFinite(bt) ? new Date(bt).toISOString() : null, session: idSession, server_session: idServer, world_id: idWorld, world_epoch: ev.world_epoch == null ? null : ev.world_epoch, event_id: ev.event_id || null };
+            st.identity = {
+              t: at,
+              at: Number.isFinite(bt) ? new Date(bt).toISOString() : null,
+              session: idSession,
+              server_session: typeof ev.server_session === 'string' && ev.server_session ? ev.server_session : null,
+              world_id: typeof ev.world_id === 'string' && ev.world_id ? ev.world_id : null,
+              world_epoch: ev.world_epoch == null ? null : ev.world_epoch,
+              event_id: ev.event_id || null,
+            };
           }
         }
         const n = L.normalize(f, ev);
@@ -131,8 +140,10 @@ function statusOf(state, extra) {
     files[k] = { size: v.size, lastEventAt: v.lastEventAt || null, resets: v.resets || 0, lines: v.lines || 0, missing: !!v.missing, continuity: 'UNKNOWN', gaps: v.gaps || 0, skippedBytes: v.skippedBytes || 0, gapReason: v.gapReason || null, malformed: v.malformed || 0, lastMalformedError: v.lastMalformedError || null, readError: v.readError || null, recoveries: v.recoveries || 0, late: v.late || 0, lastLateBizAt: v.lastLateBizAt || null, identity: v.identity ? { at: v.identity.at, session: v.identity.session, server_session: v.identity.server_session, world_id: v.identity.world_id, world_epoch: v.identity.world_epoch, event_id: v.identity.event_id } : null };
   }
   // 复合身份：取「业务时间最新」的一条带全三字段的源事件；没有就 null（UNKNOWN，不猜）。
+  // 顶层身份只取「三字段齐全」的最新一条；只有 session 的部分流留在 files[*].identity 里，
+  // 由消费端按已知部分比对（2026-11-13 A1：否则 rdd 的 session 在投影里根本不可达）。
   const ids = Object.entries(state.files)
-    .filter(([, v]) => v.identity && v.identity.t)
+    .filter(([, v]) => v.identity && v.identity.t && v.identity.session && v.identity.server_session && v.identity.world_id)
     .map(([name, v]) => ({ file: name, ...v.identity }))
     .sort((a, b) => b.t - a.t);
   const best = ids[0];
