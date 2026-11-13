@@ -308,3 +308,25 @@ test('cursor+--model-call+--as-of 不变量：翻页不重复、换过滤/as-of 
   const late = P.build(t, { mode: 'list', modelCallId: 'mc-1', asOf: T(9) });
   assert.deepEqual(late.rows.map((x) => x.ref), ['tools.jsonl:1', 'tools.jsonl:2', 'tools.jsonl:3']);
 });
+
+test('--model-call 必须成对匹配 [scopeKey,wireId]；同 id 跨 scope 冲突保 UNKNOWN', () => {
+  const bind = (sec, over) => row('tool_transport_binding', sec, { tool: 'goto', ...over });
+  // 同 modelId 在两个 scope：不许把两个 scope 的 wire 混在一起
+  const conflict = texts([
+    bind(1, { model_call_id: 'mc-X', wire_call_id: 'wire-A', world_id: 'world-A' }),
+    bind(2, { model_call_id: 'mc-X', wire_call_id: 'wire-B', world_id: 'world-B' }),
+    call(3, { world_id: 'world-A', tool_call_id: 'wire-B' }),
+  ], []);
+  const rc = P.build(conflict, { mode: 'list', modelCallId: 'mc-X' });
+  assert.equal(rc.status, 'UNKNOWN');
+  assert.equal(rc.reason, 'model-call-scope-conflict');
+  assert.equal((rc.rows || []).length, 0);
+  // 不同 id 各自 scope：mc-A 不许把同 scope 里属 mc-B 的 wire 行拉进来
+  const cross = texts([
+    bind(1, { model_call_id: 'mc-A', wire_call_id: 'wire-A', world_id: 'world-A' }),
+    bind(2, { model_call_id: 'mc-B', wire_call_id: 'wire-B', world_id: 'world-B' }),
+    call(3, { world_id: 'world-A', tool_call_id: 'wire-B' }),
+  ], []);
+  const rx = P.build(cross, { mode: 'list', modelCallId: 'mc-A' });
+  assert.deepEqual(rx.rows.map((x) => x.ref), ['tools.jsonl:1']);
+});

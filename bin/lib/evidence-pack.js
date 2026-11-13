@@ -148,16 +148,23 @@ function build(linesByFile, opts = {}) {
       scope: 'named physical files and observed byte ranges only; not session completeness or verified identity' } } : {}) };
   if (p.error) return { ...base, status: 'UNKNOWN', reason: p.error, rows: [] };
   let selected = p.rows.filter(r => matches(r, opts));
-  // --model-call：绑定行带 model_call_id + wire_call_id；只把「同 scope（world/server/companion/run 全等）」
-  // 且 wire id 对得上的 call/result 一起选出。不跨 scope、不按时间邻近猜。
+  // --model-call：必须按 [scopeKey, wire_call_id] **成对**匹配。旧实现用一个 wires Set 加一个 scopes Set，
+  // 会笛卡尔误配：同一 modelId 在 scopeA→wireA、scopeB→wireB 时，scopeA 的 wireB 行也会被拉进来。
+  // 绑定只从「当前 filters/as-of 候选」里取；同 id 跨 scope 视为冲突 → UNKNOWN，不强行认成同一调用。
+  let modelCallConflict = false;
   if (opts.modelCallId) {
-    const bindings = p.rows.filter(r => str(data(r.event).model_call_id) === opts.modelCallId);
-    const wires = new Set(bindings.map(b => str(data(b.event).wire_call_id)).filter(Boolean));
-    const scopes = new Set(bindings.map(b => scopeKey(b.claimed)).filter(Boolean));
-    selected = selected.filter(r => {
-      const d = data(r.event);
-      if (str(d.model_call_id) === opts.modelCallId) return true;
-      return wires.has(str(d.tool_call_id)) && scopes.has(scopeKey(r.claimed));
+    const hit = r => str(data(r.event).model_call_id) === opts.modelCallId;
+    const srcs = selected.filter(hit);
+    const scopeSet = new Set(srcs.map(r => scopeKey(r.claimed)).filter(Boolean));
+    modelCallConflict = scopeSet.size > 1;
+    const pairs = new Set(srcs.map(b => {
+      const k = scopeKey(b.claimed), w = str(data(b.event).wire_call_id);
+      return k && w ? k + '|' + w : null;
+    }).filter(Boolean));
+    selected = modelCallConflict ? [] : selected.filter(r => {
+      if (hit(r)) return true;
+      const k = scopeKey(r.claimed), w = str(data(r.event).tool_call_id);
+      return !!k && !!w && pairs.has(k + '|' + w);
     });
   }
   const mode = opts.mode || 'episode';
@@ -239,6 +246,7 @@ function build(linesByFile, opts = {}) {
   } else if (status === 'PRESENT' && (mode === 'episode' || (opts.sourceCoverage && p.gaps.length))) {
     status = 'PARTIAL';
   }
+  if (modelCallConflict) { status = 'UNKNOWN'; reason = 'model-call-scope-conflict'; }
   return { ...base, ...result, status, ...(reason ? { reason } : {}),
     ...(stages ? { stages, unknowns, completeness: 'PARTIAL; tool completion is not world-effect proof' } : {}) };
 }
