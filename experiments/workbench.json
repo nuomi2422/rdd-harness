@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-13T08:47:27.548Z",
+  "updated_at": "2026-11-13T09:44:44.653Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -917,6 +917,13 @@
       "run": "V-20261113-05",
       "by": "session-a5220f27-9a50-4a92-8be4-d499f5fa633b",
       "at": "2026-11-13T08:47:27.547Z"
+    },
+    {
+      "exp_id": "b2-live-V-20261113-06",
+      "note": "V06: saved REPLANNING rev31 naturally timed out after329085ms; new request39c117a8 produced rev32. Four eats hunger5to13; finalHP5 food2below3 no mainline completion: food recovery FAIL. Repeat intent NOT_COVERED. One GracefulOnly30 UNKNOWN; independent all dimensions saved and official STOPPED java0. See original monthly003 V06 and frozen final manifest.",
+      "run": "V-20261113-06",
+      "by": "session-a5220f27-9a50-4a92-8be4-d499f5fa633b",
+      "at": "2026-11-13T09:44:44.633Z"
     }
   ],
   "verdicts": [
