@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。 ★ 2026-11-06：stage 四阶段流水线废弃登记（工具 3 条 / routing 2 条 / 门禁文案 6 处）。 ★ 2026-11-07 主人裁定：opencode 相关配置/路径/插件名均为【历史名】，外部写代码的 AI 现全部走 DSH（架构导航已接 mcp__rdd_architecture__*）；registry 里保留 c.codex / router.model / goal.drive / opencode-plugin 等条目是因它们仍是 DSH 内的活工具，不改 id、不删工具，bugs 里的 opencode 事故记录留证不改写。",
   "version": 2,
-  "updated": "2026-11-07",
+  "updated": "2026-11-13",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -24,10 +24,10 @@
   "routing": {
     "$comment": "★ 用户 2026-10-04 定：总结/文档写到原本的地方，harness 里不放总结。",
     "rule": [
-      "长期资产（新规范/新清单/新运维手册）→ docsUnified\\NN-中文名.md，NN 接着 maxDocNo 往后排，并登记 docNumbers.registerIn 三处。",
+      "长期资产与新规范 → roots.knowledge 对应主题目录；先读知识库/写作规则.md，沿用本主题真源与编号。docsUnified仅保留历史兼容，不再新增长期资产。",
       "本轮过程文档（plan/arch/evidence/experience/...）→ 直接写进知识库对应文件夹（散件进 杂项记录）；2026-11-06 起不再走 stager put（stage 四阶段流水线已废弃）。",
-      "★ 2026-11-06 主人裁定：stage 四阶段流水线废弃。stage.md / stager 目录仅作历史与活依赖（check-align / check-global / 面板 decide）保留，不再作为流程入口；AGENTS.md 与全局卡均不承载 stage 流。",
-      "状态报告 → 本轮自己的 docs\\ 目录，不进 docsUnified、不进任何 read[]。",
+      "2026-11-13：stage、check-align/check-global不再参与启动门禁；历史档案和面板历史查看仍保留。原因：11-06流程退役后旧全文校验仍误拦启动。",
+      "状态报告与本轮记录 → 知识库对应主题或杂项记录，按写作规则登记，不新造第二个当前状态目录。",
       "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。",
       "工具选择的速查 → harness\\工具分类索引-20261005.md（回答「我要干 X 用哪条」）；机器真源仍是 registry.json。改 tools 必须同步改它。",
       "★ 进游戏唯一入口 → 知识库\\进游戏验证\\001-进游戏核心工具.md（核心工具只由主人标记，标记带时间；P13 直接打印 4 个核心）。",
@@ -953,7 +953,7 @@
           "name": "规范/索引已补",
           "kind": "trace",
           "level": "block",
-          "rule": "★ 本轮新发现的坑/规则必须落进 standards.md 或 docsUnified 的文档或记忆图谱。",
+          "rule": "本轮新发现的坑和规则写入standards.md或现行知识库主题真源；旧docsUnified只读兼容。",
           "bad": "只写在 AGENTS.md 里 —— 明令禁止（AGENTS.md 只放指针，不放收集到的坑）",
           "verify": "保留现 --since 日期窗口；比较 Git 窗口前基线与 standards.md/现知识库证据根内 Markdown 真实内容差异，或 roots.docs/_memory/memory.jsonl 有效新行追加且旧前缀未改；目录/文件 touch 与记忆工具词不算写入，Git/读取失败保持 UNKNOWN/BLOCK。只证落盘痕迹，不证记录质量或世界效果。"
         },
@@ -1015,11 +1015,11 @@
         },
         {
           "id": "P11",
-          "name": "规则没打架",
-          "kind": "trace",
+          "name": "现行规则入口可用",
+          "kind": "artifact",
           "level": "warn",
-          "rule": "两份 AGENTS.md 与 _格式规范.md 的工程纪律条目须一致（历史上丢过 182 行）。check-align / check-global 仍读 stage.md 作为历史契约，但 stage 流程本身已废弃。",
-          "verify": "node stager/bin/check-global.js + check-align.js"
+          "rule": "2026-11-13：检查项目AGENTS、harness格式规范、知识库入口存在；缺失WARN/UNKNOWN。存在只证可读入口，不证明规则无冲突；废弃stage不再阻断。",
+          "verify": "内置isFile，不再执行旧stager/check-align和check-global"
         },
         {
           "id": "P12",
@@ -1034,7 +1034,7 @@
           "kind": "human",
           "level": "ask",
           "rule": "★ 进游戏【之前】必须先读一遍「游戏内能力清单」，确认这一轮要用的能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 / 飞行 / 看监测台）已有一条现成工具。清单里每一条都带正确调用姿势和坑。目的是别临场手写已有工具、别用错那条必然失效的路。",
-          "verify": "人工确认：已读 D:\\rdd\\harness\\rdd-harness\\进游戏前必读-游戏内能力清单.md（preflight 输出里会把这句打出来，读没读过是你的判断，机器查不到「读过」这件事 —— 所以它宁可误报也不静默跳过）",
+          "verify": "执行者按当前P13输出读取知识库/进游戏验证/001-进游戏核心工具.md；已有授权内自行核对，不新增主人审批。",
           "tool": "gate.read"
         },
         {
@@ -1080,8 +1080,8 @@
           "name": "存档快照（你的工具，用完自己删）",
           "kind": "human",
           "level": "ask",
-          "rule": "★ 2026-10-21 用户定：进游戏前问一句「这次要不要先打存档快照」。★ 2026-10-21 用户纠正定性：快照是执行 AI 自己的工作副本，不是永久资产 —— 不是「问用户要不要」，是「告诉 AI 这是你的工具 + 你要负责删」。验证会破坏环境时先打一份（游戏必须已停），跑坏了回滚，用完自己删（默认 TTL 48 小时）。",
-          "verify": "人工确认：node bin/snapshot-world.js --status 看过现状；--name before-<批次> --apply 打过快照；--prune --apply 清理过期。机器判不了「该不该用快照」，所以是 ASK 不是 BLOCK"
+          "rule": "2026-11-13核对：快照是执行者按需工作副本。需要回滚或同起点对照时停游戏再创建；普通继续不强制复制。用完按原工具TTL清理，不把无快照作为风险结论。",
+          "verify": "--status只读；创建和清理由本轮需求决定。ASK为执行者核对，不代表必须创建或向主人请示。"
         },
         {
           "id": "P16",
@@ -1161,7 +1161,7 @@
           "name": "★ 总结写到了正确位置",
           "kind": "artifact",
           "level": "block",
-          "rule": "长期资产 → docsUnified\\NN-*.md；本轮过程 → 知识库对应文件夹。harness\\ 目录里不许出现总结/复盘/报告。stage 四阶段流水线已废弃，stageDocs 仅历史。",
+          "rule": "长期资产与本轮记录均按知识库/写作规则.md进入对应主题；harness只放工具、规则、注册表、测试。stageDocs与docsUnified只留历史兼容。",
           "verify": "扫 harness\\ 下有没有新建的 .md 总结类文件"
         },
         {
@@ -1241,8 +1241,8 @@
           "name": "★ 关游戏之后：写记录 + 写文档（提示）",
           "kind": "human",
           "level": "ask",
-          "rule": "★ 关游戏不是结束。顺序固定：关游戏 → 写记录 → 写文档 → 门禁。两件必须真动手：(1) 写记录 = 测试日志.md 加本轮条目（带 keyword 或 HEAD 前 12 位签名）+ 09-更新日志.md 登记本轮变更；(2) 写文档 = 长期资产落 docsUnified\\NN-<中文名>.md 并同时登记 3 处（README §二目录表 / 50-按主题导航.md / 09-更新日志.md）。另需 memory_create_entities 灌记忆图谱 —— 别只写文档不进图谱。",
-          "verify": "人工确认三条都做了：① 测试日志有本轮签名条目 ② 09-更新日志有本轮登记 ③ 记忆图谱有新实体。Q2/Q3/Q5/Q9 是同一件事的机器侧对应项，这里是给人看的完整清单",
+          "rule": "关游戏后按知识库/退游戏/001-退游戏检查单.md记录判据、数据、结果、原因和复现；复用原主题文档与知识库登记，不再强制新增旧库NN文档或三处旧索引。",
+          "verify": "执行者核对当前检查单；Q2/Q3/Q5/Q9仍按各自范围检查，历史库已有证据保留兼容，不代表必须新写旧库。",
           "tool": "gate.read"
         },
         {
@@ -1337,140 +1337,142 @@
         }
       ]
     },
-    "$askNote": "level=ask 的项含义：机器判不了，必须由人/AI 亲自过一遍并点头。\n它在代码里对应 state=ASK ——【永远打印在独立段落里】，但【不进 BLOCK 计数】。\n不进 BLOCK 是因为一条永远无法自动满足的项会把门禁永久钉死（同 P10/P10c 的教训）；\n永远打印是因为「声明在 registry 里却从没被 record() 接线」这件事本身没人会发现\n（2026-10-04 首跑：P11/P12/P13/Q12 只写进 registry，代码里一次 record() 都没有，\n 用户明确要的「进游戏前提醒读能力清单」根本没出现）。\n★ 自检项「声明的门禁项都已接线」就是防这一类的 —— 它数 registry 的 id 在代码里\n 有没有对应的 record 调用。",
+    "$askNote": "ASK：机器无法自动判定，由执行者在已有授权内核对；超出授权或缺少必要信息时才问主人。",
     "round": {
-      "$comment": "★ 2026-11-07 主人定：指挥官专属的『监督轮』门禁。一轮 = 固定 20 分钟；每 2 轮必读架构 MCP、3 轮内整理文档、4 轮内读施工文档+角色卡；并且必须保证施工 AI 绑着 goal。用 node bin/harness-gate.js round --role commander 跑。C1/C3 目前是自报证据（rounds 文件），已在 knownGaps 登记，别当硬判据吹。",
-      "when": "指挥官每 20 分钟的监督轮（不是进游戏门禁）",
+      "$comment": "2026-11-13：按006现行三层团队职责修正旧监督误判。mtime、旧goal日志和全局闹钟均非当前会话状态，缺覆盖标UNKNOWN；round是监督提醒，不能代替preflight硬检查。",
+      "when": "指挥官十分钟提醒中按需使用；实际目标/原证核查不依赖固定写文件次数",
       "checks": [
         {
           "id": "C1",
-          "name": "2 轮内读过架构导航",
+          "name": "按任务变化查架构导航",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "每 2 轮（40 分钟）必须调一次架构 MCP（arch_overview / arch_focus），防止只盯局部修复、方向跑偏。",
-          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次【成功】的 arch_* 调用（ok≠false）在 40 分钟内；调用失败也留痕但不算查过",
-          "note": "2026-11-08 起改为工具痕迹：架构 MCP 每次调用都写 mcp-calls.jsonl，没有调用记录＝没查。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按任务变化查架构导航。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C2",
-          "name": "3 轮内整理过知识库文档",
-          "kind": "artifact",
-          "level": "block",
+          "name": "文档按真实变化维护",
+          "kind": "trace",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "每 3 轮（60 分钟）必须把文档整理一遍（补指针、修矛盾、归档废稿），不能只干活不落盘。",
-          "verify": "知识库里任一 .md 的 mtime 在 60 分钟内（文件系统实物，不是自述）"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：文档按真实变化维护。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C3",
-          "name": "4 轮内读过施工文档+角色卡",
+          "name": "角色与任务入口对齐",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "每 4 轮（80 分钟）必须把当前施工单和角色卡各读一遍，防止拿旧结论指挥。",
-          "verify": ".harness/audit/mcp-calls.jsonl 里最近一次【成功】的 role_card 或 my_tasks 调用（ok≠false）在 80 分钟内",
-          "note": "2026-11-08 起改为工具痕迹：role_card / my_tasks 是带记账的 MCP 工具，必须调用才算读过。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：角色与任务入口对齐。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C4",
-          "name": "施工 AI 绑着 goal",
+          "name": "施工目标现场核对",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "施工 AI 必须在 goal 上自转；没 goal 就会停下来等人推，指挥官要保证他们不断掉。",
-          "verify": "~/.dsh/goal-keeper.log 里该会话最后一条事件不是 complete / clear / no-goal（可用 --worker 指定会话）"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：施工目标现场核对。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C6",
-          "name": "任务开着就不许撤 20 分钟闹钟",
+          "name": "十分钟按需监督提醒",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "一旦开了任务（施工 AI 的 goal 处于 armed），20 分钟监督闹钟就必须一直挂着，必须一直干下去；只有主人【主动】叫停才允许撤。自己嫌吵撤掉 = 任务停在半路没人推。没活干也不许停：先走已布置的文档任务，全做完再推进 MC（找锚点、修 AC、修基建）。",
-          "verify": "施工 goal armed 时，~/.dsh/storages/schedule.json 必须存在 kind=every 且 everySeconds<=1200 的任务；唯一例外是 commander-config.json 里的 alarmPauseApproved（必须带主人原话）",
-          "note": "没开局（goal 不是 armed）时这一项记 SKIP —— 跳过不是通过。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：十分钟按需监督提醒。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C5",
-          "name": "激活即巡检架构（每次被激活都要）",
+          "name": "架构变化时查重并更新导航",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "每次被激活（每轮 20 分钟）都必须巡检一次架构：先查重（同主题节点/条目是否已存在），再看图谱 035 与正文 034 有没有要更新的；该改就在本轮改完并在 035 的 decisionHistory 留一条，不该改也要在 036 巡检记录里写清『查重结论 + 为什么不改』。★2026-11-07 深夜主人改口径：从『每 3 轮』改成『每次激活』。",
-          "verify": "架构意图/036-架构巡检记录.jsonl 最新一行在 20 分钟内，且该行含 dedupe（查重结论）；changed 非空时须有 decisionId 且 035 的 mtime 不早于该行；changed 为空时须有 note 说明为何不改",
-          "note": "更新那半是硬证据（文件 mtime）；『确认无需更新』那半只能自报，同 C1/C3，见 knownGaps C1C3-selfreport。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：架构变化时查重并更新导航。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
           "id": "C7",
-          "name": "任务开着就不许零产出（防收工）",
-          "kind": "artifact",
-          "level": "block",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "主人已经说过好几次：电脑开着就是干活的，不许干一半收工。任务开着的时候，每 20 分钟必须在盘上留下真产出（代码/文档/记录）；只有日志和账本不算产出。",
-          "verify": "goal active 时，知识库、workspace 脚本、harness bin 下最近 20 分钟有非日志类文件被写过（recentOutput）",
-          "note": "纯思考轮会误伤；但『我还在想』和『我已经收工』在盘上没区别，宁可误伤也要留着这条。"
-        },
-        {
-          "id": "C8",
-          "name": "本轮必须调过工具（防发呆）",
-          "kind": "trace",
-          "level": "block",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "不管干什么，每轮必须真的调用过工具（任何工具）。只发一段文本说『我查过了』不算干活；架构 MCP 与角色卡都必须走工具、留痕迹。",
-          "verify": ".harness/audit/mcp-calls.jsonl 或 gate-usage.jsonl 里 20 分钟内有任意一次工具调用",
-          "note": "痕迹由架构 MCP 与门禁自身写入；没有痕迹就是没干。"
-        },
-        {
-          "id": "C9",
-          "name": "实验台 live 在跑",
-          "kind": "artifact",
-          "level": "block",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "实验台靠常驻进程 bench live 续命，进程一死就静默 —— 2026-11-05 12:22 停到 2026-11-08 09:31（两天半）没人发现（主人 11-08 追问才查出）。世界观测是游戏侧自动落盘，所以会出现「世界有数据、实验台没有」的错觉。",
-          "verify": "experiments/live/status.json 的 last_tick_at 在 15 分钟内",
-          "note": "停摆判 BLOCK：实验台是主动观测能力，不是可选项。世界观测（worldstate.jsonl）单列 C9b，只 WARN，因为游戏关着时它本来就会停。"
-        },
-        {
-          "id": "C9b",
-          "name": "世界观测有活气",
+          "name": "检查真实进展与下一步",
           "kind": "artifact",
           "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "世界观测（monitor/worldstate.jsonl）持续写入说明环境线在跑；但它由游戏侧自动写，游戏关着不写属正常。",
-          "verify": "monitor/worldstate.jsonl mtime 在 30 分钟内；超过只 WARN",
-          "note": "与 C9 分开判：一个要人养（live 进程），一个自动产（游戏日志），不能用同一条判据。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：检查真实进展与下一步。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         },
         {
-          "id": "C10",
-          "name": "目标暂停/阻塞必须有人指导",
+          "id": "C8",
+          "name": "工具证据覆盖",
           "kind": "trace",
-          "level": "block",
+          "level": "warn",
           "appliesTo": [
             "commander"
           ],
-          "rule": "施工 AI 的目标一旦阻塞或暂停，指挥官必须去指导（说清卡在哪层 + 唯一的下一个动作），或者重设目标；放着不管超过 20 分钟就算 BLOCK。主人 2026-11-08 点名要求。",
-          "verify": "~/.dsh/goal-keeper.log 中该会话最后一条事件若含 block/pause/blocked，距现在 ≤20 分钟记 WARN（本轮必须给指导），>20 分钟记 BLOCK",
-          "note": "只认 goal-keeper 的真状态事件，不认 AI 自述。「刚停」留 20 分钟窗口，是给人一个反应时间，不是给它自己好起来的时间。 ★2026-11-08 主人新口径限定：本条只针对 DSH 施工会话的 goal，**不对游戏内目标下令、不催游戏 AI**——主人要的是它自主通关的真实过程。"
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：工具证据覆盖。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
+        },
+        {
+          "id": "C9",
+          "name": "按观测任务核对实验台",
+          "kind": "artifact",
+          "level": "warn",
+          "appliesTo": [
+            "commander"
+          ],
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按观测任务核对实验台。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
+        },
+        {
+          "id": "C9b",
+          "name": "按观测任务核对世界状态",
+          "kind": "artifact",
+          "level": "warn",
+          "appliesTo": [
+            "commander"
+          ],
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按观测任务核对世界状态。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
+        },
+        {
+          "id": "C10",
+          "name": "阻塞按原因指导，暂停尊重原意",
+          "kind": "trace",
+          "level": "warn",
+          "appliesTo": [
+            "commander"
+          ],
+          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：阻塞按原因指导，暂停尊重原意。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
+          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
+          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
         }
       ]
     },
@@ -1568,7 +1570,7 @@
         ]
       },
       "GK-R": {
-        "name": "指挥官监督轮：2 轮读架构 / 3 轮整文档 / 4 轮读施工单+角色卡 / 施工 AI 有 goal",
+        "name": "指挥官按需监督：历史线索与UNKNOWN，不伪造实时结论",
         "checks": [
           "C1",
           "C2",
@@ -1592,7 +1594,7 @@
         ]
       },
       "REMIND": {
-        "name": "提醒（机器判不了，不算门；只鼓励看一眼，不影响总判）",
+        "name": "执行者核对与提醒；其中真实BLOCK仍计入统一总判",
         "checks": [
           "P11",
           "P12",
@@ -1608,7 +1610,7 @@
     }
   },
   "roles": {
-    "$comment": "★ 2026-11-07 主人亲自定：只做三个核心角色（指挥官 / 主干活 / 学习），汇报 AI 与辅助 AI 暂不单列，继续按 worker 全量跑。判据归属写在每条判据的可选字段 appliesTo；不写 = 全角色都跑（等于旧行为，零改动）。角色只决定『这一项要不要跑』，不改判据强度、不改 groups（同 gate-switches 的 gateMode 原则）。执行器：node bin/harness-gate.js preflight --role commander|worker|learner。",
+    "$comment": "门禁适用角色是检查范围，不等于团队层级或唯一写码权；三层团队职责以知识库/架构意图/006-Harness模块.md为准。",
     "list": [
       {
         "id": "commander",
@@ -1618,7 +1620,7 @@
       {
         "id": "worker",
         "name": "主干活",
-        "note": "读文档→写代码→编译→部署→进游戏验→退游戏记录。唯一写码与开游戏的角色，43 项全跑（默认）。"
+        "note": "执行层主工/副工按范围施工；主工负责集成与唯一受管部署/游戏驾驶。角色只选择适用检查，不放宽判据。"
       },
       {
         "id": "learner",
@@ -1725,12 +1727,14 @@
         "detected": "2026-10-04",
         "rootCause": "merge-global.js 最后一次跑是 2026-10-01 10:30，之后两份都被手工改过。三个 check-*.js 里没有任何一个会因为「全局卡少 7 条 H2」以外的形态报错。",
         "impact": "第 3 条 GLM 源码审、第 6 条 15 条坑、实例叫法表、路径配置位置、套娃仓库盲区 —— 全局会话全部看不到。",
-        "guard": "preflight P11（check-global.js 比对 H2 条目数）；registry.standards.contract 要求规范单一真源在 standards.md 而非 AGENTS.md。",
+        "guard": "现行入口只放唯一真源指针；P11查入口存在、prompt-lint查预算。旧两份AGENTS全文同步机制退役，不再声称check-global为有效防线。",
         "verifiedBy": "check-global.js 从 FAIL 转 PASS",
         "renewedAt": "2026-11-04",
         "renewedReason": "2026-11-04 未逐行比对两份 AGENTS.md；续期一月待复核",
         "reviewBy": "2026-12-04",
-        "status": "open"
+        "status": "closed",
+        "closedAt": "2026-11-13",
+        "closureReason": "用户11-11已移除全局AGENTS；11-13授权清理后修复活跃指针并解除P11对旧stage全文的依赖。入口与门禁隔离测试通过，规则语义是否实际遵守仍需任务取证。"
       },
       {
         "id": "TL-2026-10-06-01",
@@ -2173,10 +2177,10 @@
       },
       {
         "id": "C1C3-selfreport",
-        "what": "指挥官监督轮的两条判据 **C1（2 轮内读架构 MCP）/ C3（4 轮内读施工单+角色卡）是自报型**：证据来自 `runs/commander-rounds.jsonl`，由指挥官自己每轮 append",
-        "why": "架构 MCP 是只读服务、不记调用日志；DSH 的 read 工具调用不落盘（2026-11-07 22:50 实测：会话目录只有 239 字节的会话头，没有事件流）。除了自报没有别的盘上痕迹",
-        "effect": "指挥官可以写了没做而门禁照样绿 —— 这正是主人点名最多的「看起来做了 / 假成功」盲点，只是被搬进了门禁自己",
-        "plan": "要变硬，得在 DSH 侧加一个工具调用记录插件（把每次 tool 调用 append 到 ~/.dsh/tool-ledger.jsonl），再把 C1/C3 改成读账本；插件做出来之前，C2（知识库 mtime）与 C4（goal-keeper.log）仍是硬证据",
+        "what": "监督证据覆盖仍不完整：现有MCP调用账本只覆盖部分工具，原生ACP轨迹不在同一账本。",
+        "why": "2026-11-13核对：原自报描述已过时；旧mtime和goal日志也不构成实时硬证据。",
+        "effect": "缺记录只能标UNKNOWN，不能据此放行、判停工或强制唤醒。",
+        "plan": "C1/C3与round已改为历史线索提醒；实际监督按需读当前会话及原证，不新增第二工具账本。运行中的插件加载及跨代理端到端效果另验。",
         "reviewBy": "2026-11-21"
       },
       {

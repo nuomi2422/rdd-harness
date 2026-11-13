@@ -255,7 +255,7 @@ function record(id, name, level, kind, state, detail) {
   results.push({ id, name, level, kind, state, detail: detail || '' });
 }
 const BLOCK = 'BLOCK', WARN = 'WARN', PASS = 'PASS', SKIP = 'SKIP';
-// ★ ASK = 「必须由人点头，机器判不了」。它【不进 BLOCK 计数】（否则一条永远无法自动
+// ★ ASK = 「执行者核对，机器判不了」。它【不进 BLOCK 计数】（否则一条永远无法自动
 // 满足的项会把门禁永久钉死 —— 同 P10/P10c 的教训），但【永远打印在单独的段落里】，
 // 所以「AI 读得到这句提示」这件事本身是被保证的。
 // 用它而不是「记进 registry 就当有」：2026-10-04 首跑发现 P11/P12/P13 只写进了
@@ -535,25 +535,16 @@ function preflight(ctx) {
   //   这跟 bug-10（纪律引用了一个不存在的命令）是同一族：
   //   **声明 ≠ 接线**。修法 = 真 record() + ASK 状态永远打印（见 ASK 常量注释）。
   {
-    // P11 规则没打架 —— 真跑那两个自检脚本，别自己另写一套判断
-    const chk = path.join(REG.roots.workspace, 'stager', 'bin');
-    const align = spawnSync(process.execPath, [path.join(chk, 'check-align.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
-    const glb = spawnSync(process.execPath, [path.join(chk, 'check-global.js')], { encoding: 'utf8', maxBuffer: 8 << 20 });
-    const bad = [align, glb].filter((r) => r.status !== 0);
-    // ★ 2026-10-19：退出码 3 = 环境错（例如全局指针卡还没装到 ~/.config/opencode/），
-    //   按项目契约那是 SKIP 不是债 —— 报 BLOCK 会让「文件没装」长得像「规则打架」。
-    const env = bad.filter((r) => r.status === 3);
-    const real = bad.filter((r) => r.status !== 3);
-    let p11state = PASS;
-    let p11detail = `check-align 0 · check-global 0（外层 AGENTS.md / rddharness\\stage.md / 全局指针卡 三层分工一致）`;
-    if (real.length) {
-      p11state = BLOCK;
-      p11detail = `check-align exit=${align.status} / check-global exit=${glb.status} —— 规则文件之间有冲突或指针失效，先修那个再动游戏`;
-    } else if (env.length) {
-      p11state = SKIP;
-      p11detail = `check-global exit=3（环境错，不是债）：${env.map((r) => (r.stdout || '').split(/\r?\n/).find((l) => /SKIP|缺失/.test(l)) || '').filter(Boolean).join(' ').trim() || '全局指针卡缺失'} —— 装法见该脚本输出`;
-    }
-    record('P11', '规则没打架', BLOCK, 'artifact', p11state, p11detail);
+    // 2026-11-13：stage已于11-06退役；旧check-align误把缺历史正文当作现行规则冲突。
+    const required = [
+      path.join(REG.roots.workspace, 'AGENTS.md'),
+      path.join(REG.roots.harness, '_格式规范.md'),
+      path.join(REG.roots.knowledge || path.join(REG.roots.docs, '知识库'), '入口.md'),
+    ];
+    const missing = required.filter((p) => !isFile(p));
+    record('P11', '现行规则入口可用', WARN, 'artifact', missing.length ? WARN : PASS,
+      missing.length ? 'UNKNOWN：现行入口缺失：' + missing.join('；')
+        : '现行入口均存在；不代表规则内容无冲突。stage及旧check-align/check-global已退出启动依赖');
   }
   {
     // P12 改接口先查消费者 —— 机器判不了「你到底改了哪个接口」，只能问
@@ -777,13 +768,13 @@ function preflight(ctx) {
       const expired = /超过 TTL|🟡/.test(statusOut);
       record('P15', '存档快照（你的工具，用完自己删）', 'human', 'ask', ASK,
         `★ 这是**你的工具**，不是等用户批的事。自己判断要不要用：\n` +
-        `       这次验证会不会**破坏环境**（挖/丢/改同伴状态）？会 → 打一份再进游戏：\n` +
+        `       这次是否需要回滚或同一起点对照？需要 → 停游戏后按需打快照；普通继续不强制复制存档：\n` +
         `         node "${snap}" --name before-<批次> --apply      （游戏必须已停）\n` +
         `       跑坏了回滚：--restore before-<批次> --apply\n` +
         `       ★ **用完自己删**：快照是工作副本不是资产（每份 30 MB 级），默认 TTL ${'48'} 小时。\n` +
         `         查：--status ｜ 删过期的：--prune --apply\n` +
         (none
-          ? `       ⚠ 当前**一个快照都没有** —— 想复现「同一个起点」只能靠运气`
+          ? `       当前没有快照；仅在需要回滚或同起点对照时创建`
           : (expired
             ? `       🟡 **有过期快照没删** —— 跑 --prune --apply 清掉（别攒着占盘）`
             : `       ✔ 现有快照都在 TTL 内`)) +
@@ -1189,7 +1180,7 @@ function postflight(ctx) {
       const head = `★ 实验台三件事（退游戏时最容易漏）：\n` +
         `       ① **这轮缺的观测手段 → 写成实验台工具**（harness/bin/exp-*、bench、bench-watch、world-view、\n` +
         `          mf-*、observer-*），不要靠手工重复：新工具要能一条命令复现、带 --help 与自测；\n` +
-        `       ② **这轮实验数据的反思** → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答：\n` +
+        `       ② **这轮实验数据的反思** → 写进知识库对应实验记录，散件进入杂项记录，必须回答：\n` +
         `          看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / **这轮证伪了什么假设**。\n` +
         `       ③ **数据要进账本** → node bin\\bench.js tip add / probe add / signal add / verdict add；\n` +
         `          只写在聊天里等于没写（下一轮的人还得考古）。\n` +
@@ -1952,7 +1943,7 @@ function printBenchReminder() {
   console.log('│ 现场：' + (hasLive
     ? 'experiments\\live\\snapshot.md 在（bench live status / show chain）'
     : 'live 视图没起 → node bin\\bench.js live start'));
-  console.log('│ 收工：缺的手段→写成 bench 工具 · 数据→bench tip/probe/signal/verdict add · 反思→rdd存放 一页纸（四问）');
+  console.log('│ 收工：缺的手段→写成 bench 工具 · 数据→bench tip/probe/signal/verdict add · 反思→知识库对应实验记录/杂项记录（四问）');
   console.log('│ 身体：mineflayer + mf-kit 能干活（寻路/采集/合成/战斗/吃/护甲/找方块，P17）；进主世界开创造用 Observer（P16）');
   console.log('│ 睡觉：多人同服跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜');
   console.log('└──────────────────────────────────────────────────────────');
@@ -2038,19 +2029,18 @@ function printGroups() {
   const ICON = { PASS: '✔', BLOCK: '✘', WARN: '!', ASK: '☞', SKIP: '-' };
   console.log('');
   console.log('────────── 三门总判（明细在下面，判据未改） ──────────');
-  let gateBlock = 0;
+  const gateBlock = results.filter((r) => r.state === BLOCK).length;
   for (const k of keys) {
     const g = groups[k];
     const s = groupState(g.checks);
-    const isGate = /^GK-/.test(k);
-    if (isGate && s === BLOCK) gateBlock++;
+    // 分组仅展示；提醒桶中的真实BLOCK也必须计入总判。
     console.log(` ${ICON[s] || '·'} ${k.padEnd(7)} ${String(s).padEnd(5)} ${g.name}`);
-    if (isGate && s === BLOCK) {
+    if (s === BLOCK) {
       const bad = g.checks.filter((id) => (results.find((r) => r.id === id) || {}).state === BLOCK);
       console.log(`           ✘ ${bad.join(' ')}`);
     }
   }
-  console.log(` ▸ GK-0  ${gateBlock === 0 ? '三门通过（提醒桶不影响总判）' : gateBlock + ' 门有 BLOCK —— 本轮不可交付'}`);
+  console.log(` ▸ GK-0  ${gateBlock === 0 ? '无 BLOCK（SKIP不等于通过，ASK由执行者核对）' : gateBlock + ' 项 BLOCK —— 本轮不可交付'}`);
 }
 
 /**
@@ -2091,12 +2081,12 @@ function verdict() {
     console.log(' ✘ BLOCK 项必须处理完才能进/出游戏：');
     for (const r of results.filter((x) => x.state === BLOCK)) console.log(`   · ${r.id} ${r.name}`);
   }
-  // ★ ASK 段落：机器判不了、但**必须由人点头**的项。永远打印，不参与 BLOCK 计数。
+  // ★ ASK 段落：机器判不了、但**执行者核对**的项。永远打印，不参与 BLOCK 计数。
   // 「永远打印」是这个状态存在的全部意义 —— 声明在 registry 里却没接上的检查，
   // 表现就是这一段空着，而空着没人看（2026-10-04 首跑的真实事故）。
   if (na) {
     console.log('');
-    console.log(' ☞ 下面这些机器判不了，【必须你亲自过一遍并点头】，过了才动游戏：');
+    console.log(' ☞ 下面这些机器判不了，【执行者在已有授权内逐项核对】；只有超出授权或缺少必要信息才问主人：');
     for (const r of results.filter((x) => x.state === ASK)) {
       console.log(`   · ${r.id} ${r.name}`);
       if (r.detail) console.log(`       ${r.detail}`);
@@ -2138,190 +2128,52 @@ function registrySummary() {
 }
 
 /**
- * ★ 2026-11-07 主人定：指挥官监督轮门禁（一轮 = 20 分钟，不是进游戏门禁）。
- *   C1 每 2 轮读架构 MCP / C2 每 3 轮整理文档 / C3 每 4 轮读施工单+角色卡 / C4 施工 AI 绑 goal。
- * 证据分档见 bin/lib/commander-gates.js 头注释：C2/C4 是盘上实物，C1/C3 目前只能自报（已登记 knownGaps）。
+ * 2026-11-13：按006现行职责做按需监督。旧mtime/全局历史日志不证明当前任务停工，
+ * 也不能把主人暂停的目标唤醒；保留线索，缺权威现场时明确UNKNOWN。
  */
 function roundGates() {
-  const roundsFile = path.join(REG.roots.harness, 'runs', 'commander-rounds.jsonl');
   const knowledge = REG.roots.knowledge || path.join(REG.roots.docs, '知识库');
-  const now = Date.now();
-  const age = (t) => (t ? now - t : 0);
-  // ★ 2026-11-08：C1/C3 从「自报」升级成「工具痕迹」——架构 MCP 每次调用都写 .harness/audit/mcp-calls.jsonl，
-  //   没有调用记录就是没查，发一段文字说查过不算。
   const rddRoot = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
-  const mcpLedger = path.join(rddRoot, '.harness', 'audit', 'mcp-calls.jsonl');
-  const archCall = cg.lastMcpCall(mcpLedger, /^arch_/);
-  const cardCall = cg.lastMcpCall(mcpLedger, /^(role_card|my_tasks)$/);
-  const c1 = cg.verdict(age(archCall.at), cg.WINDOW.arch, '架构 MCP 调用痕迹（' + (archCall.tool || '无') + '）');
-  const c2 = cg.verdict(age(cg.lastDocTidy(knowledge)), cg.WINDOW.docs, '知识库文档整理');
-  const c3 = cg.verdict(age(cardCall.at), cg.WINDOW.read, '读角色卡+找任务（' + (cardCall.tool || '无') + '）');
-  record('C1', '2 轮内读过架构导航', BLOCK, 'trace', c1.ok ? PASS : BLOCK, c1.detail);
-  record('C2', '3 轮内整理过知识库文档', BLOCK, 'artifact', c2.ok ? PASS : BLOCK, c2.detail);
-  record('C3', '4 轮内读过施工文档+角色卡', BLOCK, 'trace', c3.ok ? PASS : BLOCK, c3.detail);
-  // 施工 AI 的会话从 commander-config.json 读（换人只改一行），--worker 可临时覆盖。
-  const workerCfg = (() => {
-    try { return JSON.parse(fs.readFileSync(path.join(REG.roots.harness, 'commander-config.json'), 'utf8')); } catch { return {}; }
-  })();
-  const workerSession = arg('--worker', '') || workerCfg.workerSession || '';
-  const g = cg.workerGoalState(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), workerSession);
-  let c4state = WARN;
-  let c4detail = g.reason || '未知';
-  // ★ 2026-11-08：goal-keeper.log 只在它自己那类事件里写（新建 goal 不写），所以单看日志会误判。
-  //   补一条交叉口径：commander-config.json 里登记的 workerGoal，只要日志里【之后】没有 clear/complete 就算绑着。
-  const declared = workerCfg.workerGoal && workerCfg.workerGoal.id ? workerCfg.workerGoal : null;
-  const declaredAlive = declared ? !(g.known && g.at && Date.parse(declared.at) < g.at && /goal complete|goal clear|no-goal/.test(g.line || '')) : false;
-  if (g.known && g.armed) {
-    c4state = PASS;
-    c4detail = '绑着' + (g.at ? '（' + Math.round((now - g.at) / 60000) + ' 分钟前有 goal 事件）' : '');
-  } else if (declaredAlive) {
-    c4state = PASS;
-    c4detail = '按 commander-config 登记的 ' + declared.id + ' 绑着（日志尚未出现新事件，属交叉验证缺口）';
-  } else if (g.known) {
-    c4state = BLOCK;
-    c4detail = '没有 goal：' + (g.line || '');
-  }
-  record('C4', '施工 AI 绑着 goal', BLOCK, 'trace', c4state, c4detail);
-  // 任务是否「开着」：日志说 armed，或配置登记的 goal 还活着（C6 用）。
-  const goalActive = (g.known && g.armed) || declaredAlive;
-
-  // C6（2026-11-08 主人定）：任务开着就不许撤 20 分钟闹钟 —— 必须一直干下去。
-  //   唯一例外：主人主动叫停（commander-config.json 的 alarmPauseApproved 必须带原话）。
+  const ledger = path.join(rddRoot, '.harness', 'audit', 'mcp-calls.jsonl');
+  const now = Date.now();
+  const evidence = (call) => call.at > 0 && call.at <= now
+    ? '最近可见调用：' + call.tool + '，' + Math.round((now - call.at) / 60000) + ' 分钟前；仅证调用，不证当前任务已对齐'
+    : 'UNKNOWN：未见有效调用记录；该账本不覆盖全部原生工具';
+  const arch = cg.lastMcpCall(ledger, /^arch_/);
+  const card = cg.lastMcpCall(ledger, /^(role_card|my_tasks)$/);
+  record('C1', '按任务变化查架构导航', WARN, 'trace', WARN,
+    evidence(arch) + '；职责或架构变化再查，无变化不重复全量检查');
+  record('C2', '文档按真实变化维护', WARN, 'trace', SKIP,
+    '不以文件修改时间证明整理质量；发现失效指针或事实变化才修，不为刷新时间写文档');
+  record('C3', '角色与任务入口对齐', WARN, 'trace', WARN, evidence(card));
+  record('C4', '施工目标现场核对', WARN, 'trace', WARN,
+    'UNKNOWN：配置与goal-keeper历史日志不代表实时目标；按需用peer_see读取指定负责人的当前goal及任务范围');
+  record('C6', '十分钟按需监督提醒', WARN, 'trace', WARN,
+    'UNKNOWN：旧schedule.json不能证明当前指挥官的提醒状态；用当前会话schedule_list核对唯一提醒，不因陌生会话有闹钟而判通过');
+  record('C7', '检查真实进展与下一步', WARN, 'trace', WARN,
+    'UNKNOWN：文件mtime不证明任务产出。调查证据、在飞长任务和有原因的等待均可构成进展；按当前任务核验，不强造改动');
+  record('C8', '工具证据覆盖', WARN, 'trace', WARN,
+    'UNKNOWN：局部MCP账本不覆盖原生ACP工具；需要时查会话上下文及原始工具结果，缺记录不等于没有调用');
   {
-    const pause = workerCfg.alarmPauseApproved;
-    const alarm = cg.supervisionAlarm(path.join(require('os').homedir(), '.dsh', 'storages', 'schedule.json'), 1200);
-    let c6state;
-    let c6detail;
-    if (!goalActive) {
-      c6state = SKIP;
-      c6detail = '没开局（施工 goal 不是 armed）—— 这一项不判，跳过不是通过';
-    } else if (pause && pause.at && typeof pause.reason === 'string' && pause.reason.trim().length > 0) {
-      c6state = WARN;
-      c6detail = '闹钟已按主人叫停暂停（' + pause.at + '；原话：' + String(pause.quote || pause.reason).slice(0, 60) + '）';
-    } else if (!alarm.known) {
-      c6state = WARN;
-      c6detail = alarm.reason;
-    } else {
-      c6state = alarm.ok ? PASS : BLOCK;
-      c6detail = alarm.ok
-        ? alarm.reason + ' —— 任务开着就得一直干，别自己撤'
-        : '任务开着但闹钟被撤了：' + alarm.reason + '。只有主人主动叫停才能停（在 commander-config.json 写 alarmPauseApproved 并附原话）';
-    }
-    record('C6', '任务开着就不许撤 20 分钟闹钟', BLOCK, 'trace', c6state, c6detail);
-  }
-
-  // C7（2026-11-08 主人第三次投诉「干一半就收工」）：任务开着就必须有产出，日志不算。
-  {
-    const dirs = [
-      knowledge,
-      path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts'),
-      path.join(REG.roots.harness, 'bin'),
-    ];
-    const out = cg.recentOutput(dirs, now, 20 * 60_000);
-    let c7state;
-    let c7detail;
-    if (!goalActive) {
-      c7state = SKIP;
-      c7detail = '没开局 —— 这一项不判，跳过不是通过';
-    } else if (out.count > 0) {
-      c7state = PASS;
-      c7detail = '最近 20 分钟有 ' + out.count + ' 个产出（最新：' + path.basename(out.newest.file) + '）';
-    } else {
-      c7state = BLOCK;
-      c7detail = '任务开着但最近 20 分钟盘上零产出 —— 像收工了。电脑开着就是干活的：没活干按三级推进（文档任务 → MC 锚点/AC/基建）';
-    }
-    record('C7', '任务开着就不许零产出（防收工）', BLOCK, 'artifact', c7state, c7detail);
-  }
-
-  // C8（2026-11-08 主人定）：不管干什么，每轮必须真的调过工具——不许干坐着发文本。
-  {
-    const gateLedger = path.join(rddRoot, '.harness', 'audit', 'gate-usage.jsonl');
-    const gateCall = cg.lastMcpCall(gateLedger, /.*/);
-    const newestAt = Math.max(archCall.at || 0, cardCall.at || 0, gateCall.at || 0);
-    const c8ok = newestAt > 0 && now - newestAt <= 20 * 60_000;
-    record('C8', '本轮必须调过工具（防发呆）', BLOCK, 'trace', c8ok ? PASS : BLOCK,
-      newestAt ? '最近一次工具调用在 ' + Math.round((now - newestAt) / 60_000) + ' 分钟前'
-        : '20 分钟内没有任何工具调用痕迹 —— 光发文本不算干活');
-  }
-
-  // C9（2026-11-08 主人追问「为什么不看实验台」）：实验台与世界观测都要有活气。
-  //   两次停摆的方式不一样：实验台靠常驻进程（bench live）续命，进程一死就静默；世界观测是游戏侧自动落盘。
-  //   所以分开判：实验台停摆判 BLOCK（它是主动观测能力），世界观测停摆只 WARN（游戏没开也会停）。
-  {
-    const liveStatus = path.join(REG.roots.harness, 'experiments', 'live', 'status.json');
-    let liveState = WARN, liveDetail = '没有 live/status.json —— 实验台从没起来过';
+    const file = path.join(REG.roots.harness, 'experiments', 'live', 'status.json');
+    let detail = 'UNKNOWN：未见实验台状态；按本轮是否实际依赖游戏观测决定是否检查';
     try {
-      const raw = JSON.parse(fs.readFileSync(liveStatus, 'utf8'));
-      const lastTick = Date.parse(raw.last_tick_at || '');
-      const idleMin = Number.isFinite(lastTick) ? Math.round((now - lastTick) / 60000) : -1;
-      if (lastTick && idleMin <= 15) { liveState = PASS; liveDetail = 'live 在跑（pid=' + raw.pid + '，' + idleMin + ' 分钟前出拍，累计 ' + raw.ticks + ' 拍）'; }
-      else { liveState = BLOCK; liveDetail = '实验台停摆 ' + idleMin + ' 分钟（pid=' + raw.pid + '，最后出拍 ' + raw.last_tick_at + '）→ node bin/bench.js live start'; }
-    } catch { /* 保持 WARN */ }
-    record('C9', '实验台 live 在跑（世界观测不能只靠自动落盘）', BLOCK, 'artifact', liveState, liveDetail);
-
-    const wsFile = path.join(REG.roots.live, 'config', 'numen', 'monitor', 'worldstate.jsonl');
-    let wsState = WARN, wsDetail = '没有 worldstate.jsonl';
-    try {
-      const wsAge = Math.round((now - fs.statSync(wsFile).mtimeMs) / 60000);
-      wsState = wsAge <= 30 ? PASS : WARN;
-      wsDetail = '世界观测最后写入 ' + wsAge + ' 分钟前' + (wsAge > 30 ? '（游戏没开也会停，所以只提醒）' : '');
-    } catch { /* 保持 WARN */ }
-    record('C9b', '世界观测有活气', WARN, 'artifact', wsState, wsDetail);
+      const raw = JSON.parse(fs.readFileSync(file, 'utf8'));
+      const tick = Date.parse(raw.last_tick_at || '');
+      if (Number.isFinite(tick) && tick <= now)
+        detail = '实验台最后记录于' + raw.last_tick_at + '；这是历史痕迹，不证明当前进程或世界身份。本轮依赖它时核验实例和鲜度';
+    } catch { /* 缺证保留UNKNOWN */ }
+    record('C9', '按观测任务核对实验台', WARN, 'artifact', WARN, detail);
+    record('C9b', '按观测任务核对世界状态', WARN, 'artifact', WARN,
+      'UNKNOWN：游戏未运行也会停止落盘；进入实际验证时仍必须通过preflight的世界身份与部署检查');
   }
-
-  // C10（2026-11-08 主人定）：目标被暂停/阻塞时，指挥官必须去指导，不许放着不管。
-  //   判据只认 goal-keeper.log 的最后一条事件 —— 它写的是真状态（block/pause/complete/clear）。
-  {
-    let c10state = WARN, c10detail = '读不到 goal 状态';
-    try {
-      const logTxt = fs.readFileSync(path.join(require('os').homedir(), '.dsh', 'goal-keeper.log'), 'utf8');
-      const mine = logTxt.split(/\r?\n/).filter((l) => l.includes(workerSession));
-      const last = mine.length ? mine[mine.length - 1] : '';
-      const stuck = /goal block|phase-blocked|goal pause|blocked/.test(last);
-      const at = (last.match(/^(\d{4}-\d{2}-\d{2}T[\d:.]+Z)/) || [])[1];
-      const stuckMin = stuck && at ? Math.round((now - Date.parse(at)) / 60000) : 0;
-      // ★ 2026-11-08：指导要能「解堵」——否则 C10 永久红，等于逼人当没看见。
-      //   指导记录写 .harness/audit/commander-guidance.jsonl（指挥官每次回话就追加一条）。
-      let guidedAt = 0;
-      try {
-        const rootC10 = (REG._meta && REG._meta.root) || path.dirname(path.dirname(REG.roots.harness));
-        const gl = path.join(rootC10, '.harness', 'audit', 'commander-guidance.jsonl');
-        for (const row of fs.readFileSync(gl, 'utf8').trim().split(/\r?\n/).filter(Boolean)) {
-          try { const o = JSON.parse(row); const v = Date.parse(o.at); if (v > guidedAt) guidedAt = v; } catch { /* 坏行跳过 */ }
-        }
-      } catch { /* 没有 ledger = 没指导过 */ }
-      const guidedAfter = guidedAt && at && guidedAt >= Date.parse(at);
-      if (!stuck) { c10state = PASS; c10detail = '目标在跑，没有阻塞/暂停'; }
-      else if (guidedAfter) { c10state = PASS; c10detail = '目标阻塞后已给过指导（' + new Date(guidedAt).toISOString().slice(11, 19) + '）'; }
-      else if (stuckMin <= 20) { c10state = WARN; c10detail = '目标刚停 ' + stuckMin + ' 分钟：本轮必须给指导（peer_send 说清卡在哪 + 下一步），别放着'; }
-      else { c10state = BLOCK; c10detail = '目标已暂停/阻塞 ' + stuckMin + ' 分钟没人管 → 去指导或重设目标：' + String(last).slice(0, 120); }
-    } catch { /* 保持 WARN */ }
-    record('C10', '目标暂停/阻塞必须有人指导', BLOCK, 'trace', c10state, c10detail);
-  }
-
-  // C5（2026-11-07 深夜主人改口径）：从「每 3 轮」改成「每次被激活都要巡检架构」。
-  //   必须留「查重结论 + 改没改」：改了要挂 decisionId 且 035 当场被写；不改要说明为什么。
-  const archDir = path.join(knowledge, '架构意图');
-  const scan = cg.lastArchScan(path.join(archDir, '036-架构巡检记录.jsonl'));
-  let c5state = WARN;
-  let c5detail = scan.reason || '取不到巡检记录';
-  if (scan.known) {
-    const ageMs = now - scan.at;
-    const row = scan.row || {};
-    const hasDedupe = typeof row.dedupe === 'string' && row.dedupe.trim().length >= 4;
-    const changed = Array.isArray(row.changed) ? row.changed : [];
-    const graphFresh = cg.lastArchTouch(archDir) >= scan.at - 60_000;
-    const okChange = changed.length === 0
-      ? (typeof row.note === 'string' && row.note.trim().length >= 4)
-      : (Boolean(row.decisionId) && graphFresh);
-    const ok = ageMs >= 0 && ageMs <= 20 * 60_000 && hasDedupe && okChange;
-    c5state = ok ? PASS : BLOCK;
-    c5detail = '最近巡检 ' + Math.round(ageMs / 60_000) + ' 分钟前；查重=' + (hasDedupe ? '有' : '缺')
-      + '；' + (changed.length
-        ? '改动 ' + changed.join('/') + (row.decisionId ? '（' + row.decisionId + '）' : '（缺 decisionId）')
-        : '无改动' + (okChange ? '（已说明原因）' : '（缺 note，说不出为什么没改）'));
-  }
-  record('C5', '激活即巡检架构（每次被激活都要）', BLOCK, 'trace', c5state, c5detail);
+  record('C10', '阻塞按原因指导，暂停尊重原意', WARN, 'trace', WARN,
+    'UNKNOWN：先核实时目标和原始原因；人类暂停、完成、未武装均不自动恢复。不以空日志推断目标在跑');
+  const scan = cg.lastArchScan(path.join(knowledge, '架构意图', '036-架构巡检记录.jsonl'));
+  record('C5', '架构变化时查重并更新导航', WARN, 'trace', WARN,
+    scan.known
+      ? '已有历史巡检记录；只在本轮事实或架构变化时核对正文、decision与导航，不用20分钟mtime作通过条件'
+      : 'UNKNOWN：未见巡检记录；本轮涉及架构变化时补证，无变化不强制重写');
 }
 
 /**
@@ -2387,8 +2239,8 @@ function printRoundBanner() {
   console.log('│ 现场验法（2026-11-12）：对齐原话/任务、动作结果、血量装备位置环境与历史资产');
   console.log('│ 对照四线用途找矛盾；分开已见事实与候选原因，再取能区分原因的下一条证据');
   console.log('│ 暂时没活：先翻已布置任务与知识库缺口，没完就继续，不等人推');
-  console.log('│ 全做完了：推进 MC —— 找锚点、修 AC、修基建');
-  console.log('│ 20 分钟闹钟不许自己撤，只有主人主动叫停才停（C6）');
+  console.log('│ 本批完成后：按已授权总目标与044核对下一步，结束不再需要的辅助目标');
+  console.log('│ 十分钟提醒用于按需监督；尊重主人暂停，不强制刷新文档或唤醒冷会话');
   console.log('└──────────────────────────────────────────────────────────');
   console.log('');
 }

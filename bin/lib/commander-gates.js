@@ -1,4 +1,6 @@
 'use strict';
+// 2026-11-13：除lastMcpCall/lastArchScan外，下列旧时间窗函数仅留历史兼容。
+// round不再调用mtime、goal日志或全局schedule判活性；这些线索不能证明当前任务完成/停工。
 /**
  * commander-gates.js —— 指挥官专属的「监督轮」门禁判定（2026-11-07 主人定）。
  *
