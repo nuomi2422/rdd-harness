@@ -1390,8 +1390,15 @@ function main() {
   if (cmd === 'report') return reportCmd(argv);
   // 2026-11-09：证据卡（动作/最终请求/结算三源一张卡）。生产入口，缺数据一律 UNKNOWN。
   if (cmd === 'evidence') {
+    if (argv.includes('--help')) {
+      console.log('usage: bench.js evidence --list | --event <physical-file:line|physical-file@byte> [--expand] --dir <directory>');
+      console.log('  --source-layout bounded-window  Explicit external window: exact new-tools/events/context/rdd/learner.jsonl only; no rotations, paths or links. Default remains standard monitor files/rotations.');
+      console.log('  --streams tools,events,context,rdd[,learner] --source <actual-physical-name> --since <ISO> --as-of <ISO> --world <id> --server-session <id> --run <monitor-session> --companion <id>');
+      console.log('  --model-call <id> --cursor <cursor> --limit <n> --content --json; original refs/byte offsets/SHA stay physical. Claims filter only: identity UNKNOWN, no epoch/envelope or world-effect proof.');
+      return;
+    }
     // A1: explicit event/query flags select the detailed read-only projection.
-    if (argv.includes('--event') || argv.includes('--list') || argv.includes('--expand')) {
+    if (argv.includes('--event') || argv.includes('--list') || argv.includes('--expand') || argv.includes('--source-layout')) {
       const EP = require('./lib/evidence-pack.js');
       const pack = EP.cli(argv);
       console.log(argv.includes('--json') ? JSON.stringify(pack, null, 2) : EP.render(pack));

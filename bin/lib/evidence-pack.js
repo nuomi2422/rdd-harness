@@ -5,12 +5,13 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 const AL = require('./action-ledger');
-const { createPull } = require('./monitor-reader');
+const { createPull, boundedWindowStream } = require('./monitor-reader');
 const FILES = ['tools.jsonl', 'events.jsonl', 'context.jsonl', 'rdd.jsonl'];
 // Keep the required/default four-stream contract; learner is explicitly selectable.
 const SUPPORTED = [...FILES, 'learner.jsonl'];
 // MonitoringJournal rotates to <stream>-<epoch millis>.jsonl in the same directory.
-const physicalStream = file => {
+const physicalStream = (file, sourceLayout) => {
+  if (sourceLayout === 'bounded-window') return boundedWindowStream(file);
   const m = /^(tools|events|context|rdd|learner)(?:-[1-9]\d{12})?\.jsonl$/.exec(file);
   return m ? m[1] + '.jsonl' : null;
 };
@@ -18,10 +19,10 @@ const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 const str = v => typeof v === 'string' && v.trim() === v && v.length ? v : null;
 const time = v => typeof v === 'string' && /(?:Z|[+-]\d\d:\d\d)$/i.test(v) && Number.isFinite(Date.parse(v)) ? Date.parse(v) : NaN;
 const data = e => e && e.data && typeof e.data === 'object' ? e.data : {};
-function claims(e, file) {
+function claims(e, file, sourceLayout) {
   const d = data(e);
   // Learner lifecycle's companion is a raw claim, not a new identity adapter.
-  const review = physicalStream(file) === 'learner.jsonl' && e.category === 'learner' &&
+  const review = physicalStream(file, sourceLayout) === 'learner.jsonl' && e.category === 'learner' &&
     ['review_started', 'reviewed', 'review_interrupted', 'review_failed'].includes(e.type);
   const companions = review ? [d.companion_id, e.companion_id, d.companionId, d.companion].map(str).filter(Boolean) : [];
   const companionConflict = new Set(companions).size > 1;
@@ -104,8 +105,8 @@ function project(linesByFile, opts = {}) {
         gaps.push({ ref, reason: 'cutoff-time-unknown' }); continue;
       }
       if ((opts.asOf || opts.since) && (ts[0] < since || ts[0] > cutoff || (ingested !== null && ingested > cutoff))) continue;
-      const row = { event, file: physicalStream(file) || file, physicalFile: file, ref, line: start ? null : i + 1, windowLine: i + 1, byteOffset, sha256: hash(raw),
-        sourceFile: sources[file].file, claimed: claims(event, file),
+      const row = { event, file: physicalStream(file, opts.sourceLayout) || file, physicalFile: file, ref, line: start ? null : i + 1, windowLine: i + 1, byteOffset, sha256: hash(raw),
+        sourceFile: sources[file].file, claimed: claims(event, file, opts.sourceLayout),
         eventId: str(event.event_id), sourceSequence: Number.isSafeInteger(event.event_seq) ? event.event_seq : null };
       row.scope = identity(row, opts.resolveIdentity);
       rows.push(row);
@@ -148,8 +149,9 @@ function page(rows, queryKey, opts) {
     byteBudgetScope: 'rows-only', nextCursor: i < rows.length ? Buffer.from(JSON.stringify({ query: queryKey, offset: i })).toString('base64url') : null };
 }
 function build(linesByFile, opts = {}) {
+  if (opts.sourceLayout !== undefined && opts.sourceLayout !== 'bounded-window') return { schemaVersion: 1, status: 'UNKNOWN', reason: 'invalid-source-layout', rows: [], sources: {}, gaps: [{ reason: 'invalid-source-layout' }] };
   const p = project(linesByFile, opts);
-  const base = { schemaVersion: 1, view: opts.view || 'retrospective', asOf: opts.asOf || null,
+  const base = { schemaVersion: 1, ...(opts.sourceLayout ? { sourceLayout: opts.sourceLayout } : {}), view: opts.view || 'retrospective', asOf: opts.asOf || null,
     since: opts.since || null, visibility: 'journal-time-only; not proof of model-visible delivery', sources: p.sources, gaps: p.gaps,
     ...(opts.sourceCoverage ? { sourceCoverage: { ...opts.sourceCoverage,
       status: p.gaps.length ? 'PARTIAL' : 'OBSERVED_FILES_ONLY',
@@ -231,7 +233,7 @@ function build(linesByFile, opts = {}) {
         duplicates: action.duplicates || 0, terminal: action.terminal || null };
     }
   }
-  const queryKey = hash(JSON.stringify({ sources: p.sources, mode, eventRef: opts.eventRef, eventHash: opts.eventHash,
+  const queryKey = hash(JSON.stringify({ sources: p.sources, ...(opts.sourceLayout ? { sourceLayout: opts.sourceLayout } : {}), mode, eventRef: opts.eventRef, eventHash: opts.eventHash,
     asOf: opts.asOf, since: opts.since, order: opts.order, view: base.view, filters: [opts.companion,opts.run,opts.worldId,opts.serverSession,opts.callId,opts.types],
     modelCallId: opts.modelCallId, before: opts.before, after: opts.after, content: !!opts.content,
     // Bind adapter result too: a cursor cannot switch identity/authorization adapters.
@@ -266,12 +268,25 @@ function build(linesByFile, opts = {}) {
 function fromDir(dir, opts = {}) {
   const unknown = reason => ({ schemaVersion: 1, status: 'UNKNOWN', reason, rows: [], sources: {},
     gaps: [{ reason }], sourceCoverage: { status: 'PARTIAL', scope: 'named physical files only; not session completeness' } });
+  if (opts.sourceLayout !== undefined && opts.sourceLayout !== 'bounded-window') return unknown('invalid-source-layout');
+  const bounded = opts.sourceLayout === 'bounded-window';
+  const logicalStream = file => physicalStream(file, opts.sourceLayout);
+  const required = stream => bounded ? 'new-' + stream : stream;
+  if (bounded) {
+    try {
+      for (let p = path.resolve(dir);; p = path.dirname(p)) {
+        const st = fs.lstatSync(p);
+        if (!st.isDirectory() || st.isSymbolicLink()) return unknown('source-directory-unreadable');
+        if (path.dirname(p) === p) break;
+      }
+    } catch { return unknown('source-directory-unreadable'); }
+  }
   const streams = opts.streams === undefined ? FILES : Array.isArray(opts.streams)
     ? [...new Set(opts.streams.map(x => typeof x === 'string' && !x.endsWith('.jsonl') ? x + '.jsonl' : x))] : [];
   if (!streams.length || streams.some(x => !SUPPORTED.includes(x))) return unknown('invalid-stream-selection');
   const explicit = opts.sources;
   if (explicit !== undefined && (!Array.isArray(explicit) || !explicit.length ||
-      explicit.some(f => typeof f !== 'string' || !physicalStream(f) || !streams.includes(physicalStream(f)))))
+      explicit.some(f => typeof f !== 'string' || !logicalStream(f) || !streams.includes(logicalStream(f)))))
     return unknown('invalid-source-selection');
   const maxFiles = opts.maxSourceFiles === undefined ? 12 : Number(opts.maxSourceFiles);
   const maxBytes = opts.maxSourceBytes === undefined ? 64 * 1024 * 1024 : Number(opts.maxSourceBytes);
@@ -280,8 +295,8 @@ function fromDir(dir, opts = {}) {
     return unknown('invalid-source-budget');
   const snapshot = () => {
     const entries = fs.readdirSync(dir, { withFileTypes: true });
-    const names = explicit ? [...new Set(explicit)] : [...new Set(streams.concat(entries
-      .filter(e => e.isFile() && physicalStream(e.name) && streams.includes(physicalStream(e.name))).map(e => e.name)))];
+    const names = explicit ? [...new Set(explicit)] : [...new Set(streams.map(required).concat(entries
+      .filter(e => e.isFile() && logicalStream(e.name) && streams.includes(logicalStream(e.name))).map(e => e.name)))];
     return Object.fromEntries(names.sort().map(file => {
       let meta;
       try {
@@ -296,9 +311,9 @@ function fromDir(dir, opts = {}) {
   try { manifest = snapshot(); } catch { return unknown('source-directory-unreadable'); }
   const offsets = {}, discardHead = [], texts = {}, gaps = [], metadata = {};
   const files = Object.keys(manifest).sort((a, b) => {
-    const liveA = SUPPORTED.includes(a), liveB = SUPPORTED.includes(b);
+    const liveA = bounded || SUPPORTED.includes(a), liveB = bounded || SUPPORTED.includes(b);
     if (liveA !== liveB) return liveA ? -1 : 1;
-    return liveA ? SUPPORTED.indexOf(a) - SUPPORTED.indexOf(b)
+    return liveA ? SUPPORTED.indexOf(logicalStream(a)) - SUPPORTED.indexOf(logicalStream(b))
       : Number(b.slice(b.lastIndexOf('-') + 1, -6)) - Number(a.slice(a.lastIndexOf('-') + 1, -6)) || a.localeCompare(b);
   });
   // Opt-in writer policy: reserve one budget per logical stream, then current half + archives half.
@@ -307,10 +322,10 @@ function fromDir(dir, opts = {}) {
   const latest = opts.sourceWindow === 'latest', allowances = {};
   if (latest) {
     const chosen = files.filter(f => manifest[f].regular).slice(0,maxFiles);
-    const groups = streams.map(s => chosen.filter(f => physicalStream(f) === s)).filter(g => g.length);
+    const groups = streams.map(s => chosen.filter(f => logicalStream(f) === s)).filter(g => g.length);
     const quota = Math.floor(maxBytes / Math.max(1,groups.length));
     for (const group of groups) {
-      const current = group.find(f => SUPPORTED.includes(f)), archives = group.filter(f => f !== current);
+      const current = group.find(f => bounded || SUPPORTED.includes(f)), archives = group.filter(f => f !== current);
       const currentShare = current ? (archives.length ? Math.floor(quota/2) : quota) : 0;
       if (current) allowances[current] = Math.min(manifest[current].size,currentShare);
       const share = Math.floor((quota-currentShare)/Math.max(1,archives.length));
@@ -321,11 +336,11 @@ function fromDir(dir, opts = {}) {
       if (offsets[f]) discardHead.push(f);
     }
   }
-  const reader = createPull({ dir, offsets, discardHead });
+  const reader = createPull({ dir, offsets, discardHead, ...(bounded ? { sourceLayout: opts.sourceLayout } : {}) });
   let allocated = 0, attempted = 0;
   for (const file of files) {
     const m = manifest[file];
-    const source = metadata[file] = { file: path.resolve(dir, file), stream: physicalStream(file),
+    const source = metadata[file] = { file: path.resolve(dir, file), stream: logicalStream(file),
       manifest: m, bytes: 0, sha256: null, readStatus: 'NOT_READ', observedFrom: 0, observedTo: 0 };
     if (m.error || !m.regular) {
       gaps.push({ file, reason: m.error === 'ENOENT' ? 'missing-stream' : 'source-unavailable', detail: m.error || 'not-a-file' });
@@ -345,6 +360,7 @@ function fromDir(dir, opts = {}) {
       from: source.observedTo, unreadBytes: m.size - source.observedTo });
   }
   for (const [file, g] of Object.entries(reader.gaps)) gaps.push({ file, ...g });
+  if (bounded && !reader.replayDomain.complete) gaps.push({ reason: 'source-envelope-domain-incomplete' });
   for (const [file, pending] of Object.entries(reader.pending)) if (pending)
     gaps.push({ file, reason: 'partial-tail-not-consumed', from: reader.offsets[file] || 0 });
   const verification = reader.verifySegments();
@@ -370,8 +386,10 @@ function cli(argv) {
   const get = flag => { const i = argv.indexOf(flag); return i < 0 ? undefined : argv[i + 1]; };
   const many = flag => argv.flatMap((x, i) => x === flag && argv[i + 1] !== undefined ? argv[i + 1].split(',') : []);
   const streams = many('--streams').concat(many('--stream')), sources = many('--source');
+  const layoutCount = argv.filter(x => x === '--source-layout').length;
+  const sourceLayout = !layoutCount ? undefined : layoutCount === 1 ? (get('--source-layout') || '') : '';
   const dir = get('--dir') || 'D:/rdd/mc/The Best of Twilight Forest/config/numen/monitor';
-  return fromDir(dir, { mode: argv.includes('--list') ? 'list' : argv.includes('--expand') ? 'expand' : 'episode',
+  return fromDir(dir, { ...(sourceLayout !== undefined ? { sourceLayout } : {}), mode: argv.includes('--list') ? 'list' : argv.includes('--expand') ? 'expand' : 'episode',
     ...(streams.length ? { streams } : {}), ...(sources.length ? { sources } : {}),
     ...(get('--max-source-files') !== undefined ? { maxSourceFiles: Number(get('--max-source-files')) } : {}),
     ...(get('--max-source-bytes') !== undefined ? { maxSourceBytes: Number(get('--max-source-bytes')) } : {}),

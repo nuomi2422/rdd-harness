@@ -22,8 +22,16 @@ const fs = require('fs');
 const path = require('path');
 const crypto = require('crypto');
 
+// Only this explicit external layout may interpret a new-* physical name as a journal category.
+// Keep the physical name for every path, byte cursor, segment and reference; no aliases/recursion.
+const boundedWindowStream = file => {
+  const m = typeof file === 'string' && /^new-(tools|events|context|rdd|learner)\.jsonl$/.exec(file);
+  return m ? m[1] + '.jsonl' : null;
+};
 function createPull(opts) {
   const dir = opts.dir;
+  const bounded = opts.sourceLayout === 'bounded-window';
+  if (opts.sourceLayout !== undefined && !bounded) throw Error('invalid-source-layout');
   const evidenceDir = opts.evidenceDir;
   const nowIso = opts.nowIso || (() => new Date().toISOString());
   const offsets = Object.assign({}, opts.offsets || {});
@@ -45,7 +53,8 @@ function createPull(opts) {
   let replays = 0;
   let replayDomainComplete = true;
   const scanEventEnvelope = (s, stream) => {
-    const expectedCategory = String(stream || '').replace(/\.jsonl$/, '');
+    const logical = bounded ? boundedWindowStream(stream) : stream;
+    const expectedCategory = String(logical || '').replace(/\.jsonl$/, '');
     for (const line of s.split(/\r?\n/)) {
       if (!line.trim()) continue;
       let e2;
@@ -83,6 +92,7 @@ function createPull(opts) {
   };
 
   function pull(f, maxReadBytes) {
+    if (bounded && !boundedWindowStream(f)) { noteGap(f, 'invalid-source-selection'); return ''; }
     const p = path.join(dir, f);
     if (!fs.existsSync(p)) {
       // A missing required stream is never evidence of a complete empty window,
@@ -91,7 +101,7 @@ function createPull(opts) {
       return '';
     }
     let st;
-    try { st = fs.statSync(p, { bigint: true }); }
+    try { st = bounded ? fs.lstatSync(p, { bigint: true }) : fs.statSync(p, { bigint: true }); }
     catch (e) { noteGap(f, 'stat-failed', { error: String((e && e.message) || e).slice(0, 120) }); return ''; }
     // 不是普通文件（目录/设备等）：直接判缺口，别拿 size=0 当成"没新内容"。
     if (typeof st.isFile === 'function' && !st.isFile()) {
@@ -235,4 +245,4 @@ function createPull(opts) {
   }
 }
 
-module.exports = { createPull };
+module.exports = { createPull, boundedWindowStream };
