@@ -38,6 +38,10 @@ function parseLines(text) {
 /** result 字段可能是 JSON 字符串，也可能已经是对象。 */
 function resultPayload(data) {
   if (!data) return null;
+  // Background outcome is a later phase, not an admission receipt.
+  // Keep its row count; only task_finished may establish the async terminal.
+  if (data.journaled_by === 'server-async'
+    && typeof data.async_status === 'string' && data.async_status.trim()) return null;
   if (data.result && typeof data.result === 'object') return data.result;
   if (typeof data.result === 'string') {
     const p = safeJson(data.result);
