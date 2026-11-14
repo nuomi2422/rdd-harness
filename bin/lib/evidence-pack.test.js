@@ -248,7 +248,7 @@ test('CLI selects physical sources and rejects invalid names instead of reading 
   const r=P.cli(['--list','--streams','context','--source',a,'--dir',dir]);
   assert.equal(r.rows[0].ref,a+':1');
   assert.equal(P.fromDir(dir,{mode:'list',streams:['context'],sources:['../tools.jsonl']}).status,'UNKNOWN');
-  assert.equal(P.fromDir(dir,{mode:'list',streams:['learner']}).status,'UNKNOWN');
+  assert.equal(P.fromDir(dir,{mode:'list',streams:['unlisted']}).status,'UNKNOWN');
   assert.equal(P.fromDir(dir,{mode:'list',streams:['context'],sources:['tools.jsonl']}).status,'UNKNOWN');
 });
 
@@ -329,4 +329,112 @@ test('--model-call 必须成对匹配 [scopeKey,wireId]；同 id 跨 scope 冲�
   ], []);
   const rx = P.build(cross, { mode: 'list', modelCallId: 'mc-A' });
   assert.deepEqual(rx.rows.map((x) => x.ref), ['tools.jsonl:1']);
+});
+
+// 2026-11-14 A1: five incremental real CLI/reader controls, not a rerun of the old suite.
+function learner(type, sec, over = {}, envelope = {}) {
+  return { schema_version: 1, category: 'learner', event_id: 'learner-' + sec, event_seq: sec + 1,
+    session: 'run', timestamp: T(sec), world_id: 'world', server_session: 'server', world_epoch: 1,
+    type, data: { review_id: 'rev', companion: 'c', ...over }, ...envelope };
+}
+const journal = events => events.map(JSON.stringify).join('\n') + '\n';
+test('learner stream: real CLI queries stamped review lifecycle by companion without authenticating it', t => {
+  const dir = rotationDir(t), events = [learner('review_started', 1, { reviewing: 3 }),
+    learner('reviewed', 2, { reviewed: 3, committed: 3, publishable: false,
+      artifact_delivery: [{ kind: 'EXPERIENCE', status: 'DELEGATED' }, { kind: 'SIDE_TASK', status: 'REJECTED' }] })];
+  fs.writeFileSync(path.join(dir, 'learner.jsonl'), journal(events));
+  const cli = spawnSync(process.execPath, [path.join(__dirname, '../bench.js'), 'evidence', '--list',
+    '--dir', dir, '--streams', 'learner', '--source', 'learner.jsonl', '--world', 'world',
+    '--server-session', 'server', '--run', 'run', '--companion', 'c', '--content', '--json'],
+  { encoding: 'utf8', windowsHide: true });
+  assert.equal(cli.status, 0, cli.stderr);
+  const r = JSON.parse(cli.stdout);
+  assert.equal(r.status, 'PRESENT', cli.stdout);
+  assert.deepEqual(r.rows.map(x => x.type), ['review_started', 'reviewed']);
+  assert.deepEqual(r.sourceCoverage.streams, ['learner.jsonl']);
+  for (const x of r.rows) {
+    assert.equal(x.claimedIdentity.companion, 'c'); assert.equal(x.identityStatus, 'UNKNOWN');
+    assert.equal(x.ingestedAt, null); assert.equal(x.requestId, null);
+  }
+  assert.equal(r.rows[1].payload.value.committed, 3); assert.equal(r.rows[1].payload.value.publishable, false);
+  assert.deepEqual(r.rows[1].payload.value.artifact_delivery.map(x => x.status), ['DELEGATED', 'REJECTED']);
+  assert.match(r.visibility, /not proof of model-visible delivery/);
+});
+test('learner stream: rotated and latest sources retain original byte references and source budgets', t => {
+  const dir = rotationDir(t), archive = 'learner-1794633968819.jsonl';
+  const first = JSON.stringify(learner('review_started', 1)) + '\r';
+  fs.writeFileSync(path.join(dir, archive), first + '\n');
+  fs.writeFileSync(path.join(dir, 'learner.jsonl'), 'x'.repeat(2400) + '\n' + journal([learner('reviewed', 2)]));
+  const o = { mode: 'list', streams: ['learner'], companion: 'c', content: true,
+    sourceWindow: 'latest', order: 'latest-per-stream', maxSourceFiles: 2, maxSourceBytes: 2048 };
+  const r = P.fromDir(dir, o);
+  assert.deepEqual(r.rows.map(x => x.type), ['reviewed', 'review_started']);
+  const live = r.rows[0], old = r.rows[1];
+  assert.equal(live.byteOffset, 2401); assert.equal(live.line, null); assert.equal(live.ref, 'learner.jsonl@2401');
+  assert.equal(old.ref, archive + ':1'); assert.equal(old.line, 1); assert.equal(old.sha256, digest(first));
+  assert.equal(r.sources[archive].stream, 'learner.jsonl'); assert.equal(r.sources[archive].sha256, digest(first + '\n'));
+  assert.ok(r.sourceCoverage.allocatedReadBytes <= 2048); assert.equal(r.sourceCoverage.maxSourceFiles, 2);
+  assert.ok(r.gaps.some(g => g.reason === 'source-prefix-excluded')); assert.equal(r.status, 'PARTIAL');
+  assert.ok(r.rows.every(x => x.identityStatus === 'UNKNOWN'));
+  const limited = P.fromDir(dir, { ...o, maxSourceFiles: 1 });
+  assert.deepEqual(limited.rows.map(x => x.type), ['reviewed']);
+  assert.ok(limited.gaps.some(g => g.file === archive && g.reason === 'source-file-budget'));
+  const bounded = P.fromDir(dir, { ...o, asOf: T(1) });
+  assert.deepEqual(bounded.rows.map(x => x.type), ['review_started']);
+  assert.equal(bounded.rows[0].ingestedAt, null); assert.match(bounded.visibility, /journal-time-only/);
+});
+test('learner stream: legacy missing world and session-only nudges stay UNKNOWN, never borrow nearby scope', t => {
+  const dir = rotationDir(t), events = [learner('review_nudge_sent', 0, {},
+    { world_id: undefined, server_session: undefined, data: { companionId: 'c', queue_depth: 64 } }),
+    learner('review_started', 1, {}, { world_id: undefined }),
+    learner('review_interrupted', 2, {}, { data: { review_id: 'rev', reason: 'server stopping' } }),
+    learner('unlisted_review', 3), learner('review_started', 4, {}, { category: 'context' })];
+  fs.writeFileSync(path.join(dir, 'learner.jsonl'), journal(events));
+  const r = P.fromDir(dir, { mode: 'list', streams: ['learner'], run: 'run' });
+  assert.equal(r.rows.length, 5); assert.ok(r.rows.every(x => x.identityStatus === 'UNKNOWN'));
+  assert.equal(r.rows[0].claimedIdentity.worldId, null); assert.equal(r.rows[1].claimedIdentity.worldId, null);
+  assert.deepEqual(r.rows.slice(2).map(x => x.claimedIdentity.companion), [null, null, null]);
+  const strict = P.fromDir(dir, { mode: 'list', streams: ['learner'], worldId: 'world',
+    serverSession: 'server', companion: 'c', run: 'run' });
+  assert.equal(strict.status, 'EMPTY');
+  const episode = P.fromDir(dir, { streams: ['learner'], eventRef: 'learner.jsonl:2' });
+  assert.equal(episode.rows.length, 1); assert.equal(episode.action.identityStatus, 'UNKNOWN');
+  assert.ok(episode.unknowns.includes('identity-unverified; no records joined'));
+});
+test('learner stream: conflicting companion aliases and cross-world scope cannot be rescued by session or adapter', t => {
+  const dir = rotationDir(t), file = path.join(dir, 'learner.jsonl');
+  const events = [learner('review_started', 1, { companion_id: 'other' }),
+    learner('reviewed', 2, { companionId: 'other' }),
+    learner('review_failed', 3, {}, { companion_id: 'other' })];
+  fs.writeFileSync(file, journal(events));
+  const o = { mode: 'list', streams: ['learner'], run: 'run' };
+  const conflict = P.fromDir(dir, { ...o, resolveIdentity: () => ({ worldId: 'world', serverSession: 'server',
+    companion: 'other', evidence: 'fixture:independent-binding' }) });
+  assert.equal(conflict.rows.length, 3);
+  for (const x of conflict.rows) {
+    assert.equal(x.claimedIdentity.companion, null); assert.equal(x.claimedIdentity.companionConflict, true);
+    assert.equal(x.identityStatus, 'UNKNOWN');
+  }
+  for (const companion of ['c', 'other']) assert.equal(P.fromDir(dir, { ...o, companion }).status, 'EMPTY');
+  fs.writeFileSync(file, journal([learner('review_started', 1, { model_call_id: 'mc-X' }),
+    learner('reviewed', 2, { model_call_id: 'mc-X' }, { world_id: 'other-world' })]));
+  const cross = P.fromDir(dir, { ...o, modelCallId: 'mc-X' });
+  assert.equal(cross.status, 'UNKNOWN'); assert.equal(cross.reason, 'model-call-scope-conflict');
+  assert.equal(cross.rows.length, 0);
+});
+test('learner stream: original four default streams and invalid source validation are unchanged', t => {
+  const dir = rotationDir(t), original = texts([call()], [terminal()], [row('final_request', 0)], [row('chain', 1)]);
+  for (const [f, text] of Object.entries(original)) fs.writeFileSync(path.join(dir, f), text);
+  fs.writeFileSync(path.join(dir, 'learner.jsonl'), journal([learner('reviewed', 2)]));
+  const r = P.cli(['--list', '--dir', dir]);
+  assert.equal(r.status, 'PRESENT'); assert.deepEqual(Object.keys(r.sources).sort(), Object.keys(original).sort());
+  assert.deepEqual(r.sourceCoverage.streams, ['tools.jsonl', 'events.jsonl', 'context.jsonl', 'rdd.jsonl']);
+  assert.equal(r.rows.length, 4); assert.deepEqual(r.gaps, []);
+  assert.ok(r.rows.every(x => x.identityStatus === 'UNKNOWN' && x.claimedIdentity.companion === 'c'));
+  const wrongStream = learner('review_started', 3, {}, { category: 'context' });
+  fs.writeFileSync(path.join(dir, 'context.jsonl'), journal([wrongStream]));
+  assert.equal(P.fromDir(dir, { mode: 'list', streams: ['context'] }).rows[0].claimedIdentity.companion, null);
+  assert.equal(P.fromDir(dir, { mode: 'list', streams: ['unlisted'] }).reason, 'invalid-stream-selection');
+  for (const source of ['../learner.jsonl', 'learner-backup.jsonl', 'learner-0179463396881.jsonl', 'tools.jsonl'])
+    assert.equal(P.fromDir(dir, { mode: 'list', streams: ['learner'], sources: [source] }).reason, 'invalid-source-selection');
 });

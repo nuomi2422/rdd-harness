@@ -7,19 +7,27 @@ const crypto = require('crypto');
 const AL = require('./action-ledger');
 const { createPull } = require('./monitor-reader');
 const FILES = ['tools.jsonl', 'events.jsonl', 'context.jsonl', 'rdd.jsonl'];
+// Keep the required/default four-stream contract; learner is explicitly selectable.
+const SUPPORTED = [...FILES, 'learner.jsonl'];
 // MonitoringJournal rotates to <stream>-<epoch millis>.jsonl in the same directory.
 const physicalStream = file => {
-  const m = /^(tools|events|context|rdd)(?:-[1-9]\d{12})?\.jsonl$/.exec(file);
+  const m = /^(tools|events|context|rdd|learner)(?:-[1-9]\d{12})?\.jsonl$/.exec(file);
   return m ? m[1] + '.jsonl' : null;
 };
 const hash = s => crypto.createHash('sha256').update(s).digest('hex');
 const str = v => typeof v === 'string' && v.trim() === v && v.length ? v : null;
 const time = v => typeof v === 'string' && /(?:Z|[+-]\d\d:\d\d)$/i.test(v) && Number.isFinite(Date.parse(v)) ? Date.parse(v) : NaN;
 const data = e => e && e.data && typeof e.data === 'object' ? e.data : {};
-function claims(e) {
+function claims(e, file) {
   const d = data(e);
+  // Learner lifecycle's companion is a raw claim, not a new identity adapter.
+  const review = physicalStream(file) === 'learner.jsonl' && e.category === 'learner' &&
+    ['review_started', 'reviewed', 'review_interrupted', 'review_failed'].includes(e.type);
+  const companions = review ? [d.companion_id, e.companion_id, d.companionId, d.companion].map(str).filter(Boolean) : [];
+  const companionConflict = new Set(companions).size > 1;
   return { worldId: str(d.world_id || e.world_id), serverSession: str(d.server_session || e.server_session || d.session_id),
-    companion: str(d.companion_id || e.companion_id || d.companionId), run: str(e.session),
+    companion: companionConflict ? null : str(d.companion_id || e.companion_id || d.companionId || (review && d.companion)),
+    ...(companionConflict ? { companionConflict: true } : {}), run: str(e.session),
     requestId: str(d.request_id || d.requestId || e.request_id),
     chainId: str(d.chain_id || d.chainId), generation: d.chain_epoch ?? d.chainEpoch ?? d.rationaleGeneration ?? null };
 }
@@ -31,7 +39,7 @@ function identity(row, resolveIdentity) {
   try { c = resolveIdentity(row.event, row.file.replace('.jsonl', '')); } catch { return null; }
   if (!c || !str(c.worldId) || !str(c.serverSession) || !str(c.companion) || !str(c.evidence)) return null;
   const raw = row.claimed;
-  if (!raw.run || data(row.event).stamp_conflict === true) return null;
+  if (!raw.run || raw.companionConflict || data(row.event).stamp_conflict === true) return null;
   for (const k of ['worldId', 'serverSession', 'companion']) if (raw[k] && raw[k] !== c[k]) return null;
   // Reuse ledger's explicit-field checks for tools and terminals as well.
   return { ...raw, worldId: c.worldId, serverSession: c.serverSession, companion: c.companion };
@@ -97,7 +105,7 @@ function project(linesByFile, opts = {}) {
       }
       if ((opts.asOf || opts.since) && (ts[0] < since || ts[0] > cutoff || (ingested !== null && ingested > cutoff))) continue;
       const row = { event, file: physicalStream(file) || file, physicalFile: file, ref, line: start ? null : i + 1, windowLine: i + 1, byteOffset, sha256: hash(raw),
-        sourceFile: sources[file].file, claimed: claims(event),
+        sourceFile: sources[file].file, claimed: claims(event, file),
         eventId: str(event.event_id), sourceSequence: Number.isSafeInteger(event.event_seq) ? event.event_seq : null };
       row.scope = identity(row, opts.resolveIdentity);
       rows.push(row);
@@ -229,7 +237,7 @@ function build(linesByFile, opts = {}) {
     // Bind adapter result too: a cursor cannot switch identity/authorization adapters.
     records: selected.map(r => [r.ref, r.sha256, r.scope]) }));
   if (opts.order === 'latest-per-stream' && mode === 'list') {
-    const groups = FILES.map(file => selected.filter(r => r.file === file)
+    const groups = SUPPORTED.map(file => selected.filter(r => r.file === file)
       .sort((a,b) => time(b.event.timestamp || b.event.at) - time(a.event.timestamp || a.event.at) || b.byteOffset-a.byteOffset));
     selected = [];
     for (let i=0; groups.some(g => i<g.length); i++) for (const g of groups) if (g[i]) selected.push(g[i]);
@@ -260,7 +268,7 @@ function fromDir(dir, opts = {}) {
     gaps: [{ reason }], sourceCoverage: { status: 'PARTIAL', scope: 'named physical files only; not session completeness' } });
   const streams = opts.streams === undefined ? FILES : Array.isArray(opts.streams)
     ? [...new Set(opts.streams.map(x => typeof x === 'string' && !x.endsWith('.jsonl') ? x + '.jsonl' : x))] : [];
-  if (!streams.length || streams.some(x => !FILES.includes(x))) return unknown('invalid-stream-selection');
+  if (!streams.length || streams.some(x => !SUPPORTED.includes(x))) return unknown('invalid-stream-selection');
   const explicit = opts.sources;
   if (explicit !== undefined && (!Array.isArray(explicit) || !explicit.length ||
       explicit.some(f => typeof f !== 'string' || !physicalStream(f) || !streams.includes(physicalStream(f)))))
@@ -288,9 +296,9 @@ function fromDir(dir, opts = {}) {
   try { manifest = snapshot(); } catch { return unknown('source-directory-unreadable'); }
   const offsets = {}, discardHead = [], texts = {}, gaps = [], metadata = {};
   const files = Object.keys(manifest).sort((a, b) => {
-    const liveA = FILES.includes(a), liveB = FILES.includes(b);
+    const liveA = SUPPORTED.includes(a), liveB = SUPPORTED.includes(b);
     if (liveA !== liveB) return liveA ? -1 : 1;
-    return liveA ? FILES.indexOf(a) - FILES.indexOf(b)
+    return liveA ? SUPPORTED.indexOf(a) - SUPPORTED.indexOf(b)
       : Number(b.slice(b.lastIndexOf('-') + 1, -6)) - Number(a.slice(a.lastIndexOf('-') + 1, -6)) || a.localeCompare(b);
   });
   // Opt-in writer policy: reserve one budget per logical stream, then current half + archives half.
@@ -302,7 +310,7 @@ function fromDir(dir, opts = {}) {
     const groups = streams.map(s => chosen.filter(f => physicalStream(f) === s)).filter(g => g.length);
     const quota = Math.floor(maxBytes / Math.max(1,groups.length));
     for (const group of groups) {
-      const current = group.find(f => FILES.includes(f)), archives = group.filter(f => f !== current);
+      const current = group.find(f => SUPPORTED.includes(f)), archives = group.filter(f => f !== current);
       const currentShare = current ? (archives.length ? Math.floor(quota/2) : quota) : 0;
       if (current) allowances[current] = Math.min(manifest[current].size,currentShare);
       const share = Math.floor((quota-currentShare)/Math.max(1,archives.length));
