@@ -35,6 +35,27 @@ test('verified fixture: call→receipt→cross-request terminal, final request a
   assert.equal(request.payload.value.body, 'actual input');
   assert.equal(request.line, 1); assert.ok(request.sha256.length === 64);
 });
+test('explicit transport model-call links request/response to the wire call by IDs', () => {
+  const transport = row('tool_transport_binding', 0, { model_call_id: 'model-call', wire_call_id: 'call' });
+  const request = row('llm_request', 0, { requestId: 'req1', request: { messages: [{ role: 'user', content: 'fixture' }] } });
+  const response = row('llm_response', 1, { requestId: 'req1',
+    response: { tool_calls: [{ id: 'model-call', name: 'goto' }] } });
+  const t = texts([transport, call(1,{request_id:null}), receipt(2,{request_id:null})], [terminal()], [request, response]);
+  const r = P.build(t, opt({ eventRef: 'tools.jsonl:2' }));
+  assert.equal(r.action.state, 'completed');
+  assert.deepEqual(r.stages.finalRequest, ['context.jsonl:1']);
+  assert.deepEqual(r.stages.terminal, ['events.jsonl:1']);
+  assert.equal(r.rows.filter(x => x.type === 'llm_response').length, 1);
+  assert.ok(r.rows.some(x => x.type === 'llm_response' && x.ref === 'context.jsonl:2'));
+  assert.ok(r.rows.some(x => x.type === 'tool_transport_binding' && x.ref === 'tools.jsonl:1'));
+  assert.ok(!r.unknowns.includes('request-id-missing-or-ambiguous'));
+
+  const wrong = row('llm_response', 1, { requestId: 'req1',
+    response: { tool_calls: [{ id: 'other-model-call', name: 'goto' }] } });
+  const miss = P.build(texts([transport, call(1,{request_id:null}), receipt(2,{request_id:null})], [terminal()], [request, wrong]), opt({ eventRef: 'tools.jsonl:2' }));
+  assert.deepEqual(miss.stages.finalRequest, []);
+  assert.ok(miss.unknowns.includes('request-id-missing-or-ambiguous'));
+});
 test('default production boundary: even complete claims are unverified and never joined', () => {
   const r = P.build(texts([call(),receipt()], [terminal()]), { eventRef:'tools.jsonl:1' });
   assert.equal(r.action.identityStatus,'UNKNOWN'); assert.equal(r.rows.length,1);

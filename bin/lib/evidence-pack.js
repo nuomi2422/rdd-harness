@@ -203,11 +203,24 @@ function build(linesByFile, opts = {}) {
       } else {
         const uniqueTask = action.taskId && ledger.calls.filter(c => c.taskId === action.taskId).length === 1;
         selected = toolRows.concat(terminalRows.filter(r => uniqueTask && data(r.event).id === action.taskId));
-        const reqIds = [...new Set(toolRows.map(r => r.claimed.requestId).filter(Boolean))];
+        // Request→model-call→wire is an explicit edge: transport binding names the
+        // wire call and model_call_id; llm_response.tool_calls names that model_call_id.
+        const bindings = scoped.filter(r => r.file === 'tools.jsonl' &&
+          r.event.type === 'tool_transport_binding' && data(r.event).wire_call_id === callId);
+        const modelCallIds = [...new Set(bindings.map(r => str(data(r.event).model_call_id)).filter(Boolean))];
+        const responses = modelCallIds.length === 1 ? scoped.filter(r => r.file === 'context.jsonl' &&
+          r.event.type === 'llm_response' && Array.isArray(data(r.event).response?.tool_calls) &&
+          data(r.event).response.tool_calls.some(c => c && c.id === modelCallIds[0])) : [];
+        const linkedReqIds = [...new Set(responses.map(r => r.claimed.requestId).filter(Boolean))];
+        const reqIds = [...new Set([...toolRows.map(r => r.claimed.requestId).filter(Boolean), ...linkedReqIds])];
+        if (bindings.length) selected.push(...bindings);
+        if (responses.length) selected.push(...responses);
         if (reqIds.length === 1) {
           const requestRows = scoped.filter(r => r.claimed.requestId === reqIds[0] && !['tools.jsonl','events.jsonl'].includes(r.file));
           selected.push(...requestRows);
         } else unknowns.push('request-id-missing-or-ambiguous');
+        if (bindings.length && modelCallIds.length !== 1) unknowns.push('model-call-binding-ambiguous');
+        selected = [...new Map(selected.map(r => [r.ref, r])).values()];
       }
       // Stage membership requires an explicit edge, not timestamp proximity.
       const refs = test => selected.filter(test).map(r => r.ref);
