@@ -56,6 +56,46 @@ test('explicit transport model-call links request/response to the wire call by I
   assert.deepEqual(miss.stages.finalRequest, []);
   assert.ok(miss.unknowns.includes('request-id-missing-or-ambiguous'));
 });
+test('ambiguous model-call links are not resolved by picking one request', () => {
+  const transport = row('tool_transport_binding', 0, { request_id: null, model_call_id: 'model-call', wire_call_id: 'call' });
+  const requests = [row('llm_request', 0, { request_id: null, requestId: 'req1', request: { messages: [] } }),
+    row('llm_request', 0, { request_id: null, requestId: 'req2', request: { messages: [] } })];
+  const responses = [row('llm_response', 1, { request_id: null, requestId: 'req1', response: { tool_calls: [{ id: 'model-call' }] } }),
+    row('llm_response', 2, { request_id: null, requestId: 'req2', response: { tool_calls: [{ id: 'model-call' }] } })];
+  const r = P.build(texts([transport, call(1,{request_id:null}), receipt(2,{request_id:null})], [terminal()], [...requests, ...responses]), opt({ eventRef: 'tools.jsonl:2' }));
+  assert.deepEqual(r.stages.finalRequest, []);
+  assert.ok(r.unknowns.includes('request-id-missing-or-ambiguous'));
+});
+test('one wire with two model_call_id bindings is not joined by either', () => {
+  const t1 = row('tool_transport_binding', 0, { request_id: null, model_call_id: 'model-a', wire_call_id: 'call' });
+  const t2 = row('tool_transport_binding', 0, { request_id: null, model_call_id: 'model-b', wire_call_id: 'call' });
+  const response = row('llm_response', 1, { request_id: null, requestId: 'req1', response: { tool_calls: [{ id: 'model-a' }] } });
+  const r = P.build(texts([t1, t2, call(1,{request_id:null}), receipt(2,{request_id:null})], [terminal()], [response]), opt({ eventRef: 'tools.jsonl:3' }));
+  assert.deepEqual(r.stages.finalRequest, []);
+  assert.ok(r.unknowns.includes('model-call-binding-ambiguous'));
+});
+test('same model id in another world/server/companion/run does not cross scope', () => {
+  const transport = row('tool_transport_binding', 0, { request_id: null, model_call_id: 'model-call', wire_call_id: 'call' });
+  const rt = row('llm_request', 0, { request_id: null, requestId: 'req1', request: { messages: [] } });
+  const rp = row('llm_response', 1, { request_id: null, requestId: 'req1', response: { tool_calls: [{ id: 'model-call' }] } });
+  for (const [over, env] of [[{ world_id: 'other' }, {}], [{ server_session: 'other' }, {}],
+    [{ companion_id: 'other' }, {}], [{}, { session: 'other' }]]) {
+    const r = P.build(texts([transport, call(1,{request_id:null}), receipt(2,{request_id:null})], [terminal()],
+      [row('llm_request', 0, { request_id: null, requestId: 'req1', request: { messages: [] }, ...over }, env),
+        row('llm_response', 1, { request_id: null, requestId: 'req1', response: { tool_calls: [{ id: 'model-call' }] }, ...over }, env)]), opt({ eventRef: 'tools.jsonl:2' }));
+    assert.deepEqual(r.stages.finalRequest, []);
+  }
+});
+test('decision cutoff and late-ingested response cannot borrow a future response', () => {
+  const transport = row('tool_transport_binding', 0, { request_id: null, model_call_id: 'model-call', wire_call_id: 'call' });
+  const req = row('llm_request', 0, { request_id: null, requestId: 'req1', request: { messages: [] } });
+  const response = (sec, env = {}) => row('llm_response', sec, { request_id: null, requestId: 'req1', response: { tool_calls: [{ id: 'model-call' }] } }, env);
+  const tools = [transport, call(1,{request_id:null}), receipt(2,{request_id:null})];
+  const future = P.build(texts(tools, [terminal(8)], [req, response(30)]), opt({ eventRef: 'tools.jsonl:2', view: 'decision', asOf: T(10) }));
+  assert.deepEqual(future.stages.finalRequest, []);
+  const late = P.build(texts(tools, [terminal(8)], [req, response(5, { ingestedAt: T(30) })]), opt({ eventRef: 'tools.jsonl:2', view: 'decision', asOf: T(10) }));
+  assert.deepEqual(late.stages.finalRequest, []);
+});
 test('default production boundary: even complete claims are unverified and never joined', () => {
   const r = P.build(texts([call(),receipt()], [terminal()]), { eventRef:'tools.jsonl:1' });
   assert.equal(r.action.identityStatus,'UNKNOWN'); assert.equal(r.rows.length,1);
