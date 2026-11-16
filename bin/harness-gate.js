@@ -1,16 +1,16 @@
 #!/usr/bin/env node
 /* harness-gate.js — RDD harness 两段门禁执行器
  *
- *   node harness-gate.js preflight  --since 2026-10-04   进游戏【之前】
- *   node harness-gate.js postflight --since 2026-10-04   出游戏【之后】
+ *   node harness-gate.js preflight  --role worker --since 2026-10-04   进游戏【之前】
+ *   node harness-gate.js postflight --role worker --since 2026-10-04   出游戏【之后】
  *   node harness-gate.js selftest                       只跑内置检查（不碰外部工具）
  *   node harness-gate.js registry                       打印注册表摘要
- *   node harness-gate.js preflight --instance test --title-only
+ *   node harness-gate.js preflight --role worker --instance test --title-only
  *     固定 test 根；无世界判据显式 SKIP，不改注册表/生产账本，不代表世界验证。
  *
- * 多角色（★ 2026-11-07 主人定：只做三个核心角色，汇报/辅助暂不单列）：
- *   node harness-gate.js preflight --role commander|worker|learner
- *   也可用环境变量 RDD_GATE_ROLE；【不带 = 全量跑，与旧行为逐字节一致】。
+ * 多角色（清单以 registry.roles.list 为准）：
+ *   node harness-gate.js preflight --role commander|worker|learner|thinker|scout|executor
+ *   也可用环境变量 RDD_GATE_ROLE；缺失或未知角色返回 exit 2，不运行门禁。
  *   角色只决定「这一项要不要跑」，不改任何单项判据的强度；
  *   不属于本角色的项一律记 SKIP 并写明原因 —— 跳过不是通过。
  *
@@ -22,7 +22,7 @@
  *   trace    查痕迹 —— mtime + 内容签名，防「只靠改时间骗过」
  *   human    人工   —— 机器判不了，列出来让人打勾
  *
- * 退出码：0 全过 / 1 有 block / 3 环境错（注册表读不到）
+ * 退出码：0 全过 / 1 有 block / 2 参数或角色不适用 / 3 环境错（注册表读不到）
  */
 'use strict';
 
@@ -288,7 +288,7 @@ function preflight(ctx) {
   const SCRIPTS = R('rdd-selfcompile/scripts');
 
   // P21: prompt governance must pass before any game-side work.
-  {
+  if (roleCheck('P21', 'preflight')) {
     const lint = path.join(SCRIPTS, 'verify-tools', 'prompt-lint.js');
     const r = spawnSync(process.execPath, [lint], { encoding: 'utf8', maxBuffer: 8 << 20 });
     const output = ((r.stdout || '') + (r.stderr || '')).trim();
@@ -310,7 +310,7 @@ function preflight(ctx) {
   const LIVE_MODS = RUNTIME.mods;
 
   // P1 编译通道合规 —— phase-build.json 是 run-mutation 的产物，手写 gradle 不会产生它
-  {
+  if (roleCheck('P1', 'preflight')) {
     const muts = R('rdd-selfcompile/mutations');
     const phases = walk(muts, 3, (n) => /^phase-build\.json$/.test(n));
     const recent = phases.filter((p) => freshEnough(p, since));
@@ -328,7 +328,7 @@ function preflight(ctx) {
   }
 
   // P2 jar 不落后于源码
-  {
+  if (roleCheck('P2', 'preflight')) {
     const r = spawnSync(process.execPath, runtimeContext.deploymentArgs(path.join(SCRIPTS, 'verify-tools/check-runtime-deployment.js'), RUNTIME),
       { encoding: 'utf8', maxBuffer: 32 << 20 });
     const out = (r.stdout || '') + (r.stderr || '');
@@ -338,7 +338,7 @@ function preflight(ctx) {
   }
 
   // P3 jar 内容自检 —— 本轮构建的 jar 必须真在 live mods 里
-  {
+  if (roleCheck('P3', 'preflight')) {
     const jars = listDir(LIVE_MODS).filter((n) => /\.jar$/i.test(n) && !/\.bak|\.off$/i.test(n));
     if (!jars.length) record('P3', 'jar 内容自检', BLOCK, 'artifact', BLOCK, `live mods 下没有启用的 jar：${LIVE_MODS}`);
     else {
@@ -368,7 +368,7 @@ function preflight(ctx) {
   //   而且它们的备份 jar（_backup_xxx.jar）也躺在同一个目录里 —— 扫全盘会得到
   //   27 条「重复注入」的纯噪音。P4 的本意只有一个：搬走自己的 mixin 后，
   //   旧宿主 jar 里那一份有没有跟着重建掉。
-  {
+  if (roleCheck('P4', 'preflight')) {
     const OWN = /^(numen[-_]|numen_api)/i;
     const isBackup = (n) => /\.(bak|off|old|stager-bak)(\.jar)?$/i.test(n) || /^_backup/i.test(n) || /\.bak[-_.]/i.test(n);
     const jars = listDir(LIVE_MODS)
@@ -396,7 +396,7 @@ function preflight(ctx) {
   }
 
   // P5 本轮有按模块 commit
-  {
+  if (roleCheck('P5', 'preflight')) {
     const r = git(NUMEN, ['log', `--since=${since.toISOString().slice(0, 10)} 00:00`, '--oneline']);
     const lines = (r.out || '').split(/\r?\n/).filter((l) => /^[0-9a-f]{7,}\s/.test(l));
     const mine = keyword ? lines.filter((l) => l.includes(keyword)) : lines;
@@ -409,7 +409,7 @@ function preflight(ctx) {
   }
 
   // P6 测试有结果且 0 失败
-  {
+  if (roleCheck('P6', 'preflight')) {
     const xmls = walk(NUMEN, 6, (n) => /^TEST-.*\.xml$/.test(n));
     let tests = 0, bad = 0, recentXml = 0;
     for (const x of xmls) {
@@ -431,7 +431,7 @@ function preflight(ctx) {
   }
 
   // P7 规范/索引已补
-  {
+  if (roleCheck('P7', 'preflight')) {
     // 2026-11-13: compare real content with Git; directory times / MCP names are not writes.
     const evidence = [], unknown = [], rejected = [];
     const localSince = since.getFullYear() + '-' + String(since.getMonth()+1).padStart(2,'0') +
@@ -520,7 +520,7 @@ function preflight(ctx) {
   }
 
   // P8 不回退清单对照过
-  {
+  if (roleCheck('P8', 'preflight')) {
     const p = path.join(REG.roots.docsUnified, '30-主要功能不回退清单.md');
     const r = git(REG.roots.docs, ['log', '-1', `--since=${since.toISOString().slice(0, 10)} 00:00`, '--format=%h %s', '--', path.relative(REG.roots.docs, p).replace(/\\/g, '/')]);
     const fresh = freshEnough(p, since) || /\b[0-9a-f]{7,}\s/.test(r.out);
@@ -595,17 +595,20 @@ function preflight(ctx) {
     } else {
       record('P13', '★ 进游戏前过一遍核心工具', 'ask', 'human', ASK,
         `★ 唯一真源：${cl}\n` +
-        `       核心 4 个（主人 2026-11-04 标记）：\n` +
+        `       原4类核心 + 主人2026-11-16追加核心驾驶技能（正文以001为准）：\n` +
         `       ① 实验台 bench / world-view / exp-runner / exp-judge —— 先看当前世界，别重复搭环境\n` +
         `       ② 任务链 rdd_supervisor_submit（rdd_submit 是绕路，P18 会拦）\n` +
         `       ③ 指令+MCP send-mc-command.ps1 / mcp-call.js\n` +
-        `       ④ 摄像机 numencam MCP 拍录 / /cam possess 跟人 / PrintWindow 兜底\n` +
-        `       ★ 环境坏了：先把 AI 传到远处（/tp）；真坏了再新建存档（002 §9）；换世界 ≠ 停服。\n` +
+        `       ④ 摄像机：先加载 rdd-observer-camera，稳定机位是 Possession；numencam MCP拍录/状态，非旧rig/BODY\n` +
+        `       ⑤ 核心驾驶技能 rdd-controlled-restart：Harness外部唯一驾驶入口，按001§8/005适用条件；普通继续不强制重开\n` +
+        `       Harness层查询入口：rdd_timeline(list_runs→按明确run查询/原行)、rdd_architecture(overview→原文)，进游戏前核实际可见；不是游戏内动作工具\n` +
+        `       ★ 环境故障先核原证和现有继续/恢复路径；确需受控重开时加载技能，不照本提示直接清空或传送。\n` +
         `       ★ 别临场手写已有工具 —— 「游戏内截图能力=0」这类结论已经错了不止一次。`);
     }
   }
 
   {
+    if (roleCheck('P14', 'preflight')) {
     // ★ P14（2026-10-21 用户定）：脏工作区不许开新批次。
     //   为什么加：334 处脏项能攒几周没人发现，说明「干净」没有强制点。
     //   根因是各会话判断干净时**只看 diff，不看「磁盘上有但 git 不知道」的文件** ——
@@ -701,7 +704,8 @@ function preflight(ctx) {
     //     结果一次 preflight 里同一 id 出现两行（一行 BLOCK 一行 PASS），而且普查那行
     //     的 PASS 文案还写着「三仓 git status 均为空」—— 明明此时树是脏的。
     //     同 bug-9 那一族：门禁自己的输出在说谎，比不报更糟。拆开以后每行只说自己那份判据。
-    {
+    }
+    if (roleCheck('P14b', 'preflight')) {
       const census = path.join(__dirname, 'check-asset-census.js');
       if (!fs.existsSync(census)) {
         record('P14b', '资产普查（被 .gitignore 吃掉的治理资产）', 'artifact', 'BLOCK', BLOCK,
@@ -807,7 +811,7 @@ function preflight(ctx) {
     );
   }
 
-  if (!titleSkip('P18')) {
+  if (roleCheck('P18', 'preflight') && !titleSkip('P18')) {
     // ★★ P18（2026-10-29 主人指示）：**建链必须经过规划者**。
     //   主人原话：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用
     //   规划者的……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了」。
@@ -906,7 +910,7 @@ function postflight(ctx) {
   }
 
   // Q6 机器门结果被记录（stage 废弃后只认 loop-gate / flow-gate 两个）
-  {
+  if (roleCheck('Q6', 'postflight')) {
     const has = /loop-gate|flow-gate|VERDICT=/.test(procTxt);
     const notDoneButExplained = /NOT_DONE[\s\S]{0,200}(预期内|没走 ?stage|未开 ?stage)/.test(procTxt);
     record('Q6', '三个机器门都过', BLOCK, 'trace', has ? (notDoneButExplained || /VERDICT=LOOP_COMPLETE/.test(procTxt) ? PASS : WARN) : WARN,
@@ -915,7 +919,7 @@ function postflight(ctx) {
   }
 
   // Q7 ★ 产物真的落地
-  {
+  if (roleCheck('Q7', 'postflight')) {
     const dirs = listDir(path.join(LIVE, 'screenshots'))
       .filter((n) => /^numencam_/.test(n))
       .map((n) => path.join(LIVE, 'screenshots', n))
@@ -943,7 +947,7 @@ function postflight(ctx) {
   }
 
   // Q10 游戏已关
-  if (!titleSkip('Q10')) {
+  if (roleCheck('Q10', 'postflight') && !titleSkip('Q10')) {
     const n = spawnSync('powershell.exe',
       ['-NoProfile', '-Command', "@((Get-Process java -ErrorAction SilentlyContinue).Count + (Get-Process javaw -ErrorAction SilentlyContinue).Count)"],
       { encoding: 'utf8' }).stdout.trim();
@@ -980,7 +984,7 @@ function postflight(ctx) {
   //   用户明确要求：进游戏要留下「收集了什么数据 / 为什么 / 结果 / 验的什么 / 什么时候 / 以后怎么复现」。
   //   判据 = docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 本轮被改过，且里面有 V- 编号的卡。
   //   级别 WARN 不是 BLOCK：有的轮次确实不进游戏（纯文档/纯编译），那就不该被拦。
-  {
+  if (roleCheck('Q13', 'postflight')) {
     // 2026-11-04 主人定：新记录进 知识库\实验数据记录\；旧 实机验证\YYYY-MM.md 迁移期继续可读。
     const dirs = [path.join(REG.roots.docs, '实机验证'), path.join(REG.roots.knowledge, '实验数据记录')];
     const today = new Date();
@@ -1016,7 +1020,7 @@ function postflight(ctx) {
   //     warn（只是缺坐标）
   //       只写文件名没写行号 —— H3 要求补，但不至于拦
   //   级别定 WARN：与 Q13 同口径，避免「今天没验就过不了门」把门禁钉死。
-  if (!titleSkip('Q14')) {
+  if (roleCheck('Q14', 'postflight') && !titleSkip('Q14')) {
     // 2026-11-04：新记录在 知识库\实验数据记录\；旧 实机验证 迁移期一起查。
     const dirs = [path.join(REG.roots.docs, '实机验证'), path.join(REG.roots.knowledge, '实验数据记录')];
     const checker = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
@@ -1201,7 +1205,7 @@ function postflight(ctx) {
     }
   }
 
-  if (!titleSkip('Q19')) {
+  if (roleCheck('Q19', 'postflight') && !titleSkip('Q19')) {
     // ★ Q19（2026-10-29 主人指示）：退游戏时复盘「这一轮的链是怎么建的」。
     //   与 P18 同一判据、同一份证据（bin/lib/planner-entry.js），但问法不同：
     //     P18 问「进场前你建对了吗」（BYPASSED 直接 BLOCK，逼你当场重发）；
@@ -1232,7 +1236,7 @@ function postflight(ctx) {
     }
   }
 
-  if (!titleSkip('Q20')) {
+  if (roleCheck('Q20', 'postflight') && !titleSkip('Q20')) {
     // ★★ Q20（2026-10-30 用户要求：「退游戏记录规范，感觉现在还是做不到」）：
     //   **这一轮真进过游戏，就必须有一张回填过的卡 + 证据坐标 hard=0，否则 BLOCK。**
     //
@@ -1348,7 +1352,7 @@ function builtinChecks(ctx, phase) {
   const rtRaw = process.env.RDD_RUNTIME;
   const skipped = openDue.filter((l) => excludedForRuntime(l, rtRaw));
   const due = openDue.filter((l) => !excludedForRuntime(l, rtRaw));
-  if (phase === 'preflight') {
+  if (phase === 'preflight' && roleCheck('P9', phase)) {
     const skipMsg = skipped.length
       ? `因运行时不适用 SKIP：${skipped.map((l) => l.id).join(', ')}（runtime=${rtRaw}，来源=操作者手动环境变量；guard 未验证，仅本次不判到期）`
       : '';
@@ -1361,7 +1365,7 @@ function builtinChecks(ctx, phase) {
       record('P9', '时间锁未到期', BLOCK, 'artifact', PASS,
         `${TL.locks.length} 条锁，${TL.locks.filter((l) => l.status === 'open').length} 条 open，均未到期`);
     }
-  } else {
+  } else if (phase === 'postflight' && roleCheck('Q8', phase)) {
     const ymd = new Date().toISOString().slice(0, 10);
     const hit = TL.locks.filter((l) => (l.detected === ymd || (l.reviewBy && l.reviewBy >= ymd)));
     const said = /无新的智能性错误|无新的智能性错误|没有新的智能性/.test(ctx.stageTxt || '');
@@ -1517,7 +1521,7 @@ function builtinChecks(ctx, phase) {
   // 2026-11-12：30min 的旧运行留痕既不能交付本次摘要，也不能把 6h 旧日志变新。
   // 在原 P22 位置执行既有默认有界摘要；PASS 只代表执行/输出交付，事实覆盖仍 UNKNOWN。
   if (phase === 'preflight' && !titleSkip('P22')) {
-    const role = loadRole().role;
+    const role = globalThis.__GATE_ROLE_LABEL || loadRole().role;
     const check = REG.gates.preflight.checks.find(c => c.id === 'P22');
     const applies = check && check.appliesTo;
     if (role && Array.isArray(applies) && applies.length && !applies.includes(role)) {
@@ -1553,6 +1557,18 @@ function builtinChecks(ctx, phase) {
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
+function roleApplies(check, role) {
+  return !role || !Array.isArray(check.appliesTo) || !check.appliesTo.length || check.appliesTo.includes(role);
+}
+function roleCheck(id, phase) {
+  if (!globalThis.__GATE_ROLE_LABEL) return true; // Isolated check bodies have no selected run.
+  const check = ((REG.gates[phase] || {}).checks || []).find(c => c.id === id);
+  if (!check || roleApplies(check, globalThis.__GATE_ROLE_LABEL)) return true;
+  record(id, check.name, check.level, check.kind, SKIP,
+    `本角色不适用：该项归 ${check.appliesTo.join('/')}；未执行检查。跳过不是通过。`);
+  return false;
+}
+
 // ── selftest ──────────────────────────────────────────────────────────────
 // 门禁自己也会错，而且错得很安静（时间锁 TL-2026-10-04-01 就是：Q7 用 String.match
 // 取 ffmpeg 进度条的第一个 frame=0，真值是 160，报了假 BLOCK）。
@@ -1566,6 +1582,8 @@ function runSelftest() {
     const ok = isFile(lint);
     chk('prompt-lint 脚本存在', ok, ok ? lint : '缺少治理 lint');
   }
+
+  runRoleRegression(chk);
 
   // 1. 注册表结构：门禁代码里读到的每个字段都必须存在（缺字段会在跑到那一项时才炸）
 
@@ -1885,17 +1903,83 @@ function applyGateMode(mode, sw, phase) {
  * ★ 2026-11-07 主人要求：「指挥官和干活的 AI、甚至学习的 AI，他们的门禁不一样，要分角色」。
  * 与 gateMode 同一条原则：**只改『要不要跑这一项』，不改判据本身、不改 groups、不改强度。**
  * 归属写在 registry.json 每条判据的可选字段 appliesTo（如 ["worker"]）；**不写 = 全角色都跑**，
- * 所以不动判据就等于零行为变化，老调用方一行不用改。
- * 角色清单真源：registry.json → roles.list（2026-11-07 只声明 commander/worker/learner 三个）。
+ * 门禁运行必须显式选择角色；selftest / registry / help 不受影响。
+ * 角色清单真源：registry.json → roles.list。
  */
 function loadRole() {
   const declared = (((REG.roles || {}).list) || []).map((r) => r.id).filter(Boolean);
-  const want = ((arg('--role', '') || process.env.RDD_GATE_ROLE || '') + '').trim().toLowerCase();
-  if (!want) return { role: null, declared };
+  const i = process.argv.indexOf('--role');
+  const raw = i >= 0 ? process.argv[i + 1] : process.env.RDD_GATE_ROLE;
+  const want = String(raw || '').trim().toLowerCase();
+  if (!want) {
+    console.error('✘ 必须指定 --role <role> 或 RDD_GATE_ROLE；不再默认全量跑。已声明：' + (declared.join(' / ') || '(空)'));
+    console.error('  例：node bin/harness-gate.js preflight --role worker --since 2026-11-16');
+    return { role: null, declared, missing: true };
+  }
   if (declared.includes(want)) return { role: want, declared };
   // 写错角色名不许静默降级成「全量跑」——那会让人以为分角色生效了，其实没有。
-  console.error(` ⚠ 未知角色 "${want}"：已声明 ${declared.join(' / ') || '(空)'}；本次按【全量】跑，不算本角色。`);
-  return { role: null, declared, unknown: want };
+  console.error(` ✘ 未知角色 "${want}"：已声明 ${declared.join(' / ') || '(空)'}；本次拒绝运行，不按全量跑。`);
+  return { role: null, declared, missing: true, unknown: want };
+}
+
+// Run this BEFORE a check's reads/children. applyRole remains a display safety net.
+// Embedded offline regression: VM stubs all IO/children/ledgers; no game or production gate run.
+function runRoleRegression(chk) {
+  const vm = require('vm');
+  const text = readText(__filename);
+  const source = text.slice(0, text.lastIndexOf('try { process.exit(main()); }'));
+  function fixture(mode, args = [], env = {}) {
+    const writes = [], children = [], reads = [], logs = [];
+    const missing = p => { reads.push(String(p)); throw new Error('fixture absent'); };
+    const fakeFs = { accessSync: missing, statSync: missing, readdirSync: () => [],
+      existsSync: () => false, readFileSync: missing, mkdirSync() {},
+      appendFileSync: (p, text) => writes.push(JSON.parse(text)) };
+    const box = { __dirname, __filename, console: { log: (...a) => logs.push(a.join(' ')), error() {} },
+      process: { argv: ['node', 'gate', mode, ...args], env, execPath: process.execPath },
+      require(name) {
+        if (name === 'fs') return fakeFs;
+        if (name === 'child_process') return { spawnSync: (...a) => { children.push(a); return { status: 0, stdout: '', stderr: '' }; } };
+        if (name === './lib/registry.js') return { load: () => REG };
+        if (name === './lib/runtime-context.js') return runtimeContext;
+        if (name === './lib/commander-gates.js' || name === './lib/learner-gates.js') return {};
+        if (name === './lib/timelock-scope.js') return { excludedForRuntime: () => false };
+        if (name === 'path') return path;
+        throw new Error('unexpected fixture require: ' + name);
+      } };
+    vm.createContext(box);
+    vm.runInContext(source + '\nREG=registryLib.load(); globalThis.api={main,loadRole,preflight,postflight,results,appendGateUsage,setRole(r){globalThis.__GATE_ROLE_LABEL=r;RUNTIME=runtimeContext.resolveRuntime(runtimeContext.selection([]),REG);},stub(){preflight=postflight=roundGates=learnGates=()=>record("fixture","fixture",BLOCK,"artifact",WARN,"fixture");printPlannerBanner=printBenchReminder=()=>{};runSelftest=()=>0;}};', box);
+    return { ...box, writes, children, reads, logs };
+  }
+  for (const phase of ['preflight', 'postflight', 'round', 'learn']) {
+    for (const args of [[], ['--role', 'unknown'], ['--role']]) {
+      const f = fixture(phase, args); const rc = f.api.main();
+      chk(`role: ${phase} rejects ${args.join(' ') || 'missing'} before IO`, rc === 2 && !f.children.length && !f.reads.length && !f.writes.length);
+    }
+  }
+  for (const [phase, role] of [['round', 'worker'], ['round', 'scout'], ['learn', 'commander']]) {
+    const f = fixture(phase, ['--role', role]);
+    chk(`role: ${phase}/${role} no applicable checks is not PASS`, f.api.main() === 2 && !f.writes.length && !f.children.length);
+  }
+  for (const [phase, args, env, role] of [
+    ['round', [], {RDD_GATE_ROLE: 'commander'}, 'commander'],
+    ['learn', ['--role', 'learner'], {RDD_GATE_ROLE: 'worker'}, 'learner']]) {
+    const f = fixture(phase, args, env); f.api.stub();
+    chk(`role: ${phase} explicit/env entry logs role`, f.api.main() === 0 && f.writes.length === 1 && f.writes[0].role === role);
+  }
+  for (const phase of ['preflight', 'postflight']) {
+    const f = fixture(phase); f.api.setRole('commander');
+    f.api[phase]({since: new Date(), keyword: 'fixture', head: '', stageTxt: ''});
+    const restricted = REG.gates[phase].checks.filter(c => !roleApplies(c, 'commander'));
+    chk(`role: ${phase} excludes checks BEFORE children/world reads`, !f.children.some(a => /prompt-lint|check-runtime-deployment|check-asset-census|bench-digest|powershell/i.test(String(a))) && restricted.every(c => f.api.results.some(r => r.id === c.id && r.state === SKIP)));
+  }
+  const maintenance = fixture('selftest'); maintenance.api.stub();
+  chk('role: selftest needs no role and labels its log', maintenance.api.main() === 0 && maintenance.writes[0].role === 'selftest');
+  const layers = JSON.parse(readText(path.join(HARNESS, 'tool-layers.json')));
+  chk('layers: every core ID exists in registry', layers.core.every(t => REG.tools.some(r => r.id === t.id)));
+}
+
+function roleHasChecks(role, phase) {
+  return ((REG.gates[phase] || {}).checks || []).some(c => roleApplies(c, role));
 }
 
 function applyRole(role, phase) {
@@ -1926,7 +2010,7 @@ function printHeader(phase) {
   console.log('════════════════════════════════════════════════════════════');
   console.log(` 注册表 ${REG.version} · 工具 ${REG.tools.length} · 规范源 ${path.basename(REG.standards.source)} · 时间锁 ${REG.timeLocks.locks.length}`);
   console.log(` 门禁模式 ${globalThis.__GATE_MODE_LABEL || 'full'}（gate-switches.json / RDD_GATE_MODE；分类细化以后再做）`);
-  console.log(` 门禁角色 ${globalThis.__GATE_ROLE_LABEL || '全量（未指定 --role）'}（registry roles.list；只跑本角色判据，其余记 SKIP，跳过不是通过）`);
+  console.log(` 门禁角色 ${globalThis.__GATE_ROLE_LABEL || '未选择（不允许运行）'}（registry roles.list；只跑本角色判据，其余记 SKIP，跳过不是通过）`);
   console.log('');
 }
 
@@ -2054,7 +2138,7 @@ function appendGateUsage(entry) {
   try {
     const fs2 = require('fs');
     fs2.mkdirSync('D:\\rdd\\.harness\\audit', { recursive: true });
-    fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), ...entry }) + '\n', 'utf8');
+    fs2.appendFileSync('D:\\rdd\\.harness\\audit\\gate-usage.jsonl', JSON.stringify({ at: new Date().toISOString(), ...entry, role: globalThis.__GATE_ROLE_LABEL || null }) + '\n', 'utf8');
   } catch (e) {
     console.error('⚠ gate-usage 记账失败（门禁结论不受影响，但这条没进账本）：' + (e && e.message ? e.message : String(e)));
   }
@@ -2269,13 +2353,20 @@ function main() {
   }
   if (mode === 'selftest') {
     const rc = runSelftest();
+    globalThis.__GATE_ROLE_LABEL = 'selftest'; // Maintenance, not a role-scoped production run.
     appendGateUsage({ gate: 'selftest', result: rc === 0 ? 'PASS' : 'FAIL', note: '门禁自身健康自检', items: ['SELFTEST'] });
     return rc;
   }
+  const roleInfo = loadRole();
+  if (roleInfo.missing) return 2;
+  const role = roleInfo.role;
+  if (!roleHasChecks(role, mode)) {
+    console.error(`✘ 角色 ${role} 在 ${mode} 没有适用检查；未执行门禁，不是 PASS。`);
+    return 2;
+  }
+  globalThis.__GATE_ROLE_LABEL = role;
   if (mode === 'learn') {
-    // 学习者复盘轮：默认角色 learner。
-    const roleInfo = loadRole();
-    const role = roleInfo.role || 'learner';
+    // 学习者复盘轮：必须显式 --role learner。
     globalThis.__GATE_ROLE_LABEL = role;
     globalThis.__GATE_MODE_LABEL = 'learn';
     printHeader('learn');
@@ -2292,9 +2383,7 @@ function main() {
     return nb === 0 ? 0 : 1;
   }
   if (mode === 'round') {
-    // 指挥官监督轮：默认就是指挥官在跑，不需要显式 --role。
-    const roleInfo = loadRole();
-    const role = roleInfo.role || 'commander';
+    // 指挥官监督轮：按 registry 的 appliesTo 选择；当前仅 commander。
     globalThis.__GATE_ROLE_LABEL = role;
     globalThis.__GATE_MODE_LABEL = 'round';
     printHeader('round');
@@ -2332,7 +2421,6 @@ function main() {
     .filter((f) => freshEnough(f, since)).map((f) => readText(f)).join('\n');
 
   const gm = loadGateMode();
-  const roleInfo = loadRole();
   globalThis.__GATE_MODE_LABEL = gm.mode;
   globalThis.__GATE_ROLE_LABEL = roleInfo.role;
   printHeader(mode);

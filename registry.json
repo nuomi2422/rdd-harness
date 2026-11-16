@@ -2,7 +2,7 @@
   "$schema": "rdd-harness/registry@1",
   "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。 ★ 2026-11-06：stage 四阶段流水线废弃登记（工具 3 条 / routing 2 条 / 门禁文案 6 处）。 ★ 2026-11-07 主人裁定：opencode 相关配置/路径/插件名均为【历史名】，外部写代码的 AI 现全部走 DSH（架构导航已接 mcp__rdd_architecture__*）；registry 里保留 c.codex / router.model / goal.drive / opencode-plugin 等条目是因它们仍是 DSH 内的活工具，不改 id、不删工具，bugs 里的 opencode 事故记录留证不改写。",
   "version": 2,
-  "updated": "2026-11-13",
+  "updated": "2026-11-16",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -801,6 +801,15 @@
       "side": "read",
       "needsGame": false,
       "note": "★ 实验台 CLI（87 号）。子命令：catalog / tip add|list / signal / verdict（必须 --card+--judge）/ queue / master / probe add|list / brief [runDir] [--all]（默认只给 5 条 open tips，余量显式报数） / layers [--json] [--specialist|--operator|--legacy|--archived|--all] / pit [list|build] [--status|--source|--eligible] / usage [--limit] / timeline [runDir] / health / live（常驻视图开关，视图含 2026-11-01 新增的 strand：说/做/果/链/死 一条串）/ selftest 28 例。★ 2026-10-28 v0.2：timeline 不再硬 SKIP 任务链与上下文（还 #381 债②）——默认折叠周期快照但打一行「任务链: goal/status/v/stage」摘要，`--tag chain,ctx,chat,llm,snap,all` 显式打开；ai.jsonl 的 assistant 正文与 supervisor 回应进时序（tag chat）。★ 2026-10-29 v0.3（外部 AI 入口收敛施工单）：brief 首屏给出「本轮目标/边界（CHECKPOINT 或 --goal）→ core 5 入口 → live 新鲜度（进程死/样本旧显式 STALE，不填零）→ 进游戏前置 → 已知限制（registry 是目录数不是每轮定义数、Observer stale、mf-kit 只连原版座）」；layers 从 registry.json + tool-layers.json 生成 core/specialist/operator/legacy 四层（core≤5，未分类默认 legacy，operator 带风险文案）；usage 把 brief/health/layers 调用追加进 experiments/usage.jsonl（只记时间/session/命令/run/card/status，不记正文；session 取 DSH_SESSION_ID，拿不到写 unknown）。★ 入口口径：任何 AI 开工先 `bench brief`，跑完 `bench health`，要读时序 `bench timeline <runDir>`；要看工具面用 `bench layers`，别把 registry 目录数当每轮工具数。"
+    },
+    {
+      "id": "bench.health",
+      "name": "实验台本轮材料健康检查",
+      "path": "harness/bin/bench.js",
+      "side": "read",
+      "needsGame": false,
+      "usage": "node bin/bench.js health <runDir>",
+      "note": "复用 bench health 子命令；检查已有运行材料，不启动游戏。调用会追加 experiments/usage.jsonl，不代表实机判据通过。"
     },
     {
       "id": "bench.watch",
@@ -1626,9 +1635,23 @@
         "id": "learner",
         "name": "外部学习",
         "note": "跨样本复盘、学习链路诊断、往知识库写 skills/蓝图/经验。不碰游戏身体与部署，门禁重心在记录与证据落点。"
+      },
+      {
+        "id": "thinker",
+        "name": "思考者",
+        "note": "低频疑难、跨线取证与模块架构决策；只由指挥官按需咨询，不日常派工、不驾驶游戏。"
+      },
+      {
+        "id": "scout",
+        "name": "监督者",
+        "note": "独立监督与故障救援；拥有换模型/激活/暂停/设目标/改角色等全权限，但只用于中转站/API 故障恢复，不日常派工、不驾驶游戏、不接管指挥。"
+      },
+      {
+        "id": "executor",
+        "name": "执行者",
+        "note": "按指令执行、可被激活/暂停、可接收目标；不自行改职责、不驾驶游戏。"
       }
-    ],
-    "defaultRole": "worker"
+    ]
   },
   "timeLocks": {
     "$comment": "★ 防复发。用户 2026-10-04 定的机制：每条锁有一个复核日期；到期不复核 → preflight P9 直接 BLOCK。目的不是罚，是逼着定期确认「这条防线还在不在」。",

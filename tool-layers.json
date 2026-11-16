@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated": "2026-10-29",
+  "updated": "2026-11-16",
   "purpose": "外部编码 AI 的 Harness 工具分层（发现性与工作流约束，不是授权凭据）。由 bin/bench.js layers 从 registry.json 生成视图；未在本文件出现的 registry 项默认 legacy_or_unverified。",
   "core": [
     {
@@ -23,12 +23,12 @@
     },
     {
       "id": "gate.harness",
-      "cmd": "node bin/harness-gate.js preflight|postflight --since <YYYY-MM-DD> --keyword <模块>",
+      "cmd": "node bin/harness-gate.js preflight|postflight --role <commander|worker|learner|thinker|scout|executor> --since <YYYY-MM-DD> --keyword <模块>",
       "why": "只在进/退游戏时用；preflight BLOCK=0 才准进，postflight 退游戏回填",
       "side": "read"
     },
     {
-      "id": "bench",
+      "id": "bench.health",
       "cmd": "node bin/bench.js health <runDir>",
       "why": "收工判这轮材料能不能用（after complete / java 退出 / evidence 齐不齐）",
       "side": "read"
