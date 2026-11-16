@@ -107,16 +107,15 @@ function parseArgs(argv) {
  * 只有明确 STOPPED 才允许备份；RUNNING / UNKNOWN / 调用失败 / 输出不可解析一律当在跑。
  * 不新造命令行解析器，也不停任何别的 java。
  */
-const MC_INSTANCE_PS1 = process.env.RDD_MC_INSTANCE_PS1
-  || 'D:\\rdd\\workspace\\rdd-selfcompile\\scripts\\mc-instance.ps1';
+const MC_INSTANCE_PS1 = 'D:\\rdd\\workspace\\rdd-selfcompile\\scripts\\mc-instance.ps1';
 
 function parseMcState(raw) {
-  const last = (String(raw || '').trim().split(/\r?\n/).pop() || '').trim().toUpperCase();
-  return (last === 'RUNNING' || last === 'STOPPED' || last === 'UNKNOWN') ? last : 'UNKNOWN';
+  const s = String(raw == null ? '' : raw).trim();
+  return (s === 'RUNNING' || s === 'STOPPED' || s === 'UNKNOWN') ? s : 'UNKNOWN';
 }
 
 function mcState(instance = 'gpt') {
-  const cmd = `. '${MC_INSTANCE_PS1}'; Get-RddMcState -Instance '${instance}'`;
+  const cmd = `$ErrorActionPreference='Stop'; . '${MC_INSTANCE_PS1}'; Get-RddMcState -Instance '${instance}'`;
   const r = spawnSync('powershell.exe',
     ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
     { encoding: 'utf8', timeout: 30000 });
@@ -483,6 +482,9 @@ function selftest() {
   checks.push(['坏输出按 UNKNOWN 拒', parseMcState('') === 'UNKNOWN' && parseMcState('IDLE') === 'UNKNOWN'
     && parseMcState('boom') === 'UNKNOWN' && !backupAllowed(parseMcState('garbage'))]);
   checks.push(['三态解析精确', parseMcState('RUNNING') === 'RUNNING' && parseMcState('STOPPED\r\n') === 'STOPPED'
+    && parseMcState('  UNKNOWN  ') === 'UNKNOWN']);
+  checks.push(['混合/歧义输出拒', parseMcState('RUNNING\nSTOPPED') === 'UNKNOWN'
+    && parseMcState('STOPPED\nUNKNOWN') === 'UNKNOWN'
     && parseMcState('warning\nUNKNOWN') === 'UNKNOWN']);
 
   let pass = 0;
