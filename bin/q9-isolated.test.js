@@ -45,6 +45,47 @@ function run({ names = ['100-new.md'], files = {}, fresh = [] } = {}) {
   assert.equal(result.length, 1);
   return { state: result[0][4], detail: result[0][5] };
 }
+test('Q12 actual reminder uses the exit checklist without parallel document instructions', () => {
+  const a = source.indexOf("    record('Q12',");
+  const b = source.indexOf('\n  }', a);
+  assert.ok(a >= 0 && b > a);
+  const rows = [];
+  vm.runInNewContext(source.slice(a, b), { ASK: 'ASK', record: (...args) => rows.push(args) });
+  assert.equal(rows.length, 1);
+  assert.deepEqual(Array.from(rows[0].slice(0, 5)), ['Q12', '写记录 + 写文档', 'ask', 'human', 'ASK']);
+  const detail = rows[0][5];
+  assert.match(detail, /001-退游戏检查单\.md/);
+  assert.match(detail, /批次卡、实验数据\/验证卡/);
+  assert.match(detail, /memory_create_entities \/ memory_add_observations/);
+  assert.match(detail, /Q2 \/ Q3 \/ Q5 \/ Q9/);
+  assert.doesNotMatch(detail, /docsUnified|NN-<中文名>|编号接现有最大号|同时登记 3 处/);
+});
+
+test('Q16 preserves records without automatic pruning or parallel checklist', () => {
+  const a = source.indexOf("    record('Q16',");
+  const b = source.indexOf('\n  }', a);
+  const rows = [];
+  vm.runInNewContext(source.slice(a, b), { ASK: 'ASK', record: (...args) => rows.push(args) });
+  assert.equal(rows[0][4], 'ASK');
+  assert.match(rows[0][5], /001-退游戏检查单\.md/);
+  assert.match(rows[0][5], /验证卡.*记忆图谱/);
+  assert.doesNotMatch(rows[0][5], /--prune --apply|自己删掉|别自己定了/);
+});
+
+test('Q10 sampling keeps original states without claiming a save receipt', () => {
+  const a = source.indexOf("  if (roleCheck('Q10',");
+  const b = source.indexOf('// Q11', a);
+  for (const n of ['0', '2', '']) {
+    const rows = [];
+    vm.runInNewContext(source.slice(a, b), { WARN: 'WARN', PASS: 'PASS',
+      roleCheck: () => true, titleSkip: () => false,
+      spawnSync: () => ({ stdout: n }), record: (...args) => rows.push(args) });
+    assert.equal(rows[0][4], n === '0' ? 'PASS' : 'WARN');
+    assert.match(rows[0][5], /实停回执/);
+    assert.doesNotMatch(rows[0][5], /用 mc.stop 关/);
+  }
+});
+
 const all = text => ({ '/index/a.md': text, '/index/b.md': text, '/index/c.md': text });
 
 test('readable registered targets pass', () => {

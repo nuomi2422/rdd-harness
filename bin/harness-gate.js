@@ -906,7 +906,7 @@ function postflight(ctx) {
       .filter((f) => !/(README|standards)\.md$/i.test(path.basename(f)))
       .filter((f) => /(总结|复盘|报告|经验|evidence|summary|retro)/i.test(path.basename(f)));
     record('Q4', '★ 总结写到了正确位置', BLOCK, 'artifact', bad.length ? BLOCK : PASS,
-      bad.length ? `harness 下出现了总结类文件：${bad.map((f) => path.relative(h, f)).join(', ')} —— 总结该进 docsUnified 或知识库对应文件夹`
+      bad.length ? `harness 下出现了总结类文件：${bad.map((f) => path.relative(h, f)).join(', ')} —— 按知识库退游戏检查单归档，长期结论原位更新现行正文，不另建平行正文`
                  : 'harness 下没有总结类文件（本 harness 只放注册表/门禁/规范/skill）');
   }
 
@@ -953,7 +953,7 @@ function postflight(ctx) {
       ['-NoProfile', '-Command', "@((Get-Process java -ErrorAction SilentlyContinue).Count + (Get-Process javaw -ErrorAction SilentlyContinue).Count)"],
       { encoding: 'utf8' }).stdout.trim();
     record('Q10', '游戏已关', WARN, 'artifact', n === '0' ? PASS : WARN,
-      n === '0' ? 'java 进程 0' : `★ java 进程还有 ${n} 个，别占内存（用 mc.stop 关，别用 mc-start.js --stop，它是哑弹）`);
+      n === '0' ? 'java 进程计数为 0；这里只是进程采样，不代替原档保存/实停回执，按退游戏唯一入口核验' : `★ java 进程采样为 ${n}；不据此认定都是游戏或强杀。按知识库退游戏唯一入口，由唯一驾驶正常保存退出并核实例身份/实停回执`);
   }
 
   // Q11 人工
@@ -972,13 +972,11 @@ function postflight(ctx) {
     const longterm = walk(REG.roots.docsUnified, 1, (n) => /^\d{2,3}-.*\.md$/.test(n) && !NOT_ASSET.test(n))
       .filter((f) => freshEnough(f, since));
     record('Q12', '写记录 + 写文档', 'ask', 'human', ASK,
-      `关游戏之后顺序固定：关游戏 → 写记录 → 写文档 → 门禁。三件必须真动手的：\n` +
-      `       ① 写记录：${okDocs.join(' / ')} 各加本轮条目${moved.length ? `（本轮已动：${moved.join(', ')}）` : '（本轮都还没动）'}，条目要带 keyword 或 HEAD 前 12 位作签名，否则机器判不出是你写的\n` +
-      `       ② 写文档：长期资产进 ${REG.roots.docsUnified}\\NN-<中文名>.md` +
-      `${longterm.length ? `（本轮已写 ${longterm.length} 份：${longterm.slice(0, 3).map((f) => path.basename(f)).join(', ')}${longterm.length > 3 ? ' …' : ''}）` : '（本轮还没写）'}，` +
-      `编号接现有最大号往后排，并【同时登记 3 处】：README §二目录表 / 09-更新日志 / 50-按主题导航\n` +
-      `       ③ 灌记忆图谱：memory_create_entities / memory_add_observations —— 别只写文档不进图谱\n` +
-      `       ★ 机器侧的对应项是 Q2(evidence) / Q3(总结) / Q5(图谱) / Q9(编号三处)，它们绿了不等于你走过上面三步。`);
+      '退游戏记录以唯一正文为准：知识库\\退游戏\\001-退游戏检查单.md；不要另写平行正文。\n' +
+      '       ① 按该检查单回填批次卡、实验数据/验证卡，记录目标、动作、原证、时间与结论；保留本轮 keyword 或 HEAD 签名便于核查。\n' +
+      '       ② 长期结论/契约变化原位更新知识库现行正文；旧路径只作只读档案，不为过门另建编号文档。\n' +
+      '       ③ 保留坑/旧债、时间线和记忆图谱义务；memory_create_entities / memory_add_observations 按原流程执行。\n' +
+      '       ★ Q2 / Q3 / Q5 / Q9 的机器检查未改变；机器绿不代表记录内容合格，按唯一正文四行事实自核。');
   }
 
   // ★ Q13（2026-10-19 新增）：本轮有没有写「实机验证卡」。
@@ -1112,18 +1110,10 @@ function postflight(ctx) {
     //   挂在 stage 的必读清单等于**从没被执行过**；2026-11-06 主人正式裁定 stage 废弃，清单以本门禁为准。
     //   级别 ASK：机器判不了「文档写得好不好」，但必须把清单摆在面前。
     record('Q16', '退游戏后的文档书写清单', 'human', 'ask', ASK,
-      `★ 关游戏不是结束。先读唯一入口：知识库\\退游戏\\001-退游戏检查单.md\n` +
-      `       按顺序做完这四件，再开下一轮：\n` +
-      `       ① 验证卡/实验数据（判据/数据/结果/**原因**/复现）→ 知识库\\实验数据记录\\（V-YYYYMMDD-NN + 状态 ✅/❌/🟡）\n` +
-      `       ② 坑/旧债/杂项 → 知识库\\踩过的坑记录\\ · 旧债记录\\001-旧债清单.md · 杂项记录\\\n` +
-      `       ③ 新坑写时间锁（智能性错误必填 guard）→ harness\\registry.json\n` +
-      `       ④ 经验实体写进记忆库 → rdd架构\\_memory\\memory.jsonl（append-only，只追加不重写）\n` +
-      `       ★ 还有两件容易漏：\n` +
-      `         · **快照用完了吗？** 这轮打的存档快照如果不再需要，自己删掉：\n` +
-      `             node "D:\\rdd\\harness\\rdd-harness\\bin\\snapshot-world.js" --prune --apply\n` +
-      `           （快照是工作副本不是资产，每份 30 MB 级，别攒着占盘）\n` +
-      `         · **决策队列里若有事等主人拍板，别自己定了**：\n` +
-      `             node "D:\\rdd\\harness\\rdd-harness\\bin\\decide-inbox.js" list --pending`);
+      '★ 按唯一正文执行，不另抄一份清单：知识库\\退游戏\\001-退游戏检查单.md。\n' +
+      '       保留批次卡、实验数据/验证卡、坑/旧债、时间线、记忆图谱等原有记录义务；长期结论原位更新现行正文。\n' +
+      '       快照与原证先保留；清理按现行保存/回退流程另行核验，本提醒不要求自动 prune。\n' +
+      '       待决项按现行权限边界处理；普通技术选择自主推进，不把局部待决扩大为全队停工。');
   }
 
   {
@@ -1513,7 +1503,7 @@ function builtinChecks(ctx, phase) {
       record('Q9', '编号登记三处', BLOCK, 'artifact',
         unreadable.length || blocking.length ? BLOCK : (missing.length ? WARN : PASS),
         [readError, blocking.length
-          ? `★ 本轮新建的 ${blocking.join(', ')} 没登记三处 → 必须补（长期资产进 docsUnified 要同时登记 README §二目录表 / 09-更新日志 / 50-按主题导航）` +
+          ? `★ 本轮新建的 ${blocking.join(', ')} 没登记三处 → 必须补（此项核旧编号目录既有登记；按退游戏唯一正文补对应索引，不为过门另写平行正文）` +
             (inherited > 0 ? `｜另有 ${inherited} 条是历史债，本轮没动这些文档，不拦` : '')
           : (missing.length ? `${detail}｜★ 以上缺项是历史债（本轮没动这些文档），不拦；顺手补了更好` : (readError ? '' : detail))].filter(Boolean).join('｜'));
     }
