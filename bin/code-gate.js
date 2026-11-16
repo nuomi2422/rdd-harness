@@ -106,6 +106,18 @@ if (!gs) {
   if (dirty) warn++;
 }
 
+// 只提醒重复构建和盘余量；不改变门禁通过或工作树生命周期。
+try {
+  const d = require('./lib/worktree-disk').inspect(R.numen);
+  if (d.error) { warn++; console.log('  WARN  工作树构建占用未知：' + d.error); }
+  else {
+    const volumes = d.volumes.map(v => v.root + ' ' + (v.free === null ? '余量未知' : '剩余 ' + (v.free / 1073741824).toFixed(1) + ' GiB')).join('；');
+    const risk = d.builtTrees > 1 || d.inaccessible || d.volumes.some(v => v.free === null || v.free < 10 * 1073741824);
+    if (risk) warn++;
+    console.log('  ' + (risk ? 'WARN' : 'INFO') + '  工作树构建目录：' + d.builtTrees + '/' + d.trees + ' 棵树，至少 ' + d.outputs + ' 个 build/.gradle；' + volumes + (d.inaccessible ? '；' + d.inaccessible + ' 处不可读，统计不完整' : '') + '（仅提示，不自动清理）');
+  }
+} catch (e) { warn++; console.log('  WARN  工作树构建占用未知：' + e.message); }
+
 // 记录/批次卡缺失提醒（WARN，不拦）
 try {
   const today = new Date().toDateString();
