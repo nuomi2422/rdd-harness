@@ -448,7 +448,8 @@ function preflight(ctx) {
     const memory = path.join(REG.roots.docs, '_memory', 'memory.jsonl');
     const groups = [
       {anchor:REG.roots.harness, roots:[path.join(REG.roots.harness,'standards.md')]},
-      {anchor:REG.roots.docs, roots:[...DOC_EVIDENCE_ROOTS(), memory]},
+      // P7 includes current knowledge bodies; postflight retains its narrower record roots.
+      {anchor:REG.roots.docs, roots:[...DOC_EVIDENCE_ROOTS(), REG.roots.knowledge || path.join(REG.roots.docs,'知识库'), memory]},
     ];
     const query = (repo, args) => {
       const r = git(repo, ['-c','core.quotepath=false',...args]);
