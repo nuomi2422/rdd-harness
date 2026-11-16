@@ -101,13 +101,33 @@ function parseArgs(argv) {
   return o;
 }
 
-/* ── 游戏是否在跑 ── */
-function gameRunning() {
-  const r = spawnSync('powershell.exe', ['-NoProfile', '-Command',
-    "if (Get-Process java,javaw -ErrorAction SilentlyContinue) { 'RUNNING' } else { 'IDLE' }"],
-    { encoding: 'utf8', timeout: 20000 });
-  return (r.stdout || '').includes('RUNNING');
+/* ── 游戏是否在跑 ──
+ * 2026-11-16: 不再按「有任意 java 进程」拒 —— 同机还有别的 java（如 Agene soul-core-bridge），
+ * 那样会把无关进程读成「游戏在跑」。改复用 rdd-selfcompile 的 gpt 身份三态契约：
+ * 只有明确 STOPPED 才允许备份；RUNNING / UNKNOWN / 调用失败 / 输出不可解析一律当在跑。
+ * 不新造命令行解析器，也不停任何别的 java。
+ */
+const MC_INSTANCE_PS1 = process.env.RDD_MC_INSTANCE_PS1
+  || 'D:\\rdd\\workspace\\rdd-selfcompile\\scripts\\mc-instance.ps1';
+
+function parseMcState(raw) {
+  const last = (String(raw || '').trim().split(/\r?\n/).pop() || '').trim().toUpperCase();
+  return (last === 'RUNNING' || last === 'STOPPED' || last === 'UNKNOWN') ? last : 'UNKNOWN';
 }
+
+function mcState(instance = 'gpt') {
+  const cmd = `. '${MC_INSTANCE_PS1}'; Get-RddMcState -Instance '${instance}'`;
+  const r = spawnSync('powershell.exe',
+    ['-NoProfile', '-ExecutionPolicy', 'Bypass', '-Command', cmd],
+    { encoding: 'utf8', timeout: 30000 });
+  if (r.error || r.status !== 0) return 'UNKNOWN';
+  return parseMcState(r.stdout);
+}
+
+/** 唯一放行条件：身份契约给出明确的 STOPPED。 */
+function backupAllowed(state) { return state === 'STOPPED'; }
+
+function gameRunning() { return !backupAllowed(mcState()); }
 
 function dirSize(p) {
   let total = 0, files = 0;
@@ -457,6 +477,13 @@ function selftest() {
   // dirSize
   const ds = dirSize(src);
   checks.push(['dirSize 数得对', ds.files === 4]);
+
+  // 2026-11-16: 只有 gpt 明确 STOPPED 才允许备份；桥 java / 未知 / 坏输出都不得放行
+  checks.push(['STOPPED 才可备份', backupAllowed('STOPPED') && !backupAllowed('RUNNING') && !backupAllowed('UNKNOWN')]);
+  checks.push(['坏输出按 UNKNOWN 拒', parseMcState('') === 'UNKNOWN' && parseMcState('IDLE') === 'UNKNOWN'
+    && parseMcState('boom') === 'UNKNOWN' && !backupAllowed(parseMcState('garbage'))]);
+  checks.push(['三态解析精确', parseMcState('RUNNING') === 'RUNNING' && parseMcState('STOPPED\r\n') === 'STOPPED'
+    && parseMcState('warning\nUNKNOWN') === 'UNKNOWN']);
 
   let pass = 0;
   for (const [n, ok] of checks) { console.log(`  ${ok ? '✔' : '✘'} ${n}`); if (ok) pass++; }
