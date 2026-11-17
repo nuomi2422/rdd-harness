@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-17T14:46:52.781Z",
+  "updated_at": "2026-11-17T17:38:02.288Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -943,6 +943,13 @@
       "run": "",
       "by": "session-0bff8e21",
       "at": "2026-11-17T14:46:52.779Z"
+    },
+    {
+      "exp_id": "V-20261118-01",
+      "note": "Attempt07 exact04bfe pair deployed; same d711 chain final r8/v100 primary3 PENDING. Natural daily decline mismatch refused then retry succeeded; mine t114 accepted. Saved01:23:28.908 and MCSTOPPED PID12092absent. Resource handoff. Recorder Node1/producer2 exact-title-change due close before StopFile, ffmpeg0; 33550frames10971samples22579held. PARTIAL_COVERAGE OBJECTIVE_NOT_COMPLETE; food decline/systemwake NOT_COVERED. Evidence:003 V-20261118-01 and .tmp/174-a07-natural-decline-evidence.json/.tmp/174-a07-footage-accounting.json.",
+      "run": "",
+      "by": "session-0bff8e21",
+      "at": "2026-11-17T17:38:02.286Z"
     }
   ],
   "verdicts": [
