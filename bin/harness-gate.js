@@ -848,6 +848,11 @@ function preflight(ctx) {
         '       改法：重发一条 rdd_supervisor_submit {"objective":"<同一个目标>","register":true}\n' +
         '             （beginPlanning 会顶掉旧链，不用先清）\n' +
         '       绕过的绑定：' + pr.bypassed.slice(0, 3).map((b) => b.at + ' ' + b.description).join(' ; '));
+    } else if (pr.verdict === 'UNKNOWN') {
+      record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, WARN,
+        pe.summaryLine(pr) + '\n' +
+        '       这是证据覆盖不足，不是绕过，也不是债：把窗口调大（或整读文件）后可复核，\n' +
+        '       不能据此断言本轮没走规划者。');
     } else if (pr.verdict === 'NO_CHAIN') {
       record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, SKIP,
         '本轮没建过任务链（不拦）。要建就用 rdd_supervisor_submit，别用 rdd_submit');
@@ -1220,6 +1225,10 @@ function postflight(ctx) {
         '       ★ 这一轮是 rdd_submit 建的链（单目标、绕过 Stage-A）。已经干完的活不算白干，\n' +
         '         但**下一轮建链请用 rdd_supervisor_submit** —— 否则规划者永远没参与过，\n' +
         '         主人要的「任务链由规划者触发」这件事从头到尾没发生过。');
+    } else if (pr2.verdict === 'UNKNOWN') {
+      record('Q19', name19, 'trace', WARN, WARN,
+        pe2.summaryLine(pr2) + '\n' +
+        '       ★ 证据窗口只覆盖日志尾部，起点之前无法复核：不算绕过、不算债，也不能说从未经过规划者。');
     } else if (pr2.verdict === 'NO_CHAIN') {
       record('Q19', name19, 'trace', WARN, SKIP, '本轮没建过任务链（不拦）');
     } else {

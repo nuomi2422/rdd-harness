@@ -63,17 +63,26 @@ function tailEvents(file, maxBytes) {
     return { events: [], size: 0, missing: true };
   }
   const len = Math.min(maxBytes || DEFAULT_TAIL_BYTES, st.size);
-  if (len <= 0) return { events: [], size: st.size, missing: false };
+  // truncated：窗口没覆盖整个文件 —— 起点之前是否有规划证据，本轮无法判定。
+  const truncated = len < st.size;
+  const from = st.size - len;
+  if (len <= 0) return { events: [], size: st.size, missing: false, truncated, from };
   const buf = Buffer.alloc(len);
   const fd = fs.openSync(file, 'r');
+  let aligned = false; // 窗口是否正好落在行首
   try {
-    fs.readSync(fd, buf, 0, len, st.size - len);
+    fs.readSync(fd, buf, 0, len, from);
+    if (from > 0) {
+      const prev = Buffer.alloc(1);
+      fs.readSync(fd, prev, 0, 1, from - 1);
+      aligned = prev[0] === 0x0a; // 前一字节是换行 = 起点本身是完整行
+    }
   } finally {
     fs.closeSync(fd);
   }
   const lines = buf.toString('utf8').split('\n');
-  // 尾读的第一行大概率是半截，丢掉（除非正好从头读的）
-  if (len < st.size) lines.shift();
+  // 只有起点落在行中间时，第一行才是半截；落在行首就必须保留它。
+  if (truncated && !aligned) lines.shift();
   const events = [];
   for (const ln of lines) {
     const s = ln.trim();
@@ -84,7 +93,7 @@ function tailEvents(file, maxBytes) {
       /* 坏行跳过：日志轮转/半截写入都会产生，不该让门禁崩 */
     }
   }
-  return { events, size: st.size, missing: false };
+  return { events, size: st.size, missing: false, truncated, from };
 }
 
 /**
@@ -94,7 +103,8 @@ function tailEvents(file, maxBytes) {
  * @param {object} [opts] { dir, maxBytes }
  * @returns {{
  *   ok: boolean,          // 有没有走规划者的证据
- *   verdict: string,      // PLANNED | BYPASSED | NO_CHAIN | NO_DATA
+ *   verdict: string,      // PLANNED | BYPASSED | NO_CHAIN | NO_DATA | UNKNOWN
+ *   coverage: object,     // { truncated, from, size }：证据窗口是否覆盖整个文件
  *   planned: Array,       // 走规划者的提交 [{at, source, objective}]
  *   bypassed: Array,      // 绕过的绑定   [{at, description}]
  *   file: string,
@@ -107,9 +117,10 @@ function scan(since, opts) {
   const file = path.join(dir, 'rdd.jsonl');
   const sinceMs = (since instanceof Date ? since : new Date(since)).getTime();
 
-  const { events, missing } = tailEvents(file, o.maxBytes);
+  const { events, missing, truncated, from, size } = tailEvents(file, o.maxBytes);
+  const coverage = { truncated: !!truncated, from: from || 0, size: size || 0 };
   if (missing) {
-    return { ok: false, verdict: 'NO_DATA', planned: [], bypassed: [], file, note: 'rdd.jsonl 不存在：' + file };
+    return { ok: false, verdict: 'NO_DATA', planned: [], bypassed: [], file, coverage, note: 'rdd.jsonl 不存在：' + file };
   }
 
   const planned = [];
@@ -142,8 +153,25 @@ function scan(since, opts) {
       bypassed,
       staged,
       file,
+      coverage,
       note: planned.map((p) => p.source).join(' + ') +
         (staged ? `（Stage-A 分出 ${staged.stages} 级）` : ''),
+    };
+  }
+  if (coverage.truncated) {
+    // 证据窗口只覆盖尾部：窗口起点之前可能就有规划者事件。
+    // 这里不能把"没看见规划"说成"从未规划"，只能报无法判定。
+    return {
+      ok: false,
+      verdict: 'UNKNOWN',
+      planned,
+      bypassed,
+      staged,
+      file,
+      coverage,
+      note: `证据不完整：只读了文件尾部 ${size - from} 字节（起点 byte ${from}，共 ${size} 字节）` +
+        (bypassed.length ? `，窗口内见到 ${bypassed.length} 条直绑` : '') +
+        '；更早的规划者事件无法排除，不能判定为绕过或从未规划。',
     };
   }
   if (bypassed.length) {
@@ -154,16 +182,17 @@ function scan(since, opts) {
       bypassed,
       staged,
       file,
+      coverage,
       note: `本轮建了 ${bypassed.length} 条链，但没有一条经过规划者 —— ` +
         '看起来用了 rdd_submit（只绑单目标，绕过 Stage-A）。',
     };
   }
-  return { ok: false, verdict: 'NO_CHAIN', planned, bypassed, staged, file, note: '本轮没建过任务链（不拦）' };
+  return { ok: false, verdict: 'NO_CHAIN', planned, bypassed, staged, file, coverage, note: '本轮没建过任务链（不拦）' };
 }
 
 /** 给人看的一行摘要（门禁、监测台、日报都用同一句话，别各写各的） */
 function summaryLine(r) {
-  const tag = { PLANNED: '✔ 规划者', BYPASSED: '✘ 绕过规划者', NO_CHAIN: '- 无链', NO_DATA: '? 无数据' }[r.verdict] || r.verdict;
+  const tag = { PLANNED: '✔ 规划者', BYPASSED: '✘ 绕过规划者', NO_CHAIN: '- 无链', NO_DATA: '? 无数据', UNKNOWN: '? 证据不全' }[r.verdict] || r.verdict;
   return tag + '：' + r.note;
 }
 
