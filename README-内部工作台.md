@@ -1,3 +1,7 @@
+# 【已封存】旧内部工作台说明
+
+> 现行工作从 [RDD 知识库入口](../../docs/rdd-docs/知识库/入口.md)开始；文档优先级与有效专项引用见[写作规则](../../docs/rdd-docs/知识库/写作规则.md)。以下保留历史记录，不覆盖现行正文，不恢复旧流程（2026-11-18 主人要求）。
+
 > 🌍 **Open-source note**：new visitors start with [OSS-README.md](<OSS-README.md>) — quick start (selftest trio),
 > the frozen-criteria experiment-card workflow, and honest boundaries. License: MIT (see [LICENSE](<LICENSE>)).
 > 本 README 是内部工作台说明（含机器路径与内部文档指针），保留不动。
