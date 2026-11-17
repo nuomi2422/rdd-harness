@@ -18,6 +18,8 @@ Metadata:
 
 # numencam（/cam）
 
+正常摄影优先使用 [rdd-observer-camera](<../rdd-observer-camera/SKILL.md>)；该仓文件是版本化发布源，宿主 `C:/Users/admin/.dsh/skills/rdd-observer-camera/SKILL.md` 是安装运行副本，后续改源再安装、不双重编辑。已有自动附身有效时只读确认后录像；以下旧手动控制/ORBIT示例仅用于显式改镜或已证异常恢复，不作每次拍摄前置。
+
 客户端专属模块，jar `numen-plugin-camera-1.21.1-0.1.3-dev.jar`，装载后原版聊天框里直接敲 `/cam`。
 
 ## ★★ 要「跟着同伴看」就用附身，不要一直 `/cam tp`
