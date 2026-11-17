@@ -1,3 +1,7 @@
+# 【已封存】旧内部工作台说明
+
+> 现行工作指引从 [RDD 知识库](https://github.com/nuomi2422/rdd-docs/tree/master/知识库)进入（访问需权限）；以下只保留历史，不恢复旧流程（2026-11-18）。
+
 > 🌍 **Open-source note**：new visitors start with [OSS-README.md](<OSS-README.md>) — quick start (selftest trio),
 > the frozen-criteria experiment-card workflow, and honest boundaries. License: MIT (see [LICENSE](<LICENSE>)).
 > 本 README 是内部工作台说明（含机器路径与内部文档指针），保留不动。

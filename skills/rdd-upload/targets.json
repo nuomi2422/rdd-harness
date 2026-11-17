@@ -1,0 +1,39 @@
+{
+  "schema": 1,
+  "owner": "nuomi2422",
+  "targets": [
+    {
+      "repo": "rdd-restart-doer",
+      "url": "https://github.com/nuomi2422/rdd-restart-doer.git",
+      "expectedDefaultBranch": "master",
+      "role": "project-facade"
+    },
+    {
+      "repo": "rdd-harness",
+      "url": "https://github.com/nuomi2422/rdd-harness.git",
+      "expectedDefaultBranch": "main",
+      "role": "harness-publication"
+    },
+    {
+      "repo": "rdd-docs",
+      "url": "https://github.com/nuomi2422/rdd-docs.git",
+      "expectedDefaultBranch": "master",
+      "role": "docs-publication"
+    }
+  ],
+  "sourceFork": {
+    "repo": "nuomi2422/minecraft-numen",
+    "url": "https://github.com/nuomi2422/minecraft-numen.git",
+    "role": "source-fork",
+    "autoPush": false
+  },
+  "fullSourceBackup": {
+    "dedicatedPrivateRepositoryRequired": true,
+    "autoPush": false
+  },
+  "upstreamPush": false,
+  "publicationRoot": "publication",
+  "implicitHead": false,
+  "bulkPush": false,
+  "forcePush": false
+}
