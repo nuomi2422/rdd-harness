@@ -1,6 +1,6 @@
 {
   "schema": 1,
-  "updated_at": "2026-11-14T09:59:52.069Z",
+  "updated_at": "2026-11-17T14:46:52.781Z",
   "purpose": "实验台 v0 共享账本：探针目录 / tips（坑、好东西、探针提议、工具改动）/ 预筛信号 / 冻结判决 / 排队 / 母版。任何 AI 都能加，先读再动手。",
   "probes": [
     {
@@ -936,6 +936,13 @@
       "run": "V-20261113-06",
       "by": "session-a5220f27-9a50-4a92-8be4-d499f5fa633b",
       "at": "2026-11-13T09:44:44.633Z"
+    },
+    {
+      "exp_id": "V-20261117-11",
+      "note": "Attempt06: bed11059,69,11261; used chest11040,68,11257 distance19.416 exceeds stocked radius8. tools11901 confirms bread12 in distant chest;11904 takes it back. context L46/L82 goto block-only after successful bed-side chest build. 136 replan_exhausted correspond survival requests refused without stopping body; not permanent parking. Evidence: default-workspace/.tmp/174-a06-breakpoint-diagnosis.json;174-a06-budget-instrumentation.json. PARTIAL_COVERAGE OBJECTIVE_NOT_COMPLETE.",
+      "run": "",
+      "by": "session-0bff8e21",
+      "at": "2026-11-17T14:46:52.779Z"
     }
   ],
   "verdicts": [
