@@ -6,6 +6,7 @@
  *   node harness-gate.js selftest                       只跑内置检查（不碰外部工具）
  *   node harness-gate.js registry                       打印注册表摘要
  *   preflight 可用 --p5-source <绝对工作树> --p5-commit <完整 SHA> 核隔离源码；不替代安装核验。
+ *   候选 P6 用 --p6-test <module>/<mutation-id>/<attempt-id>（可重复）；只核事先选定的同源码测试。
  *   RDD_GATE_MODE=off 仅诊断：无硬红也返回 2，不产生进退场放行。
  *   node harness-gate.js preflight --role worker --instance test --title-only
  *     固定 test 根；无世界判据显式 SKIP，不改注册表/生产账本，不代表世界验证。
@@ -252,6 +253,21 @@ function p5SourceSelection(argv) {
   return { root: path.normalize(value(names[0])), commit: value(names[1]) };
 }
 
+function p6TestSelection(argv, p5Source) {
+  const flag = '--p6-test';
+  const tests = [];
+  for (let i = 0; i < argv.length; i++) {
+    if (argv[i] !== flag && !argv[i].startsWith(flag + '=')) continue;
+    const m = argv[i] === flag && /^([\w-]+(?::[\w-]+)*)\/(mutation-[\w-]+)\/(attempt-[a-f0-9]{32})$/.exec(argv[i+1] || '');
+    if (!p5Source || !m || tests.some(t => t.mutationId === m[2])) {
+      throw new Error('P6 requires P5 scope and unique --p6-test module/mutation-id/attempt-id');
+    }
+    tests.push({ module: m[1], mutationId: m[2], attemptId: m[3] });
+    i++;
+  }
+  return tests;
+}
+
 function p5CandidateProof(defaultRoot, source, since) {
   const samePath = (left, right) => {
     const fix = s => path.resolve(s).replace(/\\/g, '/');
@@ -469,26 +485,21 @@ function preflight(ctx) {
     }
   }
 
-  // P6 测试有结果且 0 失败
-  if (roleCheck('P6', 'preflight')) {
-    const xmls = walk(NUMEN, 6, (n) => /^TEST-.*\.xml$/.test(n));
-    let tests = 0, bad = 0, recentXml = 0;
-    for (const x of xmls) {
-      const t = readText(x);
-      const m = t.match(/<testsuite\b[^>]*>/);
-      if (!m) continue;
-      const tag = m[0];
-      tests += +(tag.match(/tests="(\d+)"/) || [0, 0])[1];
-      bad += +(tag.match(/failures="(\d+)"/) || [0, 0])[1];
-      bad += +(tag.match(/errors="(\d+)"/) || [0, 0])[1];
-      if (freshEnough(x, since)) recentXml++;
+  // P6 only certifies independently selected exact managed attempts. Do not scan unrelated trees.
+  if (roleCheck('P6', 'preflight') && !titleSkip('P6')) {
+    const name = '本批受管测试';
+    if (!ctx.p5Source) {
+      record('P6', name, BLOCK, 'artifact', WARN, '未提交新代码测试范围：UNKNOWN，不代签候选测试；普通续跑不因此要求新票。');
+    } else if (!ctx.p6Tests?.length || !results.some(r => r.id === 'P5' && r.state === PASS)) {
+      record('P6', name, BLOCK, 'artifact', BLOCK, '缺匹配当前隔离源码的测试票或 P5 原证未通过。');
+    } else {
+      const { p6TestProof } = require('./lib/p6-test-proof.js');
+      const scoped = ctx.p6Tests.map(t => ({...t, ...p6TestProof({ ...t, change: 'new-code',
+        mutationsRoot: R('rdd-selfcompile/mutations'), sourceRoot: ctx.p5Source.root, commit: ctx.p5Source.commit,
+        sinceMs: since.getTime() })}));
+      record('P6', name, BLOCK, 'artifact', scoped.every(t => t.state === PASS) ? PASS : BLOCK,
+        scoped.map(t => t.module + ': ' + t.state + ' — ' + t.detail).join(' | ') + '；只证明列出的测试，不证明已经装载或覆盖其他模块。');
     }
-    if (!xmls.length) record('P6', '测试有结果且 0 失败', BLOCK, 'artifact', SKIP,
-      '没找到任何 TEST-*.xml（没跑过 gradle test？）');
-    else if (!recentXml) record('P6', '测试有结果且 0 失败', BLOCK, 'artifact', BLOCK,
-      `历史共 ${xmls.length} 份结果，但本轮 0 份 —— 改了执行层就必须跑`);
-    else record('P6', '测试有结果且 0 失败', BLOCK, 'artifact', bad ? BLOCK : PASS,
-      `本轮 ${recentXml} 份结果；累计 tests=${tests} failures+errors=${bad}`);
   }
 
   // P7 规范/索引已补
@@ -2411,9 +2422,10 @@ function main() {
   // Validate before loading registry, running children, or touching usage ledgers.
   const selected = runtimeContext.selection(process.argv.slice(3));
   const mode = process.argv[2] || 'help';
-  let p5Source;
+  let p5Source, p6Tests;
   try {
     p5Source = p5SourceSelection(process.argv.slice(3));
+    p6Tests = p6TestSelection(process.argv.slice(3), p5Source);
     if (p5Source && (mode !== 'preflight' || selected.titleOnly)) throw new Error('P5 scope requires live preflight');
   } catch (err) { console.error(err.message); return 2; }
   if (selected.titleOnly && !['preflight', 'postflight'].includes(mode)) {
@@ -2495,7 +2507,7 @@ function main() {
     since,
     keyword: arg('--keyword', 'numencam'),
     head: arg('--head', ''),
-    p5Source,
+    p5Source, p6Tests,
     stageTxt: '',
   };
 

@@ -44,16 +44,17 @@ function fixture(o={}) {
   if(n==='./lib/timelock-scope.js')return {excludedForRuntime:()=>false};
   if(n==='./lib/commander-gates.js'||n==='./lib/learner-gates.js')return {};
   if(n==='./lib/planner-entry.js')return {scan:()=>({verdict:'NO_CHAIN',note:'fixture'})};
+  if(n==='./lib/p6-test-proof.js')return {p6TestProof:o.p6Proof||(()=>{throw new Error('unexpected managed proof IO');})};
   if(n==='./lib/p22-digest.js')return require(n);
   throw new Error('unexpected require '+n);
  }};
  vm.createContext(sandbox);
  vm.runInContext(source.slice(0,source.lastIndexOf('try { process.exit(main()); }'))+
- '\n globalThis.api={results,preflight,builtinChecks,applyRole,applyGateMode,q20AnchorErrors,printResults,verdict,p5SourceSelection,setMode(m){globalThis.__GATE_MODE_LABEL=m;},setup(){REG=registryLib.load();RUNTIME=runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)),REG);}};',sandbox);
+ '\n globalThis.api={results,preflight,builtinChecks,applyRole,applyGateMode,q20AnchorErrors,printResults,verdict,p5SourceSelection,p6TestSelection,setMode(m){globalThis.__GATE_MODE_LABEL=m;},setup(){REG=registryLib.load();RUNTIME=runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)),REG);}};',sandbox);
  sandbox.api.setup();
  function run(id,phase='preflight'){
-  const ctx={since:new Date('2026-11-11T00:00:00Z'),keyword:'fixture',head:'',stageTxt:'',p5Source:o.p5Source};
-  if(id==='P14'||id==='P5')sandbox.api.preflight(ctx);else sandbox.api.builtinChecks(ctx,phase);
+  const ctx={since:new Date('2026-11-11T00:00:00Z'),keyword:'fixture',head:'',stageTxt:'',p5Source:o.p5Source,p6Tests:o.p6Tests};
+  if(id==='P14'||id==='P5'||id==='P6')sandbox.api.preflight(ctx);else sandbox.api.builtinChecks(ctx,phase);
   const result=sandbox.api.results.find(r=>r.id===id);
   sandbox.api.results.splice(0,sandbox.api.results.length,...(result?[result]:[]));
   if(o.role)sandbox.api.applyRole(o.role,phase);
@@ -69,7 +70,7 @@ function fixture(o={}) {
   sandbox.api.printResults();
   return {states:Object.fromEntries(sandbox.api.results.map(r=>[r.id,r.state])), exit:sandbox.api.verdict(), output:logs.join('\n')};
  }
- return {run,reduced,anchors:sandbox.api.q20AnchorErrors,selection:sandbox.api.p5SourceSelection,io,children,writes,repos,script,docsRoot,reg};
+ return {run,reduced,anchors:sandbox.api.q20AnchorErrors,p6Selection:sandbox.api.p6TestSelection,selection:sandbox.api.p5SourceSelection,io,children,writes,repos,script,docsRoot,reg};
 }
 const SHA='3f3be4e1e84e378e5ce0d5e20f8ba84ac95a17bc';
 const P5ROOT=path.join(__dirname,'fixture-isolated-source');
@@ -87,7 +88,7 @@ function p5(flags={}){
   if(args[0]==='status')return out(flags.dirty?'?? scratch.txt':'');
   if(args[0]==='show')return out(flags.date||'2026-11-12T00:00:00.000+08:00');
  };
- return fixture({git,p5Source:flags.legacy?undefined:{root:P5ROOT,commit:SHA}}).run('P5');
+ return fixture({git,p5Source:flags.legacy?undefined:{root:P5ROOT,commit:SHA},p6Tests:flags.p6Tests,p6Proof:flags.p6Proof}).run(flags.check||'P5');
 }
 test('P5 clean exact isolated source does not imply installation',()=>{
  const r=p5();assert.equal(r.exit,0);assert.equal(r.result.state,'PASS');assert.match(r.output,/可换证.*PASS/);assert.match(r.output,/not installed/);
@@ -120,6 +121,27 @@ test('off without red remains diagnostic only, not official PASS',()=>{
  assert.equal(out.exit,2);assert.match(out.output,/VERDICT=DIAGNOSTIC_ONLY/);assert.equal(f.writes.length,0);
 });
 
+const P6='plugins:acx/mutation-20261119-example/attempt-1234567890abcdef1234567890abcdef';
+test('P6 CLI binds a unique attempt to independently named source',()=>{
+ const parse=fixture().p6Selection;
+ assert.equal(parse(['--p6-test',P6],{root:P5ROOT,commit:SHA})[0].module,'plugins:acx');
+ assert.throws(()=>parse(['--p6-test',P6],null),/P6 requires/);
+ assert.throws(()=>parse(['--p6-test',P6,'--p6-test',P6],{}),/unique/);
+ assert.throws(()=>parse(['--p6-test',P6+'x'],{}),/P6 requires/);
+});
+test('P6 current candidate requires matching proof, no implicit success or global scan',()=>{
+ const check='P6';
+ const p6Tests=fixture().p6Selection(['--p6-test',P6],{});
+ assert.equal(p5({check,legacy:true}).result.state,'WARN');
+ assert.equal(p5({check}).exit,1);
+ assert.equal(p5({check,dirty:true,p6Tests}).exit,1);
+ const p6Proof=s=>{assert.equal(s.commit,SHA);assert.equal(s.sourceRoot,P5ROOT);
+  assert.equal(s.change,'new-code');assert.equal(s.module,'plugins:acx');
+  assert.equal(s.sinceMs,Date.parse('2026-11-11T00:00:00Z'));
+  return {state:'PASS',detail:'exact attempt passed'};};
+ assert.equal(p5({check,p6Tests,p6Proof}).exit,0);
+ assert.equal(p5({check,p6Tests,p6Proof:()=>({state:'BLOCK',detail:'wrong SHA'})}).exit,1);
+});
 test('Q20 only accepts a well-formed checker receipt with matching exit',()=>{
  const run=fixture().anchors;
  assert.equal(run({status:0,stdout:'{"hard":[]}'}).length,0);

@@ -957,7 +957,7 @@
           "kind": "artifact",
           "level": "block",
           "rule": "改了执行层就要有测试。只跑得起来不算，要 failures=0 errors=0。",
-          "verify": "扫 test-results\\TEST-*.xml，累加 tests/failures/errors"
+          "verify": "有P5候选时只核批次明确指定的 --p6-test module/mutation-id/attempt-id：同源码 SHA、有效当前受管票、实际运行用例大于零且无失败/错误；无候选范围不签测试通过。"
         },
         {
           "id": "P7",
