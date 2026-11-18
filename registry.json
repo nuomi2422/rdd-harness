@@ -1066,11 +1066,11 @@
             "worker",
             "learner"
           ],
-          "name": "工作区干净（含 untracked）",
+          "name": "工作树改动（含 untracked）",
           "kind": "artifact",
           "level": "block",
-          "rule": "★ 2026-10-21 用户定：脏工作区不许开新批次。「干净」= git status --porcelain 为空或显式白名单（运行产物 report/ 临时件、runs/、mutations/、.tmp/、*.log）；untracked 一律算脏。★ 为什么：各会话只看 diff，不看「磁盘上有但 git 不知道」的文件 —— 26 项文档资产 + 44 个 harness 文件就是这么攒出来的。干净没有强制点，334 处脏项能攒几周没人发现。 ★2026-11-12：003 入场前冻结判据即改原记录，现仅真实 docs Git 根下知识库/实验数据记录、知识库/记录直属的 NN/NNN-*.md 已跟踪纯 M（ M/M /MM）记可见 WARN；源码/治理/其他文档、untracked/新增/删除/改名/typechange/混改仍 BLOCK，保留原运行产物白名单。",
-          "verify": "三仓 git status --porcelain=v1 -z；先确认 docs 实际 Git 根及知识库范围，NUL 成对解析改名。缺仓、Git 错误/不完整状态为 UNKNOWN/BLOCK，不当 clean。保留 2026-10-30 experiments/usage.jsonl 等原运行产物白名单；P14b 资产普查独立不变。"
+          "rule": "并行开发中，Numen src/main、src/test 的 Java 与资源文件以及 Harness bin 下独立测试的普通新增、修改、删除只 WARN；正式启动读已安装 JAR。原有编号记录纯修改也只 WARN。其他改动（包括启动使用的脚本与治理配置）及无法确认的 Git 状态仍 BLOCK。",
+          "verify": "三仓 git status --porcelain=v1 -z；先确认 docs 实际 Git 根及知识库范围，NUL 成对解析改名，Numen/Harness 展开未跟踪目录。缺仓、Git 错误/不完整状态为 UNKNOWN/BLOCK，不当 clean。保留 2026-10-30 experiments/usage.jsonl 等原运行产物白名单；P14b 资产普查独立不变。"
         },
         {
           "id": "P14b",

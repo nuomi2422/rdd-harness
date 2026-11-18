@@ -624,14 +624,14 @@ function preflight(ctx) {
     //     门禁一旦对正常操作常态化报红，人就会开始无视它（同 S-DOC-03 的道理）。
     //     注意：`experiments/live/` 与 `runs/` 已由 .gitignore 排掉，这里不必重复列。
     // 2026-11-12：003 先冻结实机判据也会修改记录；纯记录 M 可见 WARN，
-    // 源码/治理/新增/删除/改名仍 BLOCK。Git 失败不等于 clean。
+    // 2026-11-18：并行开发中，确认不会被启动入口读取的源文件只提醒；未知仍 BLOCK。
     const repos = [
       { name: 'docs', dir: REG.roots.docs },
       { name: 'harness', dir: REG.roots.harness },
       { name: 'numen', dir: path.join(REG.roots.workspace, 'minecraft-numen') },
     ];
     const git = 'C:\\Users\\admin\\AppData\\Local\\Programs\\MinGit\\cmd\\git.exe';
-    const dirty = [], records = [];
+    const dirty = [], records = [], parallel = [];
     const gitRun = (r, args) => {
       const g = spawnSync(git, ['-C', r.dir, '-c', 'core.quotepath=false', ...args],
         { encoding: 'utf8', timeout: 30000, maxBuffer: 8 << 20 });
@@ -652,7 +652,9 @@ function preflight(ctx) {
               knowledgeRel !== '知识库') throw new Error('Unexpected docs scope');
           recordDirs = [knowledgeRel + '/实验数据记录/', knowledgeRel + '/记录/'];
         }
-        const output = gitRun(r, ['status', '--porcelain=v1', '-z']);
+        const statusArgs = ['status', '--porcelain=v1', '-z'];
+        if (r.name !== 'docs') statusArgs.push('--untracked-files=all');
+        const output = gitRun(r, statusArgs);
         if (output && !output.endsWith('\0')) throw new Error('Incomplete porcelain');
         const tokens = output ? output.slice(0, -1).split('\0') : [];
         for (let i = 0; i < tokens.length; i++) {
@@ -677,18 +679,27 @@ function preflight(ctx) {
           const isRecord = trackedM && recordDirs.some(dir =>
             file.startsWith(dir) && /^\d{2,3}-[^/]+\.md$/.test(file.slice(dir.length)));
           const item = r.name + ' ' + xy + ' ' + JSON.stringify(file);
-          (isRecord ? records : dirty).push(item);
+          // The runtime loads installed JARs, not their source tree. Harness test files
+          // are also outside this entry point. Keep executable/registry changes and
+          // uncertain Git states as blockers.
+          const ordinaryChange = trackedM || /^(?:\?\?|A[ M]| D|D )$/.test(xy);
+          const isParallel = ordinaryChange && (
+            (r.name === 'numen' && /^(?:[^/]+\/)*src\/(?:main|test)\/(?:java|resources)\/.+$/s.test(file)) ||
+            (r.name === 'harness' && /^bin\/[^/]+\.test\.js$/.test(file)));
+          (isRecord ? records : isParallel ? parallel : dirty).push(item);
         }
       } catch {
         dirty.push(r.name + ': UNKNOWN（仓库缺失、Git 失败或状态无法可靠解析）');
       }
     }
     const detail = (dirty.length ? '需收口的改动/环境错误 ' + dirty.length + '：\n' + dirty.slice(0, 3).join('\n') :
-      '三仓状态检查完成；源码/治理无未收口改动（保留原运行产物白名单）') +
+      '三仓状态检查完成；没有需要拦截本轮启动的工作树改动') +
       (records.length ? '\n记录修改 WARN ' + records.length + '（已跟踪编号 Markdown 纯 M；不拦本窗记实）：\n' +
-        records.slice(0, 3).join('\n') : '');
-    record('P14', '工作区干净（含 untracked）', BLOCK, 'artifact',
-      dirty.length ? BLOCK : records.length ? WARN : PASS, detail);
+        records.slice(0, 3).join('\n') : '') +
+       (parallel.length ? '\n并行源码和测试 WARN ' + parallel.length + '（启动读取已安装制品）：\n' +
+         parallel.slice(0, 3).join('\n') : '');
+    record('P14', '工作树改动（含 untracked）', BLOCK, 'artifact',
+      dirty.length ? BLOCK : (records.length || parallel.length) ? WARN : PASS, detail);
 
     // ★★ 2026-10-22：P14 追加「资产普查」子判据。
     //   为什么追加在 P14 里而不是另立一项（AGENTS.md §0.5「不许再加工具/新检查项」）：

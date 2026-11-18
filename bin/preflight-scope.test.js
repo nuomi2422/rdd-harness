@@ -77,6 +77,17 @@ for(const [label,entry]of Object.entries({
  mixed:' M 知识库/实验数据记录/003.md\0 M registry.json\0'
 }))test('P14 '+label+' BLOCK and exit 1',()=>{const r=p14({0:entry});assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);});
 test('P14 harness same named record remains BLOCK',()=>assert.equal(p14({1:' M 知识库/实验数据记录/003.md\0'}).exit,1));
+test('P14 parallel source and test files WARN without blocking launch preflight',()=>{
+ const r=p14({1:'?? bin/offline-feature.test.js\0',2:' M plugins/rdd/src/main/java/Planner.java\0A  core/common/src/test/java/PlannerTest.java\0'});
+ assert.equal(r.result.state,'WARN');assert.equal(r.exit,0);
+ assert.match(r.output,/Planner\.java/);assert.match(r.output,/offline-feature\.test\.js/);
+});
+test('P14 launch inputs and unresolved source conflicts still BLOCK alongside parallel work',()=>{
+ for (const status of [' M bin/harness-gate.js\0',' M registry.json\0',' M gate-switches.json\0']) {
+  assert.equal(p14({1:status,2:' M core/common/src/main/java/Planner.java\0'}).exit,1);
+ }
+ assert.equal(p14({2:'UU core/common/src/main/java/Planner.java\0'}).exit,1);
+});
 test('P14 clean and usage exemption PASS',()=>{
  assert.equal(p14().result.state,'PASS');assert.equal(p14({1:' M experiments/usage.jsonl\0'}).result.state,'PASS');
 });
@@ -86,7 +97,10 @@ for(const o of [{gitFail:0},{gitFail:1},{gitFail:2},{rootFail:true}])test('P14 G
 test('P14 missing repo BLOCK',()=>{const f=fixture();const r=fixture({missingRepo:f.repos[0]}).run('P14');assert.equal(r.result.state,'BLOCK');assert.equal(r.exit,1);});
 test('P14 docs root and NUL porcelain are used',()=>{
  const f=fixture({status:{0:' M 知识库/记录/001-窗口.md\0'}});assert.equal(f.run('P14').result.state,'WARN');
- assert.ok(f.children.some(c=>c.argv.includes('rev-parse')));assert.ok(f.children.filter(c=>c.argv.includes('status')).every(c=>c.argv.includes('-z')));
+ assert.ok(f.children.some(c=>c.argv.includes('rev-parse')));
+ const scans=f.children.filter(c=>c.argv.includes('status'));
+ assert.ok(scans.every(c=>c.argv.includes('-z')));
+ assert.equal(scans.filter(c=>c.argv.includes('--untracked-files=all')).length,2);
 });
 for(const ledger of ['', '{"at":"2000-01-01T00:00:00Z"}\n','{"at":"2999-01-01T00:00:00Z"}\n'])test('P22 direct bounded delivery independent of ledger '+ledger,()=>{
  const f=fixture({ledger}),r=f.run('P22');assert.equal(r.result.state,'PASS');assert.equal(r.exit,0);
