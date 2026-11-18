@@ -12,7 +12,8 @@
  *   node exp-night-ab.js <runDir> [...] [--json]
  *   node exp-night-ab.js --self-test
  *
- * 规避动作 = 睡成（sleep 回执含 sleeping）｜木板围盒（build 的 walls/box，体积 ≥ 6）｜插火把。
+ * 规避动作 = 睡成（sleep 回执结构化 sleeping=true；无该字段的旧票只认明确服务端确认）｜木板围盒｜插火把。
+ * 这里只量夜间规避动作及时间，不代签身体让位、醒后续跑或实机版本。
  * 时间基准 t0 = evidence 里最早一条记录的时间戳。
  */
 const fs = require('fs');
@@ -61,8 +62,13 @@ function toolResults(runDir) {
     .map((t) => ({ at: Date.parse(t.timestamp), tool: (t.data || {}).tool, raw: (t.data || {}).result }));
 }
 
-function msgOf(raw) {
-  try { return String(JSON.parse(raw || '{}').message || ''); } catch { return String(raw || ''); }
+function sleepConfirmed(raw) {
+  let receipt;
+  try { receipt = typeof raw === 'string' ? JSON.parse(raw) : raw; } catch { return false; }
+  if (receipt?.success !== true || receipt.data?.vanilla_rejection) return false;
+  const facts = receipt.data;
+  if (facts && Object.hasOwn(facts, 'sleeping')) return facts.sleeping === true;
+  return /^you are in the bed at [^\r\n]+ and the server confirms you are sleeping\b/i.test(String(receipt.message || ''));
 }
 
 function analyze(runDir) {
@@ -70,7 +76,7 @@ function analyze(runDir) {
   const calls = buildCalls(runDir);
   const results = toolResults(runDir);
   const buildTimes = results.filter((r) => r.tool === 'build').map((r) => r.at);
-  const sleepOkTimes = results.filter((r) => r.tool === 'sleep' && /sleeping|respawn point is now bound/i.test(msgOf(r.raw))).map((r) => r.at);
+  const sleepOkTimes = results.filter(r => r.tool === 'sleep' && Number.isFinite(r.at) && sleepConfirmed(r.raw)).map(r => r.at);
 
   let shelter = false, shelterOps = [], torch = false, shelterAt = null, torchAt = null;
   calls.forEach((ops, i) => {
@@ -116,7 +122,7 @@ function selfTest() {
   const os = require('os');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'night-ab-'));
   const iso = (s) => new Date(Date.UTC(2026, 0, 1, 0, 0, s)).toISOString();
-  const mk = (name, { ops, sleepMsg, night }) => {
+  const mk = (name, { ops, sleepMsg, night, sleepData, sleepSuccess = true }) => {
     const d = path.join(root, name);
     fs.mkdirSync(path.join(d, 'evidence'), { recursive: true });
     const msgs = [{ role: 'user', content: (night ? '<entry ref="exp:failure|夜间露天无掩体">x</entry>' : '') + ' <query>go</query>' }];
@@ -125,7 +131,7 @@ function selfTest() {
       JSON.stringify({ type: 'llm_request', timestamp: iso(0), data: { request: { messages: msgs } } }) + '\n');
     const tools = [];
     if (ops.length) tools.push({ type: 'tool_result', timestamp: iso(30), data: { tool: 'build', result: '{}' } });
-    if (sleepMsg) tools.push({ type: 'tool_result', timestamp: iso(90), data: { tool: 'sleep', result: JSON.stringify({ success: true, message: sleepMsg }) } });
+    if (sleepMsg) tools.push({ type: 'tool_result', timestamp: iso(90), data: { tool: 'sleep', result: JSON.stringify({ success: sleepSuccess, message: sleepMsg, data: sleepData }) } });
     fs.writeFileSync(path.join(d, 'evidence', 'tools.jsonl'), tools.map((x) => JSON.stringify(x)).join('\n') + '\n');
     fs.writeFileSync(path.join(d, 'evidence', 'events.jsonl'), '');
     return d;
@@ -133,10 +139,14 @@ function selfTest() {
   const shelter = mk('a', { ops: [{ op: 'walls', block_id: 'minecraft:acacia_planks', x1: 1, y1: 64, z1: 1, x2: 3, y2: 65, z2: 3 }], night: true });
   const none = mk('b', { ops: [{ op: 'set', block_id: 'minecraft:dirt', x: 1, y: 64, z: 1 }], night: false });
   const sleep = mk('c', { ops: [], sleepMsg: 'you are in the bed at 1,64,1 and the server confirms you are sleeping', night: true });
-  const r1 = analyze(shelter), r2 = analyze(none), r3 = analyze(sleep);
+  const bound = mk('bound', { ops: [], sleepMsg: 'respawn point is now bound to the bed; not sleeping', sleepData: {sleeping:false, bound:true, vanilla_rejection:'TOO_FAR_AWAY'} });
+  const delayed = mk('delay', { ops: [], sleepMsg: 'sleeping deferred', sleepSuccess:false });
+  const actual = mk('confirmed-data', { ops: [], sleepMsg: 'settled', sleepData: {sleeping:true} });
+  const rows = [shelter, none, sleep, bound, delayed, actual].map(analyze);
+  const [r1,r2,r3,r4,r5,r6] = rows;
   const ok = r1.shelter && r1.firstAvoidSec === 30 && !r2.avoid && r2.firstAvoidSec === null
-    && r3.sleep && r3.firstAvoidSec === 90 && r1.nightEntryDelivered && !r2.nightEntryDelivered;
-  console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: [r1, r2, r3].map((r) => ({ run: r.run, avoid: r.avoid, firstAvoidSec: r.firstAvoidSec })) }));
+    && r3.sleep && r3.firstAvoidSec === 90 && !r4.sleep && !r5.sleep && r6.sleep && r1.nightEntryDelivered && !r2.nightEntryDelivered;
+  console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: rows.map((r) => ({ run: r.run, avoid: r.avoid, sleep:r.sleep, firstAvoidSec: r.firstAvoidSec })) }));
   return ok ? 0 : 1;
 }
 
