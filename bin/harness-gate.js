@@ -896,19 +896,7 @@ function preflight(ctx) {
   }
 
   if (roleCheck('P18', 'preflight') && !titleSkip('P18')) {
-    // ★★ P18（2026-10-29 主人指示）：**建链必须经过规划者**。
-    //   主人原话：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用
-    //   规划者的……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了」。
-    //
-    //   为什么这条能机检（而不是又一句 ASK 提醒）：两个工具留下的事件**不一样**。
-    //     rdd_supervisor_submit → beginPlanning → publish('supervisor_input')
-    //     rdd_submit            → RddPlugin.bind   → publishTaskSnapshot('task_bound')
-    //   所以「本轮有没有 supervisor_input」就是「有没有经过规划者」的硬证据。
-    //   详见 bin/lib/planner-entry.js 头注释（含代码行号）。
-    //
-    //   级别：BYPASSED 是 BLOCK（建了链却绕过规划者 = 主人指出的那个错，必须当场改）；
-    //         NO_CHAIN 是 SKIP（这轮没建链，不该被钉死 —— 同 P10/P10c 的教训）；
-    //         NO_DATA  是 WARN（读不到日志，环境问题不是债）。
+    // Only a scoped chain snapshot can establish origin; unknown legacy evidence never replaces a chain.
     const pe = require('./lib/planner-entry.js');
     let pr = null;
     try {
@@ -928,8 +916,7 @@ function preflight(ctx) {
         pe.summaryLine(pr) + '\n' +
         '       ★ 你（或上一个干活的 AI）用了 rdd_submit —— 它只绑一条硬编码子任务，\n' +
         '         不经过 Stage-A，不会分多级，也不会出现在 supervisor 的规划账上。\n' +
-        '       改法：重发一条 rdd_supervisor_submit {"objective":"<同一个目标>","register":true}\n' +
-        '             （beginPlanning 会顶掉旧链，不用先清）\n' +
+        '       先核这条链确为本次新建；原链续跑不自动重派。\n' +
         '       绕过的绑定：' + pr.bypassed.slice(0, 3).map((b) => b.at + ' ' + b.description).join(' ; '));
     } else if (pr.verdict === 'UNKNOWN') {
       record('P18', '★ 建链经过规划者（rdd_supervisor_submit）', 'artifact', BLOCK, WARN,
@@ -1311,7 +1298,7 @@ function postflight(ctx) {
     } else if (pr2.verdict === 'UNKNOWN') {
       record('Q19', name19, 'trace', WARN, WARN,
         pe2.summaryLine(pr2) + '\n' +
-        '       ★ 证据窗口只覆盖日志尾部，起点之前无法复核：不算绕过、不算债，也不能说从未经过规划者。');
+        '       证据不足，不能说已规划或绕过，不据此重派。');
     } else if (pr2.verdict === 'NO_CHAIN') {
       record('Q19', name19, 'trace', WARN, SKIP, '本轮没建过任务链（不拦）');
     } else {
@@ -1831,18 +1818,16 @@ function runSelftest() {
     const writeCase = (lines) => fs.writeFileSync(tmpFile, lines.join('\n') + '\n', 'utf8');
     const verdictOf = (lines) => { writeCase(lines); return pe.scan(since, { dir: tmpDir }).verdict; };
 
-    chk('planner-entry: 走规划者 → PLANNED',
-      verdictOf([mk('supervisor_input', { source: 'rdd_supervisor_submit' })]) === 'PLANNED');
-    chk('planner-entry: /goal(goal_sink) 也算规划者',
-      verdictOf([mk('supervisor_input', { source: 'goal_sink' })]) === 'PLANNED');
-    chk('planner-entry: 只有 task_bound → BYPASSED（抓得到 rdd_submit）',
-      verdictOf([mk('taskchain_snapshot', { reason: 'task_bound', taskChain: { description: 'd' } })]) === 'BYPASSED');
-    chk('planner-entry: 没建链 → NO_CHAIN（不误判成绕过）',
-      verdictOf([mk('taskchain_snapshot', { reason: 'periodic_observation' })]) === 'NO_CHAIN');
-    chk('planner-entry: 缺文件 → NO_DATA',
-      pe.scan(since, { dir: path.join(tmpDir, 'nope') }).verdict === 'NO_DATA');
-    chk('planner-entry: 坏行不崩',
-      verdictOf(['{"broken": ', mk('supervisor_input', { source: 'rdd_supervisor_submit' })]) === 'PLANNED');
+    const scope = { session: 'test-jvm', world_id: 'test', server_session: 'test-server', world_epoch: 1 };
+    const snapshot = (reason, source) => JSON.stringify({ ...scope, timestamp: iso, type: 'taskchain_snapshot',
+      data: { reason, source, companionId: 'fixture-companion', taskId: 'fixture-task' } });
+    chk('planner-entry: scoped Stage-A snapshot → PLANNED', verdictOf([snapshot('goal_staged')]) === 'PLANNED');
+    chk('planner-entry: intake alone → UNKNOWN', verdictOf([mk('supervisor_input', { source: 'goal_sink' })]) === 'UNKNOWN');
+    chk('planner-entry: explicit scoped rdd_submit → BYPASSED', verdictOf([snapshot('task_bound', 'rdd_submit')]) === 'BYPASSED');
+    chk('planner-entry: legacy bind → UNKNOWN', verdictOf([mk('taskchain_snapshot', { reason: 'task_bound' })]) === 'UNKNOWN');
+    chk('planner-entry: no chain → NO_CHAIN', verdictOf([mk('taskchain_snapshot', { reason: 'periodic_observation' })]) === 'NO_CHAIN');
+    chk('planner-entry: missing log → NO_DATA', pe.scan(since, { dir: path.join(tmpDir, 'nope') }).verdict === 'NO_DATA');
+    chk('planner-entry: malformed line does not crash', verdictOf(['{broken}', snapshot('goal_staged')]) === 'PLANNED');
     fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 
@@ -2144,9 +2129,9 @@ function printPlannerBanner(ctx) {
     console.log('│ 本轮：✔ 走了规划者 —— ' + r.note);
   } else if (r.verdict === 'BYPASSED') {
     console.log('│ 本轮：✘ **建了链但绕过了规划者** —— ' + r.note);
-    console.log('│       改法：重发一条 rdd_supervisor_submit（旧链会被 beginPlanning 顶掉）');
+    console.log('│       核对该链是否属于本次新建；保留现有任务，不自动重派。');
   } else if (r.verdict === 'NO_CHAIN') {
-    console.log('│ 本轮：还没有链 —— 要建链就用上面那个 ✔ 的工具，别用 rdd_submit');
+    console.log('│ 本窗口没有见到建链；原链可继续。新建才使用规划入口。');
   } else {
     console.log('│ 本轮：? ' + r.note);
   }

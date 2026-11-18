@@ -1137,8 +1137,8 @@
           "name": "★ 建链经过规划者（rdd_supervisor_submit，不是 rdd_submit）",
           "kind": "artifact",
           "level": "block",
-          "rule": "★ 2026-10-29 主人指示：「我们的任务链的触发是要有一个特殊的工具，不是说你给AI说句话，他就能用规划者的这个东西……这个东西好像写出来了，但是AI都忘记用了，干活的AI忘记用了，直接在门禁上面打一个显眼的标记」。主人随后指出正确入口：`rdd_supervisor_submit` 直通 Stage-A 规划者；`rdd_submit` 只建单目标。★ 代码事实（不是约定）：`rdd_supervisor_submit` → RddPlugin.submitSupervisorGoal → beginPlanning → publish('supervisor_input')，再由 RddStagePlanner.planStages 分出多级（goal_staged{stages}）；`rdd_submit` → RddPlugin.bind → publishTaskSnapshot('task_bound')，完全不经过规划者。★ 所以判据是机读 monitor/rdd.jsonl：本轮有没有 type=supervisor_input 的事件。★ `/goal`（source=goal_sink）与 rdd_supervisor_submit 是同一段 beginPlanning 代码，两者都算「走了规划者」——这条只抓 rdd_submit 那种绕路。★ 级别：建了链却绕过 = BLOCK（当场重发即可顶掉旧链）；本轮没建链 = SKIP（不制造假红）；读不到日志 = WARN（环境问题不是债）。",
-          "verify": "机器判据：node bin/harness-gate.js preflight 的 P18 行（读 monitor/rdd.jsonl 尾 8MB，找 supervisor_input）。单独查：node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')).verdict)\" —— PLANNED / BYPASSED / NO_CHAIN / NO_DATA。门禁最上面还有一条常驻横幅（printPlannerBanner）把「正确工具 vs 错误工具」+ 本轮实际状态直接打出来，不用翻到 ASK 段。",
+          "rule": "新建任务链用 rdd_supervisor_submit 或同一规划入口。旧链普通续跑不重派；同一任务链明确绕过才BLOCK，来源不明为WARN。",
+          "verify": "只核同世界、服务器、进程会话、同伴及任务ID的快照。入队摘要不能代签；旧日志缺身份或窗口不完整保留UNKNOWN。",
           "tool": "planner.entry"
         }
       ]
@@ -1332,7 +1332,7 @@
           "name": "★ 任务链走的是规划者，不是 rdd_submit",
           "kind": "trace",
           "level": "warn",
-          "rule": "★ 2026-10-29 主人指示（与 P18 同一判据、同一份证据 bin/lib/planner-entry.js，问法不同）：P18 问「进场前你建对了吗」（绕过 = BLOCK，逼当场重发 rdd_supervisor_submit）；Q19 问「这一轮到底有没有经过规划者」（绕过 = WARN —— 活已经干完，此时 BLOCK 只会让 postflight 永远过不去，要的是记账 + 下一轮别再犯）。★ 为什么必须记这一笔：主人要的是「任务链由规划者触发」，如果整轮都用的 rdd_submit，那规划者从头到尾没参与过，而账面上链是建成了的 —— 这正是主人说的「东西好像写出来了，但是 AI 都忘记用了」。级别 warn 的另一半理由与 Q13/Q14 同口径：不制造假红，本轮没建链就 SKIP。",
+          "rule": "复用 P18 的范围证据；已证新链绕过为WARN，来历未知不签通过，也不据此重派原链。",
           "verify": "机器判据：node bin/harness-gate.js postflight 的 Q19 行；单独查 node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')))\" 看 verdict 与 planned/bypassed 明细。",
           "tool": "planner.entry"
         },

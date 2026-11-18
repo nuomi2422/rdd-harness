@@ -11,30 +11,12 @@
  *   「找到了正确的入口：rdd_supervisor_submit —— 它直通 Stage-A 规划者。
  *     我上一个用错了（rdd_submit 只建单目标）。反正你记得让AI用这个」
  *
- * ## 两个工具的本质区别（代码事实，不是猜测）
- *
- * | 工具 | 代码路径 | 有没有 Stage-A | 留下的事件 |
- * |---|---|---|---|
- * | `rdd_supervisor_submit` | `RddPlugin.submitSupervisorGoal` → `beginPlanning` → `RddStagePlanner.planStages` | ✅ 是规划者 | `supervisor_input{source=rdd_supervisor_submit}` + `goal_staged{stages:N}` |
- * | `rdd_submit` | `RddPlugin.bind(goal)` → `startCurrentWithCounts` | ❌ 直接绑一条硬编码子任务，**完全绕过规划者** | 只有 `taskchain_snapshot{reason=task_bound}` |
- *
- * 证据来源：
- *   - `plugins/rdd/.../RddPlugin.java` L401-432（beginPlanning 里 publish supervisor_input）
- *   - `plugins/rdd/.../RddSubmitTool.java` L164-176（直接 RddPlugin.bind + startCurrent）
- *   - `plugins/rdd/.../RddPlugin.java` L817-863（bind 只 publishTaskSnapshot('task_bound')）
- *
- * 所以判据是**机器可读的**：本轮 rdd.jsonl 里有没有
- * `type=supervisor_input` 且 `data.source=rdd_supervisor_submit` 的事件。
- * 没有 = 这一轮的链不是规划者建的 = 主人说的「AI 忘记用了」。
- *
- * ## 边界（刻意不做的）
- *
- * - **只读**：只读 monitor/rdd.jsonl，不写、不派工、不改世界。
- * - **不判定「该不该建链」**：没有链的时候是 SKIP，不是 BLOCK。
- *   一条从没建过链的轮次不该被这条门禁钉死（同 P10/P10c 的教训）。
- * - **不冒充合规**：`/goal`（source=goal_sink）也算走了规划者 —— 它和
- *   rdd_supervisor_submit 是**同一段 beginPlanning 代码**。这条只抓「用了 rdd_submit
- *   这种绕路工具」，不抓「用了 /goal 而不是工具」。两者语义都是「进了规划者」。
+ * A supervisor_input is an intake event, not proof of a bound chain. Both
+ * the planner and the direct-entry tool can emit a task_bound snapshot.
+ * Only a goal_staged snapshot carrying the producer's exact chain identity
+ * proves that chain was planned. An exact task_bound with explicit rdd_submit
+ * origin proves a bypass; legacy sources that omit the join fields are UNKNOWN.
+ * The scanner is read-only; UNKNOWN never instructs replacing a live chain.
  */
 
 const fs = require('fs');
@@ -125,69 +107,46 @@ function scan(since, opts) {
 
   const planned = [];
   const bypassed = [];
-  let staged = null;
-
+  const scoped = new Map();
+  let ambiguous = false, intakeOnly = false;
+  const validId = v => typeof v === 'string' && v.trim() && !/^unknown$/i.test(v.trim());
+  const result = (verdict, note) => ({ ok: verdict === 'PLANNED', verdict, planned, bypassed, file, coverage, note });
   for (const ev of events) {
-    const t = Date.parse(ev.timestamp);
+    const t = Date.parse(ev?.timestamp);
     if (!Number.isFinite(t) || t < sinceMs) continue;
     const d = ev.data || {};
-
-    if (ev.type === 'supervisor_input') {
-      // ★ 这是规划者的门：beginPlanning() 里 publish，两个真路（/goal 与
-      //   rdd_supervisor_submit）都经过它。rdd_submit 不经过。
-      planned.push({ at: ev.timestamp, source: d.source || '?', objective: String(d.objective || '').slice(0, 120) });
-    } else if (ev.type === 'goal_staged') {
-      staged = { at: ev.timestamp, stages: d.stages };
-    } else if (ev.type === 'taskchain_snapshot' && d.reason === 'task_bound') {
-      // bind() 直绑 —— rdd_submit 走这条，没经过规划者
-      const desc = d.taskChain && d.taskChain.description ? String(d.taskChain.description).slice(0, 120) : '';
-      bypassed.push({ at: ev.timestamp, description: desc });
+    if (ev.type === 'supervisor_input' || ev.type === 'goal_staged') {
+      // These summaries do not identify a bound chain; never use them as a join.
+      intakeOnly = true;
+      continue;
     }
+    if (ev.type !== 'taskchain_snapshot' || !['task_bound', 'goal_staged'].includes(d.reason)) continue;
+    const parts = [ev.session, ev.world_id, ev.server_session, d.companionId, d.taskId];
+    if (ev.stamp_conflict || !parts.every(validId) || !Number.isSafeInteger(ev.world_epoch) || ev.world_epoch < 1) {
+      ambiguous = true;
+      continue;
+    }
+    const key = JSON.stringify([...parts, ev.world_epoch]);
+    const chain = scoped.get(key) || {};
+    const entry = { at: ev.timestamp, taskId: d.taskId, companionId: d.companionId };
+    if (d.reason === 'goal_staged') chain.planned = {...entry, source: 'goal_staged snapshot'};
+    else if (d.source === 'rdd_submit') chain.direct = {...entry, description: String(d.taskChain?.description || '').slice(0, 120)};
+    scoped.set(key, chain);
   }
-
-  if (planned.length) {
-    return {
-      ok: true,
-      verdict: 'PLANNED',
-      planned,
-      bypassed,
-      staged,
-      file,
-      coverage,
-      note: planned.map((p) => p.source).join(' + ') +
-        (staged ? `（Stage-A 分出 ${staged.stages} 级）` : ''),
-    };
+  for (const chain of scoped.values()) {
+    if (chain.planned) planned.push(chain.planned);
+    if (chain.direct) bypassed.push(chain.direct);
   }
-  if (coverage.truncated) {
-    // 证据窗口只覆盖尾部：窗口起点之前可能就有规划者事件。
-    // 这里不能把"没看见规划"说成"从未规划"，只能报无法判定。
-    return {
-      ok: false,
-      verdict: 'UNKNOWN',
-      planned,
-      bypassed,
-      staged,
-      file,
-      coverage,
-      note: `证据不完整：只读了文件尾部 ${size - from} 字节（起点 byte ${from}，共 ${size} 字节）` +
-        (bypassed.length ? `，窗口内见到 ${bypassed.length} 条直绑` : '') +
-        '；更早的规划者事件无法排除，不能判定为绕过或从未规划。',
-    };
+  if (scoped.size === 1 && !ambiguous && planned.length === 1 && !bypassed.length) {
+    return result('PLANNED', '同世界、服务器、同伴和任务链的 Stage-A 快照：' + planned[0].taskId);
   }
-  if (bypassed.length) {
-    return {
-      ok: false,
-      verdict: 'BYPASSED',
-      planned,
-      bypassed,
-      staged,
-      file,
-      coverage,
-      note: `本轮建了 ${bypassed.length} 条链，但没有一条经过规划者 —— ` +
-        '看起来用了 rdd_submit（只绑单目标，绕过 Stage-A）。',
-    };
+  if (scoped.size === 1 && !ambiguous && !coverage.truncated && bypassed.length === 1 && !planned.length) {
+    return result('BYPASSED', '同一任务链的快照明确标记直接入口 rdd_submit：' + bypassed[0].taskId);
   }
-  return { ok: false, verdict: 'NO_CHAIN', planned, bypassed, staged, file, coverage, note: '本轮没建过任务链（不拦）' };
+  if (intakeOnly || ambiguous || scoped.size || coverage.truncated) {
+    return result('UNKNOWN', '任务链来源无法唯一核对：可能缺少同一世界/服务器/任务身份，存在多条链，或只读到了日志尾部；不据此重派。');
+  }
+  return result('NO_CHAIN', '本窗口没有见到建链事件；不代表原链不存在。');
 }
 
 /** 给人看的一行摘要（门禁、监测台、日报都用同一句话，别各写各的） */
