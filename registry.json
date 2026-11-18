@@ -875,6 +875,12 @@
     "contract": "standards.md 每条规则带稳定 id（如 S-COMMIT-01）。mirror 里每个对应小节标题里带同一个 id。"
   },
   "gates": {
+    "handling": {
+      "$comment": "独立于状态和角色。interlock=不可由模式跳过；replaceable=仅按明示等效证据处置；diagnostic=可从轻量输出略去；未分类=完整执行。",
+      "interlock": ["P0", "P2", "P3", "P4", "P9", "Q10"],
+      "replaceable": ["P5", "P7", "P14", "P22"],
+      "diagnostic": ["P8", "P10b", "P10c", "P10d", "P11", "Q13", "Q14", "Q16", "Q18", "Q19"]
+    },
     "preflight": {
       "$comment": "★ 进游戏【之前】。判据分三类：artifact=查实物(AI 编不出来) / trace=查痕迹 / human=人工。",
       "when": "verify 阶段开工前（起游戏、部署、poke 之前）",
@@ -939,7 +945,7 @@
           "kind": "artifact",
           "level": "block",
           "rule": "★ 精确 add 指定的文件，禁用 git add -A（本工作区常有两个会话并行改同一个仓库）。",
-          "verify": "git log --since=<今天> 在 minecraft-numen 有 commit"
+          "verify": "默认 Git log 按完整批次起点读当前签出；也可指定同库干净工作树和全 SHA，以实际 HEAD 核本轮提交。P5 只核源码留痕，不核已部署、已加载或模块验收。"
         },
         {
           "id": "P6",

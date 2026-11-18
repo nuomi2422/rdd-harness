@@ -26,6 +26,8 @@ function fixture(o={}) {
  };
  const child={spawnSync(exe,argv,opts){
   children.push({exe,argv,opts});
+  const scripted=o.git?.(opts?.cwd,argv);
+  if(scripted) return scripted;
   if(argv.includes('rev-parse'))return {status:o.rootFail?1:0,stdout:docsRoot+'\n',stderr:''};
   if(argv.includes('status'))return {status:o.gitFail===repos.indexOf(argv[1])?1:0,stdout:argv.includes('-z')?((o.status||{})[repos.indexOf(argv[1])]||''):((o.status||{})[repos.indexOf(argv[1])]||'').replace(/\0/g,'\n'),stderr:''};
   if(argv[0]===script){if(o.throwChild)throw new Error('fixture transport failure');return o.child||{status:0,stdout:digestText,stderr:''};}
@@ -47,19 +49,83 @@ function fixture(o={}) {
  }};
  vm.createContext(sandbox);
  vm.runInContext(source.slice(0,source.lastIndexOf('try { process.exit(main()); }'))+
- '\n globalThis.api={results,preflight,builtinChecks,applyRole,printResults,verdict,setup(){REG=registryLib.load();RUNTIME=runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)),REG);}};',sandbox);
+ '\n globalThis.api={results,preflight,builtinChecks,applyRole,applyGateMode,q20AnchorErrors,printResults,verdict,p5SourceSelection,setMode(m){globalThis.__GATE_MODE_LABEL=m;},setup(){REG=registryLib.load();RUNTIME=runtimeContext.resolveRuntime(runtimeContext.selection(process.argv.slice(3)),REG);}};',sandbox);
  sandbox.api.setup();
  function run(id,phase='preflight'){
-  const ctx={since:new Date('2026-11-11T00:00:00Z'),keyword:'fixture',head:'',stageTxt:''};
-  if(id==='P14')sandbox.api.preflight(ctx);else sandbox.api.builtinChecks(ctx,phase);
+  const ctx={since:new Date('2026-11-11T00:00:00Z'),keyword:'fixture',head:'',stageTxt:'',p5Source:o.p5Source};
+  if(id==='P14'||id==='P5')sandbox.api.preflight(ctx);else sandbox.api.builtinChecks(ctx,phase);
   const result=sandbox.api.results.find(r=>r.id===id);
   sandbox.api.results.splice(0,sandbox.api.results.length,...(result?[result]:[]));
   if(o.role)sandbox.api.applyRole(o.role,phase);
   sandbox.api.printResults();
   return {result,exit:sandbox.api.verdict(),output:logs.join('\n')};
  }
- return {run,io,children,writes,repos,script,docsRoot,reg};
+ function reduced(mode, states, {phase, role} = {}) {
+  sandbox.__GATE_MODE=phase;
+  sandbox.api.results.push(...Object.entries(states).map(([id,state])=>({id,state,kind:'artifact',level:'BLOCK',name:id,detail:'raw'})));
+  if(role) sandbox.api.applyRole(role,phase);
+  sandbox.api.setMode(mode);
+  sandbox.api.applyGateMode(mode,{lightSkip:{preflight:Object.keys(states)}},'preflight');
+  sandbox.api.printResults();
+  return {states:Object.fromEntries(sandbox.api.results.map(r=>[r.id,r.state])), exit:sandbox.api.verdict(), output:logs.join('\n')};
+ }
+ return {run,reduced,anchors:sandbox.api.q20AnchorErrors,selection:sandbox.api.p5SourceSelection,io,children,writes,repos,script,docsRoot,reg};
 }
+const SHA='3f3be4e1e84e378e5ce0d5e20f8ba84ac95a17bc';
+const P5ROOT=path.join(__dirname,'fixture-isolated-source');
+const COMMON=path.join(__dirname,'fixture-project','workspace','minecraft-numen','.git');
+function p5(flags={}){
+ const git=(cwd,args)=>{
+  const joined=args.join(' '), source=cwd===P5ROOT;
+  const out=(stdout,status=0)=>({status,stdout,stderr:''});
+  if(args[0]==='log') return out(flags.log||'',flags.logExit||0);
+  if(args[0]==='worktree') return out(flags.unregistered?'worktree other\0\0':'worktree '+P5ROOT+'\0\0');
+  if(joined.endsWith('--git-common-dir')) return out(source&&flags.foreign?COMMON+'-different':COMMON);
+  if(!source)return;
+  if(joined==='rev-parse --show-toplevel')return out(flags.wrongRoot?P5ROOT+'-other':P5ROOT);
+  if(joined==='rev-parse HEAD')return out(flags.head||SHA,flags.headExit||0);
+  if(args[0]==='status')return out(flags.dirty?'?? scratch.txt':'');
+  if(args[0]==='show')return out(flags.date||'2026-11-12T00:00:00.000+08:00');
+ };
+ return fixture({git,p5Source:flags.legacy?undefined:{root:P5ROOT,commit:SHA}}).run('P5');
+}
+test('P5 clean exact isolated source does not imply installation',()=>{
+ const r=p5();assert.equal(r.exit,0);assert.equal(r.result.state,'PASS');assert.match(r.output,/可换证.*PASS/);assert.match(r.output,/not installed/);
+});
+for(const flag of [{foreign:true},{wrongRoot:true},{unregistered:true},{dirty:true},{head:'0'.repeat(40)},{headExit:128},{date:'2026-11-10T00:00:00Z'}])
+ test('P5 rejects bad isolated proof '+JSON.stringify(flag),()=>assert.equal(p5(flag).exit,1));
+test('P5 default source checks Git exit and only accepts actual rows',()=>{
+ assert.equal(p5({legacy:true}).exit,1);
+ assert.equal(p5({legacy:true,log:'0123456789 fixture'}).exit,0);
+ assert.equal(p5({legacy:true,log:'0123456789 fixture',logExit:1}).exit,1);
+});
+test('P5 input rejects missing, short, and duplicate flags',()=>{
+ const choose=fixture().selection;
+ assert.equal(choose(['--p5-source',P5ROOT,'--p5-commit',SHA]).commit,SHA);
+ for(const args of [['--p5-source',P5ROOT],['--p5-source',P5ROOT,'--p5-commit',SHA.slice(0,7)],['--p5-source',P5ROOT,'--p5-source',P5ROOT,'--p5-commit',SHA]])
+  assert.throws(()=>choose(args),/P5 requires/);
+});
+for(const mode of ['light','off'])test(mode+' preserves hard, conditional, and unclassified failures',()=>{
+ const states={P0:'BLOCK',P2:'BLOCK',P9:'BLOCK',P5:'BLOCK',P8:'WARN',P11:'BLOCK',Q20:'BLOCK',P99:'BLOCK'};
+ const out=fixture().reduced(mode,states);assert.equal(out.exit,1);
+ assert.deepEqual(JSON.parse(JSON.stringify(out.states)),{...states,P8:'SKIP'});
+ assert.match(out.output,/硬保护.*BLOCK/);assert.match(out.output,/VERDICT=BLOCKED/);
+});
+test('role-only hard SKIP cannot write official postflight PASS',()=>{
+ const f=fixture(), out=f.reduced('full',{Q10:'PASS',P8:'WARN'},{phase:'postflight',role:'commander'});
+ assert.equal(out.exit,2);assert.match(out.output,/仅供诊断/);assert.equal(f.writes.length,0);
+});
+test('off without red remains diagnostic only, not official PASS',()=>{
+ const f=fixture(), out=f.reduced('off',{P2:'PASS',P8:'WARN'});
+ assert.equal(out.exit,2);assert.match(out.output,/VERDICT=DIAGNOSTIC_ONLY/);assert.equal(f.writes.length,0);
+});
+
+test('Q20 only accepts a well-formed checker receipt with matching exit',()=>{
+ const run=fixture().anchors;
+ assert.equal(run({status:0,stdout:'{"hard":[]}'}).length,0);
+ assert.equal(run({status:2,stdout:'{"hard":[{"md":"probe.md"}]}'}).length,1);
+ for(const value of [{status:0,stdout:''},{status:0,stdout:'{}'},{status:2,stdout:'{"hard":[]}'},{status:3,stdout:'{"hard":[]}'},{status:0,error:new Error('timeout'),stdout:'{"hard":[]}'},{status:2,stdout:'{"hard":[{}]}'}])assert.throws(()=>run(value));
+});
 function p14(status={},extra={}){return fixture({status,...extra}).run('P14');}
 for(const xy of [' M','M ','MM'])test('P14 tracked record '+JSON.stringify(xy)+' WARN and exit 0',()=>{
  const r=p14({0:xy+' 知识库/实验数据记录/003-判据 中文 空格.md\0'});

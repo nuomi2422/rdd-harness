@@ -5,6 +5,8 @@
  *   node harness-gate.js postflight --role worker --since 2026-10-04   出游戏【之后】
  *   node harness-gate.js selftest                       只跑内置检查（不碰外部工具）
  *   node harness-gate.js registry                       打印注册表摘要
+ *   preflight 可用 --p5-source <绝对工作树> --p5-commit <完整 SHA> 核隔离源码；不替代安装核验。
+ *   RDD_GATE_MODE=off 仅诊断：无硬红也返回 2，不产生进退场放行。
  *   node harness-gate.js preflight --role worker --instance test --title-only
  *     固定 test 根；无世界判据显式 SKIP，不改注册表/生产账本，不代表世界验证。
  *
@@ -238,6 +240,62 @@ function git(cwd, args) {
   return { code: r.status === null ? 127 : r.status, out };
 }
 
+function p5SourceSelection(argv) {
+  const names = ['--p5-source', '--p5-commit'];
+  const opts = argv.filter(a => names.some(name => a === name || a.startsWith(name + '=')));
+  if (!opts.length) return null;
+  const value = name => argv[argv.indexOf(name) + 1];
+  if (opts.length !== 2 || names.some(name => !opts.includes(name))
+      || !value(names[0]) || !path.isAbsolute(value(names[0])) || !/^[0-9a-f]{40}$/.test(value(names[1]) || '')) {
+    throw new Error('P5 requires an absolute --p5-source and a full lowercase --p5-commit together');
+  }
+  return { root: path.normalize(value(names[0])), commit: value(names[1]) };
+}
+
+function p5CandidateProof(defaultRoot, source, since) {
+  const samePath = (left, right) => {
+    const fix = s => path.resolve(s).replace(/\\/g, '/');
+    return process.platform === 'win32' ? fix(left).toLowerCase() === fix(right).toLowerCase() : fix(left) === fix(right);
+  };
+  const readGit = (root, args) => {
+    const r = git(root, args);
+    return r.code === 0 ? r.out.trim() : null;
+  };
+  const fail = detail => ({ ok: false, detail: 'P5 isolated evidence rejected: ' + detail });
+  const top = readGit(source.root, ['rev-parse', '--show-toplevel']);
+  const commonArgs = ['rev-parse', '--path-format=absolute', '--git-common-dir'];
+  const expectedRepo = readGit(defaultRoot, commonArgs);
+  const actualRepo = readGit(source.root, commonArgs);
+  if (!top || !expectedRepo || !actualRepo || !samePath(source.root, top) || !samePath(expectedRepo, actualRepo)) {
+    return fail('worktree root or repository identity differs or is unavailable');
+  }
+  const worktrees = readGit(defaultRoot, ['worktree', 'list', '--porcelain', '-z']);
+  if (!worktrees?.split('\0').some(s => s.startsWith('worktree ') && samePath(source.root, s.slice(9)))) {
+    return fail('source is not a registered worktree');
+  }
+  const observed = readGit(source.root, ['rev-parse', 'HEAD']);
+  const dirty = readGit(source.root, ['status', '--porcelain', '--untracked-files=all']);
+  const committedAt = readGit(source.root, ['show', '-s', '--format=%cI', source.commit]);
+  const time = Date.parse(committedAt);
+  if (observed !== source.commit || dirty !== '' || !Number.isFinite(time) || time < since.getTime() || time > Date.now()) {
+    return fail('exact HEAD, clean tree or in-window commit time not proven');
+  }
+  return { ok: true, detail: 'P5 isolated evidence: ' + top + ' @ ' + observed + ' (' + committedAt + '); clean, same repository; not installed/runtime evidence.' };
+}
+
+// check-evidence-anchor uses exit 0 for no hard findings and 2 for reported hard findings.
+function q20AnchorErrors(result) {
+  if (result.error || result.signal || ![0, 2].includes(result.status)) throw new Error('anchor checker did not complete');
+  const report = JSON.parse(result.stdout || 'null');
+  if (!Array.isArray(report?.hard) || (result.status === 0) !== (report.hard.length === 0)) {
+    throw new Error('invalid anchor checker receipt');
+  }
+  if (!report.hard.every(item => item && typeof item.md === 'string' && item.md.trim())) {
+    throw new Error('anchor checker row missing file identity');
+  }
+  return report.hard;
+}
+
 /** 列 zip/jar 里的 entry 名（借 powershell 的 ZipFile，避免引依赖） */
 function zipEntries(jar) {
   const script = `$ErrorActionPreference='Stop';Add-Type -AssemblyName System.IO.Compression.FileSystem;` +
@@ -395,17 +453,20 @@ function preflight(ctx) {
           `${owner.size} 个 mixin/accessor 类，无重名。★ 第三方 mod 不查（它们自带一堆 mixin + 备份 jar，会刷出纯噪音）`);
   }
 
-  // P5 本轮有按模块 commit
+  // P5 is source accounting, not proof of which jars are installed. P2 is independent.
   if (roleCheck('P5', 'preflight')) {
-    const r = git(NUMEN, ['log', `--since=${since.toISOString().slice(0, 10)} 00:00`, '--oneline']);
-    const lines = (r.out || '').split(/\r?\n/).filter((l) => /^[0-9a-f]{7,}\s/.test(l));
-    const mine = keyword ? lines.filter((l) => l.includes(keyword)) : lines;
-    record('P5', '本轮有按模块 commit', BLOCK, 'artifact', lines.length ? PASS : BLOCK,
-      lines.length
-        ? `本轮共 ${lines.length} 个 commit，其中命中「${keyword}」${mine.length} 个` +
-          (mine.length ? ' → ' + mine.slice(0, 3).join(' | ')
-                       : ` → 最新 3 个：${lines.slice(0, 3).join(' | ')}（★ 本工作区常有两个会话并行，确认命中的是你那个）`)
-        : 'minecraft-numen 本轮 0 commit（★ 确认是精确 add 指定的文件，别用 -A）');
+    if (ctx.p5Source) {
+      const proof = p5CandidateProof(NUMEN, ctx.p5Source, since);
+      record('P5', '本轮源码提交', BLOCK, 'artifact', proof.ok ? PASS : BLOCK, proof.detail);
+    } else {
+      const r = git(NUMEN, ['log', `--since=${since.toISOString()}`, '--oneline']);
+      const lines = r.code === 0 ? r.out.split(/\r?\n/).filter(l => /^[0-9a-f]{7,}\s/.test(l)) : [];
+      const hits = keyword ? lines.filter(l => l.includes(keyword)).length : 0;
+      record('P5', '本轮源码提交', BLOCK, 'artifact', lines.length ? PASS : BLOCK,
+        r.code !== 0 ? `Git log failed (exit=${r.code}): UNKNOWN` : lines.length
+          ? `默认源码树：${lines.length} 个 commit，关键词命中 ${hits}；仅证明有提交，不证明已安装。`
+          : '默认源码树本轮 0 commit；隔离候选请用 --p5-source 和 --p5-commit 指定，不要为门禁凑提交。');
+    }
   }
 
   // P6 测试有结果且 0 失败
@@ -1303,8 +1364,7 @@ function postflight(ctx) {
           if (!isDir(d)) continue;
           const r = spawnSync(process.execPath, [checker, '--cards', d, '--monitor', monitor, '--json'],
             { encoding: 'utf8', timeout: 60000 });
-          const parsed = JSON.parse(r.stdout || '{}');
-          if (Array.isArray(parsed.hard)) hard.push(...parsed.hard);
+          hard.push(...q20AnchorErrors(r));
         }
         const mine = hard.filter((x) => freshNames.has(path.basename(String(x.md || ''))));
         anchorHard = mine.length;
@@ -1329,9 +1389,8 @@ function postflight(ctx) {
           + todays.map((c) => c.id).join('、') : '一张都没有') + '。\n'
         + '       ⇒ 「写了卡」和「卡里有结果」是两件事。空卡不算证据（实机验证/_格式规范.md §4）。');
     } else if (anchorHard === null) {
-      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', WARN,
-        '卡已回填（' + todaysFilled.map((c) => c.id).join('、') + '），但证据坐标检查器跑不起来'
-        + '（缺 check-evidence-anchor.js 或 monitor 目录）—— 这是环境问题，不是「记录合规」。');
+      record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', BLOCK, 'artifact', BLOCK,
+        '卡已回填，但证据坐标未核实（UNKNOWN）：检查器未完成或回执不完整；先补证，不代签退场。');
     } else if (anchorHard > 0) {
       const checkerPath = path.join(REG.roots.workspace, 'rdd-selfcompile', 'scripts', 'verify-tools', 'check-evidence-anchor.js');
       record('Q20', '★ 进过游戏就必须有回填补齐的验证卡', 'block', 'artifact', BLOCK,
@@ -1881,34 +1940,33 @@ function runSelftest() {
 }
 
 
-/**
- * ★ 2026-11-06 主人要求：门禁可开关、先给简单总开关（轻量/重量分类以后再细化）。
- * 配置真源 gate-switches.json；环境变量 RDD_GATE_MODE=full|light|off 可临时覆盖。
- * 只改『要不要跑这一项』，不改 43 条判据本身、不改 groups 归组、不改 selftest。
- */
+/** Full remains the default. Reduced modes never hide a failing or unclassified check. */
 function loadGateMode() {
   let sw = { gateMode: 'full', lightSkip: { preflight: [], postflight: [] } };
   try { sw = JSON.parse(fs.readFileSync(SWITCHES, 'utf8')); } catch (e) {
     console.error('⚠ gate-switches.json 读不出来，按 full 全跑：' + (e && e.message ? e.message : e));
   }
-  const env = (process.env.RDD_GATE_MODE || '').trim().toLowerCase();
-  const mode = ['full', 'light', 'off'].includes(env) ? env : (sw.gateMode || 'full');
-  return { mode, sw };
+  const requested = (process.env.RDD_GATE_MODE || sw.gateMode || 'full').trim().toLowerCase();
+  return { mode: ['full', 'light', 'off'].includes(requested) ? requested : 'full', sw };
+}
+
+function gateHandling(id) {
+  const h = REG.gates.handling || {};
+  return ['interlock', 'replaceable', 'diagnostic'].find(k => Array.isArray(h[k]) && h[k].includes(id)) || 'required';
 }
 
 function applyGateMode(mode, sw, phase) {
   if (mode === 'full') return { mode, skipped: 0 };
-  const skip = new Set(mode === 'off'
-    ? results.map((r) => r.id)
-    : ((sw.lightSkip && sw.lightSkip[phase]) || []));
-  let n = 0;
+  const selected = new Set(mode === 'off' ? results.map(r => r.id) : (sw.lightSkip?.[phase] || []));
+  let skipped = 0;
   for (const r of results) {
-    if (!skip.has(r.id)) continue;
+    if (!selected.has(r.id) || gateHandling(r.id) !== 'diagnostic' || r.state === BLOCK || r.state === SKIP) continue;
+    const original = r.state;
     r.state = SKIP;
-    r.detail = (r.detail ? r.detail + ' | ' : '') + `[${mode} 模式跳过；改 gate-switches.json 或 RDD_GATE_MODE 恢复]`;
-    n++;
+    r.detail = (r.detail ? r.detail + ' | ' : '') + '[' + mode + ' 省略辅助项；原状态=' + original + '；不是通过]';
+    skipped++;
   }
-  return { mode, skipped: n };
+  return { mode, skipped };
 }
 /**
  * ★ 2026-11-07 主人要求：「指挥官和干活的 AI、甚至学习的 AI，他们的门禁不一样，要分角色」。
@@ -2020,7 +2078,7 @@ function printHeader(phase) {
   console.log(` RDD harness 门禁 · ${phase.toUpperCase()}   （${g.when}）`);
   console.log('════════════════════════════════════════════════════════════');
   console.log(` 注册表 ${REG.version} · 工具 ${REG.tools.length} · 规范源 ${path.basename(REG.standards.source)} · 时间锁 ${REG.timeLocks.locks.length}`);
-  console.log(` 门禁模式 ${globalThis.__GATE_MODE_LABEL || 'full'}（gate-switches.json / RDD_GATE_MODE；分类细化以后再做）`);
+  console.log(` 门禁模式 ${globalThis.__GATE_MODE_LABEL || 'full'}（硬保护 / 可换证 / 辅助 / 必检，见 registry）`);
   console.log(` 门禁角色 ${globalThis.__GATE_ROLE_LABEL || '未选择（不允许运行）'}（registry roles.list；只跑本角色判据，其余记 SKIP，跳过不是通过）`);
   console.log('');
 }
@@ -2095,7 +2153,8 @@ function printResults() {
   const ICON = { PASS: '✔', WARN: '!', BLOCK: '✘', SKIP: '-', ASK: '☞' };
   for (const r of results) {
     const tag = r.state;
-    console.log(`${ICON[r.state]} ${r.id.padEnd(5)} ${r.name.padEnd(22)} [${r.kind}/${r.level}] ${tag}`);
+    const handling = { interlock: '硬保护', replaceable: '可换证', diagnostic: '辅助', required: '必检' }[gateHandling(r.id)];
+    console.log(`${ICON[r.state]} ${r.id.padEnd(5)} ${r.name.padEnd(22)} [${r.kind}/${r.level}；${handling}] ${tag}`);
     if (r.detail) console.log(`        ${r.detail}`);
   }
   console.log('');
@@ -2156,6 +2215,11 @@ function appendGateUsage(entry) {
 }
 
 function verdict() {
+  const phase = globalThis.__GATE_MODE;
+  const roleOnly = ['preflight', 'postflight'].includes(phase) && results.some(r =>
+    gateHandling(r.id) === 'interlock' && r.state === SKIP && r.detail.includes('本角色不适用'));
+  const diagnosticOnly = globalThis.__GATE_MODE_LABEL === 'off' || roleOnly;
+  if (roleOnly) console.log('角色范围未覆盖硬保护：仅供诊断，不产生进退场放行。');
   printGroups();
   const nb = results.filter((r) => r.state === BLOCK).length;
   const nw = results.filter((r) => r.state === WARN).length;
@@ -2164,12 +2228,14 @@ function verdict() {
   const na = results.filter((r) => r.state === ASK).length;
   console.log('────────────────────────────────────────────────────────────');
   console.log(` PASS=${np}  WARN=${nw}  BLOCK=${nb}  SKIP=${ns}  ASK=${na}`);
-  console.log(` VERDICT=${nb === 0 ? 'PASS' : 'BLOCKED'}`);
-  appendGateUsage({
+  console.log(` VERDICT=${nb ? 'BLOCKED' : diagnosticOnly ? 'DIAGNOSTIC_ONLY' : 'PASS'}`);
+  // Diagnostic runs cannot write an official PASS or replace the last official postflight.
+  if (!diagnosticOnly) appendGateUsage({
     gate: globalThis.__GATE_MODE || 'unknown',
     result: nb === 0 ? 'PASS' : 'BLOCK',
     note: `PASS=${np} WARN=${nw} BLOCK=${nb} SKIP=${ns} ASK=${na}`,
     items: results.map((r) => r.id),
+    ...(globalThis.__GATE_MODE === 'preflight' && results.some(r => r.id === 'P5') ? {p5: results.find(r => r.id === 'P5')} : {}),
   });
   if (nb) {
     console.log('');
@@ -2192,7 +2258,7 @@ function verdict() {
     console.log(' ! WARN 项建议看一眼（不拦，但都是「继承红」）：');
     for (const r of results.filter((x) => x.state === WARN)) console.log(`   · ${r.id} ${r.name}`);
   }
-  return nb === 0 ? 0 : 1;
+  return nb ? 1 : diagnosticOnly ? 2 : 0;
 }
 
 function registrySummary() {
@@ -2345,6 +2411,11 @@ function main() {
   // Validate before loading registry, running children, or touching usage ledgers.
   const selected = runtimeContext.selection(process.argv.slice(3));
   const mode = process.argv[2] || 'help';
+  let p5Source;
+  try {
+    p5Source = p5SourceSelection(process.argv.slice(3));
+    if (p5Source && (mode !== 'preflight' || selected.titleOnly)) throw new Error('P5 scope requires live preflight');
+  } catch (err) { console.error(err.message); return 2; }
   if (selected.titleOnly && !['preflight', 'postflight'].includes(mode)) {
     console.error('title-only runtime context is supported only for preflight/postflight');
     return 3;
@@ -2424,6 +2495,7 @@ function main() {
     since,
     keyword: arg('--keyword', 'numencam'),
     head: arg('--head', ''),
+    p5Source,
     stageTxt: '',
   };
 
@@ -2439,10 +2511,10 @@ function main() {
   printPlannerBanner(ctx);
   if (mode === 'preflight') preflight(ctx); else postflight(ctx);
   const applied = applyGateMode(gm.mode, gm.sw, mode);
-  if (applied.skipped) console.log(` ℹ ${applied.mode} 模式跳过 ${applied.skipped} 项（判据没改，只是本次不跑）`);
+  if (applied.skipped) console.log(` ℹ ${applied.mode} 模式省略 ${applied.skipped} 个辅助结果；不覆盖实际 BLOCK。`);
   const appliedRole = applyRole(roleInfo.role, mode);
   if (appliedRole.skipped) console.log(` ℹ 角色 ${appliedRole.role} 跳过 ${appliedRole.skipped} 项（本角色不适用，不是通过）`);
-  if (gm.mode === 'off') console.log(' ⚠ OFF 模式：全部判据本次 SKIP，仍会记账标 OFF —— 这不是 PASS');
+  if (gm.mode === 'off') console.log(' ⚠ OFF 仅供诊断，不产生进退场放行；硬保护仍判。');
   printResults();
   const rc = verdict();
   if (gm.mode !== 'full') appendGateUsage({ gate: 'mode', result: gm.mode.toUpperCase(), note: 'gateMode=' + gm.mode + ' skipped=' + applied.skipped, items: [] });

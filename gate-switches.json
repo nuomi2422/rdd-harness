@@ -4,35 +4,14 @@
   "updated": "2026-11-06",
   "gateMode": "full",
   "gateModeOptions": {
-    "full": "全部 43 项照常跑（默认，行为与 2026-11-06 之前完全一致）",
-    "light": "轻量模式：跳过需外部脚本/游戏/网络的重项，只跑机器秒查的实物项；BLOCK 硬挡仍保留",
-    "off": "只打印模式横幅并 SKIP 全部判据（用于明确知道自己在绕开门禁的场合，会记账标 OFF）"
+    "full": "默认：按角色和适用范围完整判断",
+    "light": "只省略列出的非阻断辅助项，其余照常判定",
+    "off": "仅供诊断，不产生进退场放行；不关闭硬保护"
   },
   "lightSkip": {
-    "$comment": "light 模式跳过的门禁 id（按「要跑外部脚本/连游戏/查远端」挑，不动判据本身）。分类细化后改这里即可。",
-    "preflight": [
-      "P2",
-      "P3",
-      "P4",
-      "P5",
-      "P6",
-      "P9",
-      "P14",
-      "P14b",
-      "P18",
-      "P21"
-    ],
-    "postflight": [
-      "Q6",
-      "Q7",
-      "Q13",
-      "Q14",
-      "Q15",
-      "Q17",
-      "Q18",
-      "Q19",
-      "Q20"
-    ]
+    "$comment": "必须是 registry.gates.handling.diagnostic，且实际结果不能为 BLOCK。",
+    "preflight": ["P8", "P10b", "P10c", "P10d", "P11"],
+    "postflight": ["Q13", "Q14", "Q16", "Q18", "Q19"]
   },
   "autoMonitor": true,
   "autoMonitorNote": "开游戏（mc-start.js）成功后自动拉起监测台 8776；端口已在听就跳过。false = 完全不拉。环境变量 RDD_AUTO_MONITOR=0 可临时关。",
