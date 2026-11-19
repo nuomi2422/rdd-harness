@@ -1803,10 +1803,10 @@
         "impact": "2026-10-08 本轮照抄 进游戏前必读 第17行的后台启动，连续静默失败，被误判为「游戏卡了」，浪费多轮。同源坑此前已记（AGENTS 坑 + 记忆几条），但文档里的示例本身就是坏的 → 照抄即中。",
         "guard": "进游戏前必读 第17行 已改成实测可行写法：-ArgumentList 传【一个字符串】并在其中给路径写双引号；并写明数组写法为什么错。判据只看实际发生：起后复核 MC java 进程 CreationDate + MCP 8765 可连，不看退出码/回执。",
         "verifiedBy": "2026-10-08 原测保留；2026-11-12只读复核11-11 17:02同轮原证：原live logs/title-process.json的PID14828/creationTime1794387754433绑定完整带空格gameDir及rdd-launch-1794387754419.log，title-launch-1b0796c68e7f42368c52deee739cff1e.stdout.txt同PID/日志；launch-mc.ps1:34/44-47在CIM核新进程及目录后落盘。专属日志GB18030第70行17:03:00为MCP8765实际启动后日志，未拼19:09窗口。仅证现行ASCII空格原实例路径启动与监听，不证明中文/任意畸形路径或AI业务效果。",
-        "reviewBy": "2026-11-19",
+        "reviewBy": "2026-11-26",
         "status": "open",
-        "renewedAt": "2026-11-12",
-        "renewedReason": "已有同轮Java身份与MCP监听实证，避免为更新复核日期另起游戏；保持历史guard和open，下一正常原live窗口继续核调用链，中文与任意畸形路径仍未覆盖。11-10 dry仅证明参数/拒绝的限制仍成立；后续不复制世界、不新建测试实例，不把复核扩为所有Start-Process写法已修。"
+        "renewedAt": "2026-11-19",
+        "renewedReason": "2026-11-19复核：V-20261119-01的原带空格路径同局有 PID17908、latest.log L69记录8765启动和L246同伴进原档；旧票和单字符串引号护栏保留。端点真实可连尚未重验，状态仍open，续至2026-11-26；下一普通窗只读核同PID/同局端点，不为日期重开或称任意路径已修。"
       },
       {
         "id": "TL-2026-10-19-01",
@@ -1816,9 +1816,11 @@
         "rootCause": "roots / standards / docNumbers 全是 D:\\rdd\\... 字面量。目录一改名、换账号、拷到另一台机器，门禁要么读不到（还算好），要么读到同名旧副本（更糟：它照样打印 PASS）。同族形态是「配置指向了一个不再存在的位置，而没有任何一处会因此报错」。",
         "impact": "门禁绿灯与真实仓库脱钩；harness 无法作为整体被拷贝/迁移，只能原地用。",
         "guard": "registry 新增 paths.rootAnchor(../..)/envOverride(RDD_ROOT)；所有根改为相对 RDD 根；唯一解析层 bin/lib/registry.js；harness-gate.js selftest 新增「registry roots 已相对化」检查（出现绝对路径即 FAIL）；multimodel/test/router-store.test.js 覆盖 RDD_ROOT 搬家。",
-        "verifiedBy": "node bin/harness-gate.js selftest → 「registry roots 已相对化」✔（RDD 根=D:\\rdd）；node --test multimodel/test → RDD_ROOT 覆盖用例 ✔",
-        "reviewBy": "2026-11-19",
-        "status": "open"
+        "verifiedBy": "2026-11-19在本机实跑 harness-gate.js selftest：registry roots 与 docNumbers 相对化、FAIL=0；node --test --test-name-pattern RDD_ROOT ./multimodel/test/router-store.test.js 1/1；仅证登记根和覆盖的消费者，不代签所有外部脚本。",
+        "reviewBy": "2026-11-26",
+        "status": "open",
+        "renewedAt": "2026-11-19",
+        "renewedReason": "本次守卫已按原命令复核，保观察锁及一周复核期；出现路径改名、搬家或路由改线时提前复验。"
       },
       {
         "id": "TL-2026-10-19-02",
@@ -1827,8 +1829,10 @@
         "impact": "任何依赖「自动敲游戏内指令」的验证都会变成假绿 —— 2026-10-19 附身验证第一轮就是这么卡住的",
         "guard": "改用文件扳机（cam.json 的 possess 字段，20 tick 热载）；真要验证送达必须截图看聊天框，不能信回执",
         "verifiedBy": "V-20261019-04：SendKeys / keybd_event / 扫描码 SendInput 三种全失效，GetForegroundWindow 确为 MC，shell 已 High IL",
-        "reviewBy": "2026-11-19",
-        "status": "open"
+        "reviewBy": "2026-11-26",
+        "status": "open",
+        "renewedAt": "2026-11-19",
+        "renewedReason": "053首局按停拍且不键注运行并完成正常保存（V-20261119-01）；本轮未做键注送达复验，旧失败和guard不改。续至2026-11-26；之后确需键注时先以真实送达证据核验，SENT不算，不为复核擅自拍摄或发指令。"
       },
       {
         "id": "TL-2026-10-20-01",
