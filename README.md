@@ -12,7 +12,7 @@
 | [rdd-docs-public](https://github.com/nuomi2422/rdd-docs-public/tree/main) | 审查后的公开文档投影 | main |
 | [rdd-docs](https://github.com/nuomi2422/rdd-docs/tree/master) | 私有维护主库，需权限 | master |
 
-先从[AGENTS.md](AGENTS.md)按用途找指针，再按任务取工具与原文；[OSS-README.md](OSS-README.md)介绍指针驱动的工程方式，[registry.json](registry.json)查实际注册入口，[上传纪律](skills/rdd-upload/SKILL.md)规定目的仓和精确 SHA。公开读者先看公开文档，不以取得私有知识库权限为入门前提。公开文档是筛选投影，未公开的内部原证不冒完整可复算证据。
+公开阅读先从本页仓库地图和[公开文档](https://github.com/nuomi2422/rdd-docs-public/tree/main)开始，再按用途查实际工具；本地维护者沿其工作树的 AGENTS 指针取原文（此发布快照尚未包含该本地入口）。[OSS-README.md](OSS-README.md)保留旧工具发布背景，[registry.json](registry.json)查实际注册入口，[上传纪律](skills/rdd-upload/SKILL.md)规定目的仓和精确 SHA。公开读者先看公开文档，不以取得私有知识库权限为入门前提。公开文档是筛选投影，未公开的内部原证不冒完整可复算证据。
 
 ## 本仓负责与不负责
 
