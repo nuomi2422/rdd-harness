@@ -1,0 +1,33 @@
+{
+  "schema": 1,
+  "policyEffective": "2026-11-22",
+  "baseline": "6b7a91289430e2bf2c99582a73f8a97803d0bc70",
+  "rootLicense": "MIT",
+  "currentAgplCoveredCodePaths": [],
+  "newCoreAcceptanceLicense": "AGPL-3.0-only",
+  "candidateAreas": [
+    "bin/",
+    "app/"
+  ],
+  "automaticDirectoryRelicensing": false,
+  "existingMitGrantsPreserved": true,
+  "requires": [
+    "exact paths and version boundary",
+    "source and rights review",
+    "preserved earlier notices",
+    "explicit original AGPL contribution notice",
+    "DCO 1.1 informed sign-off"
+  ],
+  "excludedFromBlanketCore": [
+    "assets/",
+    "templates/",
+    "experiments/",
+    "package/",
+    "third-party dependencies"
+  ],
+  "sdk": {
+    "status": "not_established",
+    "futureIndependentSdkPreferredLicense": "Apache-2.0"
+  },
+  "notice": "Policy acceptance scope only; this JSON does not itself relicense code."
+}

@@ -1,62 +1,25 @@
-# Contributing
+# Contributing to RDD Harness
 
-## 这个项目接受什么样的贡献
+## Where contributions belong
 
-本仓是 RDD 项目的**工程脚手架**：门禁、实验卡、机械裁判、无人值守轮回。它的存在理由只有一个——**让「AI 说自己做到了」这件事没法蒙混**。
+This repository contains external engineering tools, not the Minecraft game fork. Send game changes to [minecraft-numen/main](https://github.com/nuomi2422/minecraft-numen/tree/main), public documentation changes through the reviewed documentation publication process, and project-navigation corrections to [the project front door](https://github.com/nuomi2422/restart-developmental-doer/tree/master). Check the current README and actual tool registry rather than historical gate counts or archived workflows.
 
-所以最有价值的贡献是：
+## DCO 1.1 for new contributions
 
-| 欢迎 | 不太欢迎 |
-|---|---|
-| **找到一种能让裁判误判为绿的做法** | 新增门禁项（已经 40 条了，够用） |
-| 指出某条判据可被绕过 / 有假阴性 | 只加功能不管判据的 PR |
-| 在别的机器上跑不通，附症状 | 大规模重构 |
-| 修 bug，带复现步骤 | 纯格式调整 |
-| 补充新的「坑」（症状 → 根因 → 护栏） | 删掉跑输的实验记录 |
+Starting with this policy revision, new contributions must carry a Developer Certificate of Origin 1.1 sign-off. Read the unmodified [DCO](DCO) before using `git commit -s`. Use a name and email you control and are willing to publish: the sign-off and contribution history are public and may be retained indefinitely. A sign-off certifies submission rights; it does **not** transfer copyright or grant maintainers arbitrary relicensing rights. Do not forge another person's sign-off or retrospectively sign their old commits.
 
-## 提 issue 之前
+AI-assisted contributions are welcome only after human review of provenance, licensing, dependencies, security and correctness. A model cannot sign for a human. Preserve original copyright and license notices, identify copied/adapted material and its source, and do not submit secrets, personal conversations, private evidence or unreviewed generated assets.
 
-先跑三条离线自测，它们不碰游戏、不需要 key：
+## Contribution review
 
-```powershell
-node bin/harness-gate.js selftest   # 期望 FAIL=0
-node bin/exp-card.js selftest       # 期望 12/12
-node bin/exp-judge.js --selftest    # 期望 5/5
-```
+- One coherent change per PR: state purpose, affected paths, source/derivation, applicable license, tests and known limitations.
+- Describe a reproducible failure or intended behavior, then positive and negative checks. Tools returning success and offline tests do not establish deployment or world effects.
+- Use applicable existing checks; do not restore archived time locks or unrelated approval gates just because an old document listed them.
+- Changes to an acceptance rule must explain the old rule's defect and resulting coverage. Preserve honest failures and unknowns.
+- Provide dependency licenses and provenance for imported code. New standalone SDKs require an explicit boundary; do not relabel copied core implementation as a permissive API.
 
-如果这三条有红的，那是接线问题，不是实验问题——请带上输出提 issue。
+## License boundary
 
-## 提 PR 的规矩
+Contribute under the license actually applying to the touched files, as described by LICENSE and any path-specific notice. Historical MIT grants remain valid; a new DCO sign-off does not withdraw them. The approved direction is reciprocal licensing for rights-cleared core releases, not a blanket claim that all files are AGPL. Check the accompanying licensing scope document before asserting a new file's license.
 
-- **一个 PR 只做一件事。**
-- **改判据要单独讨论。** 判据是这套东西的根，改它必须说明「原来那条为什么不够」。
-- **改 `registry.json` 后必须重跑 `selftest` 和 `registry`**，两者都要绿。
-- **不要提交密钥。** `multimodel/` 只放定价表，不放 key。
-- **不要提交 `runs/` 里的产物**（已 gitignore）、日志、游戏实例、模型缓存。
-- **提交信息写清楚做了什么、为什么**，不要 `fix` / `update` / `wip`。
-
-## 三态纪律
-
-- ✅ **已完成** —— 有证据，能复现
-- 🟡 **已写码未实测** —— 代码写了，没在真实环境跑过
-- ⬜ **计划中**
-
-**编译成功、自测通过都不算 ✅** —— 只有实机验过才算。自测绿了请标 🟡。
-
-## 实验类贡献
-
-加实验请注意五条铁律：
-
-1. **判据先冻结再跑**，跑完改卡 → 拒绝出结论；
-2. **必须有正负对照**；
-3. **必须有失败阈值**（只有成功阈值不合格）；
-4. **样本不足 → INCONCLUSIVE**，不制造显著性；
-5. **跑输的结果也要提交**。
-
-## 时间锁
-
-有些坑我们决定这一轮不修。每条都必须在 `registry.json` 的 `timeLocks` 里留记录（症状 / 影响 / 护栏 / 到期日）。想修其中一条，先看它的 `guard`——那是验收判据。
-
-## 许可证
-
-代码按 MIT（见 [LICENSE](LICENSE)）。提交 PR 即表示同意按此授权。
+This change introduces a documented submission requirement, not a new mandatory CI gate or branch-protection rule. Existing history is not rewritten. CLA or copyright assignment is not required by this policy.
