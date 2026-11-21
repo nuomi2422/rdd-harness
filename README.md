@@ -1,12 +1,21 @@
-# RDD Harness
+# RDD Harness · 外部 AI 工程工具
 
-为 AI 在 Minecraft 中工作提供工程工具、门禁和验证脚手架。工具回执与实际效果分别核验，编译通过不代表实机通过。
+**你在工具仓，不在游戏源码仓。公开阅读分支为 main。** 本地工作分支不等于对外发布分支。RDD 基于他人的 Numen 底座继续开发，来源与各自许可证见源码仓；本仓工具许可见[LICENSE](LICENSE)。
 
-现行工作指引从 [RDD 知识库](https://github.com/nuomi2422/rdd-docs/tree/master/知识库)开始（该仓访问需权限）。本仓是经过选择的工具发布版本；旧样例和台账不代表当前部署状态。
+## 从哪里读
 
-- [工具注册表](registry.json)：按实际注册项查工具。
-- [工具与实验台快速开始](OSS-README.md)：部署前核对本机环境与实际命令。
-- [上传纪律](skills/rdd-upload/SKILL.md)：明确来源、目标、分支与上传回执。
-- [旧内部工作台（已封存）](README-内部工作台.md)：保留历史检索。
+| 仓库 | 用途 | 阅读分支 |
+|---|---|---|
+| [restart-developmental-doer](https://github.com/nuomi2422/restart-developmental-doer/tree/master) | 唯一项目门面 | master |
+| [minecraft-numen](https://github.com/nuomi2422/minecraft-numen/tree/main) | 基于 Dwinovo/Numen 的游戏源码 fork | main |
+| [rdd-harness](https://github.com/nuomi2422/rdd-harness/tree/main) | 外部工程工具与协作 | main |
+| [rdd-docs-public](https://github.com/nuomi2422/rdd-docs-public/tree/main) | 审查后的公开文档投影 | main |
+| [rdd-docs](https://github.com/nuomi2422/rdd-docs/tree/master) | 私有维护主库，需权限 | master |
 
-本次仅更新入口与上传技能，未重新验证旧工具集或游戏效果。许可证见 [LICENSE](LICENSE)。
+先从[AGENTS.md](AGENTS.md)按用途找指针，再按任务取工具与原文；[OSS-README.md](OSS-README.md)介绍指针驱动的工程方式，[registry.json](registry.json)查实际注册入口，[上传纪律](skills/rdd-upload/SKILL.md)规定目的仓和精确 SHA。公开读者先看公开文档，不以取得私有知识库权限为入门前提。公开文档是筛选投影，未公开的内部原证不冒完整可复算证据。
+
+## 本仓负责与不负责
+
+负责写码、验证、记录和多 AI 协作的工程入口；不拥有游戏世界事实或同伴身体，不取代任务/AC/学习领域模块。目录登记、工具可见、实际调用和有效性要分开核。旧示例数字、旧工作台、归档脚本只代表原版本，不作为当前安装/运行成功的声明。构建不等于部署，上传不等于游戏效果。
+
+本次仅统一公开入口和上传路由，不把其他会话的框架改动混作已发布。命令或脚本使用前核当前版本、适用环境及真实注册；不要照历史手册恢复已废弃流程。

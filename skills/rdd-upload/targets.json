@@ -5,10 +5,10 @@
     {
       "repo": "minecraft-numen",
       "url": "https://github.com/nuomi2422/minecraft-numen.git",
-      "expectedDefaultBranch": "1.21.1",
+      "expectedDefaultBranch": "main",
       "role": "source-public",
       "visibility": "public",
-      "note": "RDD 源码主线 main 的公开落点；默认分支仍是上游版本线 1.21.1"
+      "note": "RDD 源码主线 main 的公开落点；1.21.1 保留为上游版本线"
     },
     {
       "repo": "rdd-harness",
@@ -26,15 +26,31 @@
       "privateReason": "contains-api-credentials"
     },
     {
-      "repo": "rdd-restart-doer",
-      "url": "https://github.com/nuomi2422/rdd-restart-doer.git",
+      "repo": "restart-developmental-doer",
+      "url": "https://github.com/nuomi2422/restart-developmental-doer.git",
       "expectedDefaultBranch": "master",
       "role": "project-facade",
-      "visibility": "private"
+      "visibility": "public",
+      "note": "唯一门面，用户2026-11-21明确保留；rdd-restart-doer退出发布目标"
+    },
+    {
+      "repo": "rdd-docs-public",
+      "url": "https://github.com/nuomi2422/rdd-docs-public.git",
+      "expectedDefaultBranch": "main",
+      "role": "docs-public-sanitized",
+      "visibility": "public",
+      "note": "全新历史、审查脱敏发布投影，私有主库仍保留"
     }
   ],
   "upstreamPush": false,
   "bulkPush": false,
   "forcePush": false,
-  "implicitHead": false
+  "implicitHead": false,
+  "retiredTargets": [
+    {
+      "repo": "rdd-restart-doer",
+      "reason": "duplicate facade; preserve assets and backup before authorized remote deletion",
+      "pushAllowed": false
+    }
+  ]
 }
