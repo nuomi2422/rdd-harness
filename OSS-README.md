@@ -1,91 +1,59 @@
-# rdd-harness — 指针驱动的 AI 工程脚手架
+# 历史工程脚手架介绍（原版本）
 
-> 让 AI 先找到当前该用的内容，再调用合适的工具完成工作，最后留下能复核、能接手的证据。RDD Harness 是 RDD 的工程组成，不是另一套项目目标。
+> 本文为旧发布快照，工具数和流程不可视为当前规定。现行仓库定位、分支及阅读入口见[README](README.md)，准确上传目标见[上传纪律](skills/rdd-upload/SKILL.md)。本次只更新文档路由，不捆绑其他会话正在实施的工具变更。
 
-## 总线路
+> 一句话：给「AI 在 Minecraft 里自主干活」配一套**可验证、可回退、可复算**的工程底座——
+> 门禁（进/退游戏前后）、实验卡（事前冻结判据+原始数据机械复算）、无人值守学习轮回（exp-cycle）、
+> 观测器（标准开源 Mineflayer）。AI 自己写、自己验；人只定总目标、最后看一眼。
 
-**AGENTS.md 及按需展开的子文件是核心；命令驱动工作流是辅助。**
+## 这是什么
 
-```text
-项目 AGENTS.md
-  → 按用途选择稳定内容指纹
-  → 展开相关模块正文与少量必要工具
-  → 执行、验证、记录
-  → 需要时交给其他 AI 或按纪律上传
-```
-
-入口是 [AGENTS.md](<AGENTS.md>)。它只放用途和路标；一个主题保留一份正文，文件 SHA-256 用于复核变化。目录已登记不代表宿主已经动态卸载工具 schema，实际工具可见性以会话请求为准。
-
-## 四个工作模块
-
-| 稳定指纹 | 用途 | 你会展开什么 |
+| 部件 | 作用 | 入口 |
 |---|---|---|
-| `rdd-harness.write.v1` | 写码、接口、构建部署 | 模块边界、工程规范、源码与制品核验 |
-| `rdd-harness.verify.v1` | 验证、观察、拍摄、真实效果 | 判据、核心工具、实验与运行原证 |
-| `rdd-harness.record.v1` | 记录、交接、架构与上传留痕 | 原主题、原始证据、下一步 |
-| `rdd-harness.collaborate.v1` | 多 AI 拆工、跨窗交接、复核与集成 | 责任范围、交付契约、集成与未覆盖项 |
+| `registry.json` | 单一真源：98 工具、40 门禁（preflight 21 / postflight 19）、10 条根路径、17 条时间锁 | `bin/harness-gate.js registry` |
+| 门禁 | 进游戏前 `preflight` / 退游戏后 `postflight`；`selftest` 自检接线 | `bin/harness-gate.js selftest` |
+| 实验卡 | 可证伪主张 + 成功/失败双阈值 + 正负对照 + 冻结 hash + 原始数据复算 | `bin/exp-card.js new/validate/freeze/conclude` |
+| 运行器 | 复制母版世界 → 起停游戏 → 派活 → 观测 → 受控复位 → 归档 | `bin/exp-runner.js run --label x --minutes N` |
+| 裁判 | 只读证据出裁决，不认口头结论（离线自测 5/5 拒三种假绿） | `bin/exp-judge.js <runDir>` |
+| 轮回 | 连跑 N 轮、轮末简报带进下一轮、机械判定 improved | `bin/exp-cycle.js run --prefix learn --rounds 4` |
+| 观测器 | 标准开源 mineflayer@4.39.0（无 fork）；`eval <file.js>` 让 AI 用代码玩游戏 | `bin/mf-observer.js smoke/eval` |
 
-AI 按实时任务组合一个或多个模块，不默认读完整工具表、全部文档和历史。这里的稳定内容指纹是检索身份，与游戏里的 TaskFingerprint 不同。
-
-## 命令分工
-
-- `/align`：核心意图对齐命令。先查、提问、确认目的与范围。
-- `/team-execute`：核心工程开工命令，由指定指挥官按获授权施工单组织施工。
-- `/actions`：非核心指针菜单。`compress` 专做压缩指针，`docs` 整理文档，`upload` 进入上传纪律。
-
-`/actions` 的菜单项不是核心命令，也不是 `/align` 收尾的第三个选项。菜单目录保存标题和正文指针，选中后才加载；写入或删除菜单项另走 `add/remove`。
-
-## 工具注册与生命周期
-
-- 核心标记只由主人在 RDD 知识库的“进游戏核心工具”正文注册或修改。
-- AI 自写工具在该文的非核心登记栏自注册，写清维护者、用途、版本、判据、正反例、实际效果和替代入口。
-- 生命周期：**待验 → 样例已验 → 有用（限场景）**；版本变化待复验，无效或失效保留原因和替代入口。
-- `registry.json` 是工程工具目录，`tool-layers.json` 是按需发现视图；登记不等于安装、授权、模型实际收到或有效。
-
-## 多项目地图
-
-架构 MCP 提供项目目录：`rdd` 是 RDD 主地图，`rdd-harness` 是工程脚手架的小地图，其他项目从自己的 AGENTS.md 与地图进入。地图只登记入口、用途和原文位置，不复制或混写项目事实，不跨项目借授权。
-
-```js
-// MCP：先列项目，再选项目地图
-arch_projects({})
-arch_overview({ project: "rdd-harness" })
-arch_detail({ project: "rdd-harness", focus: "harness-write", level: 4 })
-```
-
-## 上传纪律
-
-源码和 Harness 默认公开；RDD 知识库因含 API 凭据保持私有。目标已明确时直接整理并上传，不重复询问；只精确提交本次范围。
-
-1. 公开仓上传前扫描并人工核对疑似凭据，私人台账、存档和聊天不进公开仓。
-2. 一次只推一个完整 SHA 到一个 `refs/heads/...`；禁止 `--all`、`--mirror`、`--tags`、强推和隐式 HEAD。
-3. 推完用同一 URL、精确 ref 执行 `git ls-remote`，SHA 一致才算上传成功。
-4. 清单和回执写 `publication/manifests`、`publication/receipts`，不记凭据。
-
-完整正文见 [rdd-upload](<skills/rdd-upload/SKILL.md>)。
-
-## 保留的工程部件
-
-| 部件 | 用途 |
-|---|---|
-| `bin/harness-gate.js` | 进游戏前核目标制品与包件，退游戏后核本次记录；`selftest` 检查接线 |
-| `bin/exp-card.js` | 冻结可证伪判据、正负对照与数据复算 |
-| `bin/exp-runner.js` | 受控运行与原始证据归档 |
-| `bin/exp-judge.js` | 只按原始证据裁决，不把回执当效果 |
-| `standards.md` | 按条目查阅的工程约束 |
-
-旧全量工具表、旧手册和旧门禁首页不再作为当前介绍入口；仍有消费者或证据价值的原件保留。当前门禁只有目标制品/包件与本次记录质量两项，不恢复旧时间锁和流程审批。
-
-## 快速自检
+## 快速开始（三分钟自证）
 
 ```powershell
-node bin/harness-gate.js selftest
-node bin/exp-card.js selftest
-node bin/exp-judge.js --selftest
+node bin/harness-gate.js selftest   # 门禁接线全 ✔（FAIL=0）
+node bin/exp-card.js selftest       # 12/12（判据矛盾/无种子/缺理由/样本不足/改卡/claim 矛盾 必拒）
+node bin/exp-judge.js --selftest    # 5/5（加载错/缺裁剪/只回成功无产物 必拒）
 ```
 
-这些离线测试不启动游戏，不需要 API key；它们不能证明某项游戏行为已经有效。Minecraft 实例、mods、存档、JDK/Gradle/Node、模型服务和私有知识库不在本公开仓内。
+这三条不碰游戏、不需要任何 API key——先证明「裁判不撒谎」，再谈跑实验。
+
+## 跑一次真实轮回（需要 Minecraft 实例）
+
+```powershell
+node bin/exp-card.js new exp-demo --title "两轮独立冒烟都通过"
+# 编辑 experiments/cards/exp-demo.json：claim / 阈值 / 对照 / 数据源
+node bin/exp-card.js validate experiments/cards/exp-demo.json
+node bin/exp-card.js freeze experiments/cards/exp-demo.json --commit <git sha> --apply
+node bin/exp-cycle.js run --prefix demo --rounds 4 --minutes 25 --zero-start --goal-file <开场任务.txt>
+node bin/exp-card.js conclude experiments/cards/exp-demo.json
+```
+
+**铁律**：判据先冻结再跑；结论只从原始数据复算；样本不足/缺字段 → INCONCLUSIVE（不制造显著性）；
+冻结后改卡 → 拒绝出结论；口头 claim 与数据矛盾 → 数据赢。
+
+## 部署到新机器
+
+看 `package/README-自动harness包-20261027.md` + `package/74-新机安装与迁移指南-20261019.md`
+（618 行实测迁移记录：0–8 阶段顺序、约 40 条坑的症状→根因→修法、验收清单）。
+
+## 诚实的边界
+
+- 本仓只是「脚手架」：Minecraft 实例、mods、存档、JDK/Gradle/Node、模型 API 都不在仓里，按部署文档自建。
+- `multimodel/` 是多模型适配层（OpenRouter 免费表只含定价信息，无 key）；任何密钥都不入库。
+- 门禁里的路径真源在 `registry.json` 的 `roots`，换机改那 10 条即可。
+- 实验结论的样本量都很小（pilot），只能看方向；我们不夸大「越玩越聪明」。
 
 ## License
 
-MIT。判据先冻结、数据赢；设计、源码、部署、实机和效果始终分开。
+MIT。用的时候请保留「判据先冻结、数据赢」这两条精神——那是这套东西唯一不可让步的部分。

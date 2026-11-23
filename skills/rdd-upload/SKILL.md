@@ -9,17 +9,22 @@ Metadata:
 
 # RDD 上传纪律
 
-## 东西存在哪（2026-11-18 核对）
+## 东西存在哪（2026-11-22 主人确认统一）
 
 | 内容 | 仓 | 可见性 |
 |---|---|---|
 | 游戏源码 | nuomi2422/minecraft-numen（Dwinovo 的 fork） | 公开 |
 | Harness 工具/技能/制度 | nuomi2422/rdd-harness | 公开 |
 | 文档/知识库 | nuomi2422/rdd-docs | 私有（含 API/凭据） |
-| 项目门面 | nuomi2422/rdd-restart-doer | 公开（项目门面，不存放源码历史） |
+| 项目唯一门面 | nuomi2422/restart-developmental-doer，master | 公开；项目地图，不再作为源码真源 |
+| 公开文档 | nuomi2422/rdd-docs-public，main | 公开；从私有主库审查脱敏的发布版，全新历史 |
 | 上游 | Dwinovo/minecraft-numen | 只拉不推 |
 
-源码和 Harness 本来就是要开源给别人用的，默认公开，不藏。文档私有只有一个原因：里面有 API/凭据，要公开先脱敏。
+源码 minecraft-numen/main 和 Harness rdd-harness/main 默认公开。私有主库 rdd-docs/master 保留原件、敏感资料和历史，不删、不改公开权限；公开文档 rdd-docs-public/main 从中筛选、审查、脱敏，不克隆旧历史。只在主库维护，再发布投影，禁止两套正文各自演化。首发以现行架构、施工、经验和可公开验证为主；未审附件、聊天、原始敏感日志默认不发。
+
+**唯一门面是 restart-developmental-doer/master**（注意完整拼写），不是 rdd-restart-doer。后者按主人授权废弃：先完整备份 refs/历史、核独有文件及 Issues/Release/LFS/附件，必要内容迁出后才删除远端；本机原件不删。历史上传票不改写，后续回执明确实际处置状态。
+
+各仓 README 首屏讲清身份、上游署名/许可、职责、阅读分支、源码/文档/工具目录及互链。公开读者从门面→公开文档→源码→Harness进入，私有库不作必需入门路径。上游 Dwinovo/minecraft-numen 只拉不推；git origin/backup 是本地别名，不决定仓库身份。公开介绍不把设计、单测或上传说成已部署/有效。
 
 ## 上传
 
@@ -31,6 +36,10 @@ Metadata:
 4. 清单和回执写 publication/manifests、publication/receipts；凭据不进日志和回执。
 5. 不推上游；改可见性、改默认分支、重写历史单独处理，不和普通上传混一步。
 6. 门面仓只放门面，不拿 backup 分支塞整库历史。
+
+## 许可与贡献发布（057 已批准，2026-11-22）
+
+公开前核各文件实际许可及来源，不因仓库归属或模型作者名推定完整版权。旧MIT授权不追溯撤回，上游LGPL、MIT API、资源及第三方通知保留。Harness当前原代码仍按MIT；未来原创核心按已发布LICENSING及license-scope清单逐路径审核后采用AGPL-3.0-only，不因放入bin/app或保存AGPL全文自动覆盖旧代码。公开说明不得说AGPL禁商用或承诺免费无限算力。新贡献按各仓CONTRIBUTING/DCO知情签署，不伪造或补签他人历史签名。每次许可发布独立提交，清单区分政策变更、真实覆盖路径和未核权利，不夹带运行逻辑或改第三方许可。
 
 ## 分支清理
 
