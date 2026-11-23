@@ -391,7 +391,21 @@ function buildTimeline(runDir) {
     }
     push(e.timestamp, tag, text, e.type);
   }
-  let deaths = 0, deathsScanned = false;
+  // Preserve physical AC rows: external execute acceptance hides internal pauses/continuations.
+  const acxPath = path.join(ev, 'acx.jsonl');
+  if (fs.existsSync(acxPath)) {
+    fs.readFileSync(acxPath, 'utf8').split(/\r?\n/).forEach((line, index) => {
+      if (!line.trim()) return;
+      let event;
+      try { event = JSON.parse(line); } catch { return; }
+      const d = event.data || {};
+      if (event.type !== 'acx_event' || !d.run_id || !d.kind) return;
+      push(event.timestamp, 'acx', 'acx.jsonl:' + (index + 1) + ' run=' + d.run_id + ' ' + d.kind
+        + (d.step_id ? ' step=' + d.step_id : '') + (d.block ? ' block=' + d.block : '')
+        + (d.status ? ' ' + d.status : '') + (d.reason ? ' ' + d.reason : ''), event.type);
+    });
+  }
+  let deaths = null, deathsScanned = false;
   // A1（93 号）：run 归档里已有 deaths（PRESENT/NONE，带 seq/kind）时不再扫全局 instrumentation ——
   // 否则同一次死亡会出两行 [death]（一行来自归档、一行来自旧扫描）。老 run 没有 deaths 键才走旧扫描。
   const hasA1Deaths = env.deaths && (env.deaths.status === 'PRESENT' || env.deaths.status === 'NONE');
@@ -400,12 +414,12 @@ function buildTimeline(runDir) {
     deathsScanned = true;
   } else {
     const numenDir = process.env.RDD_NUMEN_DIR || 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen';
-    if (numenDir) {
-      deathsScanned = true;
+    if (numenDir && !env.deaths) {
       const inst = path.join(numenDir, 'monitor', 'instrumentation.jsonl');
       const winS = Date.parse(T.stimulusSentAt || '') || null;
       const winE = Date.parse(T.watchEnd || '') || null;
       if (fs.existsSync(inst) && winS != null) {
+        deathsScanned = true; // A finite legacy scan is not proof of complete zero-death coverage.
         for (const e of readJsonl(inst)) {
           const t = Date.parse(e.timestamp);
           if (!(t >= winS && (winE == null || t <= winE + 60000))) continue;
@@ -506,7 +520,7 @@ function timeline(argv) {
     return !NOISY_TYPES.has(e.type);   // 默认折叠周期快照，屏幕留给可读事件
   });
   console.log('# 时序 · ' + summary.run + (summary.label ? ' (' + summary.label + ')' : ''));
-  console.log('母版=' + (summary.master || '?') + '  窗口=' + (summary.window_s != null ? summary.window_s + 's' : '?') + '  停因=' + summary.stopReason + '  调用=' + summary.evidence_calls + '（OK ' + summary.evidence_ok + ' / FAIL ' + summary.evidence_fail + '）  回合=' + summary.llmRequests + '  死亡=' + summary.deaths + (summary.deathsScanned ? '' : '（未扫描：设 RDD_NUMEN_DIR=<numen 配置目录> 可并入死亡时点）') + '  drift=' + summary.drift);
+  console.log('母版=' + (summary.master || '?') + '  窗口=' + (summary.window_s != null ? summary.window_s + 's' : '?') + '  停因=' + summary.stopReason + '  调用=' + summary.evidence_calls + '（OK ' + summary.evidence_ok + ' / FAIL ' + summary.evidence_fail + '）  回合=' + summary.llmRequests + '  死亡=' + (summary.deaths == null ? 'UNKNOWN' : summary.deaths) + (summary.deathsScanned ? '' : '（未扫描：设 RDD_NUMEN_DIR=<numen 配置目录> 可并入死亡时点）') + '  drift=' + summary.drift);
   if (summary.goal) console.log('目标: ' + summary.goal);
   if (summary.chain) {
     const c = summary.chain;
@@ -1291,6 +1305,26 @@ function selfTest() {
   const c16 = run(['timeline', rd, '--tag', 'chat,ctx']);
   cases.push(['timeline --tag chat,ctx 打开对话与上下文',
     c16.code === 0 && c16.out.includes('我去砍树') && c16.out.includes('挖黑曜石'), c16.out.trim().slice(0, 160)]);
+  // 055D: an accepted AC call is not its internal continuation or world result.
+  fs.writeFileSync(path.join(rd, 'evidence', 'acx.jsonl'),
+    JSON.stringify({ timestamp: '2026-10-26T14:02:53.000Z', type: 'acx_event', data: {
+      kind: 'STEP_PAUSED', run_id: 'run-known', ac_name: 'mining', step_id: 'move',
+      block: 'goto', status: 'PAUSED', reason: 'async_accepted taskId=t1' } }) + '\n' +
+    JSON.stringify({ timestamp: '2026-10-26T14:02:54.000Z', type: 'acx_event', data: {
+      kind: 'RUN_FINISHED', run_id: 'run-known', ac_name: 'mining', status: 'PAUSED' } }) + '\n');
+  const acxTimeline = run(['timeline', rd, '--tag', 'acx']);
+  cases.push(['timeline renders original AC internal pause with run and source reference',
+    acxTimeline.code === 0 && acxTimeline.out.includes('run=run-known')
+      && acxTimeline.out.includes('STEP_PAUSED') && acxTimeline.out.includes('async_accepted')
+      && acxTimeline.out.includes('acx.jsonl:1') && acxTimeline.out.includes('RUN_FINISHED'),
+    acxTimeline.out.trim().slice(0, 400)]);
+  const noDeathRun = path.join(tmp, 'no-death-source');
+  fs.mkdirSync(path.join(noDeathRun, 'evidence'), { recursive: true });
+  fs.writeFileSync(path.join(noDeathRun, 'envelope.json'), JSON.stringify({ deaths: { status: 'UNKNOWN' } }));
+  const noDeaths = run(['timeline', noDeathRun]);
+  cases.push(['timeline does not turn missing death coverage into zero',
+    noDeaths.code === 0 && noDeaths.out.includes('死亡=UNKNOWN') && !noDeaths.out.includes('死亡=0'),
+    noDeaths.out.trim().slice(0, 300)]);
   const c17 = run(['live', 'status']);
   cases.push(['live status 可跑（没进程也不崩）', c17.code === 0 && c17.out.includes('watch.json'), c17.out.trim().slice(0, 160)]);
   // 2026-10-29：分层视图 + 开工包首屏 + 使用证据（施工单第 2/3/4 阶段）
@@ -1298,7 +1332,9 @@ function selfTest() {
   let layersJson = null;
   try { layersJson = JSON.parse(c18.out.slice(c18.out.indexOf('{'))); } catch {}
   cases.push(['layers 默认只列 core，--all 才展开四层',
-    c18.code === 0 && layersJson && layersJson.core.length <= 5 && layersJson.counts.registry >= 90 && Array.isArray(layersJson.operator) && layersJson.operator.length > 0,
+    c18.code === 0 && layersJson && layersJson.core.length <= 5 && Number.isInteger(layersJson.registry) && layersJson.registry > 0
+      && layersJson.counts.registry === layersJson.registry
+      && ["core", "specialist", "operator", "legacy", "archived"].reduce((n, k) => n + layersJson.counts[k], 0) === layersJson.registry && Array.isArray(layersJson.operator) && layersJson.operator.length > 0,
     c18.out.trim().slice(0, 160)]);
   const c18b = run(['layers', '--json']);
   let layersDefault = null;
