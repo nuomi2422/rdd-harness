@@ -12,7 +12,9 @@
 | [rdd-docs-public](https://github.com/nuomi2422/rdd-docs-public/tree/main) | 审查后的公开文档投影 | main |
 | [rdd-docs](https://github.com/nuomi2422/rdd-docs/tree/master) | 私有维护主库，需权限 | master |
 
-公开阅读先从本页仓库地图和[公开文档](https://github.com/nuomi2422/rdd-docs-public/tree/main)开始，再按用途查实际工具；本地维护者从 [AGENTS.md](AGENTS.md) 进入：它只放模块指纹与路标，按当前任务展开写码/验证/记录/合作正文（文件中的 `D:/rdd/...` 为本机工作区实际路径，不是公开可访问地址）。[OSS-README.md](OSS-README.md)保留旧工具发布背景，[registry.json](registry.json)查实际注册入口，[上传纪律](skills/rdd-upload/SKILL.md)规定目的仓和精确 SHA。公开读者先看公开文档，不以取得私有知识库权限为入门前提。公开文档是筛选投影，未公开的内部原证不冒完整可复算证据。
+公开阅读先从本页仓库地图和[公开文档](https://github.com/nuomi2422/rdd-docs-public/tree/main)开始，再按用途查实际工具；本地维护者从 [AGENTS.md](AGENTS.md) 进入：它只放模块指纹与路标，按当前任务展开写码/验证/记录/合作正文（文件中的 `D:/rdd/...` 为本机工作区实际路径，不是公开可访问地址）。[OSS-README.md](OSS-README.md)保留旧工具发布背景，[registry.json](registry.json)查实际注册入口，[上传纪律](skills/rdd-upload/SKILL.md)规定目的仓、三仓同批发布和精确 SHA。公开读者先看公开文档，不以取得私有知识库权限为入门前提。公开文档是筛选投影，未公开的内部原证不冒完整可复算证据。
+
+AI 专用通道从[门面 AI-ENTRY](https://github.com/nuomi2422/restart-developmental-doer/blob/master/AI-ENTRY.md)进入，以架构 MCP 为主，源码、Harness、门面三个实现仓均可读。主人是 Harness 工程师与架构师；Harness 负责工程、验证与协作，不替代游戏领域实现。
 
 ## 许可、贡献与免费边界
 

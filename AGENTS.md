@@ -20,7 +20,7 @@
 - `/actions`：非核心指针菜单。按编号或短名读取相应指针后执行；新增、删除菜单项另走 `add/remove`。**压缩指针入口固定放这里。**
 - 菜单内 `compress`：压缩指针。按项目和现场选择 `write / verify / record / collaborate` 及少量必要子文件，避免整库注入；本菜单项不负责开工或上传。
 - 菜单内 `docs`：整理文档，先读项目写作与归档规则。
-- 菜单内 `upload`：按[上传纪律](<skills/rdd-upload/SKILL.md>)核对可见性、精确提交、上传和远端回执。
+- 菜单内 `upload`：按[上传纪律](<skills/rdd-upload/SKILL.md>)核对可见性、三仓同批范围、精确提交、上传和远端回执。
 
 ## 工具与生命周期
 
