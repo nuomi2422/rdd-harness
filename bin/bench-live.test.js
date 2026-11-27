@@ -98,6 +98,35 @@ test('live loop rejects malformed observer and recovers on later ticks', { timeo
   await new Promise(resolve => child.once('exit', resolve));
 });
 
+test('context view serializes planning objects and chooses the newest planning input', () => {
+  const at = '2026-11-27T08:00:00.000Z'
+  const supervisor = L.normalize('rdd.jsonl', { type: 'supervisor_context', timestamp: at, data: {
+    context: { tool: 'planner-tool', system: 'planner-system', user: 'planner-user', parameters: { temperature: 0 } }
+  } })
+  assert.equal(typeof supervisor.rec.text, 'string')
+  assert.match(supervisor.rec.text, /planner-system/)
+  assert.doesNotMatch(supervisor.rec.text, /\[object Object\]/)
+  const planning = L.normalize('rdd.jsonl', { type: 'planning_input_verbatim', timestamp: at, data: {
+    stage: 'village', system: 'new-system', user: 'new-user', tool: 'new-tool'
+  } })
+  assert.match(planning.rec.text, /new-system/)
+  assert.match(planning.rec.text, /new-user/)
+  assert.match(planning.rec.text, /new-tool/)
+  const state = L.newState({})
+  L.apply(state, 'rdd.jsonl', [supervisor, planning], Date.parse(at))
+  const view = L.render('context', state, { now: Date.parse(at) })
+  assert.match(view, /planning_input_verbatim/)
+  assert.match(view, /new-system/)
+  assert.doesNotMatch(view, /\[object Object\]/)
+})
+
+test('context view keeps legacy string and prompt planning inputs', () => {
+  const oldSupervisor = L.normalize('rdd.jsonl', { type: 'supervisor_input', timestamp: '2026-11-27T08:00:00Z', data: { text: 'legacy-supervisor' } })
+  const oldPlanning = L.normalize('rdd.jsonl', { type: 'planning_input_verbatim', timestamp: '2026-11-27T08:00:01Z', data: { prompt: 'legacy-prompt' } })
+  assert.equal(oldSupervisor.rec.text, 'legacy-supervisor')
+  assert.equal(oldPlanning.rec.text, 'legacy-prompt')
+})
+
 for (const failure of ['render', 'write']) {
   test('single view ' + failure + ' failure falls back and recovers', { timeout: 20000 }, async t => {
     const f = fixture(t), dir = path.dirname(f), out = path.join(dir, 'out');
@@ -247,12 +276,12 @@ test('normal end writer detects same-window mutation and restart avoids rewritin
   f.binding.targetSession='another-session';f.tick();assert.equal(f.state.bridge.status,'UNKNOWN');assert.equal(f.state.bridge.reason,'window-binding-conflict');
   assert.equal(fs.readFileSync(f.notice,'utf8'),before);
 });
-test('normal end writer generated notice binds plugin target and queue rejection remains pending',async t=>{
+test('normal end writer generated notice binds plugin target and followup exception stays unknown without resend',async t=>{
   const f=windowFixture(t);fs.appendFileSync(f.logFile,f.stop+f.save);f.tick();const {apply}=await import('../plugins/dsh-bench-bridge/lib/index.js');let attempts=0;
   const ctx={agents:{get:id=>({id,followup:()=>{attempts++;throw new Error('queue rejected')}})},effect:cb=>cb(),logger:{info(){}}};
   const cfg={enabled:true,targetSession:f.binding.targetSession,bindingFile:f.notice,stateFile:path.join(f.dir,'delivery.json')};
   const runtime={createUserMessage:x=>x,now:()=>Date.parse('2026-11-12T00:02:00Z')};
-  const p=apply(ctx,cfg,runtime);t.after(()=>p.dispose());assert.equal((await p.tick()).state,'PENDING');f.tick();assert.equal((await p.tick()).state,'PENDING');assert.equal(attempts,1);
+  const p=apply(ctx,cfg,runtime);t.after(()=>p.dispose());assert.equal((await p.tick()).state,'UNKNOWN');f.tick();assert.equal((await p.tick()).state,'UNKNOWN');assert.equal(attempts,1);
   const wrong=apply(ctx,{...cfg,targetSession:'other'},runtime);t.after(()=>wrong.dispose());assert.equal((await wrong.tick()).reason,'host-target-conflict');assert.equal(attempts,1);
 });
 test('unconfigured production collectOnce has no bridge state or artifacts',t=>{

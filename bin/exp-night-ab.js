@@ -31,7 +31,7 @@ function lastRequest(runDir) {
   return rows.length ? rows[rows.length - 1] : null;
 }
 
-/** build 调用按「每次调用」分组（ops 顺序 = 调用顺序）。 */
+/** build 调用按 call_id 分组（ops 顺序 = 调用顺序）。 */
 function buildCalls(runDir) {
   const req = lastRequest(runDir);
   if (!req) return [];
@@ -42,7 +42,7 @@ function buildCalls(runDir) {
     for (const tc of m.tool_calls) {
       const fn = tc.function || tc;
       if (fn.name !== 'build') continue;
-      try { calls.push(JSON.parse(fn.arguments || '{}').ops || []); } catch { calls.push([]); }
+      try { calls.push({ callId: tc.id || tc.tool_call_id || null, ops: JSON.parse(fn.arguments || '{}').ops || [] }); } catch { calls.push({ callId: tc.id || tc.tool_call_id || null, ops: [] }); }
     }
   }
   return calls;
@@ -59,7 +59,7 @@ function boxVolume(op) {
 function toolResults(runDir) {
   return readJsonLines(path.join(runDir, 'evidence', 'tools.jsonl'))
     .filter((t) => t.type === 'tool_result')
-    .map((t) => ({ at: Date.parse(t.timestamp), tool: (t.data || {}).tool, raw: (t.data || {}).result }));
+    .map((t) => ({ at: Date.parse(t.timestamp), tool: (t.data || {}).tool, raw: (t.data || {}).result, callId: (t.data || {}).tool_call_id || null }));
 }
 
 function sleepConfirmed(raw) {
@@ -75,13 +75,15 @@ function analyze(runDir) {
   const out = { run: path.basename(runDir.replace(/[\\/]+$/, '')) };
   const calls = buildCalls(runDir);
   const results = toolResults(runDir);
-  const buildTimes = results.filter((r) => r.tool === 'build').map((r) => r.at);
+  const buildResults = results.filter((r) => r.tool === 'build');
   const sleepOkTimes = results.filter(r => r.tool === 'sleep' && Number.isFinite(r.at) && sleepConfirmed(r.raw)).map(r => r.at);
 
-  let shelter = false, shelterOps = [], torch = false, shelterAt = null, torchAt = null;
-  calls.forEach((ops, i) => {
-    for (const op of ops) {
-      const t = buildTimes[i] ?? null;
+  let shelter = false, shelterOps = [], torch = false, shelterAt = null, torchAt = null, unmatchedBuildCalls = 0;
+  calls.forEach((call) => {
+    const result = call.callId ? buildResults.find((r) => r.callId === call.callId) : null;
+    if (!result) unmatchedBuildCalls += 1;
+    const t = result && Number.isFinite(result.at) ? result.at : null;
+    for (const op of call.ops) {
       if (/planks$/.test(op.block_id || '') && ['walls', 'box'].includes(op.op) && boxVolume(op) >= 6) {
         shelter = true;
         shelterOps.push(op.op + '@' + [op.x1, op.y1, op.z1].join(','));
@@ -109,6 +111,7 @@ function analyze(runDir) {
   out.nightEntryDelivered = body.includes('夜间露天无掩体');
   out.shelter = shelter;
   out.shelterOps = shelterOps;
+  out.unmatchedBuildCalls = unmatchedBuildCalls;
   out.sleep = sleep;
   out.torch = torch;
   out.avoid = shelter || sleep || torch;
@@ -122,15 +125,15 @@ function selfTest() {
   const os = require('os');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'night-ab-'));
   const iso = (s) => new Date(Date.UTC(2026, 0, 1, 0, 0, s)).toISOString();
-  const mk = (name, { ops, sleepMsg, night, sleepData, sleepSuccess = true }) => {
+  const mk = (name, { ops, sleepMsg, night, sleepData, sleepSuccess = true, resultCallId = 'call_build' }) => {
     const d = path.join(root, name);
     fs.mkdirSync(path.join(d, 'evidence'), { recursive: true });
     const msgs = [{ role: 'user', content: (night ? '<entry ref="exp:failure|夜间露天无掩体">x</entry>' : '') + ' <query>go</query>' }];
-    if (ops.length) msgs.push({ role: 'assistant', tool_calls: [{ function: { name: 'build', arguments: JSON.stringify({ ops }) } }] });
+    if (ops.length) msgs.push({ role: 'assistant', tool_calls: [{ id: 'call_build', function: { name: 'build', arguments: JSON.stringify({ ops }) } }] });
     fs.writeFileSync(path.join(d, 'evidence', 'context.jsonl'),
       JSON.stringify({ type: 'llm_request', timestamp: iso(0), data: { request: { messages: msgs } } }) + '\n');
     const tools = [];
-    if (ops.length) tools.push({ type: 'tool_result', timestamp: iso(30), data: { tool: 'build', result: '{}' } });
+    if (ops.length) tools.push({ type: 'tool_result', timestamp: iso(30), data: { tool: 'build', tool_call_id: resultCallId, result: '{}' } });
     if (sleepMsg) tools.push({ type: 'tool_result', timestamp: iso(90), data: { tool: 'sleep', result: JSON.stringify({ success: sleepSuccess, message: sleepMsg, data: sleepData }) } });
     fs.writeFileSync(path.join(d, 'evidence', 'tools.jsonl'), tools.map((x) => JSON.stringify(x)).join('\n') + '\n');
     fs.writeFileSync(path.join(d, 'evidence', 'events.jsonl'), '');
@@ -142,10 +145,12 @@ function selfTest() {
   const bound = mk('bound', { ops: [], sleepMsg: 'respawn point is now bound to the bed; not sleeping', sleepData: {sleeping:false, bound:true, vanilla_rejection:'TOO_FAR_AWAY'} });
   const delayed = mk('delay', { ops: [], sleepMsg: 'sleeping deferred', sleepSuccess:false });
   const actual = mk('confirmed-data', { ops: [], sleepMsg: 'settled', sleepData: {sleeping:true} });
-  const rows = [shelter, none, sleep, bound, delayed, actual].map(analyze);
-  const [r1,r2,r3,r4,r5,r6] = rows;
+  const mismatch = mk('mismatch', { ops: [{ op: 'walls', block_id: 'minecraft:oak_planks', x1: 1, y1: 64, z1: 1, x2: 3, y2: 65, z2: 3 }], night: true, resultCallId: 'call_other' });
+  const rows = [shelter, none, sleep, bound, delayed, actual, mismatch].map(analyze);
+  const [r1,r2,r3,r4,r5,r6,r7] = rows;
   const ok = r1.shelter && r1.firstAvoidSec === 30 && !r2.avoid && r2.firstAvoidSec === null
-    && r3.sleep && r3.firstAvoidSec === 90 && !r4.sleep && !r5.sleep && r6.sleep && r1.nightEntryDelivered && !r2.nightEntryDelivered;
+    && r3.sleep && r3.firstAvoidSec === 90 && !r4.sleep && !r5.sleep && r6.sleep && r1.nightEntryDelivered && !r2.nightEntryDelivered
+    && r7.shelter && r7.firstAvoidSec === null && r7.unmatchedBuildCalls === 1;
   console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: rows.map((r) => ({ run: r.run, avoid: r.avoid, sleep:r.sleep, firstAvoidSec: r.firstAvoidSec })) }));
   return ok ? 0 : 1;
 }

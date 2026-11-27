@@ -155,7 +155,7 @@ function renderText(view, opts) {
   out.push('registry ' + c.registry + ' 项目录｜core ' + c.core + ' / specialist ' + c.specialist + ' / operator ' + c.operator + ' / legacy ' + c.legacy + (c.archived ? ' / archived ' + c.archived : ''));
   out.push('其余层按需展开：--specialist / --operator / --legacy / --archived / --all（--json 可机读）');
   out.push('');
-  out.push('## core —— 每轮默认只用这 ' + c.core + ' 项');
+  out.push('## 默认发现入口（历史core显示组，不是主人核心标记；按需使用，共 ' + c.core + ' 项）');
   for (const e of view.coreOverlay) {
     out.push('- ' + (e.cmd || e.id) + '   [' + (e.side || 'read') + ']');
     if (e.why) out.push('    ' + e.why);
@@ -168,7 +168,7 @@ function renderText(view, opts) {
   if (p.operator) {
     out.push('');
     out.push('## operator —— ⚠ 显式选择；可能改源码/构建部署/起停实例/改世界（' + c.operator + ' 项）');
-    out.push('  ★ 可发现 ≠ 已授权；in-game live/存档/作弊动作一律先绑 card/runId。');
+    out.push('  按本次授权与实例使用；记录实际动作和运行身份，工具可见不增加权限。');
     for (const line of fmtRisks(view)) out.push(line);
     const noRisk = view.layers.operator.filter((r) => !view.operatorRisk[r.id]).length;
     if (noRisk) out.push('  （其中 ' + noRisk + ' 项没有逐条风险文案，按 registry 的 side 兜底提示）');

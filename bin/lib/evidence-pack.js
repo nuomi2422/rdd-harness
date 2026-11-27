@@ -49,11 +49,13 @@ function redact(v) {
   // Content is opt-in; redact credentials both as keys and embedded in text.
   if (typeof v === 'string') return v
     .replace(/\b(?:sk|sess)-[A-Za-z0-9_-]+/g, '[REDACTED]')
+    .replace(/\bgh[oprsu]_[A-Za-z0-9_]+/g, '[REDACTED]')
+    .replace(/\bxox[baprs]-[A-Za-z0-9-]+/g, '[REDACTED]')
     .replace(/\bBearer\s+[^\s"']+/gi, 'Bearer [REDACTED]')
     .replace(/((?:api[_-]?key|access[_-]?token|password|secret|authorization)["']?\s*[:=]\s*["']?)[^\s,"'}]+/gi, '$1[REDACTED]');
   if (Array.isArray(v)) return v.map(redact);
   if (v && typeof v === 'object') return Object.fromEntries(Object.entries(v).map(([k, x]) =>
-    [k, /^(?:api[_-]?key|access[_-]?token|password|secret|authorization|cookie)$/i.test(k) ? '[REDACTED]' : redact(x)]));
+    [k, /^(?:api[_-]?key|access[_-]?token|token|password|secret|authorization|cookie|credentials?)$/i.test(k) ? '[REDACTED]' : redact(x)]));
   return v;
 }
 function publicRow(r, content) {
@@ -427,4 +429,4 @@ function render(r) {
   if (r.relation) out.push(r.relation);
   return out.join('\n');
 }
-module.exports = { build, fromDir, cli, render };
+module.exports = { build, fromDir, cli, render, redact, claims };

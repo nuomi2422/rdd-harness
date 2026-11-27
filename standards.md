@@ -1,18 +1,8 @@
-# 编程规范 · 唯一真源（机器可读）
+# 编程规范
 
-> **这份是唯一真源。** 人读的完整版在 `D:\rdd\docs\rdd-docs\rdd架构\自编译统一版\01-工程规范.md`，
-> 它是本文件的**镜像**，每条对应小节的标题里带本文的 `id`。
-> ★ **改规范只改一处**：改本文 → 把同 id 小节的标题同步进镜像；或改镜像 → 同步回本文。
-> ⚠️ **两侧对账目前是人工的，门禁还没机检**（2026-10-21 核实：`harness-gate.js` 里没有
-> `Q-CODE-SPEC` 这个检查；而且镜像 `01-工程规范.md` 里**一个 `S-*` id 都没有** ——
-> 本文 45 个、镜像 0 个，所以「标题里带同 id」这件事从来没有真的成立过。见 `杂项记录 #094`）。
-> 要给机检留路：**镜像里每条规则的标题补上同 id**，届时再加 `Q-CODE-SPEC` 做双向对账；
-> 在那之前，改规范仍然必须**人手把两处都改**。
+> 本文维护现行工程约束；旧自编译统一版的工程规范只作历史参考，不再要求双向手工同步。
+> 写代码按需读[写码指针](<D:/rdd/docs/rdd-docs/知识库/架构意图/039-写代码规范指针.md>)。现行门禁仅为安装/包件与本次记录质量；写码和提交无需另跑流程。
 
-**改码前先跑** `node bin/code-gate.js`（薄门禁：8 条硬规则 + 规范/台账实物检查）。
-
-**为什么要两份**：镜像那份是给人读的、篇幅大、有踩坑实录；本文是给机器读的、每条一个稳定 id、
-能被门禁逐条引用。没有 id 的规范条目无法进门禁 —— 门禁只能引用有 id 的东西。
 
 **编号规则**：`S-<域>-<序号>`。域 = 域缩写。**id 一旦分配永不重排、永不复用** ——
 门禁和历史文档会引用它，改号等于让引用全失效。
@@ -33,12 +23,8 @@
 
 ## S-BUILD · 编译链
 
-### S-BUILD-01 编译只有一条通道
-改代码 → 编译 → 部署，只能走 `run-mutation.ps1 -Requirement "<需求>" -Module <模块>`。
-**禁止手写 gradle、禁止手动拷 jar** —— opencode.json 的 permission 已 deny，绕不过去。
-全仓唯一的 gradle 调用点是 `build-jar.ps1`；默认打包 task 仍为 `":$($effectiveModule):jar"`（`:` 和 `-` 会被 PowerShell 当变量名/scope 吃掉）。
-
-**2026-11-10 有界测试模式**：`run-mutation.ps1 -Module plugins:rdd -TestOnly -SettleRegression`（或 `-Tests <精确白名单类名>`） 仅透传到该唯一调用点运行测试，结果 XML 必须在本 mutation 独立目录新生成且测试数>0、失败/错误=0；测试后直接退出，不部署或启动。原因：此前 jar 构建不运行测试，旧 XML 容易冒充新回归；案例：044 未展开最终目标修复的测试源码比旧 class 新，build-only 回执不能证明测试通过。白名单按模块绑定精确类名（现含 `plugins:rdd`、`api:common`），其他模块或测试名须先按同样约束扩展；回退时撤销该模式但保留默认 jar 行为。
+### S-BUILD-01 复用当前构建与部署入口
+本地位置、脚本参数和回执见[工作区规范](<D:/rdd/workspace/_格式规范.md#构建测试与部署>)。按当前模式做构建、隔离测试或安装，不因纯离线测试启动游戏。实际权限以宿主和工具返回为准，旧opencode配置不能决定DSH权限。
 
 ### S-BUILD-02 改执行层必须显式指定模块
 改 `core/common` 的类必须 `-Module core:neoforge`，默认模块盖不到。
@@ -51,17 +37,8 @@
 `BUILD SUCCESSFUL` 和 `DEPLOY_OK` 都只是回执。判据是**实物**：
 用 ZipFile 列 jar entries，确认这轮要的 class / 资源真的在里面（见 S-BUILD-05）。
 
-### S-BUILD-05 编译成功 ≠ 运行时生效
-源码改了但 jar 没重新部署，游戏里跑的还是旧版 —— 中间隔着 **编译 → 部署 → 重启** 三步。
-判据有工具，别靠记性：
-
-```powershell
-node rdd-selfcompile\scripts\verify-tools\check-runtime-deployment.js   # 退出码 2 = 有源码领先于 jar
-```
-
-> 它比的是「**最后一次改 `src/main/java` 的提交**」vs jar 的 `LastWriteTime`，
-> **不是**「最后一次提交」—— 只改 `*Test.java` 时 jar 本来就不用重部署。
-> 这个区分不做会满屏假警报。
+### S-BUILD-05 安装、加载与效果分别核对
+构建成功不证明目标实例已安装；安装哈希不证明已重启加载；效果看运行原证。核验见[两项检查](<D:/rdd/docs/rdd-docs/知识库/架构意图/006-Harness模块.md#安全边界与四线>)。
 
 ### S-BUILD-06 搬走 mixin 必须同时重建宿主 jar
 把一个 mixin 类从 A 模块搬到 B 模块，要同时做四件事：
@@ -94,9 +71,6 @@ node rdd-selfcompile\scripts\verify-tools\check-runtime-deployment.js   # 退出
 `grep` 一次就能确认。生产代码里 0 处引用的东西**要么接线，要么加停用注释说明它关着** ——
 不许让它看起来像在跑。
 
-### S-CODE-05 一个类一个职责，文件别超 500 行
-超过就该拆。判据是「能不能一句话说清这文件干嘛」。
-
 ### S-CODE-06 每轮/每请求都读的缓存必须懒建，或显式报「没准备好」
 `get(uuid)` 返回 null **不代表「没有数据」**，很多时候是「还没人初始化」——在每轮读路径上，
 它会静默地永远为 null，功能看起来像「过滤器没生效」，实际是「压根没喂到」。
@@ -106,7 +80,7 @@ node rdd-selfcompile\scripts\verify-tools\check-runtime-deployment.js   # 退出
 
 ### S-CODE-07 修 bug 前先查修复台账，补丁不许叠
 改一处之前先搜 `知识库\Bug修复\`：这处修过吗、复现几次、回归判据是什么。
-同一处第二次出问题，先退到第一个坏补丁，再修第一断点；不许在旧补丁上再糊一层。
+复发先查原补丁与当前消费者，定位断点后决定修正或回退，不无条件撤销有效修改。
 每修一个必须落一条：**修复时间 / 复现次数 / 怎么修改的 / 回归判据** —— 没回归判据的补丁不许合。
 > 为什么（2026-11-04 主人定）：169 的 food 线同一处连补 3 个 commit，第四次必然叠层；
 > 台账就是防止"以为修好了，其实盖住了"。入口：`知识库\Bug修复\README.md`。
@@ -120,7 +94,7 @@ node rdd-selfcompile\scripts\verify-tools\check-runtime-deployment.js   # 退出
 
 ```powershell
 git add <路径1> <路径2> …
-git status --short    # 逐行确认，每一行都是你改的
+git diff --cached     # 核对实际暂存差异归属，不混入他人的修改
 ```
 
 ### S-GIT-02 `rdd-docs` 尤其危险
@@ -132,31 +106,25 @@ git status --short    # 逐行确认，每一行都是你改的
 ```powershell
 git commit -F msg.txt
 ```
-含空格/中文的 message 内联传给 shell 会被拆坏。写文件用 UTF-8，`-F` 不会转码。
+复杂或多行消息用UTF-8文件和-F避免转义错误；简单消息按当前Shell正确引用即可。
 
 ### S-GIT-04 改了路径必须全仓 grep
 散落的硬编码路径收进配置后，改完要全仓搜，不要凭印象只搜一个目录。
 > 2026-10-01 知识库搬家，13 处散落硬编码全失配；第一次只搜了 `stager/` 就以为改完了，
 > 漏了 `rdd-selfcompile\scripts` 的 5 处（其中 loop-gate 是硬门禁）。
 
-### S-GIT-05 跨仓库对账看 repo-status
-本工作区有 6 个 git 仓库。外层 `.gitignore` 排掉了内层 →
-**外层 git 完全看不见内层改动**，stager / loop-gate 的「本轮有 commit」判据对 `minecraft-numen` 是盲的。
+### S-GIT-05 子仓单独核对
+在实际修改所在仓查状态和暂存差异；外层Git不会列出被忽略的子仓修改。不固定仓数，也不要求每次访问都扫描全部项目。
 
-```powershell
-node stager\bin\repo-status.js
-```
-
-### S-GIT-06 不要改 AGENTS.md 里收集到的坑
-AGENTS.md 只放**指针和流程**，坑和经验落在规范文档 / 阶段索引 / 记忆图谱里。
+### S-GIT-06 入口与正文分工
+主人维护总入口宪法；项目入口只放目的和指针。工程经验回已有主题，不复制进多份入口。
 
 ---
 
 ## S-SHELL · shell / 脚本 / 编码
 
-### S-SHELL-01 所有 shell 后台跑
-不前台阻塞等待。长驻进程走脱离启动 + 轮询。**加长 timeout 不是解法。**
-诊断要复现时：wrapper `.ps1` 写日志 → `Start-Process powershell.exe -NoProfile -ExecutionPolicy Bypass -File <wrapper> -WindowStyle Minimized` → `Start-Sleep` → 读日志。
+### S-SHELL-01 长任务用作业
+长任务用宿主后台作业，结束收取结果。短查询正常执行；手动启动后台辅助服务使用隐藏窗口。
 
 ### S-SHELL-02 ★ 工具报错 ≠ 命令没执行
 `Start-Process` 在某些 shell 里会报 `ChildProcess.kill` / `NativeCommandError`，
@@ -171,11 +139,11 @@ PS 5.1 按 ANSI 读无 BOM 的 UTF-8，中文乱码 + 一串语法错。
 控制台输出中文是 GBK 乱码 **不代表文件坏了** —— 读文件用 read 工具。
 
 ### S-SHELL-04 `node -e` 内联会被引号拆坏
-一律写 `.js`/`.ps1` 文件再跑。大段参数走 `@file`。
+复杂引号或大段参数用临时脚本/参数文件，简单命令按当前Shell正确转义即可。
 > PS `:` 插值坑：`":$mod:jar"` 整串变成 `:`，gradle 报找不到 task。用 `":$($mod):jar"`。
 
 ### S-SHELL-05 只读 vs 会改盘，调用前必须知道
-- **纯只读**：所有 `verify-tools\*`、三个 gate、`repo-status.js`、所有 `eval-*`
+- **按实际副作用判断**：查询工具也可能写审计；eval脚本可执行任意动作，不按文件名前缀认定只读。
 - **会改游戏状态**：`drop-all.js`、`mc-focus.ps1`（发按键）
 - **会改 mods**：`deploy.ps1`、`selfcompile-store.js rollback --deploy`、`rollback-module.ps1`
 - **默认 dry-run**：`cleanup-logs.ps1`（要 `-Apply`）、`presence-watchdog.ps1`（`-DryRun`）
@@ -191,8 +159,8 @@ PS 5.1 按 ANSI 读无 BOM 的 UTF-8，中文乱码 + 一串语法错。
 ### S-TEST-01 改了执行层必须有测试
 判据不是「跑得起来」，是 `failures=0 errors=0`。
 
-### S-TEST-02 契约/压力回归要存在且真跑过
-文件名含 `stress` / `contract` / `契约` / `压力`，且 `test-results` 里有对应的 `TEST-*.xml`。
+### S-TEST-02 验实际契约
+用本次真实执行结果区分改前改后、覆盖相关失败条件，不以文件名含stress/contract或旧XML证明覆盖。
 
 ### S-TEST-03 ★ 单测绿 ≠ 部署到位
 2026-10-01 实测 RL-19 落后 **56 小时**：源码对了、测试绿了、文档写「已改」，游戏里跑的还是旧版。
@@ -207,26 +175,14 @@ PS 5.1 按 ANSI 读无 BOM 的 UTF-8，中文乱码 + 一串语法错。
 
 ## S-DOC · 文档与编号
 
-### S-DOC-01 三条铁律：东西写哪
-1. **长期资产**（新规范/新清单/新运维手册）→ `docsUnified\NN-中文名.md`
-2. **本轮过程文档** → `stager put --kind <kind>`，落进 `stager\.stager\tasks\<任务>\docs\`
-3. **状态报告** → 本轮自己的 `docs\` 目录，不进 `docsUnified`、不进任何 `read[]`
+### S-DOC-01 文档落点
+先查同主题现行正文；记录进入知识库相应主题，已有记录原位补充。格式、元数据与索引只见[写作规则](<D:/rdd/docs/rdd-docs/知识库/写作规则.md>)。不写stager过程文档，不回旧统一版另建平行正文。
 
-★ **harness 目录只放工具注册表 / 门禁 / 规则 / skill，不放任何总结、复盘、报告。**
+### S-DOC-02 编号与登记
+沿知识库所在目录编号，不再要求旧README/09/50三处登记。
 
-判据一句话：**下一个人接手时，第一眼该看哪份？** 长期资产进统一版，一次性产物进 stager。
-
-### S-DOC-02 文档编号：接最大号往后排，并登记三处
-新建 `NN-中文名.md` 必须同时登记：
-① `README.md` §二目录表 ② `09-更新日志.md` ③ `50-按主题导航.md`。
-细则见 `08-登记规约.md`。
-
-> ★ **编号正则的盲区**：`^\d{2}-` 匹配不上**有数字但缺连字符**的文件名
-> （活案例：`55自主寻找bug和修改的特殊执行.md` 完全逃过检查）。
-> 新建文件**必须带连字符**。
-
-### S-DOC-03 已知旧撞号降级 WARN，新撞号 BLOCK
-否则一次旧债会把门禁永久钉死 —— **门禁一旦被长期忽略就等于没有**。
+### S-DOC-03 避免重复
+已有同一事实就更新原件；缺原证标未知，不为门禁增加文件。
 
 ### S-DOC-04 文档里的行号会漂
 想知道准不准，跑：
@@ -235,7 +191,7 @@ node rdd-selfcompile\scripts\verify-tools\check-doc-anchor-drift.js --docs "<doc
 ```
 
 ### S-DOC-05 规范条目必须有稳定 id
-见本文件开头。没有 id 的条目无法进门禁。
+已有ID保持可追溯；普通经验无需为了进入门禁另造编号。
 
 ---
 
@@ -252,80 +208,14 @@ node rdd-selfcompile\scripts\verify-tools\check-doc-anchor-drift.js --docs "<doc
 
 ---
 
-## S-MC · 进游戏 / 运行时
+## S-MC · 游戏操作
 
-### S-MC-01 起游戏的唯一入口
-```powershell
-node rdd-selfcompile\scripts\mc-start.js gpt 120
-```
-`--stop` 是**哑弹**（见 registry.bugs bug-1）。真要关用 `mc.stop`。
+派目标、游戏命令、相机与实例启停统一见[游戏核心工具](<D:/rdd/docs/rdd-docs/知识库/进游戏验证/001-进游戏核心工具.md>)。旧SendKeys配方、单一mc-start入口和OpenClaw必需说法不再作现行指令。
 
-### S-MC-02 OpenClaw 8080 必须先于游戏起
-否则 mod 连不上。仓库虽打了 `archived-2026-10-01` tag，但 `mc-watch.js` 还依赖它，**不能删**。
+## S-GATE · 部署与记录质量
 
-### S-MC-03 MCP：companion 是独立位置参数
-```powershell
-node rdd-selfcompile\scripts\mcp-call.js get_self_status DDD
-```
-塞进 JSON（`{"companion":"DDD"}`）会报 `needs a 'companion' argument`。
-★ 只有 `numen-mcp.js status <name>` 直接返回 JSON；`call` 返回人类可读文本。
+只保留进场安装/包件核验与退场本次记录质量，具体调用及边界见[Harness正文](<D:/rdd/docs/rdd-docs/知识库/架构意图/006-Harness模块.md#安全边界与四线>)。原S-GATE-01至05流程条款被该决定取代；旧ID只用于历史检索。成功回执仍不等于世界行为有效，结论需原证。
 
-### S-MC-04 看画面优先用 PrintWindow 那条
-`mc-screenshot.ps1` 走 `CopyFromScreen`，**会把遮挡窗口拍进来**。
-要干净画面用 `capture-win.ps1 -TitleMatch Minecraft`。窗口标题会变，只能按前缀匹配。
+### S-OBS-01 世界事实共源
 
-### S-MC-05 视角陷阱：玩家和同伴常常离得很远
-截图前先确认两者距离（`get_self_status`），50 格外就是拍了个空地。
-
-### S-MC-06 在游戏里敲指令走「焦点 + 剪贴板 + 真实按键」
-openclaw 驱不动聊天框（`InputHandler` 只认 7 个键）。
-配方：`Focus-MinecraftWindow` → `Set-Clipboard` → `SendKeys('t')` `^a` `^v` `{ENTER}`。
-
----
-
-## S-GATE · 门禁与收口
-
-### S-GATE-01 两段门禁：进游戏前 / 出游戏后
-```powershell
-node D:\rdd\harness\rdd-harness\bin\harness-gate.js preflight  --since <YYYY-MM-DD>
-node D:\rdd\harness\rdd-harness\bin\harness-gate.js postflight --since <YYYY-MM-DD>
-```
-- **preflight** = 编译通道 / 部署到位 / 无重复 mixin / 测试 / 规范已补 / 编号不撞 / 时间锁
-- **postflight** = 有标记 / evidence / 总结 / ★ 总结位置对 / 记忆图谱 / 三个机器门 / 产物真落地 / 时间锁已更新
-
-### S-GATE-02 ★ 回执 success 不等于东西存在
-mp4 存在但只编出 1 帧；jar 部署回执 OK 但 class 不在里面；`keyDown` 回执 success 但什么也没发生。
-**验收必须查产物的内容，不是查回执。**
-
-### S-GATE-03 三个机器门
-```powershell
-node rdd-selfcompile\scripts\loop-gate.js --since <今天> --keyword <模块> --head <HEAD>
-node rdd-selfcompile\scripts\flow-gate.js --since <今天> --active <开工时的 store active>
-node stager\bin\stager.js check
-```
-`flow-gate` 输出 `VERDICT=NOT_DONE` → **不许收工、不许上报完成**。
-★ 但**没走 stage 时这两个 gate 的 NOT_DONE 是预期内的** —— 要在 evidence 里显式说明，
-不能拿它判定任务没做完。
-
-### S-GATE-04 时间锁到期必须复核
-`registry.timeLocks` 里 `status=open` 且 `reviewBy < 今天` → preflight P9 直接 BLOCK。
-复核动作：验证 guard 仍有效；失效就重写 guard 并写新 reviewBy；问题彻底消失才允许 `status=done`。
-
-### S-GATE-05 智能性错误必须留一条时间锁
-**「智能性错误」= 看起来做了 / 回执成功 / 静默通过，但实际没生效。**
-每条锁必须有 `guard`（现在靠什么防线挡住）—— 没有 guard 的锁不是锁，只是抱怨。
-
-
-### S-OBS-01 环境读取走统一观测读口（2026-11-05）
-
-任何"读世界"的新代码（时间/天气/身边方块/容器/背包/实体）**不许**自己扫 level 另起一套缓存；
-先查统一观测读口 `WorldObservationService`（用 `NumenApi.capability(...)` 取），规则：
-
-- **只读缓存**：`read` 不扫世界；要新数据显式 `refresh`，且只能在自己的 tick 里调（10 秒级限频）；
-- **四类状态**：没观测=`PENDING`、覆盖不全/过期最多 `PARTIAL`，只有"完整覆盖 + 当前"才是 `OK`；
-- **缺字段不填 0/false**；`PARTIAL` 不能证明"不存在"；
-- **读不到 ≠ 空**：容器读不到必须报错，不许落一条空快照；判定要给三态
-  `MATCHED / NOT_MATCHED / NOT_VERIFIABLE`，**NOT_VERIFIABLE 绝不能被当成满足**。
-
-设计正文与迁移表：`docs/rdd-docs/知识库/施工文档/039-统一世界观测请求接口与增量迁移设计.md`。
-违规案例：RddEnvBlock 曾把静态攻略当环境事实；RddContainerMemory 曾用旧快照盖住箱内真值（2026-11-05 实机抓到）。
+所有权、身份、覆盖与时效只见[WorldState正文](<D:/rdd/docs/rdd-docs/知识库/架构意图/008-WorldState模块.md>)。先查现有provider；未支持的路径明确登记临时旁路。未知不填0、不拿历史快照冒当前事实，不把统一设计写成全部接通。

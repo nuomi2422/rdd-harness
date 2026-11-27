@@ -58,6 +58,21 @@ function clip(s, n) {
   s = String(s == null ? '' : s).replace(/\s+/g, ' ').trim();
   return s.length > n ? s.slice(0, n) + '…' : s;
 }
+
+function asText(value) {
+  if (typeof value === 'string') return value;
+  if (value == null) return '';
+  try { return JSON.stringify(value, null, 2); } catch { return String(value); }
+}
+
+function planningInputText(data) {
+  const parts = [];
+  if (data.stage != null) parts.push('[stage] ' + asText(data.stage));
+  if (data.system != null) parts.push('[system]\n' + asText(data.system));
+  if (data.user != null) parts.push('[user]\n' + asText(data.user));
+  if (data.tool != null) parts.push('[tool]\n' + asText(data.tool));
+  return parts.length ? parts.join('\n\n') : asText(data.text ?? data.prompt ?? data.input ?? data);
+}
 function num(v, dflt) { return typeof v === 'number' && isFinite(v) ? v : (dflt === undefined ? null : dflt); }
 
 /** 原子写：先写 .tmp 再 rename，读的人永远看不到半份。 */
@@ -182,11 +197,11 @@ function normalize(file, ev) {
       if (chain && chain.satisfiedStages != null && !Array.isArray(chain.satisfiedStages)) throw new Error('invalid taskChain satisfiedStages');
       return { kind: 'chain', rec: { t, type, chain, reason: d.reason, companion: d.companionId } };
     }
-    if (type === 'numen_context') return { kind: 'ctx', rec: { t, type, who: 'numen', text: d.context || d.text || '', companion: d.companionId } };
-    if (type === 'supervisor_output') return { kind: 'ctx', rec: { t, type, who: 'supervisor', text: d.message || d.text || '', companion: d.companionId } };
-    if (type === 'supervisor_input' || type === 'supervisor_context') return { kind: 'ctx', rec: { t, type, who: 'supervisor', text: d.text || d.context || '', companion: d.companionId } };
-    if (type === 'planning_input_verbatim') return { kind: 'ctx', rec: { t, type, who: 'planner', text: d.text || d.prompt || '', companion: d.companionId } };
-    if (type === 'runtime_state') return { kind: 'ctx', rec: { t, type, who: 'runtime', text: d.context || d.text || '', companion: d.companionId } };
+    if (type === 'numen_context') return { kind: 'ctx', rec: { t, type, who: 'numen', text: asText(d.context ?? d.text), companion: d.companionId } };
+    if (type === 'supervisor_output') return { kind: 'ctx', rec: { t, type, who: 'supervisor', text: asText(d.message ?? d.text), companion: d.companionId } };
+    if (type === 'supervisor_input' || type === 'supervisor_context') return { kind: 'ctx', rec: { t, type, who: 'supervisor', text: asText(d.text ?? d.context ?? d.input), companion: d.companionId } };
+    if (type === 'planning_input_verbatim') return { kind: 'ctx', rec: { t, type, who: 'planner', text: planningInputText(d), companion: d.companionId } };
+    if (type === 'runtime_state') return { kind: 'ctx', rec: { t, type, who: 'runtime', text: asText(d.context ?? d.text), companion: d.companionId } };
     if (type === 'requirement_manifest') {
       if (d.rows != null && (!Array.isArray(d.rows) || d.rows.some(r => !r || typeof r !== 'object' || Array.isArray(r)))) throw new Error('invalid requirement_manifest rows');
       return { kind: 'chain', rec: { t, type, manifest: d, companion: d.companionId } };
@@ -549,7 +564,10 @@ function renderContext(state, meta) {
     L.push('');
   };
   block('注入给执行 AI 的上下文（numen_context 的 <rdd> 块）', state.last.numen, 3000);
-  block('规划 AI 的输入（supervisor_input / planning_input_verbatim）', state.last.supervisorIn || state.last.planIn, 3000);
+  const planningInput = !state.last.supervisorIn ? state.last.planIn
+    : !state.last.planIn ? state.last.supervisorIn
+    : state.last.planIn.t >= state.last.supervisorIn.t ? state.last.planIn : state.last.supervisorIn;
+  block('规划 AI 的输入（' + (planningInput?.type || '未观测') + '）', planningInput, 3000);
   block('规划 AI 的输出（supervisor_output）', state.last.supervisorOut, 2000);
   block('执行 AI 的 runtime_state（背包/自身，注入正文）', state.last.runtime, 2500);
   L.push('## 检索面（retrieval_snapshot）');

@@ -1,12 +1,12 @@
 {
   "schema": 1,
-  "updated": "2026-11-16",
-  "purpose": "外部编码 AI 的 Harness 工具分层（发现性与工作流约束，不是授权凭据）。由 bin/bench.js layers 从 registry.json 生成视图；未在本文件出现的 registry 项默认 legacy_or_unverified。",
+  "updated": "2026-11-27",
+  "purpose": "registry工具的按需发现视图；core列是历史显示组，不授予核心身份或权限。用户核心标记只见知识库001正文。",
   "core": [
     {
       "id": "bench",
       "cmd": "node bin/bench.js brief",
-      "why": "每轮开工第一入口：当前目标/边界、open 坑、前次结论、live 新鲜度、core 入口、进游戏前置条件",
+      "why": "本次需要时查目标、原证、已有坑和视图覆盖，不是每轮必跑。",
       "side": "read"
     },
     {
@@ -18,13 +18,13 @@
     {
       "id": "gate.repoStatus",
       "cmd": "node stager/bin/repo-status.js",
-      "why": "6 个套娃仓库 HEAD/脏项/推没推；改码前对账，外层 git 看不见内层改动",
+      "why": "需要跨仓整合时查看所在仓状态，不作写码前置。",
       "side": "read"
     },
     {
       "id": "gate.harness",
-      "cmd": "node bin/harness-gate.js preflight|postflight --role <commander|worker|learner|thinker|scout|executor> --since <YYYY-MM-DD> --keyword <模块>",
-      "why": "只在进/退游戏时用；preflight BLOCK=0 才准进，postflight 退游戏回填",
+      "cmd": "node bin/harness-gate.js preflight | postflight --record <file> [--section <heading>]",
+      "why": "仅核目标实例安装/包件与本次记录质量，无角色、提交、闹钟前置。",
       "side": "read"
     },
     {
@@ -36,6 +36,7 @@
   ],
   "specialist": [
     "guide.toolIndex",
+    "verify.learnerEvidence",
     "game.capabilityList",
     "exp.worldview",
     "observer.loop",
@@ -47,20 +48,15 @@
     "harness.census",
     "harness.decideInbox",
     "harness.auditTag",
-    "gate.code",
     "gate.runtime",
-    "gate.flow",
-    "gate.docFresh",
     "gate.docAnchor",
     "gate.replay",
     "gate.econ",
     "gate.jarLang",
-    "gate.report",
     "eval.plan",
     "eval.survival",
     "metrics.weekly",
     "vis.aiTalk",
-    "vis.watch",
     "vis.evidence",
     "vis.sample",
     "vis.verify",
@@ -68,8 +64,7 @@
     "watch.presence",
     "watch.redline",
     "watch.regression",
-    "planner.entry",
-    "goal.cli"
+    "planner.entry"
   ],
   "operator": [
     "compile.entry",
@@ -100,8 +95,6 @@
     "vis.captureWin",
     "vis.dropall",
     "vis.focus",
-    "watch.selfdrive",
-    "watch.heartbeat",
     "exp.runner",
     "harness.snapshotWorld",
     "region.tables",
@@ -123,7 +116,6 @@
     "oc.drive": "键鼠/镜头驱动游戏窗口，会改世界",
     "vis.dropall": "丢背包，直接改玩家状态",
     "vis.captureWin": "抓窗口/抢焦点（会打断用户操作）",
-    "watch.selfdrive": "自驱动循环，会持续操作游戏",
     "exp.runner": "起实验实例+受控复位；世界名必须 exp-*，绝不碰 live",
     "harness.snapshotWorld": "写/删存档快照与回滚；默认 TTL 48h，用完自己 prune",
     "region.tables": "离线改存档 region 方块，不可逆",

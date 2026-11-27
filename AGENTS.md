@@ -16,7 +16,7 @@
 ## 命令分工（2026-11-21 主人明确）
 
 - `/align`：核心意图对齐命令。先查、提问、确认目的与范围；写完可选择补充或施工。**不是压缩指针菜单。**
-- `/team-execute`：核心工程开工命令，由指定指挥官按获授权施工单组织施工。**不是压缩指针菜单。**
+- `/team-execute`：核心工程开工命令。直接说要做哪些事或哪几份施工文档，指挥官自己找现有正文并报计划；交接时只建一条 20 分钟职责校准闹钟，不建指挥官持久目标。确认时只发 `/team-execute 开工`。**不是压缩指针菜单。**
 - `/actions`：非核心指针菜单。按编号或短名读取相应指针后执行；新增、删除菜单项另走 `add/remove`。**压缩指针入口固定放这里。**
 - 菜单内 `compress`：压缩指针。按项目和现场选择 `write / verify / record / collaborate` 及少量必要子文件，避免整库注入；本菜单项不负责开工或上传。
 - 菜单内 `docs`：整理文档，先读项目写作与归档规则。
@@ -31,4 +31,4 @@
 
 ## 项目地图
 
-本项目在架构 MCP 的项目 ID 是 `rdd-harness`；RDD 主项目是 `rdd`，其他项目各有自己的 AGENTS.md 与地图。架构正文和维护原因见[Harness 架构](D:/rdd/docs/rdd-docs/知识库/架构意图/006-Harness模块.md)。公开介绍见[OSS README](<OSS-README.md>)，上传纪律见[rdd-upload](<skills/rdd-upload/SKILL.md>)。
+本项目在架构 MCP 的项目 ID 是 `rdd-harness`；RDD 主项目是 `rdd`，其他项目各有自己的 AGENTS.md 与地图。RDD 主项目的入口是 [RDD 项目入口](<D:/rdd/workspace/AGENTS.md>)（2026-11-22 拉进来：讲 RDD 做什么、当前施工到哪，先看那份，别在本仓里另找一份正文）。架构正文和维护原因见[Harness 架构](D:/rdd/docs/rdd-docs/知识库/架构意图/006-Harness模块.md)。公开介绍见[OSS README](<OSS-README.md>)，上传纪律见[rdd-upload](<skills/rdd-upload/SKILL.md>)。

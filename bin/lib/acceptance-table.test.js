@@ -17,7 +17,7 @@ test('全部达标 → MATCH', (t) => {
   fs.mkdirSync(path.join(dir, 'skill-bodies'));
   fs.writeFileSync(path.join(dir, 'skill-bodies', 'a.md'), 'b');
   const res = AT.build(card(), {
-    events: ev([{ type: 'knowledge_gap', data: { reason: 'body-missing' } }, { type: 'side_context', data: { status: 'UNKNOWN' } },
+    events: ev([{ type: 'knowledge_gap', data: { reason: 'body-missing' } }, { type: 'side_context', world_id: 'w', server_session: 's', companion_id: 'c', data: { status: 'UNKNOWN' } },
       { type: 'runtime_state', data: { context: '<entry ref="skill:s1">' } }]),
     rdd: '',
   }, { configDir: dir });
@@ -41,6 +41,18 @@ test('SIDE_CONTEXT 声称身份已验证 → MISMATCH', () => {
     rdd: '',
   });
   assert.equal(res.rows.find((r) => r.id === 'R4').verdict, 'MISMATCH');
+});
+
+test('SIDE_CONTEXT 缺身份锚点或显式 UNKNOWN → UNKNOWN，不能算身份正确', () => {
+  const missing = AT.build(card(), { events: ev([{ type: 'side_context', data: {} }]), rdd: '' });
+  assert.equal(missing.rows.find((r) => r.id === 'R4').verdict, 'UNKNOWN');
+  const noAnchor = AT.build(card(), { events: ev([{ type: 'side_context', data: { status: 'UNKNOWN' } }]), rdd: '' });
+  assert.equal(noAnchor.rows.find((r) => r.id === 'R4').verdict, 'UNKNOWN');
+});
+
+test('SIDE_CONTEXT 有身份锚点且显式 UNKNOWN → MATCH', () => {
+  const res = AT.build(card(), { events: ev([{ type: 'side_context', world_id: 'w', server_session: 's', companion_id: 'c', data: { status: 'UNKNOWN' } }]), rdd: '' });
+  assert.equal(res.rows.find((r) => r.id === 'R4').verdict, 'MATCH');
 });
 
 test('knowledge_gap 形状不全 → MISMATCH', () => {

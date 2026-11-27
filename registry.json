@@ -1,8 +1,8 @@
 {
   "$schema": "rdd-harness/registry@1",
-  "$comment": "★ 单一真源。工具 / 编程规范 / 门禁项 / 时间锁 / 文档编号 全在这里。改这个文件就改了 harness，不用动代码。harness-gate.js 只读它。 ★ 2026-11-06：stage 四阶段流水线废弃登记（工具 3 条 / routing 2 条 / 门禁文案 6 处）。 ★ 2026-11-07 主人裁定：opencode 相关配置/路径/插件名均为【历史名】，外部写代码的 AI 现全部走 DSH（架构导航已接 mcp__rdd_architecture__*）；registry 里保留 c.codex / router.model / goal.drive / opencode-plugin 等条目是因它们仍是 DSH 内的活工具，不改 id、不删工具，bugs 里的 opencode 事故记录留证不改写。",
+  "$comment": "RDD 工程工具目录。核心标记仅由主人在知识库核心工具正文维护；本目录登记不等于DSH连接已暴露或工具已验证有用。2026-11-21撤下已退役或默认入口失效条目，原注册及理由在同次备份，脚本与历史原证保留。",
   "version": 2,
-  "updated": "2026-11-16",
+  "updated": "2026-11-27",
   "paths": {
     "$comment": "★ 2026-10-19 起：所有根路径都相对 RDD 根，RDD 根相对本文件（rootAnchor）。换机器/换目录只改 rootAnchor，或用环境变量 RDD_ROOT 覆盖；绝对路径仍兼容但会被 selftest 标为 WARN。加载一律走 bin/lib/registry.js，不要自己拼 D:\\rdd。",
     "rootAnchor": "../..",
@@ -29,8 +29,7 @@
       "2026-11-13：stage、check-align/check-global不再参与启动门禁；历史档案和面板历史查看仍保留。原因：11-06流程退役后旧全文校验仍误拦启动。",
       "状态报告与本轮记录 → 知识库对应主题或杂项记录，按写作规则登记，不新造第二个当前状态目录。",
       "★ harness\\ 目录只放【工具注册表 / 门禁 / 规则 / skill】，不放任何总结、复盘、报告。",
-      "工具选择的速查 → harness\\工具分类索引-20261005.md（回答「我要干 X 用哪条」）；机器真源仍是 registry.json。改 tools 必须同步改它。",
-      "★ 进游戏唯一入口 → 知识库\\进游戏验证\\001-进游戏核心工具.md（核心工具只由主人标记，标记带时间；P13 直接打印 4 个核心）。",
+      "工具按用途从知识库四个任务指针进入；工具分类索引只保留现行入口链接，细节回注册表，不复制整表。",
       "★ 退出游戏唯一入口 → 知识库\\退游戏\\001-退游戏检查单.md（先写四行事实，再把数据记进知识库对应文件夹；不写旧 rdd架构 路径）。"
     ]
   },
@@ -57,33 +56,27 @@
       "note": "2026-11-06：知识库034说明/035导航图谱；文档改变即待复核。只读，不等于游戏现状探测，不自动替每个AI接入；原经验库不变。"
     },
     {
+      "id": "verify.learnerEvidence",
+      "name": "统一验证证据板：时间线、媒体、状态、工具、上下文与任务链",
+      "path": "tools/rdd-learner-evidence/server.mjs",
+      "side": "read",
+      "needsGame": false,
+      "usage": "MCP serverName=rdd_learner_evidence；learner_case action=list/case/compare/request。case 默认紧凑摘要，response_mode=full 展开原行。",
+      "note": "2026-11-27登记为 specialist，不自升核心。0.3.3：严格 evidence_types、taskChain.windowStatus/源 PARTIAL、紧凑默认、规划上下文渲染、最小脱敏 usage.jsonl；状态历史独立采样与主副手分流。只读游戏/知识库；调用会追加最小使用账，不等于行为通过。宿主刷新与真实效果另验。"
+    },
+    {
       "id": "ctx.usage",
       "name": "换窗插件使用诊断：查换窗/写笔记/回查旧窗口到底调了多少次",
-      "path": "bin/ctx-usage.js",
+      "path": "harness/rdd-harness/bin/ctx-usage.js",
       "side": "read",
       "needsGame": false,
       "usage": "node bin/ctx-usage.js [--session <id前缀>] [--json]",
       "note": "2026-11-07 建。为什么：PTC 模式下所有工具调用被 run_code 包住，会话日志只显示 run_code，真实工具名藏在 tool/ptc-dispatch 事件里——肉眼看不出 ctx_notes / ctx_history 到底调没调，主人问「跑一晚上是不是没调用」时没有任何工具能回答。做法：扫 ~/.dsh/sessions/**/session.v4.jsonl.zstd（多帧逐帧解），统计 compaction/start（换窗）与 4 个 ctx 工具调用数。实测 416 个会话：换窗 1007 次 · ctx_notes 5027 · ctx_history 122 · new_context 2 · 查预算 53，据此判定插件一直在跑。注意：它是诊断工具，不改 DSH 状态。"
     },
     {
-      "id": "gate.code",
-      "name": "写代码前的薄门禁（8 条硬规则 + 规范/台账实物检查）",
-      "path": "harness/rdd-harness/bin/code-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "note": "S-CODE-07 配套：改码前跑一次；只提醒与查实物，不替你做判断。"
-    },
-    {
-      "id": "c.codex",
-      "name": "C 层桥（把 Codex 包成 MCP）",
-      "path": "rdd-selfcompile/scripts/codex-mcp-server.mjs",
-      "side": "run",
-      "needsGame": false
-    },
-    {
       "id": "cam.campath",
       "name": "相机配置文件（路径刻意不变）",
-      "path": "live/config/numen_api/cam.json",
+      "path": "mc/The Best of Twilight Forest/config/numen_api/cam.json",
       "side": "write",
       "needsGame": false,
       "note": "⚠ target 必须写同伴【真名】ACX / DDD。写 'RDD' 会静默退回第一人称（TL-2026-10-03-01）。"
@@ -101,7 +94,7 @@
     {
       "id": "cam.possess",
       "name": "★★ 附身：观察者模式 + 视角绑定（替代反复 /tp）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/possess/Possession.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/possess/Possession.java",
       "side": "run",
       "needsGame": true,
       "usage": "/cam possess <名字> → /cam release ｜ 或者（推荐，免键盘）改 config\\numen_api\\cam.json 的 \"possess\" 字段：填名字=附身，填 \"\"=退出，20 tick 生效",
@@ -111,7 +104,7 @@
     {
       "id": "cam.fastMove",
       "name": "自动疾跑 / 创造飞行 / 速度倍率",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/move/FastMove.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/move/FastMove.java",
       "side": "run",
       "needsGame": true,
       "note": "★ 飞行必须每 tick 重申（原版 LocalPlayer 一落地就强制关 flying）。Abilities 没有 setWalkSpeed，只能加速飞行。"
@@ -119,14 +112,14 @@
     {
       "id": "cam.mixin",
       "name": "相机注入（抄原版 Camera.setup/move/getMaxZoom）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/mixin/MixinCamera.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/mixin/MixinCamera.java",
       "side": "read",
       "needsGame": false
     },
     {
       "id": "cam.recorder",
       "name": "帧序列 + ffmpeg 合成 mp4",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/rec/VideoRecorder.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/rec/VideoRecorder.java",
       "side": "write",
       "needsGame": true,
       "usage": "/cam rec start 10 → /cam rec stop，产物 screenshots\\numencam_<ts>\\numencam.mp4",
@@ -135,23 +128,23 @@
     {
       "id": "cam.rig",
       "name": "相机策略层（5 模式 + 20tick 热载）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/cam/CameraRig.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/cam/CameraRig.java",
       "side": "read",
       "needsGame": false
     },
     {
       "id": "cam.sendCommand",
       "name": "★ 在游戏里敲斜杠指令（OpenClaw 驱不动聊天框）",
-      "path": "harness/bin/send-mc-command.ps1",
+      "path": "harness/rdd-harness/bin/send-mc-command.ps1",
       "side": "run",
       "needsGame": true,
-      "usage": "powershell -File send-mc-command.ps1 -Text '/cam status'",
-      "note": "配方 = Focus-MinecraftWindow → Set-Clipboard → SendKeys('t') '^a' '^v' '{ENTER}'。实测 20+ 条全部送达。"
+      "usage": "powershell -NoProfile -ExecutionPolicy Bypass -File bin/send-mc-command.ps1 -Text \"/help\" -Verify",
+      "note": "当前脚本使用PostMessage；SendKeys/SendInput旧配方已失效。以原回读确认，不以按键回执代签。"
     },
     {
       "id": "cam.tether",
       "name": "绑定 + 走出加载区自动牵引（附身时自动停用）",
-      "path": "minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/tether/CompanionTether.java",
+      "path": "workspace/minecraft-numen/plugins/camera/src/main/java/com/dwinovo/numen/plugins/camera/tether/CompanionTether.java",
       "side": "run",
       "needsGame": true,
       "note": "★ 传坐标不传名字（按名字 tp 会落在它脚下正中，可能被挤进墙里）。需 hasPermissions(2)（单人游戏开作弊）。⚠ 这条会刷屏：要长跟请用 cam.possess。附身期间 tick 直接早退，不会再发 /tp。"
@@ -159,7 +152,7 @@
     {
       "id": "compile.build",
       "name": "全仓唯一 gradle 调用点",
-      "path": "rdd-selfcompile/scripts/build-jar.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/build-jar.ps1",
       "side": "build",
       "needsGame": false,
       "usage": "由 run-mutation 调；gradle task 必须写 \":$($effectiveModule):jar\"",
@@ -168,7 +161,7 @@
     {
       "id": "compile.config",
       "name": "公共配置真源",
-      "path": "rdd-selfcompile/scripts/config.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/config.ps1",
       "side": "read",
       "needsGame": false,
       "note": "改路径只改这里（DOCS_ROOT/DOCS_UNIFIED/DOCS_OUT）；node 侧对应 stages.json 的 docsRoot/docsOut"
@@ -176,7 +169,7 @@
     {
       "id": "compile.deploy",
       "name": "jar 部署到 live mods",
-      "path": "rdd-selfcompile/scripts/deploy.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/deploy.ps1",
       "side": "writeMods",
       "needsGame": false,
       "usage": "由 run-mutation 调",
@@ -184,24 +177,24 @@
     },
     {
       "id": "compile.entry",
-      "name": "编译唯一入口",
-      "path": "rdd-selfcompile/scripts/run-mutation.ps1",
+      "name": "构建与部署编排入口",
+      "path": "workspace/rdd-selfcompile/scripts/run-mutation.ps1",
       "side": "build",
       "needsGame": false,
       "usage": "run-mutation.ps1 -Requirement \"<需求>\" -Module <模块> [-SkipLaunch -SkipMcp] [-MaxAttempts N]",
-      "note": "改执行层(core/common)必须 -Module core:neoforge，默认模块盖不到。禁手写 gradle / 手动拷 jar（permission deny）。"
+      "note": "先读本地工作区构建与部署说明，选实际支持的模式；当前平台权限不由旧OpenCode配置决定。"
     },
     {
       "id": "compile.gencode",
       "name": "拷源码进 generated + 注册入口",
-      "path": "rdd-selfcompile/scripts/gen-code.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/gen-code.ps1",
       "side": "write",
       "needsGame": false
     },
     {
       "id": "compile.loop",
       "name": "预算止损循环",
-      "path": "rdd-selfcompile/scripts/run-mutation-loop.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/run-mutation-loop.ps1",
       "side": "build",
       "needsGame": true,
       "note": "⚠ 它的 -Instance 默认值仍是 'test'（已停用），与其它脚本的 'gpt' 不一致 —— 调用时必须显式传 -Instance gpt。"
@@ -209,14 +202,14 @@
     {
       "id": "compile.new",
       "name": "建变异工作区",
-      "path": "rdd-selfcompile/scripts/new-mutation.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/new-mutation.ps1",
       "side": "write",
       "needsGame": false
     },
     {
       "id": "compile.rollback",
       "name": "游戏侧模块回滚",
-      "path": "minecraft-numen/tools/rollback-module.ps1",
+      "path": "workspace/minecraft-numen/tools/rollback-module.ps1",
       "side": "writeMods",
       "needsGame": false,
       "note": "与 compile.store 是【两套不同目录的 store】，回滚前先确认在指哪个。"
@@ -224,28 +217,28 @@
     {
       "id": "compile.store",
       "name": "外层版本指针 promote/rollback",
-      "path": "rdd-selfcompile/scripts/selfcompile-store.js",
+      "path": "workspace/rdd-selfcompile/scripts/selfcompile-store.js",
       "side": "writeMods",
       "needsGame": false
     },
     {
       "id": "eval.plan",
       "name": "规划质量 5 指标 + A/B 回归对照",
-      "path": "rdd-selfcompile/scripts/plan-eval.js",
+      "path": "workspace/rdd-selfcompile/scripts/plan-eval.js",
       "side": "read",
       "needsGame": false
     },
     {
       "id": "eval.survival",
       "name": "生存评测 8 指标",
-      "path": "rdd-selfcompile/scripts/survival-eval.js",
+      "path": "workspace/rdd-selfcompile/scripts/survival-eval.js",
       "side": "read",
       "needsGame": false
     },
     {
       "id": "harness.app",
       "name": "★ Harness 面板（双击打开的一屏管理台）",
-      "path": "app/PANEL.bat",
+      "path": "harness/rdd-harness/app/PANEL.bat",
       "side": "run",
       "needsGame": false,
       "usage": "双击 app\\PANEL.bat（或 ALL-ON-OFF.bat on）→ 自动开 http://127.0.0.1:8891/ 。八个页签：总览 / 决策收件箱 / AI 进度 / 工具 / 纪律 / 文件 / 额度 / 诊断。关：关最小化的窗口，或 ALL-ON-OFF.bat off。",
@@ -253,17 +246,17 @@
     },
     {
       "id": "guide.toolIndex",
-      "name": "★ 工具分类索引（先查这个再翻注册表）",
-      "path": "工具分类索引-20261005.md",
+      "name": "工具发现指针",
+      "path": "harness/rdd-harness/工具分类索引-20261005.md",
       "side": "read",
       "needsGame": false,
       "usage": "回答「我现在要干 X，用哪一条工具」。按「我要干什么」查，不是按工具名查。",
-      "note": "★ registry.json 是机器真源但**不回答「我该用哪个」** —— 71 条平铺必挑错。这份只回答选择问题，细节回注册表。\n★ 内含三条 2026-10-05 新规矩：① 内脑/驾驶模式怎么切（比 task_stop 强）② 监测台 7 组 30 页什么时候看 ③ **哪里不方便就自己写一个工具注册进来**（含五步 + 三条铁律）。\n★ 2026-10-07 增：架构目标锁 `goal.*`（不走 stage 也能逼到验收），机制细则见本库 `goal-drive.md`。\n⚠ 改 registry.json 必须同步改它；两份不一致时以 registry.json 为准，但要立刻把它修回来 —— 骗人的索引比没索引更糟。"
+      "note": "按主题进入现行正文，具体工具由registry与bench layers展开；不维护第二份完整工具目录。"
     },
     {
       "id": "game.brainStop",
       "name": "★ 让内脑停 = 关掉 assist（驾驶模式），不是叫停任务",
-      "path": "minecraft-numen/api/common/src/client/java/com/dwinovo/numen/mcp/server/McpMode.java",
+      "path": "workspace/minecraft-numen/api/common/src/client/java/com/dwinovo/numen/mcp/server/McpMode.java",
       "side": "read",
       "needsGame": true,
       "usage": "游戏内 设置 → Brain 面板 → assist 开关；或改 live\\config\\numen\\mcp_server.json 的 \"assist\"（改配置不热重载）。读状态：node rdd-selfcompile\\scripts\\numen-mcp.js status <同伴名> 看 externally_driven。",
@@ -271,119 +264,86 @@
     },
     {
       "id": "game.capabilityList",
-      "name": "游戏内能力清单（进游戏前必读）",
-      "path": "进游戏前必读-游戏内能力清单.md",
+      "name": "游戏核心工具与非核心扩展登记",
+      "path": "docs/rdd-docs/知识库/进游戏验证/001-进游戏核心工具.md",
       "side": "read",
       "needsGame": false,
-      "usage": "进游戏之前读一遍。10 条能力每条都带正确调用姿势 + 已验证标记 + 坑；末尾是「关游戏后写记录+写文档」清单。",
-      "note": "★ preflight 的 P13 就是这一份。2026-10-04 按用户口述建：说话 / 建伙伴 / 让内脑停 / 视觉 / 快速拍摄 / 追踪 / 相机 / openclaw 还是指令 / 切创造者模式 / 看监测台。"
-    },
-    {
-      "id": "gate.promptLint",
-      "name": "★ 提示词治理 lint（预算/候选晋升/指针目标）",
-      "path": "rdd-selfcompile/scripts/verify-tools/prompt-lint.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "node rdd-selfcompile/scripts/verify-tools/prompt-lint.js",
-      "note": "preflight P21 强制执行；失败直接 BLOCK。"
+      "usage": "按本次任务查看所需工具；核心标记只由主人决定。",
+      "note": "当前正文，旧进游戏前必读清单仅查历史；不再引用P13。"
     },
     {
       "id": "gate.docAnchor",
       "name": "查文档行号锚点漂移（直接给新行号）",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-anchor-drift.js",
-      "side": "read",
-      "needsGame": false
-    },
-    {
-      "id": "gate.docFresh",
-      "name": "文档时效门禁（未登记/撞号/超期/核对后被改）",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-doc-freshness.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/check-doc-anchor-drift.js",
       "side": "read",
       "needsGame": false,
-      "note": "已知旧撞号降级 WARN，新撞号 BLOCK —— 一次旧债不能把门禁永久钉死。"
-    },
-    {
-      "id": "gate.flow",
-      "name": "自编译闭环门（jar sha + phase 链）",
-      "path": "rdd-selfcompile/scripts/flow-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "--since <今天> --active <开工时的 store active>"
+      "note": "按需诊断工具，不是进退游戏前置。"
     },
     {
       "id": "gate.harness",
-      "name": "★ 本 harness 的门禁执行器",
-      "path": "harness/bin/harness-gate.js",
+      "name": "两项门禁：部署和本次记录质量",
+      "path": "harness/rdd-harness/bin/harness-gate.js",
       "side": "read",
       "needsGame": false,
-      "usage": "node harness-gate.js preflight|postflight|selftest|registry --since <YYYY-MM-DD> [--head <sha>]",
-      "note": "两段门禁：preflight=进游戏前，postflight=出游戏后。"
-    },
-    {
-      "id": "gate.loop",
-      "name": "九步流硬门禁 20 项",
-      "path": "rdd-selfcompile/scripts/loop-gate.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "--since <今天> --keyword <模块> --head <HEAD>",
-      "note": "VERDICT=NOT_DONE 只在开了 stage 时才有意义。"
+      "usage": "node bin/harness-gate.js preflight | postflight --record <file> [--section <heading>]",
+      "note": "无需角色、提交、闹钟、编号或记忆灌入；默认不运行其它流程门禁。"
     },
     {
       "id": "gate.repoStatus",
-      "name": "6 个套娃仓库 HEAD/脏项/推没推",
-      "path": "stager/bin/repo-status.js",
+      "name": "跨仓Git状态诊断（只查实际存在的仓）",
+      "path": "workspace/stager/bin/repo-status.js",
       "side": "read",
       "needsGame": false,
-      "note": "★ numen 的改动不进外层 git，stager/loop-gate 的 commit 判据对它【是盲的】。跨仓库对账要看它。"
+      "note": "按需诊断工具，不是进退游戏前置。★ numen 的改动不进外层 git，stager/loop-gate 的 commit 判据对它【是盲的】。跨仓库对账要看它。"
     },
     {
       "id": "gate.runtime",
       "name": "查 jar 是否落后于源码",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-runtime-deployment.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/check-runtime-deployment.js",
       "side": "read",
       "needsGame": false,
-      "note": "★ 退出码 2 = 有源码领先于 jar。比的是「最后一次改 src/main/java 的提交」vs jar mtime，不是最后一次提交。"
+      "note": "按需诊断工具，不是进退游戏前置。★ 退出码 2 = 有源码领先于 jar。比的是「最后一次改 src/main/java 的提交」vs jar mtime，不是最后一次提交。"
     },
     {
       "id": "gate.econ",
       "name": "经济计量报表（tokens/耗时/工具配对/预算建议与拦截）",
-      "path": "rdd-selfcompile/scripts/verify-tools/econ-report.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/econ-report.js",
       "side": "read",
       "needsGame": false,
       "usage": "--since <YYYY-MM-DD> [--until <ISO>] [--dir <monitor目录>] [--json]",
-      "note": "E0/E1 观测半边：llm_usage 四元(输入/输出/缓存读/缓存写)+耗时+重试+截断；tools.jsonl 的 tool_call↔tool_result 配对（本地工具 duration_ms 由 2026-10-06 新 jar 起才有）；budget_advice（shadow）与 budget_block（enforce）段。"
+      "note": "按需诊断工具，不是进退游戏前置。E0/E1 观测半边：llm_usage 四元(输入/输出/缓存读/缓存写)+耗时+重试+截断；tools.jsonl 的 tool_call↔tool_result 配对（本地工具 duration_ms 由 2026-10-06 新 jar 起才有）；budget_advice（shadow）与 budget_block（enforce）段。"
     },
     {
       "id": "gate.replay",
       "name": "回放对账（消息合法性：孤儿 tool_call/tool_result 等）",
-      "path": "rdd-selfcompile/scripts/verify-tools/replay-check.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/replay-check.js",
       "side": "read",
       "needsGame": false,
       "usage": "--since <ISO> | --file <单个jsonl> [--limit N] [--json] [--selftest]",
-      "note": "E1 正确性半边（econ-report 管钱，它管合法性）：重放 llm_request.request.messages 结构校验，抓 2026-10-06 实机 400 的根因类（窗口以 tool 开头 = 孤儿 tool_result）。--selftest 7 用例合成自测；历史轮转文件 context-1791259005120.jsonl 抓到 30 处违规（全在 validTail 修复前，10/6 11:28 后清零）。"
+      "note": "按需诊断工具，不是进退游戏前置。E1 正确性半边（econ-report 管钱，它管合法性）：重放 llm_request.request.messages 结构校验，抓 2026-10-06 实机 400 的根因类（窗口以 tool 开头 = 孤儿 tool_result）。--selftest 7 用例合成自测；历史轮转文件 context-1791259005120.jsonl 抓到 30 处违规（全在 validTail 修复前，10/6 11:28 后清零）。"
     },
     {
       "id": "gate.usageRecompute",
       "name": "五态账离线复算（expmem usage_recorded 事件 → 账）",
-      "path": "rdd-selfcompile/scripts/verify-tools/usage-recompute.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/usage-recompute.js",
       "side": "read",
       "needsGame": false,
       "usage": "--since <ISO> | --file <jsonl> | --ref <exp:...> [--json] [--selftest]",
-      "note": "LC3（78号§7「日常样本能复算」）审查者侧：从 expmem.jsonl 的 usage_recorded 事件独立重算五态账（Java UsageEventCodec+UsageLedger.derive 的 JS 镜像：去重/别名归一/结论取最大attempt/跨版本分账/坏行容错）。--selftest 10 断言；部署前历史文件无该事件→如实报0条不算失败。事件是唯一真账，内存只是缓存。"
+      "note": "按需诊断工具，不是进退游戏前置。LC3（78号§7「日常样本能复算」）审查者侧：从 expmem.jsonl 的 usage_recorded 事件独立重算五态账（Java UsageEventCodec+UsageLedger.derive 的 JS 镜像：去重/别名归一/结论取最大attempt/跨版本分账/坏行容错）。--selftest 10 断言；部署前历史文件无该事件→如实报0条不算失败。事件是唯一真账，内存只是缓存。"
     },
     {
       "id": "gate.jarLang",
       "name": "查 jar 是否带翻译（datagen lang JSON）",
-      "path": "rdd-selfcompile/scripts/verify-tools/check-jar-lang.js",
+      "path": "workspace/rdd-selfcompile/scripts/verify-tools/check-jar-lang.js",
       "side": "read",
       "needsGame": false,
       "usage": "--dir <mods目录> | --jar <单个jar> [--json]",
-      "note": "TL-2026-10-06-01 的 guard：扫 jar 字节流查 assets/numen_api/lang/{en_us,zh_cn}.json；exit 1 = 缺（本地构建不跑 datagen 就会缺，游戏内静默显示原始键）。"
+      "note": "按需诊断工具，不是进退游戏前置。TL-2026-10-06-01 的 guard：扫 jar 字节流查 assets/numen_api/lang/{en_us,zh_cn}.json；exit 1 = 缺（本地构建不跑 datagen 就会缺，游戏内静默显示原始键）。"
     },
     {
       "id": "mc.launch",
       "name": "编排层起游戏（launch-mc 40 行头注释的 11 个坑都封在 mc-start.js 里）",
-      "path": "rdd-selfcompile/scripts/launch-mc.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/launch-mc.ps1",
       "side": "run",
       "needsGame": false,
       "usage": "powershell -File launch-mc.ps1 -Instance gpt -AutoStopMinutes 120",
@@ -391,8 +351,8 @@
     },
     {
       "id": "mc.start",
-      "name": "起游戏唯一入口",
-      "path": "rdd-selfcompile/scripts/mc-start.js",
+      "name": "游戏启动/状态脚本（按当前模式使用）",
+      "path": "workspace/rdd-selfcompile/scripts/mc-start.js",
       "side": "read",
       "needsGame": false,
       "usage": "node mc-start.js gpt 120 | --status | --wait N",
@@ -401,7 +361,7 @@
     {
       "id": "mc.stop",
       "name": "★ 真能关游戏的唯一解 · 进程身份单一真源（Get/Test/Stop/Ensure-RddMc*）",
-      "path": "rdd-selfcompile/scripts/mc-instance.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/mc-instance.ps1",
       "side": "run",
       "needsGame": true,
       "usage": "powershell -NoProfile -ExecutionPolicy Bypass -Command \"& { . '<abs>\\mc-instance.ps1'; Stop-RddMcInstance -Instance gpt }\"",
@@ -410,14 +370,14 @@
     {
       "id": "mc.watchdog",
       "name": "到点强杀游戏",
-      "path": "rdd-selfcompile/scripts/mc-watchdog.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/mc-watchdog.ps1",
       "side": "run",
       "needsGame": true
     },
     {
       "id": "mcp.call",
       "name": "★ 调游戏内 AI 的唯一正确姿势",
-      "path": "rdd-selfcompile/scripts/mcp-call.js",
+      "path": "workspace/rdd-selfcompile/scripts/mcp-call.js",
       "side": "run",
       "needsGame": true,
       "usage": "node mcp-call.js <tool> <companion名> '<json>'  （大 JSON 走 @file）",
@@ -426,7 +386,7 @@
     {
       "id": "mcp.cli",
       "name": "轻量 MCP CLI",
-      "path": "rdd-selfcompile/scripts/numen-mcp.js",
+      "path": "workspace/rdd-selfcompile/scripts/numen-mcp.js",
       "side": "run",
       "needsGame": true,
       "usage": "numen-mcp.js list | status <companion> | call <tool> <name>",
@@ -435,14 +395,14 @@
     {
       "id": "oc.drive",
       "name": "一次性 CLI（支持 @file 读 JSON）",
-      "path": "mc-openclaw-controller/scripts/oc-drive.js",
+      "path": "workspace/mc-openclaw-controller/scripts/oc-drive.js",
       "side": "run",
       "needsGame": true
     },
     {
       "id": "oc.send",
       "name": "发一条命令并等响应",
-      "path": "mc-openclaw-controller/scripts/oc-send.js",
+      "path": "workspace/mc-openclaw-controller/scripts/oc-send.js",
       "side": "run",
       "needsGame": true,
       "usage": "--probe|--key <k> [ms]|--shot|--burst <n> [gap]|--cmd <文字>|--walk <k> <ms>|--slot <n>|--chat <文字>",
@@ -451,7 +411,7 @@
     {
       "id": "oc.server",
       "name": "OpenClaw WebSocket 中枢（8080）",
-      "path": "mc-openclaw-controller/scripts/server.js",
+      "path": "workspace/mc-openclaw-controller/scripts/server.js",
       "side": "run",
       "needsGame": true,
       "note": "★ 必须先于游戏起，否则 mod 连不上。仓库虽打了 archived tag，但 mc-watch.js 还依赖它，不能删。"
@@ -459,7 +419,7 @@
     {
       "id": "oc.watch",
       "name": "★ 像人一样看同伴：飞镜头+瞄准+干净截图",
-      "path": "mc-openclaw-controller/scripts/watch-ai.js",
+      "path": "workspace/mc-openclaw-controller/scripts/watch-ai.js",
       "side": "run",
       "needsGame": true,
       "usage": "node watch-ai.js --dist 6",
@@ -468,30 +428,21 @@
     {
       "id": "review.adversarial",
       "name": "独立对抗审计（只送原始产物不送作者结论）",
-      "path": "rdd-selfcompile/scripts/adversarial-review.js",
+      "path": "workspace/rdd-selfcompile/scripts/adversarial-review.js",
       "side": "run",
       "needsGame": false
     },
     {
-      "id": "router.model",
-      "name": "★ AI 自己切模型（每模型每小时限额）—— 难问题外包思考，不是外包敲代码",
-      "path": "opencode-plugin/model-budget.json",
-      "side": "run",
-      "needsGame": false,
-      "usage": "工具名 model_router。action=plan（让它写可照做的方案，默认档位 auto）/ ask / status / back；可 to=free|deepseek|sol|astra。插件源 D:\\rdd\\workspace\\opencode-plugin\\model-router.mjs，已注册进 ~/.config/opencode/opencode.json 的 plugin 数组（改配置不热重载，要重启 opencode）。",
-      "note": "★ 分工铁律：难的从来不是「敲代码」，是「想清楚」—— 只外包思考，写代码留在免费档自己写。\n降级链 deepseek → gpt-6-sol → gpt-6-astra，每小时上限 45/25/15 分钟（+ 次数上限），本地整点桶自动清零。★ GPT-6 额度稀缺，默认不用。\n★ 换模型的实现原理：opencode 的 chat.params 钩子【改不了 model】（output 只有 temperature/topP/topK/maxOutputTokens/options）；只能自己用 SDK 发带 model 的 prompt，所以插件开**子会话**跑目标模型再把正文交回外层。\n★ 失败一律明确报错（额度用完 / 模型解析不到 / 空正文 / 超时），并记一次失败额度 —— 不假装成功。plan 模式结构性关掉 write/edit/patch/bash/task。\n★ 改额度/降级链/档位只改这个 json，不用动代码。"
-    },
-    {
       "id": "vis.aiTalk",
       "name": "挖同伴自述找卡住/困惑信号",
-      "path": "rdd-selfcompile/scripts/ai-talk.js",
+      "path": "workspace/rdd-selfcompile/scripts/ai-talk.js",
       "side": "read",
       "needsGame": false
     },
     {
       "id": "vis.captureWin",
       "name": "★ 抓 MC 窗口的唯一正解（PrintWindow+DWM）",
-      "path": "mc-openclaw-controller/scripts/capture-win.ps1",
+      "path": "workspace/mc-openclaw-controller/scripts/capture-win.ps1",
       "side": "read",
       "needsGame": true,
       "usage": "powershell -File capture-win.ps1 -TitleMatch Minecraft -Out <png>",
@@ -500,21 +451,21 @@
     {
       "id": "vis.dropall",
       "name": "丢背包",
-      "path": "rdd-selfcompile/scripts/drop-all.js",
+      "path": "workspace/rdd-selfcompile/scripts/drop-all.js",
       "side": "writeGame",
       "needsGame": true
     },
     {
       "id": "vis.evidence",
       "name": "采 verify 要的 5 个 evidence json",
-      "path": "rdd-selfcompile/scripts/collect-evidence.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/collect-evidence.ps1",
       "side": "read",
       "needsGame": true
     },
     {
       "id": "vis.focus",
       "name": "抢 MC 窗口焦点（AttachThreadInput + ALT 抬落）",
-      "path": "rdd-selfcompile/scripts/mc-focus.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/mc-focus.ps1",
       "side": "run",
       "needsGame": true,
       "usage": ". mc-focus.ps1 ; Focus-MinecraftWindow  → 'FOCUS_OK '<title>",
@@ -523,29 +474,21 @@
     {
       "id": "vis.sample",
       "name": "采样位置数方向反转（只读）",
-      "path": "rdd-selfcompile/scripts/sample-ai.js",
+      "path": "workspace/rdd-selfcompile/scripts/sample-ai.js",
       "side": "read",
       "needsGame": true
     },
     {
       "id": "vis.verify",
       "name": "读 snapshot + evidence 判 VERIFIED/UNVERIFIED",
-      "path": "rdd-selfcompile/scripts/verify.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/verify.ps1",
       "side": "read",
       "needsGame": true
     },
     {
-      "id": "vis.watch",
-      "name": "一屏报告：同伴是否真在干活",
-      "path": "rdd-selfcompile/scripts/mc-watch.js",
-      "side": "read",
-      "needsGame": true,
-      "note": "⚠ 它内部调 watch-ai.js --from-rdd，那条路径必挂（bug-6），所以 status 字段是垃圾，但 exit 0。其余字段可用。"
-    },
-    {
       "id": "w.drive",
       "name": "W 层唯一入口（playwright 直驱 GLM/Qwen/Kimi/DS）",
-      "path": "rdd-selfcompile/scripts/w-brain-drive.js",
+      "path": "workspace/rdd-selfcompile/scripts/w-brain-drive.js",
       "side": "run",
       "needsGame": false,
       "usage": "probe|open|ask|askall|synth —— ★ 问题走 --file，内联传参会截断",
@@ -554,88 +497,56 @@
     {
       "id": "w.probe",
       "name": "W 池探针（发随机 nonce 核对回复）",
-      "path": "rdd-selfcompile/scripts/w-probe.js",
+      "path": "workspace/rdd-selfcompile/scripts/w-probe.js",
       "side": "run",
       "needsGame": false
     },
     {
       "id": "watch.efficiency",
       "name": "效率监察：subtask 不换/资产不变/背包指纹不变",
-      "path": "rdd-selfcompile/scripts/task-efficiency-watch.js",
+      "path": "workspace/rdd-selfcompile/scripts/task-efficiency-watch.js",
       "side": "read",
       "needsGame": true
     },
     {
-      "id": "watch.heartbeat",
-      "name": "stager 阶段心跳",
-      "path": "rdd-selfcompile/scripts/stage-heartbeat.js",
-      "side": "run",
-      "needsGame": false
-    },
-    {
       "id": "watch.presence",
       "name": "AI 心跳陈旧检测",
-      "path": "rdd-selfcompile/scripts/presence-watchdog.ps1",
+      "path": "workspace/rdd-selfcompile/scripts/presence-watchdog.ps1",
       "side": "read",
       "needsGame": true
     },
     {
       "id": "watch.redline",
       "name": "红线/assist 在线巡检",
-      "path": "rdd-selfcompile/scripts/redline-watch.js",
+      "path": "workspace/rdd-selfcompile/scripts/redline-watch.js",
       "side": "read",
       "needsGame": true
     },
     {
       "id": "watch.regression",
       "name": "红线基础能力回归 T1-T3",
-      "path": "rdd-selfcompile/scripts/redline-regression.js",
+      "path": "workspace/rdd-selfcompile/scripts/redline-regression.js",
       "side": "read",
-      "needsGame": true
-    },
-    {
-      "id": "watch.selfdrive",
-      "name": "自驱动（内嵌 mc-focus 逻辑）",
-      "path": "rdd-selfcompile/scripts/every-10min-drive.ps1",
-      "side": "run",
       "needsGame": true
     },
     {
       "id": "os.wallpaper",
       "name": "设/轮播桌面壁纸（PowerShell，无插件，自动读原生分辨率）",
-      "path": "rddharness/bin/set-wallpaper.ps1",
+      "path": "harness/rdd-harness/bin/set-wallpaper.ps1",
       "side": "run",
       "needsGame": false
     },
     {
       "id": "os.wallpaper.bat",
       "name": "双击换下一张壁纸（WALLPAPER.bat，纯 ASCII 入口）",
-      "path": "rddharness/WALLPAPER.bat",
+      "path": "harness/rdd-harness/WALLPAPER.bat",
       "side": "run",
       "needsGame": false
     },
     {
-      "id": "goal.cli",
-      "name": "架构目标锁：验收条目 + 实跑证据 + 机器最终验收（不许写文档冒充完成）",
-      "path": "rddharness/bin/goal.js",
-      "side": "run",
-      "needsGame": false,
-      "note": "★ 2026-10-22 起 accept 内置两条机器验收项：① 三行大白话（§2.1）② 报告放行门禁（未了项必须在报告里有状态，见 gate.report）。有一条不过就是没完成。"
-    },
-    {
-      "id": "gate.report",
-      "name": "★ 报告放行门禁：未了项必须在报告里有状态（漏一个 = 红）",
-      "path": "rddharness/bin/lib/report-release.js",
-      "side": "read",
-      "needsGame": false,
-      "whenToUse": "写/发日报前自检；或想知道「今天这份报告能不能放行」。已接进 goal.js accept 与 harness-gate postflight Q17，一般不用手动跑。",
-      "usage": "node bin/lib/report-release.js ｜ --selftest（10/10）｜ --file <报告.md>",
-      "note": "★ 2026-10-22 用户批准的两条补丁之一（原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红」）。核对三类未了项：① decisions.jsonl 里 pending 的待拍板项必须出现在报告里，且位置是三行 ②或「还不能用的」表 ②该表每行「要你做什么」不能空 ③必须交代那张 existential 卡在哪一步。★ 今天还没写日报 → SKIP 不拦；日报存在但漏项 → BLOCK。中文匹配用最长公共子串（≥4 字），不依赖分词。"
-    },
-    {
       "id": "metrics.weekly",
       "name": "★ 周行为指标：任务完成耗时 / 死亡率 / 7 天滚动（离线读埋点，不需要游戏在跑）",
-      "path": "rddharness/bin/weekly-metrics.js",
+      "path": "harness/rdd-harness/bin/weekly-metrics.js",
       "side": "read",
       "needsGame": false,
       "whenToUse": "卡上 V5「周指标前后对比」取证；或想看「她最近是快了还是慢了」。改动前后各跑一次即可对比。",
@@ -643,23 +554,9 @@
       "note": "★ 2026-10-22 用户批准的两条补丁之一。数据源实测：任务耗时 = tools.jsonl 异步提交 → events.jsonl task_finished（340/340 全配对）；死亡 = rdd-ledger\\<companion>.json 的 deaths[] + instrumentation.jsonl 的 death 事件交叉验证。★★ 关键坑：task_id 会复用（t1/t2 一直循环用），按 id 建字典配对会把 8 天前的 t1 配上今天的 t1 —— 必须按时间序配对。★★ 第二个坑：实测 9 条死亡全部是 debug_kill 触发的，**自然死亡样本为 0**，所以现在只能报「无自然死亡记录」，不能报「死亡率 0」；脚本会显式打这个 caveat。"
     },
     {
-      "id": "goal.drive",
-      "name": "目标锁催跑插件：AI 停了自动开动 / 断流退避续写 / 压缩上下文时锚住架构边界",
-      "path": "opencode-plugin/goal-drive.mjs",
-      "side": "run",
-      "needsGame": false
-    },
-    {
-      "id": "goal.doc",
-      "name": "目标锁机制说明（怎么上锁 / 证据规则 / 关掉它的三个办法）",
-      "path": "rddharness/goal-drive.md",
-      "side": "read",
-      "needsGame": false
-    },
-    {
       "id": "harness.multimodel",
       "name": "★ 多模型协同 + 实机验证闭环（按需索引，默认不读）",
-      "path": "multimodel/README.md",
+      "path": "harness/rdd-harness/multimodel/README.md",
       "side": "read",
       "needsGame": false,
       "whenToUse": "只在①用户明确不在/要求长程无人值守，②要做实机取证、沙盒晋级、多模型升级链，③要复现故障注入验收矩阵（T01–T20）时打开。日常改码、写文档、跑单测不要读它，也不要为了它启动游戏。",
@@ -679,7 +576,7 @@
     {
       "id": "harness.auditTag",
       "name": "★ 打 tag 前跑一遍（四件套：远端校验/资产普查/决策队列/推送）",
-      "path": "harness/bin/audit-tag.js",
+      "path": "harness/rdd-harness/bin/audit-tag.js",
       "side": "run",
       "needsGame": false,
       "usage": "node harness/bin/audit-tag.js <tag名> [--dry-run]",
@@ -688,7 +585,7 @@
     {
       "id": "harness.census",
       "name": "资产普查（清单上的资产必须都在 git 里）",
-      "path": "harness/bin/check-asset-census.js",
+      "path": "harness/rdd-harness/bin/check-asset-census.js",
       "side": "read",
       "needsGame": false,
       "usage": "node harness/bin/check-asset-census.js [--json] [--selftest]",
@@ -697,33 +594,16 @@
     {
       "id": "harness.decideInbox",
       "name": "★ 待拍板队列（主人只在这一处被举手）",
-      "path": "harness/bin/decide-inbox.js",
+      "path": "harness/rdd-harness/bin/decide-inbox.js",
       "side": "run",
       "needsGame": false,
       "usage": "node harness/bin/decide-inbox.js list|add|decide",
       "note": "★ 门禁原则：能自己定的不许冒泡到主人。举手前先问「不可逆且对外吗」—— 不是就自己定，写进卡里。"
     },
     {
-      "id": "harness.docnoAlloc",
-      "name": "★ 编号文档的集中取号处（先占号再建文件）",
-      "path": "harness/bin/docno-alloc.js",
-      "side": "write",
-      "needsGame": false,
-      "usage": "node harness/bin/docno-alloc.js next [--title \"标题\"] [--dry-run] | status | check | selftest",
-      "note": "★ 新建 NN-*.md 必须先取号：并行会话各自扫目录会撞号（实测撞了 8 个：44/45/48/52/53/54/65/66）。registry.nextDocNo 是缓存（停在 75、实际最大 76），别信它。"
-    },
-    {
-      "id": "harness.goalLock",
-      "name": "架构目标锁（按架构文档边界协作）",
-      "path": "harness/bin/goal.js",
-      "side": "read",
-      "needsGame": false,
-      "usage": "node harness/bin/goal.js ..."
-    },
-    {
       "id": "planner.entry",
       "name": "★ 任务链入口检测：这一轮的链是规划者建的，还是 rdd_submit 绕过去的",
-      "path": "rddharness/bin/lib/planner-entry.js",
+      "path": "harness/rdd-harness/bin/lib/planner-entry.js",
       "side": "read",
       "needsGame": false,
       "whenToUse": "怀疑「AI 建链时用了 rdd_submit 而不是 rdd_supervisor_submit」时；或想知道本轮链有没有经过 Stage-A。已接进门禁：preflight P18 + postflight Q19 + 门禁顶部常驻横幅，一般不用手动跑。",
@@ -733,7 +613,7 @@
     {
       "id": "harness.orFreeModels",
       "name": "维护 OpenRouter 免费模型清单",
-      "path": "harness/bin/or-free-models.js",
+      "path": "harness/rdd-harness/bin/or-free-models.js",
       "side": "write",
       "needsGame": false,
       "note": "免费模型要用 :free 后缀，地区受限的（gpt/claude 等）会被 403 挡掉。"
@@ -741,7 +621,7 @@
     {
       "id": "harness.snapshotWorld",
       "name": "存档快照 / 回滚（验证场景可复现）",
-      "path": "harness/bin/snapshot-world.js",
+      "path": "harness/rdd-harness/bin/snapshot-world.js",
       "side": "write",
       "needsGame": false,
       "note": "★ 快照是执行 AI 自己的工作副本，不是永久资产 —— 用完自己删。"
@@ -749,7 +629,7 @@
     {
       "id": "exp.runner",
       "name": "游戏内实验运行器（复制母版→真实运行→观测→停机→受控复位→归档）",
-      "path": "harness/bin/exp-runner.js",
+      "path": "harness/rdd-harness/bin/exp-runner.js",
       "side": "write",
       "needsGame": true,
       "note": "★ 79号 W1 冒烟；先 plan 干跑再 run；世界名 exp-* 绝不碰 live；失败保留复现包"
@@ -757,7 +637,7 @@
     {
       "id": "exp.judge",
       "name": "游戏内实验机械裁判（只读证据出裁决，含假绿负例自测）",
-      "path": "harness/bin/exp-judge.js",
+      "path": "harness/rdd-harness/bin/exp-judge.js",
       "side": "read",
       "needsGame": false,
       "note": "★ 不认口头结论；--selftest 5 例（三种假绿必拒）"
@@ -765,7 +645,7 @@
     {
       "id": "exp.card",
       "name": "实验卡（可证伪主张+冻结阈值+原始数据机械复算）",
-      "path": "harness/bin/exp-card.js",
+      "path": "harness/rdd-harness/bin/exp-card.js",
       "side": "read",
       "needsGame": false,
       "note": "★ 验证环节先冻结实验卡再跑；conclude 只认原始数据；--selftest 10/10（阈值矛盾/无种子/缺理由/样本不足/改卡/claim 矛盾 必拒）"
@@ -773,7 +653,7 @@
     {
       "id": "mf.observer",
       "name": "Mineflayer 观测器/驱动器（标准开源 mineflayer@4.39.0，npm 原版）",
-      "path": "harness/bin/mf-observer.js",
+      "path": "harness/rdd-harness/bin/mf-observer.js",
       "side": "read",
       "needsGame": true,
       "note": "★ 验证环节外部编码工具：AI 用代码读游戏状态(位置/血量/背包/环境)并驱动角色——不预写游戏逻辑。只连原版协议服(worldgen-flat 1.21.1 offline 25565 实测通：登录/读状态/挖方块/事件流)；NeoForge 客户端被 FML 握手门挡(标准版无 FML 支持)。坑：bot.dig 是 async 无回调；登录 PartialReadError 是 protodef 误报不影响。例程 smoke-connect.js / observer-smoke.js；起停原版座位见 tools/mineflayer/README.md；入口 harness/bin/mf-observer.js（smoke | eval <file.js>），座位 D:/rdd/tools/mineflayer"
@@ -781,7 +661,7 @@
     {
       "id": "observer.loop",
       "name": "第二视角观测器（服务端同伴 Observer 按节拍写 monitor/observer.jsonl）",
-      "path": "harness/bin/observer-loop.js",
+      "path": "harness/rdd-harness/bin/observer-loop.js",
       "side": "read",
       "needsGame": true,
       "note": "★ 2026-10-28 用户下单：mineflayer 连不了 NeoForge（FML 握手门），改用 Numen 自己的 create_companion 造服务端玩家实体（Observer，creative）当第二视角。本脚本按 --interval 秒读 get_self_status/rdd_whereami/scan_nearby_entities，把「它眼里的世界 + 被观测者状态 + 距离」写进 config/numen/monitor/observer.jsonl（信封与 MonitoringJournal 对齐，监测台/离线分析可直接读）。只读不驱动、不改世界；单拍失败不退出循环；文件超 32MB 轮转 .1。造人用 workspace/scripts/spawn-observer.ps1（幂等）。实测：2026-10-28 Observer creative @(159,10,748) follow RDD @(159,9,746) 距 2 格，--once 落盘成功"
@@ -789,7 +669,7 @@
     {
       "id": "mf.kit",
       "name": "MF 基础函数库（组合层：pathfinder/collectblock/pvp/auto-eat/armor/tool 拼成一行动作）",
-      "path": "harness/bin/mf-kit.js",
+      "path": "harness/rdd-harness/bin/mf-kit.js",
       "side": "read",
       "needsGame": true,
       "note": "★ 2026-10-28 用户下单：写代码的 AI 直接进 MC 干活（不是驱动 RDD 同伴）。定位=组合层，不重写底层——寻路/挖/战斗/吃饭全用 npm 现成插件。已装（tools/mineflayer）：mineflayer@4.39.0 + pathfinder 2.4.5 + collectblock 1.6.0 + pvp 1.3.2 + auto-eat 5.0.3 + armor-manager 2.0.1 + blockfinder 0.0.7 + tool。导出：setup/state/goto/collect/mine/findBlock/craft/ensureTable/eatIfHungry/attackNearest/drop/digDown/blockIds；全部返回 {ok,reason,...} 不抛裸异常、全部带超时。★ 四个实测坑：① findBlocks({matching}) 只认方块 ID，传名字字符串静默返回空；② collectBlock.collect() 只吃 Block 对象（传 Vec3 报 distanceTo of undefined）；③ collectblock 硬依赖 mineflayer-tool，不 load 会抛 UnresolvedDependency；④ auto-eat 导出 {loader}、armor-manager 直接是函数、其余 {plugin}。实机（worldgen-flat 25565）：setup ok / goto ok / collect(dirt) gained=10 / mine dug=1 / attackNearest 追到僵尸 ok / 失败一律给明确 reason。★ 未验：完整合成链——flat 世界地表无树，木头全在 y≈0 矿井，pathfinder 穿不过实心岩，需 digDown 或换有树的世界 ★ 2026-10-28 补 ensureTable：craft() 只会【找】现成工作台不会【造并放】，所以「木板→工作台→3x3」会假失败；ensureTable 负责 16 格内复用 / 没有就用 4 木板合一个 / 合出来没放就挑「目标格空气+下面实心」的相邻格放上去。★ 第五个坑：mf-kit 住在 harness/bin，依赖在 tools/mineflayer/node_modules —— 裸 require('vec3')/require('minecraft-data') 会 Cannot find module，一律走文件内的 req() 助手。 ★ 另：别自己写逐格 blockAt 全图扫描——mc3 会话实测 16 万次 blockAt 被服务器踢（EXP-R01-C-0001）；kit 内部全走 findBlocks(区块缓存)+有界数量，只在拿到坐标后取一次 Block 对象。"
@@ -797,15 +677,15 @@
     {
       "id": "bench",
       "name": "实验台（共享账本 + 开工包 + 时序直读 + 常驻视图开关）",
-      "path": "harness/bin/bench.js",
+      "path": "harness/rdd-harness/bin/bench.js",
       "side": "read",
       "needsGame": false,
-      "note": "★ 实验台 CLI（87 号）。子命令：catalog / tip add|list / signal / verdict（必须 --card+--judge）/ queue / master / probe add|list / brief [runDir] [--all]（默认只给 5 条 open tips，余量显式报数） / layers [--json] [--specialist|--operator|--legacy|--archived|--all] / pit [list|build] [--status|--source|--eligible] / usage [--limit] / timeline [runDir] / health / live（常驻视图开关，视图含 2026-11-01 新增的 strand：说/做/果/链/死 一条串）/ selftest 28 例。★ 2026-10-28 v0.2：timeline 不再硬 SKIP 任务链与上下文（还 #381 债②）——默认折叠周期快照但打一行「任务链: goal/status/v/stage」摘要，`--tag chain,ctx,chat,llm,snap,all` 显式打开；ai.jsonl 的 assistant 正文与 supervisor 回应进时序（tag chat）。★ 2026-10-29 v0.3（外部 AI 入口收敛施工单）：brief 首屏给出「本轮目标/边界（CHECKPOINT 或 --goal）→ core 5 入口 → live 新鲜度（进程死/样本旧显式 STALE，不填零）→ 进游戏前置 → 已知限制（registry 是目录数不是每轮定义数、Observer stale、mf-kit 只连原版座）」；layers 从 registry.json + tool-layers.json 生成 core/specialist/operator/legacy 四层（core≤5，未分类默认 legacy，operator 带风险文案）；usage 把 brief/health/layers 调用追加进 experiments/usage.jsonl（只记时间/session/命令/run/card/status，不记正文；session 取 DSH_SESSION_ID，拿不到写 unknown）。★ 入口口径：任何 AI 开工先 `bench brief`，跑完 `bench health`，要读时序 `bench timeline <runDir>`；要看工具面用 `bench layers`，别把 registry 目录数当每轮工具数。"
+      "note": "★ 实验台 CLI（87 号）。子命令：catalog / tip add|list / signal / verdict（必须 --card+--judge）/ queue / master / probe add|list / brief [runDir] [--all]（默认只给 5 条 open tips，余量显式报数） / layers [--json] [--specialist|--operator|--legacy|--archived|--all] / pit [list|build] [--status|--source|--eligible] / usage [--limit] / timeline [runDir] / health / live（常驻视图开关，视图含 2026-11-01 新增的 strand：说/做/果/链/死 一条串）/ selftest 28 例。★ 2026-10-28 v0.2：timeline 不再硬 SKIP 任务链与上下文（还 #381 债②）——默认折叠周期快照但打一行「任务链: goal/status/v/stage」摘要，`--tag chain,ctx,chat,llm,snap,all` 显式打开；ai.jsonl 的 assistant 正文与 supervisor 回应进时序（tag chat）。★ 2026-10-29 v0.3（外部 AI 入口收敛施工单）：brief 首屏给出「本轮目标/边界（CHECKPOINT 或 --goal）→ core 5 入口 → live 新鲜度（进程死/样本旧显式 STALE，不填零）→ 部署核验 → 已知限制（registry 是目录数不是每轮定义数、Observer stale、mf-kit 只连原版座）」；layers 从 registry.json + tool-layers.json 生成 core/specialist/operator/legacy 四层（默认只显示少量入口，未分类默认 legacy，operator 带风险文案）；usage 把 brief/health/layers 调用追加进 experiments/usage.jsonl（只记时间/session/命令/run/card/status，不记正文；session 取 DSH_SESSION_ID，拿不到写 unknown）。★ 入口口径：按任务需要用 bench brief / bench health，要读时序 `bench timeline <runDir>`；要看工具面用 `bench layers`，别把 registry 目录数当每轮工具数。"
     },
     {
       "id": "bench.health",
       "name": "实验台本轮材料健康检查",
-      "path": "harness/bin/bench.js",
+      "path": "harness/rdd-harness/bin/bench.js",
       "side": "read",
       "needsGame": false,
       "usage": "node bin/bench.js health <runDir>",
@@ -814,7 +694,7 @@
     {
       "id": "bench.watch",
       "name": "实验台常驻视图引擎（monitor 六条流 → experiments/live 五份 md，热开关）",
-      "path": "harness/bin/bench-watch.js",
+      "path": "harness/rdd-harness/bin/bench-watch.js",
       "side": "read",
       "needsGame": true,
       "note": "★ 2026-10-28 用户下单：「常驻在那里实时拿快照，方便 AI 直接读，并且可以自己开关」。默认 15s 一拍，按 offset 尾读 monitor/rdd|ai|context|tools|instrumentation|observer.jsonl（不调 /api/snapshot —— 那个一次 13MB），渲染 experiments/live/：snapshot.md（一屏：任务链状态/第二视角身体/各流数据年龄/计数/告警）、chain.md（goal+7 个一级目标+需求清单+缺口+最近链事件，连续同状态快照自动折叠）、chat.md（assistant 自述 + 用户派单 + 规划 AI 回应，回合边界单独计数）、context.md（numen_context 的 <rdd> 块 / supervisor 输入输出 / runtime_state / 检索面）、strand.md（2026-11-01 补：说=assistant 自述 / 做=执行 AI 的 tool_calls 带参数 / 果=tool_result 按 callId 配回工具名 / 链=状态迁移 / 死，按时间串成一条；按 event_id 与「同 callId 同正文」去重——monitor 会把同一 tool_result 写两遍且 event_id 不同；★ hidden_reasoning 被 llm_response.excluded 排除，思考拼不出，视图里明写）。开关写 live/watch.json（enabled / views / interval_s），引擎每拍重读 ⇒ `bench live on|off|only chat,chain|interval 30` 不用重启。边界：只读、不派工、不改世界；ring 400 条/流；文件轮转自动重灌。自测 21 例（落盘/增量/轮转/开关/status/strand 排序与去重）。实测 2026-11-01 07:0x 活实例：strand 80 行含说/做/果/链，重复结果行已去重；其余四份 2–10KB。"
@@ -822,7 +702,7 @@
     {
       "id": "exp.worldview",
       "name": "环境工作台（world_probe snapshot → world-view.md/json）",
-      "path": "harness/bin/world-view.js",
+      "path": "harness/rdd-harness/bin/world-view.js",
       "side": "read",
       "needsGame": true,
       "note": "★ 84 号契约：一次采集一份文件，所有 AI 只读这一份。`--run <id> --phase before|after|death|review --out <dir>` 走 MCP 采；`--render <snapshot.json>` 离线渲染（无游戏可测）；失败写 world-view-<phase>.FAILED.json 不伪造。--self-test 4 例。★ 与 bench.watch 的分工：world-view 是「实验前后的对照快照」（进 envelope/evidence，给 control_key 与 A/B 用）；bench.watch 是「常驻滚动视图」（给人和 AI 现场读）。两者都不拥有世界数据。"
@@ -830,7 +710,7 @@
     {
       "id": "exp.craftAb",
       "name": "craft 经验 A/B 的机械裁决（不认口头结论）",
-      "path": "harness/bin/exp-craft-ab.js",
+      "path": "harness/rdd-harness/bin/exp-craft-ab.js",
       "side": "read",
       "needsGame": false,
       "note": "★ `node bin/exp-craft-ab.js <baseRunDir> <treatRunDir> [--json]`；`--self-test` 3 例。退出码 0 PASS / 1 INCONCLUSIVE / 2 INVALID / 3 用法或读盘错。★ 坑：它只读 runs 目录里的落盘证据，读不到就等于没跑；两轮判据不一致时它给 INCONCLUSIVE 而不是硬凑一个方向。"
@@ -838,7 +718,7 @@
     {
       "id": "exp.curve",
       "name": "学习曲线读数器（run → 秒数/死亡/工具调用/里程碑）",
-      "path": "harness/bin/exp-curve.js",
+      "path": "harness/rdd-harness/bin/exp-curve.js",
       "side": "read",
       "needsGame": false,
       "note": "★ `node bin/exp-curve.js <runDir> [<runDir> ...] [--json]`；`--self-test`。★ 坑：里程碑时间是首次达成的采样时刻，采样间隔 30s 级 → 秒数精度就是 30s，别当精确值报。"
@@ -846,7 +726,7 @@
     {
       "id": "exp.nightAb",
       "name": "夜间规避经验 A/B 判读（二值 + 首次动作时间）",
-      "path": "harness/bin/exp-night-ab.js",
+      "path": "harness/rdd-harness/bin/exp-night-ab.js",
       "side": "read",
       "needsGame": false,
       "note": "★ `node bin/exp-night-ab.js <runDir> [...] [--json]`；`--self-test` 3 例。★ 为什么单写一个：#369 曾把「送达 2/2 vs 未送达 0/3」判成成立，全过一遍其实是 2/2 vs 2/4 —— 手判会挑样本，这个脚本不会。"
@@ -854,7 +734,7 @@
     {
       "id": "learner.drain",
       "name": "学习者 SELF_COMPILE_REQUEST 取件入口 v2（写 ack，不动产物档案）",
-      "path": "harness/bin/selfcompile-drain.js",
+      "path": "harness/rdd-harness/bin/selfcompile-drain.js",
       "side": "write",
       "needsGame": false,
       "note": "★ `--take` / `--resolve --note <提交号>` / `--status` / `--self-test`。★ 坑：产物档案是 append-only，v1 直改 outbox status 是错的；v2 只写 ack 文件。无参数时列当前待取件清单（不是用法错）。"
@@ -862,766 +742,66 @@
     {
       "id": "region.tables",
       "name": "存档 region 的方块级盘点/替换（离线，不依赖游戏）",
-      "path": "harness/bin/region-tables.py",
+      "path": "harness/rdd-harness/bin/region-tables.py",
       "side": "write",
       "needsGame": false,
       "note": "★ `python region-tables.py check|strip <worldDir> [--block minecraft:crafting_table] [--to minecraft:air]`。母版 exp-clean3 剥工作台就是它干的（运维 §6.1）。★ 坑：`strip` 不替你备份，先自己复制整个存档目录；重写后要跑 `check` 逐块解 NBT，900/900 可解析才算过。"
     }
   ],
   "standards": {
-    "$comment": "★ 编程规范的唯一真源是 standards.md（本 harness 内，机器可读、带 id）；docsUnified\\01-工程规范.md 是人读的完整版。两者应当一一对应，改一处必须改另一处。⚠️ 2026-10-21 核实：**没有 Q-CODE-SPEC 这个检查**（gate 代码 0 命中），而且镜像一个 S-* id 都没有（standards 45 个 / 镜像 0 个）→ 这条契约目前只能人工履行，等镜像补上标题 id 后才能机检（杂项 #094）。",
+    "$comment": "standards.md 是现行工程约束；旧自编译统一版工程规范只作历史参考，不再要求双向同步。稳定 id 仅用于历史追溯。",
     "source": "harness/rdd-harness/standards.md",
-    "mirror": "docs/rdd-docs/rdd架构/自编译统一版/01-工程规范.md",
-    "contract": "standards.md 每条规则带稳定 id（如 S-COMMIT-01）。mirror 里每个对应小节标题里带同一个 id。"
+    "historicalMirror": "docs/rdd-docs/rdd架构/自编译统一版/01-工程规范.md",
+    "contract": "standards.md 维护现行规则；已有稳定 id 保持可追溯，不维护平行镜像。"
   },
   "gates": {
-    "handling": {
-      "$comment": "独立于状态和角色。interlock=不可由模式跳过；replaceable=仅按明示等效证据处置；diagnostic=可从轻量输出略去；未分类=完整执行。",
-      "interlock": ["P0", "P2", "P3", "P4", "P9", "Q10"],
-      "replaceable": ["P5", "P7", "P14", "P22"],
-      "diagnostic": ["P8", "P10b", "P10c", "P10d", "P11", "Q13", "Q14", "Q16", "Q18", "Q19"]
-    },
+    "$comment": "2026-11-21 user: only deployment before game and documentation quality after game. Workflow/role/timer/commit/index gates retired.",
     "preflight": {
-      "$comment": "★ 进游戏【之前】。判据分三类：artifact=查实物(AI 编不出来) / trace=查痕迹 / human=人工。",
-      "when": "verify 阶段开工前（起游戏、部署、poke 之前）",
+      "when": "进入目标实例前",
       "checks": [
         {
-          "id": "P1",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "编译通道合规",
+          "id": "DEPLOY",
+          "name": "目标实例部署与包件",
           "kind": "artifact",
           "level": "block",
-          "rule": "本轮编译必须走 compile.entry。没手写 gradle、没手动拷 jar（opencode.json 的 permission 已 deny，绕不过去）。",
-          "verify": "mutations\\<本轮>\\phase-build.json 存在且含 module + BUILD SUCCESSFUL 痕迹"
-        },
-        {
-          "id": "P2",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "jar 不落后于源码",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "源码改了 jar 没重新部署 = 运行时跑的是旧版。",
-          "verify": "node rdd-selfcompile/scripts/verify-tools/check-runtime-deployment.js → 退出码 ≠ 2",
-          "tool": "gate.runtime"
-        },
-        {
-          "id": "P3",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "jar 内容自检",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 不信 DEPLOY_OK 一句话。jar 里必须真的有这轮要的 class/资源。",
-          "verify": "ZipFile 列 jar entries；新模块要有 .class + neoforge.mods.toml + （mixin 模块）mixins.json"
-        },
-        {
-          "id": "P4",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "无重复 mixin 注入",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "搬过 mixin 的模块，旧宿主 jar 里的那份必须同时从 mixins.json 摘掉并【重建部署】。两个 mixin 同时注入同一个 target 会冲突。",
-          "verify": "对每个 mixin 类名，扫 live mods 下所有 jar，只允许 1 个 jar 含它。",
-          "why": "活案例：numencam 搬走 MixinCamera 后必须重建 api:neoforge"
-        },
-        {
-          "id": "P5",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "本轮有按模块 commit",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 精确 add 指定的文件，禁用 git add -A（本工作区常有两个会话并行改同一个仓库）。",
-          "verify": "默认 Git log 按完整批次起点读当前签出；也可指定同库干净工作树和全 SHA，以实际 HEAD 核本轮提交。P5 只核源码留痕，不核已部署、已加载或模块验收。"
-        },
-        {
-          "id": "P6",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "测试有结果且 0 失败",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "改了执行层就要有测试。只跑得起来不算，要 failures=0 errors=0。",
-          "verify": "有P5候选时只核批次明确指定的 --p6-test module/mutation-id/attempt-id：同源码 SHA、有效当前受管票、实际运行用例大于零且无失败/错误；无候选范围不签测试通过。"
-        },
-        {
-          "id": "P7",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "规范/索引已补",
-          "kind": "trace",
-          "level": "block",
-          "rule": "本轮新发现的坑和规则写入standards.md或现行知识库主题真源；旧docsUnified只读兼容。",
-          "bad": "只写在 AGENTS.md 里 —— 明令禁止（AGENTS.md 只放指针，不放收集到的坑）",
-          "verify": "保留现 --since 日期窗口；比较 Git 窗口前基线与 standards.md/现知识库证据根内 Markdown 真实内容差异，或 roots.docs/_memory/memory.jsonl 有效新行追加且旧前缀未改；目录/文件 touch 与记忆工具词不算写入，Git/读取失败保持 UNKNOWN/BLOCK。只证落盘痕迹，不证记录质量或世界效果。"
-        },
-        {
-          "id": "P8",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "不回退清单对照过",
-          "kind": "trace",
-          "level": "block",
-          "rule": "改动前先看 30-主要功能不回退清单.md 有没有命中要保的能力。",
-          "verify": "docsUnified\\30-主要功能不回退清单.md 本轮 mtime 或 git log 晚于 --since"
-        },
-        {
-          "id": "P9",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "时间锁未到期",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "registry.timeLocks 里 status=open 且 reviewBy < 今天 → BLOCK。要么复核，要么显式续期并写理由。",
-          "verify": "内置检查"
-        },
-        {
-          "id": "P10",
-          "name": "文档编号不新增撞号 + 已登记",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "新建 NN-*.md 必须 NN 接 maxDocNo 往后排，且登记台账 + 三处索引。已知旧撞号走 legacyDuplicateWarn。",
-          "verify": "内置检查（扫 docsUnified 顶层 NN-*.md 的编号 + docs-freshness.json）"
-        },
-        {
-          "id": "P10b",
-          "name": "文档编号格式",
-          "kind": "artifact",
-          "level": "warn",
-          "rule": "★ 2026-10-21 登记（原为影子门禁）：编号文档的文件名必须带连字符，格式 NN-中文名.md。缺连字符的文件整个逃过 P10 的编号检查。历史文件不拦，但下次动它时顺手改名。",
-          "verify": "内置检查（扫 docsUnified 顶层 NN*.md，缺连字符者 WARN）"
-        },
-        {
-          "id": "P10c",
-          "name": "文档已登记台账",
-          "kind": "artifact",
-          "level": "warn",
-          "rule": "★ 2026-10-21 登记（原为影子门禁）：每份编号文档都要登记 docs-freshness.json 台账。没登记的是债不是永久的，补登记就行 → WARN，不 BLOCK。",
-          "verify": "内置检查（台账 docs[].file 覆盖编号文档集；缺则 WARN）"
-        },
-        {
-          "id": "P10d",
-          "name": "编号走集中取号处",
-          "kind": "artifact",
-          "level": "warn",
-          "rule": "★ 2026-10-22 登记：新建 NN-*.md 必须先跑 `node D:\\rdd\\harness\\rdd-harness\\bin\\docno-alloc.js next` 取号（先占号再建文件，占号落台账 allocations）。理由：实测撞号 8 个（44/45/48/52/53/54/65/66），根因是没有集中取号处 —— 现行规矩只说「接最大号往后排」＝每个写入方自己扫目录，并行会话同时扫到同一号就撞。registry.nextDocNo 是缓存（停在 75、实际最大 76），台账也没有预留字段。改文件名只能平掉这次的 8 个，下周再来 8 个；修的是分配机制。",
-          "verify": "内置检查（台账 docs-freshness.json 的 allocations 段；本轮动过但没分配过的号 → WARN）"
-        },
-        {
-          "id": "P11",
-          "name": "现行规则入口可用",
-          "kind": "artifact",
-          "level": "warn",
-          "rule": "2026-11-13：检查项目AGENTS、harness格式规范、知识库入口存在；缺失WARN/UNKNOWN。存在只证可读入口，不证明规则无冲突；废弃stage不再阻断。",
-          "verify": "内置isFile，不再执行旧stager/check-align和check-global"
-        },
-        {
-          "id": "P12",
-          "name": "改接口先查消费者",
-          "kind": "human",
-          "level": "ask",
-          "rule": "加枚举值/改签名/改 switch 穷举，必须先 grep 谁在调。不同步补 case 就编译不过 —— 但编译不过是事后才发现，代價太大。"
-        },
-        {
-          "id": "P13",
-          "name": "★ 进游戏前已过一遍游戏内能力清单",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ 进游戏【之前】必须先读一遍「游戏内能力清单」，确认这一轮要用的能力（说话 / 建伙伴 / 让内脑停 / 视觉 / 拍摄 / 追踪 / 相机 / 飞行 / 看监测台）已有一条现成工具。清单里每一条都带正确调用姿势和坑。目的是别临场手写已有工具、别用错那条必然失效的路。",
-          "verify": "执行者按当前P13输出读取知识库/进游戏验证/001-进游戏核心工具.md；已有授权内自行核对，不新增主人审批。",
-          "tool": "gate.read"
-        },
-        {
-          "id": "P22",
-          "appliesTo": [
-            "worker"
-          ],
-          "name": "★ 进游戏前实验台摘要交付",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "实验台每 15 秒产 strand/chat/context，但没有通道自动送到编码 AI 上下文（2026-11-08 实测：DSH 侧三个插件都不读 experiments/）。★主人 2026-11-08 更正：**进游戏前**就要过一遍，不是退游戏后——进游戏时 AI 会一直尝试更新，等于盯着实验台自己找 bug 自己验证；至少让它开一次看一眼。 ★2026-11-12：旧日志重跑也能满足30分钟留痕，清障超时却被强制另跑；改为本次 preflight 直接交付已有有界摘要。PASS 只代表执行和输出交付，不证明人已读或日志新鲜；世界身份、陈旧/缺失覆盖及当前事实仍 UNKNOWN。",
-          "verify": "在 P22 直接运行现有 node bin/bench-digest.js 默认有界输出（120分钟/1200字符），摘要附在本次门禁输出；缺脚本/子进程错误/非零/空/缺标题覆盖结构/无法确认完整输出 BLOCK；正常1200正文+原省略尾且标题覆盖齐全为 WARN，未见部分 UNKNOWN。title-only 在 IO/child 前 SKIP，非 preflight 不调用，保持仅 worker 适用。",
-          "guard": "不再凭 bench-digest.jsonl 的时间给入场签已读/新鲜事实；既有 digest 自带审计留痕保留，gate 不额外伪造已读留痕。30秒子进程超时、64KiB缓冲及默认1200字符正文及原显式省略尾边界；正常有界省略为可见 WARN，不当作传输错误。",
-          "reviewBy": "2026-11-22",
-          "note": "与 P13（进游戏前过一遍游戏内能力清单）同一层：进游戏前那一关要过的东西，不是退游戏后补的。A 方案（自动投递）由 dsh-bench-bridge 提供，默认关闭。"
-        },
-        {
-          "id": "P14",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "工作树改动（含 untracked）",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "并行开发中，Numen src/main、src/test 的 Java 与资源文件以及 Harness bin 下独立测试的普通新增、修改、删除只 WARN；正式启动读已安装 JAR。原有编号记录纯修改也只 WARN。其他改动（包括启动使用的脚本与治理配置）及无法确认的 Git 状态仍 BLOCK。",
-          "verify": "三仓 git status --porcelain=v1 -z；先确认 docs 实际 Git 根及知识库范围，NUL 成对解析改名，Numen/Harness 展开未跟踪目录。缺仓、Git 错误/不完整状态为 UNKNOWN/BLOCK，不当 clean。保留 2026-10-30 experiments/usage.jsonl 等原运行产物白名单；P14b 资产普查独立不变。"
-        },
-        {
-          "id": "P14b",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "资产普查（被 .gitignore 吃掉的治理资产）",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 2026-10-30 从 P14 拆出独立 id：`git status --porcelain` 看不见被 .gitignore 吃掉的文件，所以「工作区干净」不等于「资产在库里」。普查盯的是清单上的治理资产（红线回退/模块架构/项目历史/七类活文档…）是否都在 git 里，目录型条目逐文件比对。拆开的原因：原来两者共用一个 id，一次 preflight 里同一 id 出现两行（一行 BLOCK 一行 PASS），且普查那行的文案还谎称「三仓 git status 均为空」—— 门禁自己的输出在说谎，比不报更糟（bug-9 同族）。",
-          "verify": "node bin/check-asset-census.js --json → badCount==0；P14b 的 PASS 只表示「资产都在库里」，不表示「工作区干净」"
-        },
-        {
-          "id": "P15",
-          "name": "存档快照（你的工具，用完自己删）",
-          "kind": "human",
-          "level": "ask",
-          "rule": "2026-11-13核对：快照是执行者按需工作副本。需要回滚或同起点对照时停游戏再创建；普通继续不强制复制。用完按原工具TTL清理，不把无快照作为风险结论。",
-          "verify": "--status只读；创建和清理由本轮需求决定。ASK为执行者核对，不代表必须创建或向主人请示。"
-        },
-        {
-          "id": "P16",
-          "name": "★ 知道有「第二视角」（服务端观察者同伴）",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ 2026-10-28 用户定：观察游戏内行为时，除了自己看监测台，还有一个现成的「第二视角」——用 create_companion 造一个服务端玩家实体（默认名 Observer），切 creative，站在被观察者旁边，用 get_self_status / rdd_whereami / scan_nearby_entities / scan_blocks / look_around 读它的世界。★ 为什么要有这条：mineflayer 连不了 NeoForge 实例（FML 握手门，实测见 tools/mineflayer/README.md），而 Numen 自己的 create_companion 能进主世界、能开创造、能跟 RDD 并存 —— 这是目前唯一能拿到「另一个身体看到的」的路。★ 不是替代监测台：监测台读 JSONL 埋点（事后、结构化、无位置语义），Observer 读实时世界（位置/实体/方块/血条）。两者互补。",
-          "verify": "人工确认（想用时照做，不想用不必）：\n  1) 造人（幂等，已在场不会重复造）：powershell -NoProfile -ExecutionPolicy Bypass -File D:\\rdd\\workspace\\scripts\\spawn-observer.ps1\n  2) 切创造：send-mc-command.ps1 -Text \"/gamemode creative Observer\"（MCP 无 gamemode 工具，必须走这条）\n  3) 贴到目标旁：/tp Observer <x> <y> <z>（★ 地下 goto 到不了，必须 /tp）\n  4) 持续落盘：node D:\\rdd\\harness\\rdd-harness\\bin\\observer-loop.js --interval 30（写 monitor/observer.jsonl，监测台可读）\n  5) 让它跟着某人：mcp-call.js follow Observer @follow.json（entity_id + distance + may_alter_terrain）\n  ★ 坑：goto 只走地面，地下目标一律 /tp；create_companion 同名幂等（实测 entity_id 不变）；同伴写进 saves/live/playerdata/<uuid>.dat，重启仍在",
-          "tool": "observer.loop"
-        },
-        {
-          "id": "P17",
-          "name": "★ 你有第二具身体：mineflayer + mf-kit（能干活，能开创造）",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ 2026-10-28 用户定：外部编程 AI 不只有「看」，它自己也能有一具身体 —— tools/mineflayer（标准 PrismarineJS 4.39.0，npm 原版）+ harness/bin/mf-kit.js 把生态拼成一行能调的动作（寻路 pathfinder / 采集 collectblock / 合成 / 战斗 pvp / 吃饭 auto-eat / 穿甲 armor-manager / 找方块 blockfinder / tool 自动选工具），入口 harness/bin/mf-observer.js（smoke | eval <file.js>）。它连不了 NeoForge 实机（FML 握手门），所以「身体」开在原版协议服座位上；要进主世界看 RDD，走 P16 的 Observer（那条能开创造、能飞、能 /tp）。两件事分开记：mf-kit = 用代码干活的手；Observer = 另一个身体的眼睛。",
-          "verify": "人工确认（想用代码干活时）：\n  0) 座位：D:/rdd/tools/mineflayer（node_modules 里插件齐全）\n  1) 冒烟：node harness/bin/mf-observer.js smoke --port 25565\n  2) 跑脚本：node harness/bin/mf-observer.js eval <你的.js>（导出 async ({bot, mineflayer}) => {}）\n  3) 动作库：const kit = require('D:/rdd/harness/rdd-harness/bin/mf-kit.js'); await kit.setup(bot); await kit.collect(bot, 'oak_log', 4)\n  ★ 坑：findBlocks 只认方块 ID（传名字静默空）；collectBlock 只吃 Block 对象；collectblock 必须 load mineflayer-tool；别自己逐格 blockAt 全图扫（16 万次被服务器踢，EXP-R01-C-0001）\n  ★ 睡觉：多玩家同服时跳夜要所有人睡（playersSleepingPercentage 默认 100）—— bot/Observer 不睡会卡夜，做睡眠实验前先只留一个玩家",
-          "tool": "mf.kit"
-        },
-        {
-          "id": "P21",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "★ 提示词治理 lint",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "常驻提示词、Goal 提示词和指针目录必须通过预算、候选晋升和指针目标检查。",
-          "verify": "node rdd-selfcompile/scripts/verify-tools/prompt-lint.js → exit 0"
-        },
-        {
-          "id": "P18",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "★ 建链经过规划者（rdd_supervisor_submit，不是 rdd_submit）",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "新建任务链用 rdd_supervisor_submit 或同一规划入口。旧链普通续跑不重派；同一任务链明确绕过才BLOCK，来源不明为WARN。",
-          "verify": "只核同世界、服务器、进程会话、同伴及任务ID的快照。入队摘要不能代签；旧日志缺身份或窗口不完整保留UNKNOWN。",
-          "tool": "planner.entry"
+          "rule": "安装件与本次目标匹配；坏包、缺失引用和重复mixin不得开跑。",
+          "verify": "harness-gate.js preflight；旧版对照可显式给目标实例及jar哈希清单。"
         }
       ]
     },
     "postflight": {
-      "$comment": "★ 出游戏【之后】。总结文档一律写到 routing.rule 指定的位置，harness 里不放总结。",
-      "when": "close 阶段（关档之前）",
+      "when": "退场后更新本次记录",
       "checks": [
         {
-          "id": "Q1",
-          "name": "有标记",
-          "kind": "trace",
-          "level": "block",
-          "rule": "★ 出游戏必须留标志：本轮在知识库（验证卡 / 实验数据记录 / 更新日志）留下带签名或日期的可核对痕迹。stage 四阶段流水线已于 2026-11-06 废弃，不再要求 stager implement --note。",
-          "verify": "读知识库对应文件夹本轮 mtime 或 git log；无 stage 任务不再判 WARN"
-        },
-        {
-          "id": "Q2",
-          "name": "evidence 已落盘",
-          "kind": "trace",
-          "level": "block",
-          "rule": "证据四要素：命令 + 关键输出行 + 时间戳 + runTag。",
-          "verify": "知识库\\实验数据记录\\ 或对应文件夹里有本轮新鲜的 evidence 文档且含签名（--keyword 或 --head 前 12 位）"
-        },
-        {
-          "id": "Q3",
-          "name": "总结已写",
-          "kind": "trace",
-          "level": "block",
-          "rule": "★ 工程规范第 8 条四件：改了哪 / 为什么 / 怎么调的 / 入口出口。",
-          "verify": "有本轮新鲜的 experience 或 code 文档"
-        },
-        {
-          "id": "Q4",
-          "name": "★ 总结写到了正确位置",
+          "id": "RECORD",
+          "name": "本次文档质量",
           "kind": "artifact",
           "level": "block",
-          "rule": "长期资产与本轮记录均按知识库/写作规则.md进入对应主题；harness只放工具、规则、注册表、测试。stageDocs与docsUnified只留历史兼容。",
-          "verify": "扫 harness\\ 下有没有新建的 .md 总结类文件"
-        },
-        {
-          "id": "Q5",
-          "name": "记忆图谱已灌",
-          "kind": "trace",
-          "level": "block",
-          "rule": "★ 别只写文档不进图谱 —— 空库→查了没用→更不查，是踩过的正反馈坑。必须写明本轮灌了哪几条实体。",
-          "verify": "experience/evidence 文档里含 memory_create_entities / memory_add_observations / 实体名"
-        },
-        {
-          "id": "Q6",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "三个机器门都过",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "loop-gate.js + flow-gate.js 的结果要有记录；flow-gate 输出 VERDICT=NOT_DONE → 不许收工、不许上报完成。stage 四阶段流水线已于 2026-11-06 废弃，不再跑 stager check。",
-          "verify": "外部跑；本项只看有没有在文档里记录了结果",
-          "note": "没走 stage 是现行默认；loop-gate/flow-gate 的 NOT_DONE 若出现要显式在 evidence 里说明，不能拿它判定没做完。"
-        },
-        {
-          "id": "Q7",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "产物真的落地",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 回执 success 不等于东西存在。录像要验 ffmpeg 的 frame= 等于 PNG 张数；截图要验文件大小；jar 要验 sha。",
-          "verify": "用了 /cam rec 就查 screenshots\\numencam_*\\ 有 mp4 且 ffmpeg.log 的 frame= == PNG 数"
-        },
-        {
-          "id": "Q8",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "★ 时间锁已更新",
-          "kind": "trace",
-          "level": "block",
-          "rule": "本轮新发现的【智能性错误】（看起来做了、其实没生效 / 静默失败 / 假成功）必须进 registry.timeLocks，写清 guard 是什么。",
-          "why": "用户 2026-10-04 定：「有些时候他那个文档会有智慧性，所以说我觉得要要一个时间防止这种问题再出现」",
-          "verify": "registry.timeLocks 有本轮新增/更新的条目，或本轮文档里写明「本轮无新的智能性错误」"
-        },
-        {
-          "id": "Q9",
-          "name": "编号登记三处",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "新建 NN 文档必须同时登记 README.md §二目录表 / 09-更新日志.md / 50-按主题导航.md。",
-          "verify": "内置检查：新 NN 文件名是否出现在那三份里"
-        },
-        {
-          "id": "Q10",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "游戏已关",
-          "kind": "artifact",
-          "level": "warn",
-          "rule": "别占内存。带 -AutoStopMinutes 起的会自动关，手动起的自己关（用 mc.stop）。"
-        },
-        {
-          "id": "Q11",
-          "name": "提交精确、没卷别人",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ git status --short 逐行确认，每一行都是你改的。rdd-docs 尤其危险（副本同步一次动 147 个文件）。"
-        },
-        {
-          "id": "Q12",
-          "name": "★ 关游戏之后：写记录 + 写文档（提示）",
-          "kind": "human",
-          "level": "ask",
-          "rule": "关游戏后按知识库/退游戏/001-退游戏检查单.md记录判据、数据、结果、原因和复现；复用原主题文档与知识库登记，不再强制新增旧库NN文档或三处旧索引。",
-          "verify": "执行者核对当前检查单；Q2/Q3/Q5/Q9仍按各自范围检查，历史库已有证据保留兼容，不代表必须新写旧库。",
-          "tool": "gate.read"
-        },
-        {
-          "id": "Q13",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "实机验证卡已写",
-          "kind": "trace",
-          "level": "warn",
-          "rule": "★ 2026-10-19 用户要求：进过游戏就必须在 rdd架构\\实机验证\\YYYY-MM.md 留一张卡，写清「要验什么（判据）/ 为什么现在验 / 采了什么数据 / 结果 / 原因 / 下次怎么复现」。待验的也要建卡（状态 ⬜，判据先写死）。",
-          "verify": "扫 docs/rdd-docs/rdd架构/实机验证/YYYY-MM.md 的 mtime 是否本轮 + 里面有几张 ### V-YYYYMMDD-NN 卡 + 回填了几张（状态为 ✅/❌/🟡）"
-        },
-        {
-          "id": "Q14",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "证据坐标指得到东西",
-          "kind": "trace",
-          "level": "warn",
-          "rule": "★ 2026-10-20 #087 新增：验证卡里写的 `文件:行号` 必须指得到真实的行，引文必须在文件里找得到。教训：V-13 引用的原文只在归档 rdd-1792489290677.jsonl 里，主 rdd.jsonl 0 命中，复查第一遍差点判成「汇报造假」。证据散在 rdd*.jsonl / context*.jsonl（含归档），没有坐标就只能靠记忆哪个文件，每次复查都踩一遍。",
-          "verify": "node rdd-selfcompile/scripts/verify-tools/check-evidence-anchor.js --json → hard（指不到/引文不存在）与 warn（只写文件名没写行号）分别计数；hard>0 = 证据是编的",
-          "tool": "trace.evidence"
-        },
-        {
-          "id": "Q15",
-          "name": "债账入表",
-          "kind": "trace",
-          "level": "warn",
-          "rule": "★ 2026-10-20 #091 新增（H1 试金石的机检版）：杂项记录\\YYYY-MM.md 的「下一步（汇总）」表必须吸收本轮的债 —— 不能出现「完成的批次还挂在未完成行」、必须有 H 段、表里必须提到债。教训：H1 原判据（goal.js accept 要件）连续多轮为负，三值化从没自己浮进表；靠「我记得」是不成立的。",
-          "verify": "node rdd-selfcompile/scripts/verify-tools/check-debt-rollup.js --json → warn 为空 = 表已刷新（缺文件按 WARN 降级，不冒充通过）；--selftest 7/7 证明它抓得住「表没刷新」",
-          "tool": "trace.debt"
-        },
-        {
-          "id": "Q16",
-          "name": "退游戏后的文档书写清单",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ 2026-10-21 用户定（2026-11-06 起独立挂在退游戏门，stage 四阶段流水线已废弃）：关游戏不是结束，按顺序做完四件再开下一轮 —— ① 回填验证卡（判据/数据/结果/原因/复现）→ 实机验证\\YYYY-MM.md ② 杂项记录加一行 #NNN（三态 + 下一步）③ 新坑写时间锁（智能性错误必填 guard）→ registry.json ④ 经验实体写进记忆库 → _memory\\memory.jsonl（append-only）。另有两件容易漏：快照用完自己删；决策队列里等主人拍板的事别自己定了。★ 为什么必须挂在这里：stage 的 tasks 目录是空的（没人走 stage），挂在 stage 的必读清单等于从没被执行过——2026-11-06 起 stage 正式废弃，清单以本门禁为准。机器判不了「文档写得好不好」，但必须把清单摆在面前。",
-          "verify": "人工确认四条都做了；机器侧对应项是 Q2/Q3/Q5/Q9/Q13/Q14，这里是给人看的完整清单",
-          "tool": "gate.read"
-        },
-        {
-          "id": "Q17",
-          "name": "★ 报告放行门禁：未了项必须在报告里有状态",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 2026-10-22 用户批准的两条补丁之一（原话：「报告发出前，每个未了项都必须在报告里有状态；漏一个 = 红」）。判据：① decisions.jsonl 里 status=pending 的待拍板项，必须出现在当天的 rdd存放\\ 日报里，且位置是「给老板的三行」的 ② 那一行或「还不能用的 / 我改不动的」表 ② 该表每一行的「要你做什么」不能为空（空 = 没有状态）③ 报告必须交代那张 existential 卡现在在哪一步（亮没亮 / 还差什么）。今天还没写日报 → 不拦（SKIP，报告在收工时才落）；日报已存在但漏了未了项 → BLOCK。",
-          "why": "外部复审的诊断：decisions.jsonl 只是「止血记录层」，没有任何东西拦住一份报告把等主人拍板的事悄悄漏掉。报告一发出，主人看到的是「一切正常」，问题就从「等他拍板」退化成「没人知道」—— 比前者更糟。真正的修法是门禁层，不是再写一条纪律。",
-          "verify": "node harness\\rdd-harness\\bin\\lib\\report-release.js（通过 exit 0）；--selftest 10/10 证明反例能打红、正例能放过",
-          "tool": "gate.report"
-        },
-        {
-          "id": "Q18",
-          "name": "★ 实验台：写新工具 + 写数据反思 + 数据进账本",
-          "kind": "human",
-          "level": "ask",
-          "rule": "★ 2026-10-27 主人指示（原话：「给 harness 门禁退游戏的时候，加一个门禁提示，就是可以给实验台写新的工具，并且写实验台实验数据的反思和提醒」）。三件事必须在退游戏那一刻摆到人眼前：① 这轮实验缺的观测手段 → 补成实验台工具（harness/bin/exp-*、bench、bench-watch、world-view、mf-*、observer-*），一条命令复现、带 --help 与自测，不靠手工重复；② 这轮实验数据的反思 → 写进 rdd存放\\ 一页纸或 自编译统一版\\NN-*，必须回答「看到了什么 / 哪里反直觉 / 下一步只改哪个变量 / 这轮证伪了什么假设」；③ 数据要进账本（bench tip add / probe add / signal add / verdict add），只写在聊天里等于没写。为什么挂 postflight：实验产物（journal / verdict / learn-summary）都在退游戏时定稿，过夜就只剩数字、只剩「有效/无效」。级别 ask：机器判不了反思写得好不好；但「数据更新了而反思没落」「反思写了而账本没进」都是机检得出的（2026-10-28 收紧：反思按内容四问判、不再按文件名；账本查 workbench.json 新增），由 check-experiment-reflection.js 给 severity=warn 并在门禁里显眼提示（不 BLOCK：实验可能还在跑，假红比漏报更糟）。",
-          "why": "2026-10-27 主人观察：实验数据在涨、人话判断没跟上；缺的观测手段每次都靠手工临时拼，下一轮又重来。这两件事都是「退游戏时才想得起来」的那类，必须挂在门禁上而不是靠记性。2026-10-28 复验发现两个假绿：架构文档被当反思、账本 0 新增也报 pass —— 已改为内容判据 + 账本新鲜度。",
-          "verify": "node workspace\\rdd-selfcompile\\scripts\\verify-tools\\check-experiment-reflection.js --json（severity=pass/warn/skip/unknown；warn 时点名缺的是反思还是账本；reflectionHits 列出命中哪几问）",
-          "tool": "gate.experiment"
-        },
-        {
-          "id": "Q19",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "★ 任务链走的是规划者，不是 rdd_submit",
-          "kind": "trace",
-          "level": "warn",
-          "rule": "复用 P18 的范围证据；已证新链绕过为WARN，来历未知不签通过，也不据此重派原链。",
-          "verify": "机器判据：node bin/harness-gate.js postflight 的 Q19 行；单独查 node -e \"console.log(require('./bin/lib/planner-entry.js').scan(new Date('YYYY-MM-DD')))\" 看 verdict 与 planned/bypassed 明细。",
-          "tool": "planner.entry"
-        },
-        {
-          "id": "Q20",
-          "appliesTo": [
-            "worker",
-            "learner"
-          ],
-          "name": "★ 进过游戏就必须有回填补齐的验证卡",
-          "kind": "artifact",
-          "level": "block",
-          "rule": "★ 2026-10-30 用户要求（原话：「进游戏验证强、退游戏记录规范，感觉现在还是做不到」）。原先 Q13（验证卡）/Q14（证据坐标）都是 WARN、Q18 是 ASK —— 理由是纯文档轮不该被拦，但代价是「进过游戏、一张卡没回填」照样 VERDICT=PASS。这条补的就是那个口子：**条件判据** —— 只有本轮真有游戏痕迹时才拦。判据四条全部是实物：① gameRunEvidence 为真（runs/exp-* 的 envelope.createdAt >= since，或 live/logs/latest.log、rdd-launch-*.log 的 mtime >= since）；② 实机验证/YYYY-MM.md 本轮被改过；③ 里面至少有一张**当天日期**（V-YYYYMMDD-NN，YYYYMMDD == 今天）的卡且状态已填（✅/❌/🟡）；④ check-evidence-anchor 的 hard == 0（坐标指得到、引文存在）。没进游戏 → SKIP，不制造假红。★ 刻意不把 deploy-ledger 当「进过游戏」的证据：run-mutation -SkipLaunch 的纯编译部署也写流水。",
-          "why": "用户 2026-10-30 指出的真实断层：进游戏的门（preflight）和退游戏的门（postflight）都存在，但软判据让「记录」这一半可以整轮跳过。要的不是更多提示，是「这一轮到底有没有落地」。",
-          "verify": "机器判据：node bin/harness-gate.js postflight 的 Q20 行；自检在 selftest 第 8 组（gameRunEvidence 四种情形 + parseCards 五种情形，共 12 条）；证据坐标沿用 check-evidence-anchor.js --json 的 hard 数。",
-          "tool": "gate.read"
-        }
-      ]
-    },
-    "$askNote": "ASK：机器无法自动判定，由执行者在已有授权内核对；超出授权或缺少必要信息时才问主人。",
-    "round": {
-      "$comment": "2026-11-13：按006现行三层团队职责修正旧监督误判。mtime、旧goal日志和全局闹钟均非当前会话状态，缺覆盖标UNKNOWN；round是监督提醒，不能代替preflight硬检查。",
-      "when": "指挥官十分钟提醒中按需使用；实际目标/原证核查不依赖固定写文件次数",
-      "checks": [
-        {
-          "id": "C1",
-          "name": "按任务变化查架构导航",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按任务变化查架构导航。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C2",
-          "name": "文档按真实变化维护",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：文档按真实变化维护。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C3",
-          "name": "角色与任务入口对齐",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：角色与任务入口对齐。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C4",
-          "name": "施工目标现场核对",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：施工目标现场核对。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C6",
-          "name": "十分钟按需监督提醒",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：十分钟按需监督提醒。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C5",
-          "name": "架构变化时查重并更新导航",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：架构变化时查重并更新导航。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C7",
-          "name": "检查真实进展与下一步",
-          "kind": "artifact",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：检查真实进展与下一步。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C8",
-          "name": "工具证据覆盖",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：工具证据覆盖。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C9",
-          "name": "按观测任务核对实验台",
-          "kind": "artifact",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按观测任务核对实验台。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C9b",
-          "name": "按观测任务核对世界状态",
-          "kind": "artifact",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：按观测任务核对世界状态。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        },
-        {
-          "id": "C10",
-          "name": "阻塞按原因指导，暂停尊重原意",
-          "kind": "trace",
-          "level": "warn",
-          "appliesTo": [
-            "commander"
-          ],
-          "rule": "遵循知识库/架构意图/006-Harness模块.md现行职责：阻塞按原因指导，暂停尊重原意。不以陈旧/局部痕迹代替权威现场；已完成、人类暂停和未武装不自动恢复。",
-          "verify": "round只展示历史线索与UNKNOWN；按需用当前会话工具和原始结果核对。",
-          "note": "2026-11-13修复旧债：旧20分钟mtime及不完整日志会误拦正常调查、长任务和有效等待。"
-        }
-      ]
-    },
-    "learn": {
-      "$comment": "★ 2026-11-07 主人定：学习者（外部学习 AI）专属门禁 —— 必须定 30 分钟闹钟、必须检查游戏内产的学习单位看要不要改、必须看检索发出的待复核。用 node bin/harness-gate.js learn 跑。L2 是游戏侧真写的复核时刻（硬），L1/L3 的限度见各自 note，别当强判据。",
-      "when": "学习者每 30 分钟一轮的复盘轮",
-      "checks": [
-        {
-          "id": "L1",
-          "name": "30 分钟闹钟已设",
-          "kind": "trace",
-          "level": "block",
-          "appliesTo": [
-            "learner"
-          ],
-          "rule": "学习者必须挂一个 ≤30 分钟的重复闹钟，不然没人叫它，它就会停在这儿等推。",
-          "verify": "~/.dsh/storages/schedule.json 的 tables.tasks.* 里有 kind=every 且 everySeconds<=1800"
-        },
-        {
-          "id": "L2",
-          "name": "查过游戏内学习单位",
-          "kind": "artifact",
-          "level": "block",
-          "appliesTo": [
-            "learner"
-          ],
-          "rule": "每轮必须看一眼游戏里产出的学习单位（skills.jsonl），判断新的要不要改、旧的要不要并。",
-          "verify": "<numen>/learner-review-state.json 的 last_review_at 在 30 分钟内",
-          "note": "只证明游戏侧做过一次复核，不证明结论对；结论质量看知识库记录。"
-        },
-        {
-          "id": "L3",
-          "name": "看过检索待复核",
-          "kind": "trace",
-          "level": "block",
-          "appliesTo": [
-            "learner"
-          ],
-          "rule": "统一检索发出的待复核学习必须有人看，否则学了一堆没人认领。",
-          "verify": "<numen>/learner-enqueued.jsonl 或 learner-review-state.json 在 30 分钟内被动过",
-          "note": "只证明队列被动过，不证明看全了。★2026-11-08 学习者纠正：积压量要报游戏侧的 queue_depth（learner.jsonl 的 reviewed 事件），不能拿 learner-enqueued.jsonl 的行数当队列 —— 那 401 行是历史入队总数，真实深度曾同期只有 61。"
+          "rule": "更新原主题，保留本次目标、动作、原证和结论。未提供记录只提醒，绝不宣称质量通过。",
+          "verify": "harness-gate.js postflight --record <file> [--section <heading>]"
         }
       ]
     },
     "groups": {
-      "$comment": "★ 2026-10-30 分组：42 项判据按「写代码 / 验证 / 记录」三门 + 提醒桶归组，输出时先给三门总判，再逐项列明细。分组只影响「怎么读」和「总判怎么算」，**不改任何单项判据的强度**。不变式（selftest 强制）：每条声明判据必须恰好属于一个组，漏归/重复归 = FAIL —— 这也是「不许只加不归」的上限开关。",
-      "GK-1": {
-        "name": "写代码：源码→构建→部署→运行是同一条链",
+      "deployment": {
+        "name": "部署",
         "checks": [
-          "P1",
-          "P2",
-          "P3",
-          "P4",
-          "P5",
-          "P14",
-          "P14b",
-          "P18",
-          "P21"
+          "DEPLOY"
         ]
       },
-      "GK-2": {
-        "name": "验证：结论必须有证据；未跑/未知 ≠ 通过",
+      "record": {
+        "name": "记录质量",
         "checks": [
-          "P6",
-          "P9",
-          "Q2",
-          "Q6",
-          "Q7",
-          "Q8",
-          "Q10",
-          "Q13",
-          "Q14",
-          "Q15",
-          "Q17",
-          "Q19",
-          "Q20",
-          "P22"
-        ]
-      },
-      "GK-3": {
-        "name": "记录：一行杂项 + 验证卡 + 编号登记，一次落盘",
-        "checks": [
-          "P7",
-          "P8",
-          "P10",
-          "P10b",
-          "P10c",
-          "P10d",
-          "Q1",
-          "Q3",
-          "Q4",
-          "Q5",
-          "Q9",
-          "Q16"
-        ]
-      },
-      "GK-R": {
-        "name": "指挥官按需监督：历史线索与UNKNOWN，不伪造实时结论",
-        "checks": [
-          "C1",
-          "C2",
-          "C3",
-          "C4",
-          "C5",
-          "C6",
-          "C7",
-          "C8",
-          "C9",
-          "C9b",
-          "C10"
-        ]
-      },
-      "GK-L": {
-        "name": "学习者一轮：30 分闹钟 / 查学习单位 / 看待复核",
-        "checks": [
-          "L1",
-          "L2",
-          "L3"
-        ]
-      },
-      "REMIND": {
-        "name": "执行者核对与提醒；其中真实BLOCK仍计入统一总判",
-        "checks": [
-          "P11",
-          "P12",
-          "P13",
-          "P15",
-          "P16",
-          "P17",
-          "Q11",
-          "Q12",
-          "Q18"
+          "RECORD"
         ]
       }
+    },
+    "handling": {
+      "interlock": [
+        "DEPLOY"
+      ],
+      "replaceable": [],
+      "diagnostic": []
     }
   },
   "roles": {

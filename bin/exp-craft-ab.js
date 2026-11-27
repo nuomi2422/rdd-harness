@@ -29,6 +29,12 @@ const path = require('path');
 
 const REF_HINT = 'craft 3x3';
 
+function fingerprint(jars) {
+  if (!Array.isArray(jars) || !jars.length) return '';
+  return jars.filter((j) => j && typeof j.file === 'string' && typeof j.sha256 === 'string')
+    .map((j) => j.file + ':' + j.sha256).sort().join('|');
+}
+
 function readJson(p) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
@@ -49,6 +55,7 @@ function loadArm(dir) {
     watchSeconds: (env.timings || {}).watchSeconds || null,
     stopReason: (env.watch || {}).stopReason || null,
     masterSha: ((env.master || {}).manifest || {}).sha256 || null,
+    launchedBuild: fingerprint(env.jarsAtLaunch),
     stableKeyBefore: (((env.world || {}).before) || {}).stable_key || null,
     controlKeyBefore: (((env.world || {}).before) || {}).control_key || null,
     crafts: [],
@@ -123,6 +130,9 @@ function judge(base, treat) {
   const masterOk = base.masterSha && base.masterSha === treat.masterSha;
   if (!masterOk) { verdict = 'INVALID'; reasons.push('母版 manifest 不同: ' + base.masterSha + ' vs ' + treat.masterSha); }
 
+  const buildOk = base.launchedBuild && base.launchedBuild === treat.launchedBuild;
+  if (!buildOk) { verdict = 'INVALID'; reasons.push('启动 jar 指纹不同或缺失: ' + (base.launchedBuild || 'UNKNOWN') + ' vs ' + (treat.launchedBuild || 'UNKNOWN')); }
+
   const envOk = base.stableKeyBefore && base.stableKeyBefore === treat.stableKeyBefore;
   if (!envOk) { verdict = 'INVALID'; reasons.push('stable_key 不同（环境不可比）'); }
 
@@ -154,7 +164,7 @@ function selfTest() {
   // 用临时目录造假证据，验证三条判定：PASS / INCONCLUSIVE / INVALID
   const os = require('os');
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'craft-ab-'));
-  const mk = (name, { master, stable, refs, crafts }) => {
+  const mk = (name, { master, stable, refs, crafts, build = master }) => {
     const d = path.join(root, name);
     fs.mkdirSync(path.join(d, 'evidence'), { recursive: true });
     fs.writeFileSync(path.join(d, 'envelope.json'), JSON.stringify({
@@ -162,6 +172,7 @@ function selfTest() {
       timings: { watchSeconds: 600 },
       watch: { stopReason: 'wall 600s' },
       master: { manifest: { sha256: master } },
+      jarsAtLaunch: [{ file: 'numen-fixture.jar', sha256: build }],
       world: { before: { stable_key: stable, control_key: stable } },
     }));
     fs.writeFileSync(path.join(d, 'evidence', 'tools.jsonl'), crafts.map(c => JSON.stringify({
@@ -181,11 +192,13 @@ function selfTest() {
   const r1 = judge(loadArm(a), loadArm(b));
   const c = mk('c', { master: 'M1', stable: 'S1', refs: 10, crafts: [fail3, table] });
   const r2 = judge(loadArm(a), loadArm(c));
-  const d2 = mk('d', { master: 'M2', stable: 'S1', refs: 10, crafts: [table] });
-  const r3 = judge(loadArm(a), loadArm(d2));
+  const d = mk('d', { master: 'M2', stable: 'S1', refs: 10, crafts: [table] });
+  const r3 = judge(loadArm(a), loadArm(d));
+  const dBuild = mk('d-build', { master: 'M1', stable: 'S1', refs: 10, crafts: [table], build: 'OTHER_BUILD' });
+  const r4 = judge(loadArm(a), loadArm(dBuild));
 
-  const ok = r1.verdict === 'PASS' && r2.verdict === 'INCONCLUSIVE' && r3.verdict === 'INVALID';
-  console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: [r1.verdict, r2.verdict, r3.verdict] }));
+  const ok = r1.verdict === 'PASS' && r2.verdict === 'INCONCLUSIVE' && r3.verdict === 'INVALID' && r4.verdict === 'INVALID';
+  console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', cases: [r1.verdict, r2.verdict, r3.verdict, r4.verdict] }));
   return ok ? 0 : 1;
 }
 

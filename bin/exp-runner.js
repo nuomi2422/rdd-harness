@@ -416,13 +416,13 @@ function localYmd(d) {
 
 /** P2 的执行体：退出码 2 = 有源码领先于 jar。读不到工具时返回 null（不装作通过）。 */
 function deployGate(runDir) {
-  if (!fs.existsSync(DEPLOY_CHECK)) return { ok: null, reason: 'verifier-missing' };
-  const r = spawnSync(process.execPath, [DEPLOY_CHECK], { encoding: 'utf8', timeout: 240000, windowsHide: true });
+  if (!fs.existsSync(GATE)) return { ok: null, reason: 'verifier-missing' };
+  const r = spawnSync(process.execPath, [GATE, 'preflight'], { encoding: 'utf8', timeout: 240000, windowsHide: true });
   const out = ((r.stdout || '') + (r.stderr || '')).trim();
   try { fs.writeFileSync(path.join(runDir, 'evidence', 'gate-deploy.txt'), out + '\n\nexit=' + r.status + '\n'); } catch { /* 存档失败不改判 */ }
   const stale = /VERDICT=STALE/.test(out);
   return {
-    ok: !(r.status === 2 || stale),
+    ok: r.status === 0 && /VERDICT=PASS\b/.test(out) && !stale,
     exit: r.status === null ? 127 : r.status,
     staleLines: out.split(/\r?\n/).filter((l) => /^\s+·|源码领先|VERDICT=STALE/.test(l)).slice(0, 6),
   };
@@ -441,7 +441,7 @@ function postflightAfterRun(runDir, label) {
     const m = line.match(/^✘\s+(\S+)\s+(.+)$/);
     if (m) blocks.push({ id: m[1], name: m[2].trim() });
   }
-  return { ok: r.status === 0, exit: r.status === null ? 127 : r.status, blocks, since };
+  return { ok: /VERDICT=REMINDER/.test(out) ? null : r.status === 0, reason: /VERDICT=REMINDER/.test(out) ? 'record-not-specified' : null, exit: r.status === null ? 127 : r.status, blocks, since };
 }
 
 

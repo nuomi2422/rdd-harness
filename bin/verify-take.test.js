@@ -25,6 +25,15 @@ test('没有 frames.csv 时判不可判，且不当通过', (t) => {
   assert.match(r.out, /没有 frames.csv/);
 });
 
+test('CSV 与 PNG 数量不一致时判 UNKNOWN，不能退出 0', (t) => {
+  const r = take(t, [
+    '0,1000,100,1.0,2.0,3.0',
+    '1,2000,105,2.0,2.0,3.0',
+  ], { 'f_00000.png': 'AAAA' });
+  assert.equal(r.code, 2, r.out);
+  assert.match(r.out, /CSV 与 PNG 数量不一致/);
+});
+
 test('相机在动而画面不变：只报需分别核，不判采集故障', (t) => {
   const r = take(t, [
     '0,1000,100,1.0,2.0,3.0',

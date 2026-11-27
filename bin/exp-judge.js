@@ -40,7 +40,46 @@ function oakLogCount(raw) {
 
 const ACTION_TOOLS = ['mine', 'craft', 'goto', 'attack', 'interact_at', 'place', 'build', 'collect_items', 'acx_execute'];
 const CLAIM_WORDS = ['完成', '搞定', '拿到了', '采集到', '做好了', '收到', '已交付', '砍到', '装进背包', '放进背包'];
-const realActionCalls = (toolLines, allowedTools = ACTION_TOOLS) => toolLines.filter((l) => l.includes('"type":"tool_call"') && allowedTools.some((t) => l.includes('"tool":"' + t + '"')));
+function jsonRows(toolLines) {
+  const rows = [];
+  for (const line of toolLines) {
+    try { const row = JSON.parse(line); if (row && typeof row === 'object') rows.push(row); } catch { /* malformed evidence is not a successful action */ }
+  }
+  return rows;
+}
+function identityValues(row, field) {
+  return [...new Set([row[field], row.data && row.data[field]].filter(value => value != null))];
+}
+function identityConflict(call, result) {
+  return ['world_id', 'server_session', 'companion_id', 'session'].some(field => {
+    const left = identityValues(call, field), right = identityValues(result, field);
+    if (!left.length || !right.length) return false;
+    return left.length > 1 || right.length > 1 || left[0] !== right[0];
+  });
+}
+function resultSuccess(result) {
+  const data = result.data || {};
+  if (data.success === true) return true;
+  if (data.success === false) return false;
+  try { return JSON.parse(data.result).success === true; } catch { return null; }
+}
+function actionEvidence(toolLines, allowedTools = ACTION_TOOLS) {
+  const rows = jsonRows(toolLines);
+  const calls = rows.filter(row => row.type === 'tool_call' && allowedTools.includes(row.data && row.data.tool));
+  const results = rows.filter(row => row.type === 'tool_result');
+  let successful = 0, failed = 0, unresolved = 0, conflicts = 0;
+  for (const call of calls) {
+    const id = call.data && call.data.tool_call_id;
+    const matches = id ? results.filter(row => row.data && row.data.tool_call_id === id) : [];
+    if (!matches.length) { unresolved++; continue; }
+    if (matches.some(result => identityConflict(call, result))) { conflicts++; continue; }
+    const states = matches.map(resultSuccess);
+    if (states.some(state => state === true)) successful++;
+    else if (states.every(state => state === false)) failed++;
+    else unresolved++;
+  }
+  return { calls: calls.length, successful, failed, unresolved, conflicts };
+}
 const claimIn = (s) => CLAIM_WORDS.some((w) => s.includes(w));
 
 function evaluate(runDir) {
@@ -102,8 +141,9 @@ function evaluate(runDir) {
     const before = beforeRaw ? oakLogCount(beforeRaw) : (env.inventory ? env.inventory.oakLogBefore : null);
     const after = oakLogCount(invAfterRaw);
     const toolLines = lines(ev('tools.jsonl'));
-    // 2026-11-11: 冻结 SMOKE-r1 要求 mine 调用；goto/craft 曾凭库存增量误过。其它契约保留原工具集，不新增成功/终态门。
-    const realCalls = realActionCalls(toolLines, contractRev === 'SMOKE-r1' ? ['mine'] : ACTION_TOOLS);
+    // 2026-11-11: 冻结 SMOKE-r1 要求 mine 调用；goto/craft 曾凭库存增量误过。其它契约保留原工具集。
+    // 2026-11-27: 调用本身不够；必须有同 call_id、同身份且 success=true 的 tool_result。
+    const actions = actionEvidence(toolLines, contractRev === 'SMOKE-r1' ? ['mine'] : ACTION_TOOLS);
     const aiLines = lines(ev('ai.jsonl'));
     const turns = new Set(aiLines.filter((l) => l.includes('"type":"turn"')).map((l) => num(/"turn":(\d+)/, l)).filter((n) => n !== null));
     const assistantText = aiLines.filter((l) => l.includes('"type":"assistant"')).join('\n');
@@ -125,13 +165,20 @@ function evaluate(runDir) {
       add('S3', 'INCONCLUSIVE', '缺背包前后证据（before=' + before + ', after=' + after + '）', ['evidence/inventory-before.json', 'evidence/inventory-after.json']);
     } else {
       const delta = after - before;
-      const factsOk = delta >= 4 && realCalls.length >= 1;
+      const factsOk = delta >= 4 && actions.successful >= 1;
       const aligned = claimDone === (delta >= 4);
       let verdict, detail;
       if (!deadlineOk) { verdict = 'FAIL'; detail = '超预算：决策轮 ' + turns.size + '（≤12）、墙钟 ' + wall + 's（≤600）'; }
-      else if (!factsOk) { verdict = 'FAIL'; detail = '世界事实不达标：oak_log ' + before + '→' + after + '（增量 ' + delta + '，需≥4），真实动作调用 ' + realCalls.length + '；' + (claimDone ? '且已声明完成=虚报' : '未声明完成'); }
-      else if (!aligned) { verdict = 'FAIL'; detail = '声明与事实不一致：事实增量 ' + delta + ' 但最终未声明完成'; }
-      else { verdict = 'PASS'; detail = 'oak_log ' + before + '→' + after + '（Δ' + delta + '），真实动作 ' + realCalls.length + ' 次，决策轮 ' + turns.size + '，墙钟 ' + wall + 's，声明与事实一致'; }
+      else if (delta < 4) { verdict = 'FAIL'; detail = '世界事实不达标：oak_log ' + before + '→' + after + '（增量 ' + delta + '，需≥4），成功动作 ' + actions.successful + ' 次；' + (claimDone ? '且已声明完成=虚报' : '未声明完成'); }
+      else if (actions.calls === 0) { verdict = 'FAIL'; detail = '世界事实虽增加，但窗口内没有契约允许的动作调用，不能归因为目标行为'; }
+      else if (actions.successful >= 1) {
+        if (!aligned) { verdict = 'FAIL'; detail = '声明与事实不一致：事实增量 ' + delta + ' 但最终未声明完成'; }
+        else { verdict = 'PASS'; detail = 'oak_log ' + before + '→' + after + '（Δ' + delta + '），成功动作 ' + actions.successful + ' 次，决策轮 ' + turns.size + '，墙钟 ' + wall + 's，声明与事实一致'; }
+      } else if (actions.failed > 0 && actions.unresolved === 0 && actions.conflicts === 0) {
+        verdict = 'FAIL'; detail = '世界事实虽增加，但所需动作回执为失败：调用 ' + actions.calls + ' 次、失败 ' + actions.failed + ' 次，不能证明行为成功';
+      } else {
+        verdict = 'INCONCLUSIVE'; detail = '世界事实增量 ' + delta + '，但动作归属/终态不足：调用 ' + actions.calls + ' 次、成功 ' + actions.successful + '、失败 ' + actions.failed + '、无终态 ' + actions.unresolved + '、身份冲突 ' + actions.conflicts;
+      }
       add('S3', verdict, detail, ['evidence/inventory-before.json', 'evidence/inventory-after.json', 'evidence/tools.jsonl', 'evidence/ai.jsonl']);
     }
   }
@@ -253,7 +300,7 @@ function selftest() {
     W('jars.json', JSON.stringify(env.jarsAtPrepare));
     W('inventory-before.json', '{"items":{"minecraft:oak_log":0}}');
     W('inventory-after.json', '{"items":{"minecraft:oak_log":4}}');
-    W('tools.jsonl', '{"type":"tool_call","data":{"tool":"mine"}}\n{"type":"tool_call","data":{"tool":"goto"}}\n');
+    W('tools.jsonl', '{"type":"tool_call","data":{"tool":"mine","tool_call_id":"selftest-mine"}}\n{"type":"tool_result","data":{"tool":"mine","tool_call_id":"selftest-mine","success":true}}\n');
     W('ai.jsonl', '{"type":"turn","data":{"turn":1,"tools":113}}\n{"type":"assistant","data":{"text":"拿到了4个原木，完成了。"}}\n');
     W('context.jsonl', '{"type":"budget_gate","data":{"trimmed":167979}}\n');
     W('taskchain-final.json', JSON.stringify({ data: { taskChain: { primaryStatus: 'COMPLETED', description: '采集4个原木' } } }));

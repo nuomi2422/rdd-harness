@@ -147,8 +147,18 @@ function build(card, streams, opts) {
   if (!side.length) push('R4', 'SIDE_CONTEXT 身份', 'UNKNOWN', '没有 side context 事件');
   else {
     const claimedVerified = side.filter((o) => o.data && (o.data.identityVerified === true || o.data.status === 'PRESENT'));
-    push('R4', 'SIDE_CONTEXT 身份', claimedVerified.length ? 'MISMATCH' : 'MATCH',
-      claimedVerified.length ? '出现身份已验证声明（应为 UNKNOWN）' : '全部 UNKNOWN（符合预期）');
+    const hasIdentity = (o) => {
+      const d = o.data || {};
+      const identity = d.identity && typeof d.identity === 'object' ? d.identity : {};
+      return ['world_id', 'server_session', 'companion_id', 'session'].some((key) => o[key] || d[key] || identity[key]);
+    };
+    const explicitUnknown = (o) => {
+      const d = o.data || {};
+      return d.status === 'UNKNOWN' || d.identityStatus === 'UNKNOWN' || d.identityVerified === false;
+    };
+    if (claimedVerified.length) push('R4', 'SIDE_CONTEXT 身份', 'MISMATCH', '出现身份已验证声明（应为 UNKNOWN）');
+    else if (side.every((o) => hasIdentity(o) && explicitUnknown(o))) push('R4', 'SIDE_CONTEXT 身份', 'MATCH', '全部为有身份锚点的显式 UNKNOWN（符合预期）');
+    else push('R4', 'SIDE_CONTEXT 身份', 'UNKNOWN', 'side context 缺少身份锚点或显式 UNKNOWN，不能判身份正确');
   }
 
   const r5 = skillsRow(opts, streams);

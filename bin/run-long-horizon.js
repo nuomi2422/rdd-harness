@@ -141,38 +141,7 @@ async function main() {
       console.log(`      [${new Date().toISOString().slice(11, 19)}] VERDICT=${pf.verdict}（BLOCK=${pf.block}）`);
     }
   }
-  if (pf.verdict !== 'PASS') {
-    // ── 2026-10-27（主人当场授权）：只放行「工作区脏」这一类，且必须具名 ──────────
-    // 背景：P14 检查三个仓有没有未提交改动，但它分不清「谁的脏」。
-    // 学习线会话正在离线写代码（不用实例），于是实例是空的，却因为它的 23 处未提交被门禁挡住。
-    // 主人的裁定是「那边在离线写，可以启动」。所以这里给一条**窄口**：
-    //   · 只有 BLOCK 项**全部**是 P14 才放行；
-    //   · 必须传 --force-dirty "<授权原话>"，否则照旧拒绝；
-    //   · 放行会打印大字并在报告里落 forceDirty / forceReason 字段，事后能对账。
-    // 任何别的 BLOCK（P3 jar 内容、P4 重复 mixin 等）一律不放行 —— 那些是真缺陷，不是协调问题。
-    const forceReason = arg('force-dirty', '');
-    // 只取「✘ <门禁号> <名字>」这种行；尾部还有一行总结「✘ BLOCK 项必须处理完…」不带门禁号，
-    // 混进来会让 onlyP14 永远为 false（2026-10-27 本轮实测踩到）。
-    const blockLines = [...new Set((pf.text.match(/✘ [PQ][0-9]+[a-z]?[^\n]*/g) || []).map((s) => s.trim()))];
-    const onlyP14 = blockLines.length > 0 && blockLines.every((l) => /P14/.test(l));
-    if (forceReason && onlyP14) {
-      console.log('');
-      console.log('  ╔══════════════════════════════════════════════════════════════╗');
-      console.log('  ║ ⚠ 预检未过，但按主人授权放行「工作区脏(P14)」这一项            ║');
-      console.log('  ║   其余 BLOCK 项一概不放行。                                  ║');
-      console.log('  ╚══════════════════════════════════════════════════════════════╝');
-      console.log('      授权原话：' + forceReason);
-      blockLines.forEach((b) => console.log('      仍存在：' + b));
-      forcedDirty = true;
-    } else {
-      if (forceReason && !onlyP14) {
-        console.error('✘ --force-dirty 只对「工作区脏(P14)」有效；本轮的 BLOCK 里还有别的真缺陷，必须真修。');
-      }
-      console.error('✘ 预检没过，拒绝起实例（门禁是硬的，不绕）。先处理 BLOCK 项。');
-      blockLines.slice(0, 5).forEach((b) => console.error('   ' + b));
-      process.exit(3);
-    }
-  }
+  if (pf.verdict !== 'PASS') { console.error(pf.text); console.error('安装/包件核验未过，停止本次启动。'); process.exit(3); }
 
   // 2) 实例
   let started = false;

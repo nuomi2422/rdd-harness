@@ -66,6 +66,11 @@ function main() {
   const pngs = pngHashes(dir);
   const out = [];
   out.push('行数(csv)=' + rows.length + '  画面数(png)=' + pngs.length + (rows.length === pngs.length ? '  一致' : '  ✗ 不一致'));
+  if (rows.length !== pngs.length) {
+    out.push('结论：UNKNOWN（CSV 与 PNG 数量不一致，不能把错位素材判为有效）');
+    console.log(out.join('\n'));
+    process.exit(2);
+  }
 
   const uniq = new Set(pngs.map((p) => p.hash));
   out.push('唯一画面=' + uniq.size + '/' + pngs.length + '（重复率 ' + ((1 - uniq.size / pngs.length) * 100).toFixed(1) + '%）');

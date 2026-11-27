@@ -17,6 +17,11 @@ const STEPS = [
   ['A0 证据链', path.join(ROOT, 'lib', 'a0-evidence.js'), ['selftest']],
   ['A3 四层事实', path.join(ROOT, 'lib', 'situation.js'), ['selftest']],
   ['A7 实验口径', path.join(ROOT, 'lib', 'experiment.js'), ['selftest']],
+  ['A7 实验裁判真实CLI', path.join(ROOT, 'exp-judge.test.js'), [], 'node-test'],
+  ['A7 实验卡自检', path.join(ROOT, 'exp-card.js'), ['selftest']],
+  ['A7 craft A/B 自检', path.join(ROOT, 'exp-craft-ab.js'), ['--self-test']],
+  ['A7 night A/B 自检', path.join(ROOT, 'exp-night-ab.js'), ['--self-test']],
+  ['A7 学习曲线自检', path.join(ROOT, 'exp-curve.js'), ['--self-test']],
   ['A7 动作证据账本', path.join(ROOT, 'lib', 'action-ledger.js'), ['selftest']],
   ['统一验收表', path.join(ROOT, 'lib', 'acceptance.js'), ['selftest']],
   ['H21 观测账', path.join(ROOT, 'lib', 'noshot.js'), ['selftest']],
@@ -30,8 +35,6 @@ const STEPS = [
   // 只有"起真实子进程 + 按墙钟计时"的用例才允许重试（见下方 RETRYABLE 说明）。
   ['A1 尾读缺口', path.join(ROOT, 'bench-live.test.js'), [], 'node-test', 'wallclock'],
   ['A1 摘要读取', path.join(ROOT, 'bench-digest.test.js'), [], 'node-test'],
-  ['P22 时间边界', path.join(ROOT, 'lib', 'p22-digest.test.js'), [], 'node-test'],
-  ['Q9 登记读取', path.join(ROOT, 'q9-isolated.test.js'), [], 'node-test'],
   ['动作账本消费者', path.join(ROOT, 'exp-runner.test.js'), []],
   // 2026-11-10：lib 下这 6 个测试此前没登记（回归不跑=没测），本次补齐。
   ['覆盖生产者(七流单源)', path.join(ROOT, 'lib', 'coverage-producer.test.js'), [], 'node-test'],
@@ -65,6 +68,12 @@ const STEPS = [
   ['覆盖生产者样例', path.join(ROOT, 'lib', 'coverage-producer-sample.test.js'), [], 'node-test'],
   ['时间锁作用域', path.join(ROOT, 'lib', 'timelock-scope.test.js'), [], 'node-test'],
   ['测试登记约束', path.join(ROOT, 'lib', 'test-registry.test.js'), [], 'node-test'],
+  ['动作账本阶段回归', path.join(ROOT, 'lib', 'action-ledger-phase.test.js'), [], 'node-test'],
+  ['证据布局回归', path.join(ROOT, 'lib', 'evidence-layout.test.js'), [], 'node-test'],
+  ['证据时间窗回归', path.join(ROOT, 'lib', 'evidence-window.test.js'), [], 'node-test'],
+  ['P22 摘要回归', path.join(ROOT, 'lib', 'p22-digest.test.js'), [], 'node-test'],
+  ['P6 测试证明回归', path.join(ROOT, 'lib', 'p6-test-proof.test.js'), [], 'node-test'],
+  ['工作树磁盘回归', path.join(ROOT, 'lib', 'worktree-disk.test.js'), [], 'node-test'],
   // Existing script needs a NEW explicit scratch directory, not node --test.
   ['S5介入证据链', path.join(ROOT, 'lib', 's5-interventions.chain.test.js'),
     [path.join(os.tmpdir(), 'rdd-s5-regress-' + process.pid + '-' + Date.now())]],

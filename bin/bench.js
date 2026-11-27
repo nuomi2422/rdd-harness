@@ -82,6 +82,7 @@ function who(argv) { return arg(argv, '--by') || 'unknown'; }
  *   - 并发写：append-only 追加单行；不重写账本，避免覆盖并行会话。
  */
 const USAGE_FILE = process.env.BENCH_USAGE_FILE || path.join(HARNESS, 'experiments', 'usage.jsonl');
+const { appendUsage } = require('./lib/usage-ledger.js');
 function sessionOf(argv) {
   return (argv && arg(argv, '--session')) || process.env.DSH_SESSION_ID || process.env.CLAUDE_SESSION_ID || 'unknown';
 }
@@ -101,14 +102,9 @@ function logUsage(argv, cmd, opts) {
     card: opts.card || null,
     status: opts.status || 'ok',
   };
-  try {
-    fs.mkdirSync(path.dirname(USAGE_FILE), { recursive: true });
-    fs.appendFileSync(USAGE_FILE, JSON.stringify(row) + '\n');
-    return true;
-  } catch (e) {
-    if (!opts.quiet) console.error('[usage] 写不进使用账本（' + USAGE_FILE + '）：' + e.message);
-    return false;
-  }
+  const written = appendUsage(USAGE_FILE, row);
+  if (!written && !opts.quiet) console.error('[usage] 写不进使用账本（' + USAGE_FILE + '）');
+  return written;
 }
 function readUsage(limit) {
   if (!fs.existsSync(USAGE_FILE)) return [];
@@ -862,9 +858,7 @@ function brief(argv) {
     }
   }
   console.log('\n## 0.3 · 要进游戏才做的前置（纯文档/单测任务跳过）');
-  console.log('0) 要改代码：先 node bin/code-gate.js（薄门禁：8 条硬规则 + Bug台账查重）；');
-  console.log('1) 读 知识库/进游戏验证/001-进游戏核心工具.md（核心：实验台/任务链/指令+MCP/摄像机）；2) preflight → BLOCK=0；3) 先把判据写死建验证卡（知识库/实验数据记录/，V-YYYYMMDD-NN）；');
-  console.log('4) 起游戏只走 start-rdd.ps1 或 run-mutation.ps1；5) 进游戏前把 card/runId 绑到本轮，收工用 bench health <runDir>。');
+  console.log('进场只核安装/包件：node bin/harness-gate.js preflight；退场更新原主题后用 postflight --record <文件> 核质量。无需写码/提交/角色/闹钟门禁。');
   console.log('\n## 0.4 · 已知限制（别把 unknown 当 0）');
   for (const x of ep.limits) console.log('- ' + x);
   console.log('\n## 账本概况');
@@ -961,8 +955,8 @@ function computeHealth(runDir) {
       a0.reasons.push('deaths:UNKNOWN(' + ((env.deaths.reasons || []).join(',') || 'no-reason') + ')');
     }
   }
-  // A1：deaths:UNKNOWN 和 DIRTY 同级——拿不到死亡证据时不能把这一轮当健康样本。
-  const blockingA0 = a0.reasons.filter((r) => /DIRTY|截断|矛盾|deaths:UNKNOWN/.test(r));
+  // A0 缺失或关键覆盖 UNKNOWN 时不能签“健康样本”；PRESENT 介入仍单列，因为受控实验可合法存在。
+  const blockingA0 = a0.reasons.filter((r) => /a0:missing|session:UNKNOWN|interventions:UNKNOWN|delivery:UNKNOWN|DIRTY|截断|矛盾|deaths:UNKNOWN/.test(r));
   if (blockingA0.length) problems.push(...blockingA0);
   const out = { run: path.basename(runDir), healthy: problems.length === 0, problems, stopReason: (env.watch || {}).stopReason || null, drift: env.world ? env.world.drift : null, complete: { before: before.complete, after: after.complete }, postStopRequests: (env.stop || {}).postStopRequests, a0 };
   return out;
@@ -1272,6 +1266,16 @@ function selfTest() {
   for (const f2 of ['tools.jsonl', 'context.jsonl']) fs.writeFileSync(path.join(rd, 'evidence', f2), '');
   const c6 = run(['health', rd]);
   cases.push(['health catches incomplete after', c6.code === 1 && c6.out.includes('world.after incomplete'), c6.out.trim().slice(0, 120)]);
+  for (const f2 of ['world-before.json', 'world-after.json']) fs.writeFileSync(path.join(rd, 'evidence', f2), '{}');
+  const unknownEnv = { watch: { stopReason: 'wall 600s' }, world: { before: { complete: true }, after: { complete: true } }, stop: { javaExited: true },
+    a0: { version: 'a0-v1' }, session: { status: 'UNKNOWN' }, interventions: { status: 'UNKNOWN' }, context_delivery: { status: 'UNKNOWN' } };
+  fs.writeFileSync(path.join(rd, 'envelope.json'), JSON.stringify(unknownEnv));
+  const c6b = run(['health', rd]);
+  cases.push(['health blocks UNKNOWN autonomy coverage', c6b.code === 1 && c6b.out.includes('session:UNKNOWN') && c6b.out.includes('interventions:UNKNOWN') && c6b.out.includes('delivery:UNKNOWN'), c6b.out.trim().slice(0, 160)]);
+  fs.writeFileSync(path.join(rd, 'envelope.json'), JSON.stringify({ ...unknownEnv,
+    session: { status: 'CLEAN' }, interventions: { status: 'NONE', count: 0 }, context_delivery: { status: 'NONE' } }));
+  const c6c = run(['health', rd]);
+  cases.push(['health accepts complete clean coverage', c6c.code === 0 && c6c.out.includes('"healthy": true'), c6c.out.trim().slice(0, 120)]);
   // v0.1：probe / timeline / brief
   fs.writeFileSync(path.join(rd, 'evidence', 'tools.jsonl'),
     JSON.stringify({ timestamp: '2026-10-26T14:02:48.932Z', type: 'tool_call', data: { tool_call_id: 'mcp-4', tool: 'rdd_get_inventory' } }) + '\n' +

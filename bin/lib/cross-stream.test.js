@@ -24,9 +24,13 @@ test('真实流：tools 与 events 目前没有共同键（显式 UNKNOWN，不�
   assert.equal(shared, 0, 'events 里出现可匹配的 tool_call_id 时，需要更新跨流关联口径');
 });
 
-test('真实流：rdd.jsonl 是否带运行级 session（现状无 → 只能 UNKNOWN）', { skip: has ? false : '无真实文件' }, () => {
+test('真实流：rdd.jsonl 运行级 session 已存在，可按 session 对齐但不冒充世界效果', { skip: has ? false : '无真实文件' }, () => {
   const r = rows('rdd.jsonl');
+  const c = rows('context.jsonl');
   if (!r.length) return;
-  const withSession = r.filter((x) => typeof x.session === 'string' && x.session).length;
-  assert.equal(withSession, 0, 'rdd 出现 session 字段时，跨流关联口径要重写');
+  const rddSessions = new Set(r.map((x) => x.session).filter((x) => typeof x === 'string' && x));
+  const contextSessions = new Set(c.map((x) => x.session).filter((x) => typeof x === 'string' && x));
+  const shared = [...rddSessions].filter((x) => contextSessions.has(x));
+  assert.ok(rddSessions.size > 0, 'rdd.jsonl 应保留运行级 session');
+  assert.ok(shared.length > 0, 'rdd 与 context 至少有一个可对齐 session；相同 session 仍不证明世界效果');
 });

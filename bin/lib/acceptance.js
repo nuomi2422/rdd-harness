@@ -153,11 +153,15 @@ function runCheck(c, env) {
     }
     let env0 = null;
     try { env0 = JSON.parse(fs.readFileSync(abs, 'utf8').replace(/^\uFEFF/, '')); } catch { env0 = null; }
-    const fp = env0 ? fingerprint(env0.jarsAtLaunch) : '';
+    if (!env0 || typeof env0 !== 'object' || Array.isArray(env0)) {
+      return { type, status: STATUS.UNKNOWN, reason: '证据不是合法 JSON 对象：' + rel, evidence: rel };
+    }
+    const fp = fingerprint(env0.jarsAtLaunch);
     let version = fp ? short(fp) : '';
     if (c.requireCurrentBuild) {
       if (!fp) return { type, status: STATUS.UNKNOWN, reason: '证据里没有 jarsAtLaunch，无法判版本', evidence: rel, version };
-      if (env.currentFp && fp !== env.currentFp) {
+      if (!env.currentFp) return { type, status: STATUS.UNKNOWN, reason: '当前 mods 指纹缺失，无法判版本', evidence: rel, version };
+      if (fp !== env.currentFp) {
         return {
           type,
           status: STATUS.VERSION_MISMATCH,
@@ -168,8 +172,12 @@ function runCheck(c, env) {
       }
     }
     if (Number.isFinite(c.maxAgeDays) && c.maxAgeDays > 0) {
-      const stamp = env0 && (env0.finishedAt || env0.createdAt) ? Date.parse(env0.finishedAt || env0.createdAt) : NaN;
-      if (Number.isFinite(stamp) && env.now - stamp > c.maxAgeDays * 86400000) {
+      const rawStamp = env0.finishedAt || env0.createdAt;
+      const stamp = rawStamp ? Date.parse(rawStamp) : NaN;
+      if (!Number.isFinite(stamp)) {
+        return { type, status: STATUS.UNKNOWN, reason: '证据缺少可解析的 finishedAt/createdAt，无法判新鲜度', evidence: rel, version };
+      }
+      if (env.now - stamp > c.maxAgeDays * 86400000) {
         return { type, status: STATUS.STALE, reason: '证据超过 ' + c.maxAgeDays + ' 天', evidence: rel, version };
       }
     }
@@ -189,7 +197,8 @@ function runCheck(c, env) {
     if (c.requireCurrentBuild) {
       const fp = fingerprint(doc.jarsAtLaunch);
       if (!fp) return { type, status: STATUS.UNKNOWN, reason: '证据里没有 jarsAtLaunch，无法判版本', evidence: rel };
-      if (env.currentFp && fp !== env.currentFp) {
+      if (!env.currentFp) return { type, status: STATUS.UNKNOWN, reason: '当前 mods 指纹缺失，无法判版本', evidence: rel, version: short(fp) };
+      if (fp !== env.currentFp) {
         return { type, status: STATUS.VERSION_MISMATCH, reason: '证据是旧部署（' + short(fp) + '）', evidence: rel, version: short(fp) };
       }
     }
@@ -317,6 +326,20 @@ function selftest() {
   const m4 = { requirements: [{ id: 'A1', required: true, checks: [{ type: 'file', path: evFile, maxAgeDays: 1 }] }] };
   ok(evaluate(m4, { root: process.cwd(), runCmd, currentFp: '', now: Date.parse('2026-11-30T00:00:00Z') }).rows[0].status === 'STALE',
     '⑫ 证据过期 → STALE');
+
+  const corruptFile = path.join(tmp, 'corrupt.json');
+  fs.writeFileSync(corruptFile, '{broken');
+  const mCorrupt = { requirements: [{ id: 'C1', required: true, checks: [{ type: 'file', path: corruptFile }] }] };
+  ok(evaluate(mCorrupt, { root: process.cwd(), runCmd, currentFp: '' }).rows[0].status === 'UNKNOWN', '⑮ 损坏 JSON 不能 PASS');
+  const noStampFile = path.join(tmp, 'no-stamp.json');
+  fs.writeFileSync(noStampFile, JSON.stringify({ jarsAtLaunch: [{ file: 'a.jar', sha256: 'old' }] }));
+  const mNoStamp = { requirements: [{ id: 'T1', required: true, checks: [{ type: 'file', path: noStampFile, maxAgeDays: 1 }] }] };
+  ok(evaluate(mNoStamp, { root: process.cwd(), runCmd, currentFp: '', now: Date.parse('2026-11-30T00:00:00Z') }).rows[0].status === 'UNKNOWN', '⑯ 缺时间戳不能判新鲜度');
+  ok(evaluate(m2, { root: process.cwd(), runCmd, currentFp: '', now: Date.parse('2026-10-30T00:00:00Z') }).rows[0].status === 'UNKNOWN', '⑰ 当前指纹缺失不能判同版本');
+  const jsonFile = path.join(tmp, 'value.json');
+  fs.writeFileSync(jsonFile, JSON.stringify({ value: 4, jarsAtLaunch: [{ file: 'a.jar', sha256: 'old' }] }));
+  const mJson = { requirements: [{ id: 'J1', required: true, checks: [{ type: 'json', path: jsonFile, pointer: 'value', op: '>=', value: 4, requireCurrentBuild: true }] }] };
+  ok(evaluate(mJson, { root: process.cwd(), runCmd, currentFp: '', now: Date.parse('2026-10-30T00:00:00Z') }).rows[0].status === 'UNKNOWN', '⑱ json 检查当前指纹缺失不能 PASS');
   fs.rmSync(tmp, { recursive: true, force: true });
 
   // ⑬ FAIL 优先于 VERSION_MISMATCH（一项要求多检查时取最差）
@@ -331,7 +354,7 @@ function selftest() {
 
   console.log(fails.length
     ? 'acceptance selftest FAIL: ' + fails.join(' | ')
-    : 'acceptance selftest PASS（14 组：命令/人工/版本/过期/未覆盖项/整体不合格）');
+    : 'acceptance selftest PASS（18 组：命令/人工/版本/过期/未覆盖项/损坏JSON/缺时间戳/缺当前指纹/整体不合格）');
   return fails.length ? 1 : 0;
 }
 

@@ -24,8 +24,10 @@ const cases = [
   { name: 'smoke-goto-only', revision: 'SMOKE-r1', tool: 'goto', s3: 'FAIL', overall: 'FAIL', exit: 1 },
   { name: 'smoke-craft-only', revision: 'SMOKE-r1', tool: 'craft', s3: 'FAIL', overall: 'FAIL', exit: 1 },
   { name: 'smoke-no-mine', revision: 'SMOKE-r1', tool: null, s3: 'FAIL', overall: 'FAIL', exit: 1 },
-  // The frozen contract asks for a call, not successful execution or a terminal.
-  { name: 'smoke-mine-failed-result', revision: 'SMOKE-r1', tool: 'mine', failed: true, s3: 'PASS', overall: 'PASS_WITH_GAPS', exit: 0 },
+  // A call alone is not success: require a matching successful result.
+  { name: 'smoke-mine-failed-result', revision: 'SMOKE-r1', tool: 'mine', failed: true, s3: 'FAIL', overall: 'FAIL', exit: 1 },
+  { name: 'smoke-mine-missing-result', revision: 'SMOKE-r1', tool: 'mine', missingResult: true, s3: 'INCONCLUSIVE', overall: 'INCONCLUSIVE', exit: 1 },
+  { name: 'smoke-mine-identity-conflict', revision: 'SMOKE-r1', tool: 'mine', conflict: true, s3: 'INCONCLUSIVE', overall: 'INCONCLUSIVE', exit: 1 },
   { name: 'coverage-still-not-exercised', revision: 'COV-fixture', tool: null, s3: 'NOT_EXERCISED', overall: 'PASS_WITH_GAPS', exit: 0 },
   { name: 'other-goto-unchanged', revision: 'OTHER-fixture', tool: 'goto', s3: 'PASS', overall: 'PASS_WITH_GAPS', exit: 0 },
   { name: 'other-craft-unchanged', revision: 'OTHER-fixture', tool: 'craft', s3: 'PASS', overall: 'PASS_WITH_GAPS', exit: 0 },
@@ -62,8 +64,9 @@ for (const c of cases) {
   write('inventory-before.json', JSON.stringify({ data: { items: { 'minecraft:oak_log': 0 } } }));
   write('inventory-after.json', JSON.stringify({ data: { items: { 'minecraft:oak_log': 4 } } }));
   const calls = c.tool ? [row('tool_call', { tool: c.tool })] : [];
-  if (c.failed) calls.push(row('tool_result', { tool: c.tool, success: false,
-    result: JSON.stringify({ success: false, message: 'synthetic rejected attempt' }) }));
+  if (c.tool && !c.missingResult) calls.push(row('tool_result', { tool: c.tool, success: !c.failed,
+    ...(c.conflict ? { world_id: 'other-world' } : {}),
+    result: JSON.stringify({ success: !c.failed, message: c.failed ? 'synthetic rejected attempt' : 'synthetic success' }) }));
   write('tools.jsonl', calls.length ? calls.join('\n') + '\n' : '');
   write('events.jsonl', '');
   write('ai.jsonl', [JSON.stringify({ type: 'turn', data: { turn: 1, tools: 113 } }),

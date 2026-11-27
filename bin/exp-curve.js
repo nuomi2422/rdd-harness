@@ -57,17 +57,28 @@ function analyze(runDir) {
   const polls = msgs.filter((m) => m.tool === 'task_status').length;
   const idleish = msgs.filter((m) => /身体空闲|没有进行中|没有挂着的表|no active task/i.test(m.msg)).length;
 
-  // 死亡：从 instrumentation（监控目录）按时间窗过滤
+  // 死亡：从 instrumentation 按时间窗 + 同伴身份过滤；缺身份不能归到本 run。
   const deaths = [];
+  const scopeRow = results.find((r) => r.world_id || r.server_session || (r.data && r.data.companion_id));
+  const scope = {
+    world_id: scopeRow && scopeRow.world_id || null,
+    server_session: scopeRow && scopeRow.server_session || null,
+    companion_id: scopeRow && scopeRow.data && scopeRow.data.companion_id || null,
+  };
+  let deathsUnknown = false, deathIdentityRejected = 0;
   const inst = path.join(process.env.RDD_NUMEN_DIR || 'D:\\rdd\\mc\\The Best of Twilight Forest\\config\\numen', 'monitor', 'instrumentation.jsonl');
   if (t0 && fs.existsSync(inst)) {
-    for (const o of readJsonl(inst)) {
+    if (!scope.companion_id) deathsUnknown = true;
+    else for (const o of readJsonl(inst)) {
       if (o.type !== 'death') continue;
       const at = Date.parse(o.timestamp);
-      if (at >= t0 && at <= (tEnd || at)) {
-        const d = o.data || {};
-        deaths.push({ at: at, cause: d.deathCauseId, by: d.deathAttacker });
-      }
+      if (at < t0 || at > (tEnd || at)) continue;
+      const d = o.data || {};
+      if (!d.companionId) { deathIdentityRejected += 1; continue; }
+      if (d.companionId !== scope.companion_id) continue;
+      if (o.world_id && scope.world_id && o.world_id !== scope.world_id) continue;
+      if (o.server_session && scope.server_session && o.server_session !== scope.server_session) continue;
+      deaths.push({ at: at, cause: d.deathCauseId, by: d.deathAttacker });
     }
   }
 
@@ -96,7 +107,9 @@ function analyze(runDir) {
     seconds: (t0 && tEnd) ? Math.round((tEnd - t0) / 1000) : null,
     active_s: activeS,
     window_s: windowS,
-    deaths: deaths.length,
+    deaths: deathsUnknown ? null : deaths.length,
+    deathsIdentity: deathsUnknown ? 'UNKNOWN' : 'COMPANION_MATCH',
+    deathIdentityRejected,
     death_reasons: deaths.map((d) => (d.cause || '?') + (d.by ? ':' + d.by : '')),
     tool_calls: results.length,
     failed_calls: failed,
@@ -111,10 +124,11 @@ function selfTest() {
   const root = fs.mkdtempSync(path.join(os.tmpdir(), 'curve-'));
   const d = path.join(root, 'r1');
   fs.mkdirSync(path.join(d, 'evidence'), { recursive: true });
-  const mk = (sec, tool, msg, raw) => JSON.stringify({
+  const mk = (sec, tool, msg) => JSON.stringify({
     type: 'tool_result',
     timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, sec)).toISOString(),
-    data: { tool, result: JSON.stringify({ success: true, message: msg }) },
+    world_id: 'w1', server_session: 's1',
+    data: { tool, result: JSON.stringify({ success: true, message: msg }), companion_id: 'c1' },
   });
   fs.writeFileSync(path.join(d, 'evidence', 'tools.jsonl'), [
     mk(0, 'get_world_info', 'ok'),
@@ -122,8 +136,15 @@ function selfTest() {
     mk(120, 'mine', 'mined diamond_ore'),
   ].join('\n') + '\n');
   fs.writeFileSync(path.join(d, 'evidence', 'events.jsonl'), '');
-  const r = analyze(d);
-  const ok = r.seconds === 120 && r.milestones.stone_pickaxe === 60 && r.deaths === 0;
+  const mon = path.join(root, 'numen', 'monitor');
+  fs.mkdirSync(mon, { recursive: true });
+  const death = (sec, companionId) => JSON.stringify({ type: 'death', timestamp: new Date(Date.UTC(2026, 0, 1, 0, 0, sec)).toISOString(), data: { companionId, deathCauseId: 'test', deathAttacker: '' } });
+  fs.writeFileSync(path.join(mon, 'instrumentation.jsonl'), [death(30, 'c1'), death(40, 'other'), death(50, null)].join('\n') + '\n');
+  const prev = process.env.RDD_NUMEN_DIR;
+  process.env.RDD_NUMEN_DIR = path.join(root, 'numen');
+  let r;
+  try { r = analyze(d); } finally { if (prev === undefined) delete process.env.RDD_NUMEN_DIR; else process.env.RDD_NUMEN_DIR = prev; }
+  const ok = r.seconds === 120 && r.milestones.stone_pickaxe === 60 && r.deaths === 1 && r.deathIdentityRejected === 1;
   console.log(JSON.stringify({ selfTest: ok ? 'PASS' : 'FAIL', result: r }));
   return ok ? 0 : 1;
 }

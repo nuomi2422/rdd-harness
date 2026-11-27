@@ -1,18 +1,7 @@
 {
-  "$comment": "★ 门禁与配套服务的开关（2026-11-06 主人要求：可开关、先给简单总开关，轻量/重量分类以后再细化）。改这份即改行为，不用动代码。环境变量 RDD_GATE_MODE / RDD_AUTO_MONITOR 可临时覆盖。",
+  "$comment": "仅保留配套监测服务设置；门禁固定两项，旧full/light/off与角色分级已删除。",
   "version": 1,
-  "updated": "2026-11-06",
-  "gateMode": "full",
-  "gateModeOptions": {
-    "full": "默认：按角色和适用范围完整判断",
-    "light": "只省略列出的非阻断辅助项，其余照常判定",
-    "off": "仅供诊断，不产生进退场放行；不关闭硬保护"
-  },
-  "lightSkip": {
-    "$comment": "必须是 registry.gates.handling.diagnostic，且实际结果不能为 BLOCK。",
-    "preflight": ["P8", "P10b", "P10c", "P10d", "P11"],
-    "postflight": ["Q13", "Q14", "Q16", "Q18", "Q19"]
-  },
+  "updated": "2026-11-21",
   "autoMonitor": true,
   "autoMonitorNote": "开游戏（mc-start.js）成功后自动拉起监测台 8776；端口已在听就跳过。false = 完全不拉。环境变量 RDD_AUTO_MONITOR=0 可临时关。",
   "monitor": {
